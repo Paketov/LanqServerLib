@@ -14,11 +14,11 @@
 #include <thread>
 #include "LqDef.h"
 
-typedef std::basic_string<char> LqString;
-typedef std::mutex				LqMutex;
-typedef std::condition_variable LqCondVar;
-typedef std::unique_lock<LqMutex>	LqUniqueLock;
-typedef std::thread				LqSystemThread;
+typedef std::basic_string<char>                 LqString;
+typedef std::mutex                              LqMutex;
+typedef std::condition_variable                 LqCondVar;
+typedef std::unique_lock<LqMutex>               LqUniqueLock;
+typedef std::thread                             LqSystemThread;
 template<typename Type>
 using LqAtomic = std::atomic<Type>;
 inline void LqThreadYield() { std::this_thread::yield(); }

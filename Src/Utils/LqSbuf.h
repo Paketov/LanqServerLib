@@ -23,17 +23,17 @@ LQ_EXTERN_C_BEGIN
 
 struct LqSbuf
 {
-	uint64_t GlobOffset;
-	size_t Len;
-	void* Page0;
-	void* PageN;
+    uint64_t GlobOffset;
+    size_t Len;
+    void* Page0;
+    void* PageN;
 };
 
 struct LqSbufPtr
 {
-	uint64_t GlobOffset;
-	size_t OffsetInPage;
-	void* Page;
+    uint64_t GlobOffset;
+    size_t OffsetInPage;
+    void* Page;
 };
 
 #pragma pack(pop)

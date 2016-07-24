@@ -13,22 +13,22 @@
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
 class LQ_IMPORTEXPORT LqListConn
-{ 
-	size_t			Count;
-	LqConn**		Conn;
+{
+    size_t              Count;
+    LqConn**            Conn;
 public:
 
-	LqListConn();
-	~LqListConn();
+    LqListConn();
+    ~LqListConn();
 
-	LqListConn(LqListConn&& Another);
-	LqListConn(const LqListConn& Another);
+    LqListConn(LqListConn&& Another);
+    LqListConn(const LqListConn& Another);
 
-	size_t GetCount() const;
-	LqConn* &operator[](size_t Index) const;
-	LqListConn& operator=(const LqListConn& AnotherList);
+    size_t GetCount() const;
+    LqConn* &operator[](size_t Index) const;
+    LqListConn& operator=(const LqListConn& AnotherList);
 
-	bool Add(LqConn* NewConnection);
+    bool Add(LqConn* NewConnection);
 };
 
 #pragma pack(pop)

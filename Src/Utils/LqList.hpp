@@ -17,93 +17,93 @@
 template <typename T>
 class LqList
 {
-	struct ElH;
-	struct ElH
-	{
-		ElH* n;
-		ElH* p;
-	};
+    struct ElH;
+    struct ElH
+    {
+	ElH* n;
+	ElH* p;
+    };
 
-	ElH s;
-	size_t c;
+    ElH s;
+    size_t c;
 public:
 
-	class El
-	{
-		friend LqList<T>;
-		ElH h;
-	public:
-		T d;
-	};
+    class El
+    {
+	friend LqList<T>;
+	ElH h;
+    public:
+	T d;
+    };
 
-	LqList()
-	{
-		c = 0;
-		s.p = s.n = &s;
-	}
+    LqList()
+    {
+	c = 0;
+	s.p = s.n = &s;
+    }
 
-	~LqList()
+    ~LqList()
+    {
+	for(auto i = s.n; i != &s;)
 	{
-		for(auto i = s.n; i != &s;)
-		{
-			auto n = i->n;
-			LqFastAlloc::Delete(i);
-			i = n;
-		}
+	    auto n = i->n;
+	    LqFastAlloc::Delete(i);
+	    i = n;
 	}
+    }
 
-	El* Append()
+    El* Append()
+    {
+	auto e = LqFastAlloc::New<El>();
+	if(e != nullptr)
 	{
-		auto e = LqFastAlloc::New<El>();
-		if(e != nullptr)
-		{
-			e->n = s.n;
-			e->p = &s;
-			s.n = s.n->p = e;
-			c++;
-		}
-		return e;
+	    e->n = s.n;
+	    e->p = &s;
+	    s.n = s.n->p = e;
+	    c++;
 	}
+	return e;
+    }
 
-	void Delete(El** Element)
-	{
-		auto e = *Element;
-		*Element = e->h.n;
-		e->h.n->p = e->h.p;
-		e->h.p->n = e->h.n;
-		LqFastAlloc::Delete(e);
-		c--;
-	}
+    void Delete(El** Element)
+    {
+	auto e = *Element;
+	*Element = e->h.n;
+	e->h.n->p = e->h.p;
+	e->h.p->n = e->h.n;
+	LqFastAlloc::Delete(e);
+	c--;
+    }
 
-	void DeleteAll()
+    void DeleteAll()
+    {
+	for(auto i = s.n; i != &s;)
 	{
-		for(auto i = s.n; i != &s;)
-		{
-			auto n = i->n;
-			LqFastAlloc::Delete(i);
-			i = n;
-		}
+	    auto n = i->n;
+	    LqFastAlloc::Delete(i);
+	    i = n;
 	}
+    }
 
-	El* Search(T& Data)
+    El* Search(T& Data)
+    {
+	for(auto i = s.n; i != &s; i = i->n)
 	{
-		for(auto i = s.n; i != &s; i = i->n)
-		{
-			if(((El*)i)->d == Data)
-				return (El*)i;
-		}
-		return nullptr;
+	    if(((El*)i)->d == Data)
+		return (El*)i;
 	}
+	return nullptr;
+    }
 
-	El* StartEnum()
-	{
-		return (s.n == &s) ? nullptr : s.n;
-	}
+    El* StartEnum()
+    {
+	return (s.n == &s) ? nullptr : s.n;
+    }
 
-	El* NextEnum(El* Prev)
-	{
-		return (Prev->h.n == &s) ? nullptr : Prev->h.n;
-	}
+    El* NextEnum(El* Prev)
+    {
+	return (Prev->h.n == &s) ? nullptr : Prev->h.n;
+    }
 };
 
 

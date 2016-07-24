@@ -18,10 +18,10 @@
 # pragma warning(disable : 4996)
 # pragma warning(disable : 4307)
 
-# define LQ_CALL	__cdecl
-# define LQ_EXPORT	__declspec(dllexport)
-# define LQ_IMPORT	__declspec(dllimport)
-# define LQHTTPPTH_SEPARATOR '\\'
+# define LQ_CALL		__cdecl
+# define LQ_EXPORT		__declspec(dllexport)
+# define LQ_IMPORT		__declspec(dllimport)
+# define LQHTTPPTH_SEPARATOR	'\\'
 
 #else
 
@@ -57,7 +57,7 @@
 
 
 # define LQ_CALL
-# define LQ_EXPORT	__attribute__ ((visibility("default")))
+# define LQ_EXPORT      __attribute__ ((visibility("default")))
 # define LQ_IMPORT
 
 # define LQHTTPPTH_SEPARATOR '/'
@@ -116,13 +116,13 @@
 
 #define LQSTRUCT_ALIGN_MEM 1
 
-#define lqaopt			//LanQ Argument Optional
-#define lqain			//LanQ Argument Input
-#define lqaio			//LanQ Argument Input, output
-#define lqaout			//LanQ Argument Output
-#define lqats			//LanQ Argument Thread Save
-#define lqatns			//LanQ Argument Not Thread Save
-#define lqamrelease		//LanQ Argument Must release before use
-#define lqautf8		    	//LanQ Argument UTF-8 string
+#define lqaopt                  //LanQ Argument Optional
+#define lqain                   //LanQ Argument Input
+#define lqaio                   //LanQ Argument Input, output
+#define lqaout                  //LanQ Argument Output
+#define lqats                   //LanQ Argument Thread Save
+#define lqatns                  //LanQ Argument Not Thread Save
+#define lqamrelease             //LanQ Argument Must release before use
+#define lqautf8                 //LanQ Argument UTF-8 string
 
 #endif

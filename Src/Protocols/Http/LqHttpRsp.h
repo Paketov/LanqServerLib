@@ -88,12 +88,12 @@ LQ_IMPORTEXPORT char* LQ_CALL LqHttpRspHdrSizeDecrease(LqHttpConn* lqaio c, size
 */
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRspHdrSearchEx
 (
-	const LqHttpConn* lqain c, 
-	const char* lqain HeaderName, 
-	size_t HeaderNameLen, 
-	char** lqaopt lqaout HeaderNameResult, 
-	char** lqaopt lqaout HeaderValResult, 
-	char** lqaopt lqaout HederValEnd
+    const LqHttpConn* lqain c,
+    const char* lqain HeaderName,
+    size_t HeaderNameLen,
+    char** lqaopt lqaout HeaderNameResult,
+    char** lqaopt lqaout HeaderValResult,
+    char** lqaopt lqaout HederValEnd
 );
 
 /*
@@ -101,20 +101,20 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRspHdrSearchEx
 */
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRspHdrSearch
 (
-	const LqHttpConn* lqain lqatns c, 
-	const char* lqain HeaderName,
-	char** lqaopt lqaout HeaderNameResult,
-	char** lqaopt lqaout HeaderValResult,
-	char** lqaopt lqaout HederValEnd
+    const LqHttpConn* lqain lqatns c,
+    const char* lqain HeaderName,
+    char** lqaopt lqaout HeaderNameResult,
+    char** lqaopt lqaout HeaderValResult,
+    char** lqaopt lqaout HederValEnd
 );
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRspHdrEnum
 (
-	const LqHttpConn* lqain lqatns c, 
-	char** lqaout HeaderNameResult, 
-	char** lqaout HeaderNameResultEnd, 
-	char** lqaout HeaderValResult, 
-	char** lqaout HeaderValEnd
+    const LqHttpConn* lqain lqatns c,
+    char** lqaout HeaderNameResult,
+    char** lqaout HeaderNameResultEnd,
+    char** lqaout HeaderValResult,
+    char** lqaout HeaderValEnd
 );
 
 /*

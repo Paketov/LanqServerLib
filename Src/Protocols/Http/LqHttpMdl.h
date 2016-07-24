@@ -23,24 +23,24 @@ void LqHttpMdlPathRegister(LqHttpMdl* Module, LqHttpPathListHdr* l);
 #endif
 
 
-typedef enum 
+typedef enum
 {
-	LQHTTPMDL_LOAD_OK,
-	LQHTTPMDL_LOAD_FAIL,
-	LQHTTPMDL_LOAD_PROC_NOT_FOUND,
-	LQHTTPMDL_LOAD_ALREADY_HAVE,
-	LQHTTPMDL_LOAD_INDEPENDENTLY_UNLOADED
+    LQHTTPMDL_LOAD_OK,
+    LQHTTPMDL_LOAD_FAIL,
+    LQHTTPMDL_LOAD_PROC_NOT_FOUND,
+    LQHTTPMDL_LOAD_ALREADY_HAVE,
+    LQHTTPMDL_LOAD_INDEPENDENTLY_UNLOADED
 } LqHttpMdlLoadEnm;
 
-typedef enum 
+typedef enum
 {
-	LQHTTPMDL_REG_OK,
-	LQHTTPMDL_REG_FREE_LIB
+    LQHTTPMDL_REG_OK,
+    LQHTTPMDL_REG_FREE_LIB
 } LqHttpMdlRegistratorEnm;
 
 
 #define LQ_MOD_REGISTARTOR_NAME "LqHttpMdlRegistrator"
-typedef LqHttpMdlRegistratorEnm (LQ_CALL* LqHttpModuleRegistratorProc)(LqHttpProtoBase* Reg, uintptr_t ModuleHandle, const char* LibPath, void* UserData);
+typedef LqHttpMdlRegistratorEnm(LQ_CALL* LqHttpModuleRegistratorProc)(LqHttpProtoBase* Reg, uintptr_t ModuleHandle, const char* LibPath, void* UserData);
 
 LQ_IMPORTEXPORT LqHttpMdlLoadEnm LQ_CALL LqHttpMdlLoad(LqHttpProtoBase* lqain Reg, const char* lqain lqautf8 PathToLib, void* lqain lqaopt UserData, uintptr_t* lqaout lqaopt Handle);
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpMdlFree(LqHttpMdl* lqain Module);

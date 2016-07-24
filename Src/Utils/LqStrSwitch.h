@@ -48,34 +48,34 @@ inline constexpr uint64_t __StrSwitchStrCase(const char* const Str) { return ((u
 
 inline uint64_t __StrSwitch(const char* Str)
 {
-	uint32_t h = 0;
-	const char* k = Str;
-	for(; *k != '\0'; k++) h = 31 * h + *k;
-	return ((uint64_t)(k - Str) << 32) | (uint64_t)h;
+    uint32_t h = 0;
+    const char* k = Str;
+    for(; *k != '\0'; k++) h = 31 * h + *k;
+    return ((uint64_t)(k - Str) << 32) | (uint64_t)h;
 }
 
 inline uint64_t __StrSwitchN(const char* Str, size_t Len)
 {
-	uint32_t h = 0;
-	const char* k = Str, *m = Str + Len;
-	for(; k < m; k++) h = 31 * h + *k;
-	return ((uint64_t)(Len) << 32) | (uint64_t)h;
+    uint32_t h = 0;
+    const char* k = Str, *m = Str + Len;
+    for(; k < m; k++) h = 31 * h + *k;
+    return ((uint64_t)(Len) << 32) | (uint64_t)h;
 }
 
 inline uint64_t __StrSwitchI(const char* Str)
 {
-	uint32_t h = 0;
-	const char* k = Str;
-	for(; *k != '\0'; k++) h = 31 * h + tolower(*k);
-	return ((uint64_t)(k - Str) << 32) | (uint64_t)h;
+    uint32_t h = 0;
+    const char* k = Str;
+    for(; *k != '\0'; k++) h = 31 * h + tolower(*k);
+    return ((uint64_t)(k - Str) << 32) | (uint64_t)h;
 }
 
 inline uint64_t __StrSwitchNI(const char* Str, size_t Len)
 {
-	uint32_t h = 0;
-	const char* k = Str, *m = Str + Len;
-	for(; k < m; k++) h = 31 * h + tolower(*k);
-	return ((uint64_t)(Len) << 32) | (uint64_t)h;
+    uint32_t h = 0;
+    const char* k = Str, *m = Str + Len;
+    for(; k < m; k++) h = 31 * h + tolower(*k);
+    return ((uint64_t)(Len) << 32) | (uint64_t)h;
 }
 
 #define LQSTR_SWITCH(Str) \

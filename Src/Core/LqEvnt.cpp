@@ -4,10 +4,10 @@
 * 2016
 * LqEvnt... - Multiplatform abstracted event folower
 * This part of server support:
-*	+Windows native events objects.
-*	+linux epoll.
-*	+kevent for FreeBSD like systems.(*But not yet implemented)
-*	+poll for others unix systems.
+*       +Windows native events objects.
+*       +linux epoll.
+*       +kevent for FreeBSD like systems.(*But not yet implemented)
+*       +poll for others unix systems.
 *
 */
 

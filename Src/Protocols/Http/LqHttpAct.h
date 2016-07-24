@@ -21,7 +21,7 @@ LQ_EXTERN_C_BEGIN
 #define LqHttpActGetClassByConn(Conn) ((Conn)->ActionState & (LqHttpActState)0xC0)
 
 /*
-*	Action control.
+*       Action control.
 */
 LQ_IMPORTEXPORT void LQ_CALL LqHttpActSwitchToRsp(LqHttpConn* c);
 LQ_IMPORTEXPORT void LQ_CALL LqHttpActSwitchToClose(LqHttpConn* c);

@@ -22,12 +22,12 @@ class LQ_IMPORTEXPORT LqWrkList
 {
 protected:
 
-	mutable LqLocker<uint>				WorkerListLocker;
-	LqWorkerPtr*						Workers;
-	size_t								WorkersCount;
+    mutable LqLocker<uint>                      WorkerListLocker;
+    LqWorkerPtr*                                Workers;
+    size_t                                      WorkersCount;
 
-	LqWrkList();
-	~LqWrkList();
+    LqWrkList();
+    ~LqWrkList();
 };
 
 #pragma pack(pop)

@@ -18,15 +18,15 @@ LQ_EXTERN_C_BEGIN
 
 enum LqHttpRcvFileResultEnm
 {
-	LQHTTPRCV_FILE_OK,
-	LQHTTPRCV_MULTIPART,
-	LQHTTPRCV_NOT_MULTIPART,
-	LQHTTPRCV_NOT_HAVE_BOUNDARY,
-	LQHTTPRCV_BAD_BOUDARY,
-	LQHTTPRCV_ERR,
-	LQHTTPRCV_UPDATED,
-	LQHTTPRCV_CREATED,
-	LQHTTPRCV_ACT_ERR
+    LQHTTPRCV_FILE_OK,
+    LQHTTPRCV_MULTIPART,
+    LQHTTPRCV_NOT_MULTIPART,
+    LQHTTPRCV_NOT_HAVE_BOUNDARY,
+    LQHTTPRCV_BAD_BOUDARY,
+    LQHTTPRCV_ERR,
+    LQHTTPRCV_UPDATED,
+    LQHTTPRCV_CREATED,
+    LQHTTPRCV_ACT_ERR
 };
 
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFile(LqHttpConn* c, const char* lqaopt lqain lqautf8 Path, LqFileSz ReadLen, int Access, bool IsReplace, bool IsCreateSubdir);
@@ -57,32 +57,32 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRcvHdrScanf(const LqHttpConn* c, size_t D
 */
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRcvHdrSearchEx
 (
-	const LqHttpConn* lqain c, 
-	size_t Deep,
-	const char* lqain lqautf8 HeaderName, 
-	size_t HeaderNameLen, 
-	char** lqaopt lqaout lqautf8 HeaderNameResult, 
-	char** lqaopt lqaout lqautf8 HeaderValResult, 
-	char** lqaopt lqaout lqautf8 HeaderValEnd
+    const LqHttpConn* lqain c,
+    size_t Deep,
+    const char* lqain lqautf8 HeaderName,
+    size_t HeaderNameLen,
+    char** lqaopt lqaout lqautf8 HeaderNameResult,
+    char** lqaopt lqaout lqautf8 HeaderValResult,
+    char** lqaopt lqaout lqautf8 HeaderValEnd
 );
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRcvHdrSearch
 (
-	const LqHttpConn* lqain c, 
-	size_t Deep,
-	const char* lqain lqautf8 HeaderName,
-	char** lqaopt lqaout lqautf8 HeaderNameResult, 
-	char** lqaopt lqaout lqautf8 HeaderValResult, 
-	char** lqaopt lqaout lqautf8 HeaderValEnd
+    const LqHttpConn* lqain c,
+    size_t Deep,
+    const char* lqain lqautf8 HeaderName,
+    char** lqaopt lqaout lqautf8 HeaderNameResult,
+    char** lqaopt lqaout lqautf8 HeaderValResult,
+    char** lqaopt lqaout lqautf8 HeaderValEnd
 );
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRcvHdrEnum
 (
-	const LqHttpConn* lqain c, 
-	char** lqaout lqautf8 HeaderName, 
-	char** lqaout lqautf8 HeaderNameEnd,
-	char** lqaout lqautf8 HeaderVal,
-	char** lqaout lqautf8 HeaderValEnd
+    const LqHttpConn* lqain c,
+    char** lqaout lqautf8 HeaderName,
+    char** lqaout lqautf8 HeaderNameEnd,
+    char** lqaout lqautf8 HeaderVal,
+    char** lqaout lqautf8 HeaderValEnd
 );
 
 LQ_EXTERN_C_END

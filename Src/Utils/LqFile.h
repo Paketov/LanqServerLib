@@ -15,30 +15,30 @@
 
 LQ_EXTERN_C_BEGIN
 
-#define LQ_F_DIR				1
-#define LQ_F_REG				2
-#define LQ_F_OTHER				3
-#define LQ_F_DEV				4
+#define LQ_F_DIR                1
+#define LQ_F_REG                2
+#define LQ_F_OTHER              3
+#define LQ_F_DEV                4
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
 struct LqFileStat
 {
-    uint8_t			    Type;
-    uint16_t		    Access;
+    uint8_t             Type;
+    uint16_t            Access;
 
-    unsigned int		DevId;
-    unsigned int		Id;
-    unsigned int		RefCount;
+    unsigned int        DevId;
+    unsigned int        Id;
+    unsigned int        RefCount;
 
-    LqFileSz		    Size;
-    LqTimeSec			CreateTime;
-    LqTimeSec			ModifTime;
-    LqTimeSec			AccessTime;
+    LqFileSz            Size;
+    LqTimeSec           CreateTime;
+    LqTimeSec           ModifTime;
+    LqTimeSec           AccessTime;
 
-    short			    Gid;
-    short			    Uid;
+    short               Gid;
+    short               Uid;
 };
 
 #pragma pack(pop)
@@ -49,25 +49,25 @@ struct LqFileStat
 /*
 * LqFileOpen flags
 */
-#define LQ_O_RD				0x0000
-#define LQ_O_WR				0x0001
-#define LQ_O_RDWR			0x0002
-#define LQ_O_APND			0x0008
-#define LQ_O_RND			0x0010
-#define LQ_O_SEQ			0x0020
-#define LQ_O_TMP			0x0040
-#define LQ_O_NOINHERIT		0x0080
-#define LQ_O_CREATE			0x0100
-#define LQ_O_TRUNC			0x0200
-#define LQ_O_EXCL			0x0400
-#define LQ_O_SHORT_LIVED	0x1000
-#define LQ_O_DSYNC			0x2000
-#define LQ_O_TXT			0x4000
-#define LQ_O_BIN			0x8000
+#define LQ_O_RD             0x0000
+#define LQ_O_WR             0x0001
+#define LQ_O_RDWR           0x0002
+#define LQ_O_APND           0x0008
+#define LQ_O_RND            0x0010
+#define LQ_O_SEQ            0x0020
+#define LQ_O_TMP            0x0040
+#define LQ_O_NOINHERIT      0x0080
+#define LQ_O_CREATE         0x0100
+#define LQ_O_TRUNC          0x0200
+#define LQ_O_EXCL           0x0400
+#define LQ_O_SHORT_LIVED    0x1000
+#define LQ_O_DSYNC          0x2000
+#define LQ_O_TXT            0x4000
+#define LQ_O_BIN            0x8000
 
-#define LQ_SEEK_CUR			1
-#define LQ_SEEK_END			2
-#define LQ_SEEK_SET			0
+#define LQ_SEEK_CUR         1
+#define LQ_SEEK_END         2
+#define LQ_SEEK_SET         0
 
 
 

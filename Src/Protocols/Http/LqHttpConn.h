@@ -74,7 +74,7 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpConnReciveInStream(LqHttpConn* lqain lqat
 LQ_IMPORTEXPORT size_t LQ_CALL LqHttpConnSkip(LqHttpConn* lqain lqatns c, size_t Count);
 
 /*
-* @return: If success return 4 for IPv4, 6 for IPv6. If err return 0; 
+* @return: If success return 4 for IPv4, 6 for IPv6. If err return 0;
 */
 LQ_IMPORTEXPORT int LQ_CALL LqHttpConnGetRemoteIpStr(const LqHttpConn* lqain lqatns c, char* lqaout DestStr, size_t DestStrSize);
 LQ_IMPORTEXPORT int LQ_CALL LqHttpConnGetRemotePort(const LqHttpConn* lqain lqatns c);

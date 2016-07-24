@@ -19,34 +19,34 @@ struct LqHttpDomainPaths;
 
 struct LqHttpDomainPaths
 {
-	struct Element
-	{
-		LqHttpPth* p;
+    struct Element
+    {
+        LqHttpPth* p;
 
-		bool SetKey(const LqHttpPth* NewKey);
-		static size_t IndexByKey(const LqHttpPth* Key, size_t MaxCount);
-		static size_t IndexByKey(const char* Key, size_t MaxCount);
-		size_t IndexInBound(size_t MaxCount) const;
-		bool CmpKey(const LqHttpPth* Key) const;
-		bool CmpKey(const char* Key) const;
-	};
+        bool SetKey(const LqHttpPth* NewKey);
+        static size_t IndexByKey(const LqHttpPth* Key, size_t MaxCount);
+        static size_t IndexByKey(const char* Key, size_t MaxCount);
+        size_t IndexInBound(size_t MaxCount) const;
+        bool CmpKey(const LqHttpPth* Key) const;
+        bool CmpKey(const char* Key) const;
+    };
 
-	char*						NameDomain;
-	size_t						NameHash;
-	LqHashTable<Element>		t;
+    char*                               NameDomain;
+    size_t                              NameHash;
+    LqHashTable<Element>                t;
 
-	bool SetKey(const char* Name);
-	static size_t IndexByKey(const char* Key, size_t MaxCount);
-	size_t IndexInBound(size_t MaxCount) const;
-	bool CmpKey(const char* Key) const;
-	LqHttpDomainPaths();
-	~LqHttpDomainPaths();
+    bool SetKey(const char* Name);
+    static size_t IndexByKey(const char* Key, size_t MaxCount);
+    size_t IndexInBound(size_t MaxCount) const;
+    bool CmpKey(const char* Key) const;
+    LqHttpDomainPaths();
+    ~LqHttpDomainPaths();
 };
 
 struct LqHttpFileSystem
 {
-	LqHashTable<LqHttpDomainPaths>	t;
-	LqLocker<uintptr_t>				l;
+    LqHashTable<LqHttpDomainPaths>  t;
+    LqLocker<uintptr_t>             l;
 };
 
 #pragma pack(pop)

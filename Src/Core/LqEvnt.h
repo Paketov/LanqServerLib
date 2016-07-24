@@ -4,10 +4,10 @@
 * 2016
 * LqEvnt... - Multiplatform abstracted event folower.
 * This part of server support:
-*	+Windows native events objects.
-*	+linux epoll.
-*	+kevent for FreeBSD like systems.(*But not yet implemented)
-*	+poll for others unix systems.
+*       +Windows native events objects.
+*       +linux epoll.
+*       +kevent for FreeBSD like systems.(*But not yet implemented)
+*       +poll for others unix systems.
 *
 */
 
@@ -28,37 +28,37 @@ struct LqEvntConnInterator
 {
 #if defined(LQEVNT_KEVENT)
 #else
-	int Index;
+    int Index;
 #endif
 };
 
 
 struct LqEvnt
 {
-	bool IsSignalSended;
+    bool IsSignalSended;
 #if defined(LQEVNT_WIN_EVENT)
-	int			Count;
-	int			AllocCount;
-	HANDLE*		EventArr;
-	LqConn**	ClientArr;
-	int			EventEnumIndex;
+    int                 Count;
+    int                 AllocCount;
+    HANDLE*             EventArr;
+    LqConn**            ClientArr;
+    int                 EventEnumIndex;
 #elif defined(LQEVNT_KEVENT)
 #elif defined(LQEVNT_EPOLL)
-    int			EpollFd;
-    int			SignalFd;
-    LqConn**	ClientArr;
-    int			Count;
-    int			AllocCount;
-    void*		EventArr;
-    int			EventArrCount;
-	int			CountReady;
-    int			EventEnumIndex;
+    int                 EpollFd;
+    int                 SignalFd;
+    LqConn**            ClientArr;
+    int                 Count;
+    int                 AllocCount;
+    void*               EventArr;
+    int                 EventArrCount;
+    int                 CountReady;
+    int                 EventEnumIndex;
 #elif defined(LQEVNT_POLL)
-	void*		EventArr;
-	LqConn**	ClientArr;
-    int			Count;
-    int			AllocCount;
-	int			EventEnumIndex;
+    void*               EventArr;
+    LqConn**            ClientArr;
+    int                 Count;
+    int                 AllocCount;
+    int                 EventEnumIndex;
 #endif
 };
 

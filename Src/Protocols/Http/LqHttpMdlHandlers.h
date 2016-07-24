@@ -19,20 +19,20 @@ void LQ_CALL LqHttpMdlHandlersEmpty(LqHttpConn*);
 
 void LQ_CALL LqHttpMdlHandlersCacheInfo
 (
-	const char* lqain Path,
-	LqHttpConn* lqain lqaopt Connection,
+    const char* lqain Path,
+    LqHttpConn* lqain lqaopt Connection,
 
-	char* lqaout lqaopt CacheControlDestBuf, /* If after call CacheControlDestBuf == "", then Cache-Control no include in response headers. */
-	size_t CacheControlDestBufSize,
+    char* lqaout lqaopt CacheControlDestBuf, /* If after call CacheControlDestBuf == "", then Cache-Control no include in response headers. */
+    size_t CacheControlDestBufSize,
 
-	char* lqaout lqaopt EtagDestBuf, /* If after call EtagDestBuf == "", then Etag no include in response headers. */
-	size_t EtagDestBufSize,
+    char* lqaout lqaopt EtagDestBuf, /* If after call EtagDestBuf == "", then Etag no include in response headers. */
+    size_t EtagDestBufSize,
 
-	LqTimeSec* lqaout lqaopt LastModif, /* Local time. If after call LastModif == -1, then then no response Last-Modified. */
+    LqTimeSec* lqaout lqaopt LastModif, /* Local time. If after call LastModif == -1, then then no response Last-Modified. */
 
-	LqTimeSec* lqaout lqaopt Expires,
+    LqTimeSec* lqaout lqaopt Expires,
 
-	LqFileStat const* lqain lqaopt Stat /*(Something sends for optimizing)*/
+    LqFileStat const* lqain lqaopt Stat /*(Something sends for optimizing)*/
 );
 
 #pragma pack(push)
@@ -40,10 +40,10 @@ void LQ_CALL LqHttpMdlHandlersCacheInfo
 
 struct LqHttpExtensionMime
 {
-	size_t	CountExt;
-	char**	Ext;
-	size_t	CountMime;
-	char**	Mime;
+    size_t	CountExt;
+    char**	Ext;
+    size_t	CountMime;
+    char**	Mime;
 };
 
 #pragma pack(pop)
@@ -52,11 +52,11 @@ const LqHttpExtensionMime* LqHttpMimeExtension(const char* lqain Str);
 
 void LQ_CALL LqHttpMdlHandlersMime
 (
-	const char* lqain Path,
-	LqHttpConn* lqain lqaout Connection,
-	char* lqaout lqaopt MimeDestBuf,
-	size_t MimeDestBufLen,
-	LqFileStat const* lqain lqaopt Stat/*(Something sends for optimizing)*/
+    const char* lqain Path,
+    LqHttpConn* lqain lqaout Connection,
+    char* lqaout lqaopt MimeDestBuf,
+    size_t MimeDestBufLen,
+    LqFileStat const* lqain lqaopt Stat/*(Something sends for optimizing)*/
 );
 
 int LQ_CALL LqHttpMdlHandlersError(LqHttpConn* lqain c, int lqain Code);

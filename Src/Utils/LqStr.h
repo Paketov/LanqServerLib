@@ -19,6 +19,7 @@ LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrUtf8toUtf16(const char **Source, size_t Si
 LQ_IMPORTEXPORT char* LQ_CALL LqStrUtf16ToUtf8(char* Dest, uint32_t Source, size_t Size);
 LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrUtf16ToUtf8Char(uint32_t Source);
 
+LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrUtf8ToLowerChar(const char** Source, int SourceSize);
 LQ_IMPORTEXPORT char* LQ_CALL LqStrUtf8ToLower(char* Dest, size_t DestSize, const char* Source, int SourceSize);
 LQ_IMPORTEXPORT char* LQ_CALL LqStrUtf8ToUpper(char* Dest, size_t DestSize, const char* Source, int SourceSize);
 LQ_IMPORTEXPORT bool LQ_CALL LqStrUtf8CmpCaseLen(const char* s1, const char* s2, size_t Len);

@@ -10,8 +10,8 @@
 #define __TRANSACTED_FILE_H_HAS_INCLUDED__
 #include <stdint.h>
 
-#define LQ_TC_REPLACE		0x00010000
-#define LQ_TC_SUBDIR		0x00020000		
+#define LQ_TC_REPLACE           0x00010000
+#define LQ_TC_SUBDIR            0x00020000              
 
 LQ_EXTERN_C_BEGIN
 

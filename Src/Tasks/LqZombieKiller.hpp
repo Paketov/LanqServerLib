@@ -15,17 +15,18 @@
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-class LqZombieKillerTask: 
-	public LqWrkTask::Task, 
-	public virtual LqWrkList
+class LqZombieKillerTask:
+    public LqWrkTask::Task,
+    public virtual LqWrkList
 {
 public:
-	LqTimeMillisec		TimeLiveConnectionMillisec;
-	bool				IsSyncCheck;
-	virtual	  uintptr_t SendCommand(const char * Command, ...); //gettimelife settimelife
+    LqTimeMillisec              TimeLiveConnectionMillisec;
+    bool                        IsSyncCheck;
 
-	LqZombieKillerTask();
-	virtual void WorkingMethod();
+    virtual uintptr_t SendCommand(const char * Command, ...); //gettimelife settimelife
+
+    LqZombieKillerTask();
+    virtual void WorkingMethod();
 };
 
 #pragma pack(pop)

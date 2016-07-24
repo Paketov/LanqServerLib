@@ -17,10 +17,10 @@ LQ_IMPORTEXPORT LqHttpAtz* LQ_CALL LqHttpAtzCreate(LqHttpAtzTypeEnm AuthType, co
 
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpAtzAdd
 (
-	LqHttpAtz* lqaio NetAutoriz, 
-	uint8_t AccessMask, 
-	const char* lqain lqautf8 UserName, 
-	const char* lqain lqautf8 Password
+    LqHttpAtz* lqaio NetAutoriz,
+    uint8_t AccessMask,
+    const char* lqain lqautf8 UserName,
+    const char* lqain lqautf8 Password
 );
 
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpAtzRemove(LqHttpAtz* lqaio NetAutoriz, const char* lqain lqautf8 UserName);

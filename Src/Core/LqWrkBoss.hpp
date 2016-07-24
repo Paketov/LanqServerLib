@@ -12,7 +12,7 @@
 *                   /        \              |
 *                  /         LqConn --------+
 *                 /             \
-*			  +-----+        +-----+
+*                         +-----+        +-----+
 *             |LqWrk|        |LqWrk|
 *             +-----+        +-----+
 *
@@ -43,95 +43,95 @@ typedef LqSharedPtr<LqWrk, LqFastAlloc::Delete> LqWorkerPtr;
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
 class LQ_IMPORTEXPORT LqWrkBoss:
-	virtual private LqWrkList,
-	virtual protected LqZombieKillerTask,
-	public LqThreadBase
+    virtual private LqWrkList,
+    virtual protected LqZombieKillerTask,
+    public LqThreadBase
 {
-	friend LqWrk;
+    friend LqWrk;
 
-	ullong								Id;
-	LqEvnt								EventChecker;
-	LqConn								Sock;
-	LqQueueCmd<uchar>					CommandQueue;
-	LqString							Port;
-	LqString							Host;
-	LqAtomic<size_t>					CountConnAccepted;
-	LqAtomic<size_t>					CountConnIgnored;
-	LqLocker<uintptr_t>					LockerBind;
-	bool								IsRebind;
-	int									TransportProtoFamily;
-	size_t								MaxConnections;
+    ullong                  Id;
+    LqEvnt                  EventChecker;
+    LqConn                  Sock;
+    LqQueueCmd<uchar>       CommandQueue;
+    LqString                Port;
+    LqString                Host;
+    LqAtomic<size_t>        CountConnAccepted;
+    LqAtomic<size_t>        CountConnIgnored;
+    LqLocker<uintptr_t>     LockerBind;
+    bool                    IsRebind;
+    int                     TransportProtoFamily;
+    size_t                  MaxConnections;
 public:
-	volatile int						ErrBind;
-	LqWrkTask							Tasks;
+    volatile int            ErrBind;
+    LqWrkTask               Tasks;
 private:
-	LqProto*							ProtoReg;
+    LqProto*                ProtoReg;
 
 
-	bool DistributeListConnections(const LqListConn& List);
-	size_t MinBusyWithoutLock(size_t* MinCount = LqDfltPtr());
-	size_t MaxBusyWithoutLock(size_t* MaxCount = LqDfltPtr());
-	void	ParseInputCommands();
-	size_t	MinBusy(size_t* MinCount = LqDfltPtr());
-	virtual void BeginThread();
-	virtual void NotifyThread();
-	bool	UnbindSock();
-	bool	Bind();
+    bool        DistributeListConnections(const LqListConn& List);
+    size_t      MinBusyWithoutLock(size_t* MinCount = LqDfltPtr());
+    size_t      MaxBusyWithoutLock(size_t* MaxCount = LqDfltPtr());
+    void        ParseInputCommands();
+    size_t      MinBusy(size_t* MinCount = LqDfltPtr());
+    virtual void BeginThread();
+    virtual void NotifyThread();
+    bool        UnbindSock();
+    bool        Bind();
 public:
-	
-	LqWrkBoss();
-	LqWrkBoss(LqProto* ConnectManager);
-	~LqWrkBoss();
 
-	void SetPrt(const char* Name);
-	void GetPrt(char* DestName, size_t DestLen);
-	void SetProtocolFamily(int Val);
-	int GetProtocolFamily();
-	void SetMaxConn(int Val);
-	int GetMaxConn();
-	void Rebind();
+    LqWrkBoss();
+    LqWrkBoss(LqProto* ConnectManager);
+    ~LqWrkBoss();
+
+    void        SetPrt(const char* Name);
+    void        GetPrt(char* DestName, size_t DestLen);
+    void        SetProtocolFamily(int Val);
+    int         GetProtocolFamily();
+    void        SetMaxConn(int Val);
+    int         GetMaxConn();
+    void        Rebind();
 
 
-	ullong GetId() const;
+    ullong      GetId() const;
 
-	LqProto* RegisterProtocol(LqProto* ConnectManager);
-	LqProto* GetProto();
+    LqProto*    RegisterProtocol(LqProto* ConnectManager);
+    LqProto*    GetProto();
 
-	size_t	CountConnections() const;
+    size_t      CountConnections() const;
 
-	bool	TransferConnections(const LqListConn& ConnectionsList);
-	bool	TransferConnectionsEnd(LqListConn& ConnectionsList, LqWrk* LqWorker);
-	
-	bool	AddWorkers(size_t Count = LqSystemThread::hardware_concurrency(), bool IsStart = true);
-	bool	AddWorker(const LqWorkerPtr& LqWorker);
+    bool        TransferConnections(const LqListConn& ConnectionsList);
+    bool        TransferConnectionsEnd(LqListConn& ConnectionsList, LqWrk* LqWorker);
 
-	bool	AddConnAsync(LqConn* Connection);
-	bool	AddConnSync(LqConn* Connection);
+    bool        AddWorkers(size_t Count = LqSystemThread::hardware_concurrency(), bool IsStart = true);
+    bool        AddWorker(const LqWorkerPtr& LqWorker);
 
-	size_t	CountWorkers() const;
-	/* Get worker by id*/
-	LqWorkerPtr operator[](size_t Index) const;
+    bool        AddConnAsync(LqConn* Connection);
+    bool        AddConnSync(LqConn* Connection);
 
-	void	StartAllWorkersSync();
-	void	StartAllWorkersAsync();
+    size_t      CountWorkers() const;
+    /* Get worker by id*/
+    LqWorkerPtr operator[](size_t Index) const;
 
-	bool	KickWorker(ullong IdWorker);
-	void	KickWorkers(size_t Count);
+    void        StartAllWorkersSync();
+    void        StartAllWorkersAsync();
 
-	bool    CloseAllConnAsync();
-	void    CloseAllConnSync();
+    bool        KickWorker(ullong IdWorker);
+    void        KickWorkers(size_t Count);
 
-	bool    CloseConnByIpAsync(const sockaddr* Addr);
-	void    CloseConnByIpSync(const sockaddr* Addr);
+    bool        CloseAllConnAsync();
+    void        CloseAllConnSync();
 
-	/* !!! In @Proc you must not call in workers or Boss ..Sync methods. In this case block inevitable. !!!*/
-	void	EnumConn(void* UserData, void(*Proc)(void *UserData, LqConn *Conn));
+    bool        CloseConnByIpAsync(const sockaddr* Addr);
+    void        CloseConnByIpSync(const sockaddr* Addr);
 
-	bool	UnlockConnection(LqConn* Conn);
+    /* !!! In @Proc you must not call in workers or Boss ..Sync methods. In this case block inevitable. !!!*/
+    void        EnumConn(void* UserData, void(*Proc)(void *UserData, LqConn *Conn));
 
-	size_t	KickAllWorkers();
+    bool        UnlockConnection(LqConn* Conn);
 
-	LqString DebugInfo();
+    size_t      KickAllWorkers();
+
+    LqString    DebugInfo();
 };
 
 #pragma pack(pop)

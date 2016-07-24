@@ -14,12 +14,12 @@
 
 
 
-#define LQ_CP_UTF_8					 1
-#define LQ_CP_UTF_7					 2
-#define LQ_CP_UTF_16				 3
-#define LQ_CP_ACP                    4
-#define LQ_CP_OEMCP                  5
-#define LQ_CP_MACCP                  6
+#define LQCP_UTF_8                  1
+#define LQCP_UTF_7                  2
+#define LQCP_UTF_16                 3
+#define LQCP_ACP                    4
+#define LQCP_OEMCP                  5
+#define LQCP_MACCP                  6
 
 
 LQ_EXTERN_C_BEGIN

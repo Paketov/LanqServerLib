@@ -3,7 +3,7 @@
 #define __LQ_MD5_H__HAS_DEFINED__
 
 #include "LqOs.h"
- #include <stddef.h>
+#include <stddef.h>
 
 
 LQ_EXTERN_C_BEGIN
@@ -11,13 +11,13 @@ LQ_EXTERN_C_BEGIN
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-typedef struct 
+typedef struct
 {
-	unsigned int lo, hi;
-	unsigned int a, b, c, d;
-	unsigned char buffer[64];
-	unsigned int block[16];
-	char __t[128];
+    unsigned int lo, hi;
+    unsigned int a, b, c, d;
+    unsigned char buffer[64];
+    unsigned int block[16];
+    char __t[128];
 } LqMd5Ctx;
 
 #pragma pack(pop)
@@ -25,16 +25,16 @@ typedef struct
 
 enum
 {
-	LqMd5DigestLen = 16,
-	LqMd5HexStringLen = (LqMd5DigestLen * 2)
+    LqMd5DigestLen = 16,
+    LqMd5HexStringLen = (LqMd5DigestLen * 2)
 };
 
 #pragma pack(push)
 #pragma pack(1)
 
-typedef struct 
-{ 
-	unsigned char data[LqMd5DigestLen];
+typedef struct
+{
+    unsigned char data[LqMd5DigestLen];
 } LqMd5;
 
 #pragma pack(pop)

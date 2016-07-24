@@ -11,16 +11,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef unsigned char		uchar;
-typedef unsigned short		ushort;
-typedef unsigned int		uint;
-typedef unsigned long		ulong;
-typedef long long			llong;
-typedef unsigned long long	ullong;
-typedef llong				LqFileSz;
-typedef llong				LqTimeSec;
-typedef llong				LqTimeMillisec;
-typedef unsigned char		LqConnFlag;
+typedef unsigned char           uchar;
+typedef unsigned short          ushort;
+typedef unsigned int            uint;
+typedef unsigned long           ulong;
+typedef long long               llong;
+typedef unsigned long long      ullong;
+typedef llong                   LqFileSz;
+typedef llong                   LqTimeSec;
+typedef llong                   LqTimeMillisec;
+typedef unsigned char           LqConnFlag;
 
 
 #define lq_max(a,b) (((a) > (b)) ? (a) : (b))
