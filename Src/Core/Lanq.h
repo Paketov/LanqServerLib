@@ -32,7 +32,7 @@ struct LqProto;
 #define	_LQCONN_FLAG_RESERVED_2		((LqConnFlag)128)	/*Use only for windows internal*/
 
 #pragma pack(push)
-#pragma pack(LQCACHE_ALIGN_MEM)
+#pragma pack(LQSTRUCT_ALIGN_MEM)
 
 struct LqConn
 {

@@ -37,7 +37,7 @@
 #define LqHttpConnGetRmtAddr(ConnectionPointer) ((sockaddr*)((LqHttpConn*)ConnectionPointer + 1))
 
 #pragma pack(push)
-#pragma pack(LQCACHE_ALIGN_MEM)
+#pragma pack(LQSTRUCT_ALIGN_MEM)
 
 struct HttpConnIp4
 {

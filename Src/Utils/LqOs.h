@@ -114,7 +114,7 @@
 # define LQSTRUCT_ALIGN_FAST 8
 #endif
 
-#define LQCACHE_ALIGN_MEM 1
+#define LQSTRUCT_ALIGN_MEM 1
 
 #define lqaopt			//LanQ Argument Optional
 #define lqain			//LanQ Argument Input

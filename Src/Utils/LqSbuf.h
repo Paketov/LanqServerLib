@@ -19,7 +19,7 @@ LQ_EXTERN_C_BEGIN
 * Common part of stream buffer.
 */
 #pragma pack(push)
-#pragma pack(LQCACHE_ALIGN_MEM)
+#pragma pack(LQSTRUCT_ALIGN_MEM)
 
 struct LqSbuf
 {

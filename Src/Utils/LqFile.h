@@ -21,7 +21,7 @@ LQ_EXTERN_C_BEGIN
 #define LQ_F_DEV				4
 
 #pragma pack(push)
-#pragma pack(LQCACHE_ALIGN_MEM)
+#pragma pack(LQSTRUCT_ALIGN_MEM)
 
 struct LqFileStat
 {

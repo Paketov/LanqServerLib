@@ -19,7 +19,7 @@ void SHARED_POINTERDeleteProc(T* p) { delete p; }
 
 
 #pragma pack(push)
-#pragma pack(LQCACHE_ALIGN_MEM)
+#pragma pack(LQSTRUCT_ALIGN_MEM)
 
 template<typename _t, void(*DeleteProc)(_t*) = SHARED_POINTERDeleteProc>
 class LqSharedPtr

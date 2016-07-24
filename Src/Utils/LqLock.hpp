@@ -11,7 +11,7 @@
 
 
 #pragma pack(push)
-#pragma pack(LQCACHE_ALIGN_MEM)
+#pragma pack(LQSTRUCT_ALIGN_MEM)
 
 template<typename TypeFlag = unsigned>
 class LqLocker
