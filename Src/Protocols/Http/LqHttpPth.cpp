@@ -759,7 +759,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpPthInfo
 	if(IsDir && ((l < 1) || (WebPath[l - 1] != '?')))
 	{
 		WebPathBuf = WebPath;
-		WebPathBuf.append(0, '?');
+		WebPathBuf.append(1, '?');
 		WebPath = WebPathBuf.c_str();
 	}
 	LqHttpDomainPaths::Element* p = nullptr;

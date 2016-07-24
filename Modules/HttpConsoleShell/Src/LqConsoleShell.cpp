@@ -1172,7 +1172,7 @@ const char* PrintHlp()
 		"   mkredirect [-(f - for file(otherwise for dir);)] <domen name or *> <URI path> <Real path> <Respose status> <permissions> - Add redirection."
 		" Ex: mkredirect * /hello http://lanqsite.com/hello 301 rt\n"
 		"   mkpth [-(f - for file(otherwise for dir);)] <domen name or *> <URI path> <Real path> <permissions> - Add path."
-		" Ex: mkpth * /hello/ \"C:\LanQ\html\\\" rt; mkpth -f * / \"C:\LanQ\html\index.html\" rt; mkpth * / \"C:\LanQ\html\" rt\n"
+		" Ex: mkpth * /hello/ \"C:\\LanQ\\html\\\" rt; mkpth -f * / \"C:\\LanQ\\html\\index.html\" rt; mkpth * / \"C:\\LanQ\\html\" rt\n"
 		"   rmpth [-(f - for file(otherwise for dir);)] <domen name or *> <URI path> - Remove path or redirection."
 		" Ex: rmpth -f * /\n"
 		"   pthlist [-(p - full info)] - Show all path list. If set flag -p, then show authorization info also.\n"
