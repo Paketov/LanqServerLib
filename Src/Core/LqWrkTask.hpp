@@ -15,14 +15,14 @@ class LqWrkTask;
 #include "LqDef.hpp"
 
 #pragma pack(push)
-#pragma pack(LQCACHE_ALIGN_FAST)
+#pragma pack(LQSTRUCT_ALIGN_FAST)
 
 class LQ_IMPORTEXPORT LqWrkTask:
 	public LqThreadBase
 {
 public:
 #pragma pack(push)
-#pragma pack(LQCACHE_ALIGN_FAST)
+#pragma pack(LQSTRUCT_ALIGN_FAST)
 	class LQ_IMPORTEXPORT Task
 	{
 		friend					LqWrkTask;

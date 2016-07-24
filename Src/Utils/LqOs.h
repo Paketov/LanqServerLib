@@ -109,9 +109,9 @@
 
 /* Set struct or class align */
 #ifdef LQARCH_32
-# define LQCACHE_ALIGN_FAST 4
+# define LQSTRUCT_ALIGN_FAST 4
 #else
-# define LQCACHE_ALIGN_FAST 8
+# define LQSTRUCT_ALIGN_FAST 8
 #endif
 
 #define LQCACHE_ALIGN_MEM 1

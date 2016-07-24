@@ -10,7 +10,7 @@
 #include "Lanq.h"
 
 #pragma pack(push) 
-#pragma pack(LQCACHE_ALIGN_FAST)
+#pragma pack(LQSTRUCT_ALIGN_FAST)
 
 class LQ_IMPORTEXPORT LqListConn
 { 

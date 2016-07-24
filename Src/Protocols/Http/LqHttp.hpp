@@ -20,7 +20,7 @@ struct LqHttpQuery;
 #define LqHttpGetReg(ConnectionPointer) ((LqHttpProto*)((LqConn*)ConnectionPointer)->Proto)
 
 #pragma pack(push)
-#pragma pack(LQCACHE_ALIGN_FAST)
+#pragma pack(LQSTRUCT_ALIGN_FAST)
 
 struct LqCachedFileHdr
 {

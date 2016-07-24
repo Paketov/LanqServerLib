@@ -33,7 +33,7 @@ void Uncache(const char* Path, void* Buf, size_t SizeBuf, time_t LastModifTime)
 */
 
 #pragma pack(push)
-#pragma pack(LQCACHE_ALIGN_FAST)
+#pragma pack(LQSTRUCT_ALIGN_FAST)
 
 struct DefaultCacheData
 {

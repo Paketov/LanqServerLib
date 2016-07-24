@@ -333,7 +333,7 @@ struct LqHttpPathListHdr
 #pragma pack(pop)
 
 #pragma pack(push)
-#pragma pack(LQCACHE_ALIGN_FAST)
+#pragma pack(LQSTRUCT_ALIGN_FAST)
 
 /*
 * Module defenition for http protocol
