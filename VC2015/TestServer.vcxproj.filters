@@ -1,0 +1,273 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Core">
+      <UniqueIdentifier>{ecb400ed-1225-4ae0-98d3-0d75e5c0b655}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Protocols">
+      <UniqueIdentifier>{0e4fb40d-b9a5-43d4-b59b-08d572738c49}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Protocols\HTTP">
+      <UniqueIdentifier>{272730cf-13d1-4538-b180-12804273ad7b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Tasks">
+      <UniqueIdentifier>{fba4ca93-37ec-4026-bfe9-0e9e0c7427a4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Utils">
+      <UniqueIdentifier>{81342e6e-0a96-4165-bdad-17931fa0f238}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\Src\Core\LqListConn.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Core\LqLog.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Core\LqThreadBase.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Core\LqWrk.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Core\LqWrkBoss.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Core\LqWrkList.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Core\LqWrkTask.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Core\LqEvnt.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpMdl.cpp">
+      <Filter>Protocols\HTTP</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpMdlHandlers.cpp">
+      <Filter>Protocols\HTTP</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpPrs.cpp">
+      <Filter>Protocols\HTTP</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpPth.cpp">
+      <Filter>Protocols\HTTP</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpRcv.cpp">
+      <Filter>Protocols\HTTP</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpRsp.cpp">
+      <Filter>Protocols\HTTP</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Protocols\Http\LqHttp.cpp">
+      <Filter>Protocols\HTTP</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpAct.cpp">
+      <Filter>Protocols\HTTP</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpAtz.cpp">
+      <Filter>Protocols\HTTP</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpConn.cpp">
+      <Filter>Protocols\HTTP</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqStr.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqTime.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqBse64.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqConn.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqCp.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqErr.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqFile.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqFileTrd.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqLib.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqSbuf.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Tasks\LqZombieKiller.cpp">
+      <Filter>Tasks</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqMd5.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\Src\Core\LqListConn.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqLog.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqQueueCmd.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqThreadBase.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqWrk.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqWrkBoss.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqWrkList.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqWrkTask.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\Lanq.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqEvnt.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpLogging.h">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpMdl.h">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpMdlHandlers.h">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpPrs.h">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpPth.h">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpPth.hpp">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpRcv.h">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpRsp.h">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttp.h">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttp.hpp">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpAct.h">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpAtz.h">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpConn.h">
+      <Filter>Protocols\HTTP</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqSbuf.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqSharedPtr.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqStr.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqStr.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqStrSwitch.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqTime.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqTime.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqAlloc.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqAtm.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqBse64.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqBse64.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqConn.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqCp.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqDef.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqDef.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqDfltRef.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqFile.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqFileChe.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqFileTrd.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqHashTable.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqLib.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqList.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqLock.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqOs.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Tasks\LqZombieKiller.hpp">
+      <Filter>Tasks</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqErr.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqEvntPoll.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqEvntWin.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqEvntEpoll.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqMd5.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

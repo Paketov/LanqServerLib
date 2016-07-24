@@ -1,0 +1,337 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|ARM">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM">
+      <Configuration>Release</Configuration>
+      <Platform>ARM</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\Src\Core\LqEvnt.cpp" />
+    <ClCompile Include="..\Src\Core\LqListConn.cpp" />
+    <ClCompile Include="..\Src\Core\LqLog.cpp" />
+    <ClCompile Include="..\Src\Core\LqThreadBase.cpp" />
+    <ClCompile Include="..\Src\Core\LqWrk.cpp" />
+    <ClCompile Include="..\Src\Core\LqWrkBoss.cpp" />
+    <ClCompile Include="..\Src\Core\LqWrkList.cpp" />
+    <ClCompile Include="..\Src\Core\LqWrkTask.cpp" />
+    <ClCompile Include="..\Src\Protocols\Http\LqHttp.cpp" />
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpAct.cpp" />
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpAtz.cpp" />
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpConn.cpp" />
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpMdl.cpp" />
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpMdlHandlers.cpp" />
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpPrs.cpp" />
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpPth.cpp" />
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpRcv.cpp" />
+    <ClCompile Include="..\Src\Protocols\Http\LqHttpRsp.cpp" />
+    <ClCompile Include="..\Src\Tasks\LqZombieKiller.cpp" />
+    <ClCompile Include="..\Src\Utils\LqBse64.cpp" />
+    <ClCompile Include="..\Src\Utils\LqConn.cpp" />
+    <ClCompile Include="..\Src\Utils\LqCp.cpp" />
+    <ClCompile Include="..\Src\Utils\LqErr.cpp" />
+    <ClCompile Include="..\Src\Utils\LqFile.cpp" />
+    <ClCompile Include="..\Src\Utils\LqFileTrd.cpp" />
+    <ClCompile Include="..\Src\Utils\LqLib.cpp" />
+    <ClCompile Include="..\Src\Utils\LqSbuf.cpp" />
+    <ClCompile Include="..\Src\Utils\LqStr.cpp" />
+    <ClCompile Include="..\Src\Utils\LqTime.cpp" />
+    <ClCompile Include="..\Src\Utils\LqMd5.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\Src\Core\Lanq.h" />
+    <ClInclude Include="..\Src\Core\LqEvnt.h" />
+    <ClInclude Include="..\Src\Core\LqEvntEpoll.h" />
+    <ClInclude Include="..\Src\Core\LqEvntPoll.h" />
+    <ClInclude Include="..\Src\Core\LqEvntWin.h" />
+    <ClInclude Include="..\Src\Core\LqListConn.hpp" />
+    <ClInclude Include="..\Src\Core\LqLog.h" />
+    <ClInclude Include="..\Src\Core\LqQueueCmd.hpp" />
+    <ClInclude Include="..\Src\Core\LqThreadBase.hpp" />
+    <ClInclude Include="..\Src\Core\LqWrk.hpp" />
+    <ClInclude Include="..\Src\Core\LqWrkBoss.hpp" />
+    <ClInclude Include="..\Src\Core\LqWrkList.hpp" />
+    <ClInclude Include="..\Src\Core\LqWrkTask.hpp" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttp.h" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttp.hpp" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpAct.h" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpAtz.h" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpConn.h" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpLogging.h" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpMdl.h" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpMdlHandlers.h" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpPrs.h" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpPth.h" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpPth.hpp" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpRcv.h" />
+    <ClInclude Include="..\Src\Protocols\Http\LqHttpRsp.h" />
+    <ClInclude Include="..\Src\Tasks\LqZombieKiller.hpp" />
+    <ClInclude Include="..\Src\Utils\LqAlloc.hpp" />
+    <ClInclude Include="..\Src\Utils\LqAtm.hpp" />
+    <ClInclude Include="..\Src\Utils\LqBse64.h" />
+    <ClInclude Include="..\Src\Utils\LqBse64.hpp" />
+    <ClInclude Include="..\Src\Utils\LqConn.h" />
+    <ClInclude Include="..\Src\Utils\LqCp.h" />
+    <ClInclude Include="..\Src\Utils\LqDef.h" />
+    <ClInclude Include="..\Src\Utils\LqDef.hpp" />
+    <ClInclude Include="..\Src\Utils\LqDfltRef.hpp" />
+    <ClInclude Include="..\Src\Utils\LqErr.h" />
+    <ClInclude Include="..\Src\Utils\LqFile.h" />
+    <ClInclude Include="..\Src\Utils\LqFileChe.hpp" />
+    <ClInclude Include="..\Src\Utils\LqFileTrd.h" />
+    <ClInclude Include="..\Src\Utils\LqHashTable.hpp" />
+    <ClInclude Include="..\Src\Utils\LqLib.h" />
+    <ClInclude Include="..\Src\Utils\LqList.hpp" />
+    <ClInclude Include="..\Src\Utils\LqLock.hpp" />
+    <ClInclude Include="..\Src\Utils\LqOs.h" />
+    <ClInclude Include="..\Src\Utils\LqSbuf.h" />
+    <ClInclude Include="..\Src\Utils\LqSharedPtr.hpp" />
+    <ClInclude Include="..\Src\Utils\LqStr.h" />
+    <ClInclude Include="..\Src\Utils\LqStr.hpp" />
+    <ClInclude Include="..\Src\Utils\LqStrSwitch.h" />
+    <ClInclude Include="..\Src\Utils\LqTime.h" />
+    <ClInclude Include="..\Src\Utils\LqTime.hpp" />
+    <ClInclude Include="..\Src\Utils\LqMd5.h" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{B7EB2CE3-2ADA-4AAE-90E2-9FB826162B5F}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>TestServer</RootNamespace>
+    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <ProjectName>Lanq</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <CodeAnalysisRuleSet>E:\Programs\VS2015\Team Tools\Static Analysis Tools\Rule Sets\NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <CodeAnalysisRuleSet>E:\Programs\VS2015\Team Tools\Static Analysis Tools\Rule Sets\NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;LANQBUILD;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(LocalDebuggerWorkingDirectory)..\Src\Utils;$(LocalDebuggerWorkingDirectory)..\Src\Tasks;$(LocalDebuggerWorkingDirectory)..\Src\Protocols\Http;$(LocalDebuggerWorkingDirectory)..\Src\Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions</EnableEnhancedInstructionSet>
+      <StructMemberAlignment>1Byte</StructMemberAlignment>
+      <EnablePREfast>false</EnablePREfast>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\andr\Documents\Visual Studio 2015\Projects\TestServer\TestServer\openssl-1.0.1l-vs2008\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(LocalDebuggerWorkingDirectory)..\Src\Utils;$(LocalDebuggerWorkingDirectory)..\Src\Tasks;$(LocalDebuggerWorkingDirectory)..\Src\Protocols\Http;$(LocalDebuggerWorkingDirectory)..\Src\Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;LANQBUILD;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(LocalDebuggerWorkingDirectory)..\Src\Utils;$(LocalDebuggerWorkingDirectory)..\Src\Tasks;$(LocalDebuggerWorkingDirectory)..\Src\Protocols\Http;$(LocalDebuggerWorkingDirectory)..\Src\Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;LANQBUILD;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(LocalDebuggerWorkingDirectory)..\Src\Utils;$(LocalDebuggerWorkingDirectory)..\Src\Tasks;$(LocalDebuggerWorkingDirectory)..\Src\Protocols\Http;$(LocalDebuggerWorkingDirectory)..\Src\Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <InlineFunctionExpansion>Default</InlineFunctionExpansion>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <OmitFramePointers>true</OmitFramePointers>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <StructMemberAlignment>1Byte</StructMemberAlignment>
+      <EnablePREfast>false</EnablePREfast>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\andr\Documents\Visual Studio 2015\Projects\TestServer\TestServer\openssl-1.0.1l-vs2008\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(LocalDebuggerWorkingDirectory)..\Src\Utils;$(LocalDebuggerWorkingDirectory)..\Src\Tasks;$(LocalDebuggerWorkingDirectory)..\Src\Protocols\Http;$(LocalDebuggerWorkingDirectory)..\Src\Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <InlineFunctionExpansion>Default</InlineFunctionExpansion>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <OmitFramePointers>true</OmitFramePointers>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;LANQBUILD;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(LocalDebuggerWorkingDirectory)..\Src\Utils;$(LocalDebuggerWorkingDirectory)..\Src\Tasks;$(LocalDebuggerWorkingDirectory)..\Src\Protocols\Http;$(LocalDebuggerWorkingDirectory)..\Src\Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <InlineFunctionExpansion>Default</InlineFunctionExpansion>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <OmitFramePointers>true</OmitFramePointers>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

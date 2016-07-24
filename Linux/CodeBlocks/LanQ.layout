@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_layout_file>
+	<ActiveTarget name="Debug" />
+	<File name="../../Modules/HttpConsoleShell/Src/LqConsoleShell.cpp" open="1" top="0" tabpos="22" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="4274" topLine="129" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Core/LqEvntEpoll.h" open="1" top="0" tabpos="25" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="3380" topLine="105" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Core/Lanq.h" open="1" top="0" tabpos="12" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="799" topLine="15" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Utils/LqStr.cpp" open="1" top="0" tabpos="26" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="9342" topLine="368" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Utils/LqConn.cpp" open="1" top="0" tabpos="4" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="1246" topLine="52" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Protocols/Http/LqHttp.cpp" open="1" top="0" tabpos="8" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="611" topLine="135" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Protocols/Http/LqHttpConn.cpp" open="1" top="0" tabpos="5" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="3612" topLine="157" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Core/LqEvnt.h" open="1" top="0" tabpos="23" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="1570" topLine="16" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Protocols/Http/LqHttpAtz.cpp" open="1" top="0" tabpos="1" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="3033" topLine="99" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Protocols/Http/LqHttpRsp.h" open="1" top="0" tabpos="15" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="714" topLine="9" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Core/LqWrkTask.hpp" open="1" top="0" tabpos="27" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="1010" topLine="12" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Utils/LqFile.h" open="1" top="0" tabpos="21" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="306" topLine="6" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Protocols/Http/LqHttp.h" open="1" top="0" tabpos="17" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="7877" topLine="327" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Core/LqEvntPoll.h" open="1" top="0" tabpos="24" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="3146" topLine="63" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Core/LqEvnt.cpp" open="1" top="0" tabpos="2" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="797" topLine="0" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Core/LqThreadBase.cpp" open="1" top="0" tabpos="9" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="6629" topLine="260" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Utils/LqOs.h" open="1" top="0" tabpos="3" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="895" topLine="0" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Protocols/Http/LqHttpMdl.cpp" open="1" top="0" tabpos="18" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="5801" topLine="201" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Core/LqWrk.cpp" open="1" top="0" tabpos="10" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="7283" topLine="246" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Core/LqWrkBoss.cpp" open="1" top="0" tabpos="7" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="7775" topLine="273" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Protocols/Http/LqHttpMdlHandlers.cpp" open="1" top="0" tabpos="16" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="9428" topLine="324" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Utils/LqConn.h" open="1" top="0" tabpos="13" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="3352" topLine="78" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Protocols/Http/LqHttpRsp.cpp" open="1" top="0" tabpos="14" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="13234" topLine="475" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Core/LqWrkTask.cpp" open="1" top="1" tabpos="6" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="3636" topLine="0" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Utils/LqLock.hpp" open="1" top="0" tabpos="11" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="2459" topLine="59" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Utils/LqDef.hpp" open="1" top="0" tabpos="19" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="515" topLine="0" />
+		</Cursor>
+	</File>
+	<File name="../../Src/Utils/LqFile.cpp" open="1" top="0" tabpos="20" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="10420" topLine="394" />
+		</Cursor>
+	</File>
+</CodeBlocks_layout_file>

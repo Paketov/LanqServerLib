@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="LanQ" />
+		<Option makefile="../Makefile" />
+		<Option makefile_is_custom="1" />
+		<Option execution_dir="../../Linux" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<MakeCommands>
+			<Build command="$make $target" />
+			<CompileFile command="$make -f $makefile $file" />
+			<Clean command="$make clean$target" />
+			<DistClean command="$make -f $makefile distclean$target" />
+			<AskRebuildNeeded command="$make -q -f $makefile $target" />
+			<SilentBuild command="$make $target &gt; $(CMD_NULL)" />
+		</MakeCommands>
+		<Build>
+			<Target title="Debug">
+				<Option output="liblanq.so" imp_lib="$(TARGET_OUTPUT_DIR)$(TARGET_OUTPUT_BASENAME).a" def_file="$(TARGET_OUTPUT_DIR)$(TARGET_OUTPUT_BASENAME).def" prefix_auto="0" extension_auto="0" />
+				<Option object_output="obj/Debug/" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option host_application="../../Modules/HttpConsoleShell/Linux/lanq" />
+				<Option run_host_application_in_terminal="1" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+				<MakeCommands>
+					<Build command="$make DEBUG=1" />
+					<CompileFile command="$make $file" />
+					<Clean command="$make clean" />
+					<DistClean command="$make -f $makefile distclean$target" />
+					<AskRebuildNeeded command="$make -q $target" />
+					<SilentBuild command="$make DEBUG=1 &gt; $(CMD_NULL)" />
+				</MakeCommands>
+			</Target>
+			<Target title="Release">
+				<Option output="../lanq" imp_lib="$(TARGET_OUTPUT_DIR)$(TARGET_OUTPUT_BASENAME).a" def_file="$(TARGET_OUTPUT_DIR)$(TARGET_OUTPUT_BASENAME).def" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Release/" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-O2" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+				<MakeCommands>
+					<Build command="$make" />
+					<CompileFile command="$make $file" />
+					<Clean command="$make clean$target" />
+					<DistClean command="$make -f $makefile distclean$target" />
+					<AskRebuildNeeded command="$make -q" />
+					<SilentBuild command="$make &gt; $(CMD_NULL)" />
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wall" />
+			<Add option="-fexceptions" />
+		</Compiler>
+		<Unit filename="../../Modules/HttpConsoleShell/Src/LqConsoleShell.cpp" />
+		<Unit filename="../../Src/Core/Lanq.h" />
+		<Unit filename="../../Src/Core/LqEvnt.cpp" />
+		<Unit filename="../../Src/Core/LqEvnt.h" />
+		<Unit filename="../../Src/Core/LqEvntEpoll.h" />
+		<Unit filename="../../Src/Core/LqEvntPoll.h" />
+		<Unit filename="../../Src/Core/LqEvntWin.h" />
+		<Unit filename="../../Src/Core/LqListConn.cpp" />
+		<Unit filename="../../Src/Core/LqListConn.hpp" />
+		<Unit filename="../../Src/Core/LqLog.cpp" />
+		<Unit filename="../../Src/Core/LqLog.h" />
+		<Unit filename="../../Src/Core/LqQueueCmd.hpp" />
+		<Unit filename="../../Src/Core/LqThreadBase.cpp" />
+		<Unit filename="../../Src/Core/LqThreadBase.hpp" />
+		<Unit filename="../../Src/Core/LqWrk.cpp" />
+		<Unit filename="../../Src/Core/LqWrk.hpp" />
+		<Unit filename="../../Src/Core/LqWrkBoss.cpp" />
+		<Unit filename="../../Src/Core/LqWrkBoss.hpp" />
+		<Unit filename="../../Src/Core/LqWrkList.cpp" />
+		<Unit filename="../../Src/Core/LqWrkList.hpp" />
+		<Unit filename="../../Src/Core/LqWrkTask.cpp" />
+		<Unit filename="../../Src/Core/LqWrkTask.hpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttp.cpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttp.h" />
+		<Unit filename="../../Src/Protocols/Http/LqHttp.hpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpAct.cpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpAct.h" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpAtz.cpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpAtz.h" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpConn.cpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpConn.h" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpLogging.h" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpMdl.cpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpMdl.h" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpMdlHandlers.cpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpMdlHandlers.h" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpPrs.cpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpPrs.h" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpPth.cpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpPth.h" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpPth.hpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpRcv.cpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpRcv.h" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpRsp.cpp" />
+		<Unit filename="../../Src/Protocols/Http/LqHttpRsp.h" />
+		<Unit filename="../../Src/Tasks/LqZombieKiller.cpp" />
+		<Unit filename="../../Src/Tasks/LqZombieKiller.hpp" />
+		<Unit filename="../../Src/Utils/LqAlloc.hpp" />
+		<Unit filename="../../Src/Utils/LqAtm.hpp" />
+		<Unit filename="../../Src/Utils/LqBse64.cpp" />
+		<Unit filename="../../Src/Utils/LqBse64.h" />
+		<Unit filename="../../Src/Utils/LqBse64.hpp" />
+		<Unit filename="../../Src/Utils/LqConn.cpp" />
+		<Unit filename="../../Src/Utils/LqConn.h" />
+		<Unit filename="../../Src/Utils/LqCp.cpp" />
+		<Unit filename="../../Src/Utils/LqCp.h" />
+		<Unit filename="../../Src/Utils/LqDef.h" />
+		<Unit filename="../../Src/Utils/LqDef.hpp" />
+		<Unit filename="../../Src/Utils/LqDfltRef.hpp" />
+		<Unit filename="../../Src/Utils/LqErr.cpp" />
+		<Unit filename="../../Src/Utils/LqErr.h" />
+		<Unit filename="../../Src/Utils/LqFile.cpp" />
+		<Unit filename="../../Src/Utils/LqFile.h" />
+		<Unit filename="../../Src/Utils/LqFileChe.hpp" />
+		<Unit filename="../../Src/Utils/LqFileTrd.cpp" />
+		<Unit filename="../../Src/Utils/LqFileTrd.h" />
+		<Unit filename="../../Src/Utils/LqHashTable.hpp" />
+		<Unit filename="../../Src/Utils/LqLib.cpp" />
+		<Unit filename="../../Src/Utils/LqLib.h" />
+		<Unit filename="../../Src/Utils/LqList.hpp" />
+		<Unit filename="../../Src/Utils/LqLock.hpp" />
+		<Unit filename="../../Src/Utils/LqOs.h" />
+		<Unit filename="../../Src/Utils/LqSbuf.cpp" />
+		<Unit filename="../../Src/Utils/LqSbuf.h" />
+		<Unit filename="../../Src/Utils/LqSharedPtr.hpp" />
+		<Unit filename="../../Src/Utils/LqStr.cpp" />
+		<Unit filename="../../Src/Utils/LqStr.h" />
+		<Unit filename="../../Src/Utils/LqStr.hpp" />
+		<Unit filename="../../Src/Utils/LqStrSwitch.h" />
+		<Unit filename="../../Src/Utils/LqTime.cpp" />
+		<Unit filename="../../Src/Utils/LqTime.h" />
+		<Unit filename="../../Src/Utils/LqTime.hpp" />
+		<Unit filename="../../Src/Utils/md5.cpp" />
+		<Unit filename="../../Src/Utils/md5.h" />
+		<Extensions>
+			<code_completion />
+			<debugger />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>
