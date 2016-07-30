@@ -21,7 +21,7 @@
 # define LQ_CALL		__cdecl
 # define LQ_EXPORT		__declspec(dllexport)
 # define LQ_IMPORT		__declspec(dllimport)
-# define LQHTTPPTH_SEPARATOR	'\\'
+# define LQ_PATH_SEPARATOR	'\\'
 
 #else
 
@@ -60,7 +60,7 @@
 # define LQ_EXPORT      __attribute__ ((visibility("default")))
 # define LQ_IMPORT
 
-# define LQHTTPPTH_SEPARATOR '/'
+# define LQ_PATH_SEPARATOR '/'
 #endif
 
 /* Extern defines */

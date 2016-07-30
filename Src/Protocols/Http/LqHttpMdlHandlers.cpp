@@ -232,7 +232,7 @@ LqHttpEvntHandlerFn LQ_CALL LqHttpMdlHandlersGetMethod(LqHttpConn* c)
 			int l = LqStrLen(np->RealPath);
 			for(; l >= 0; l--)
 			{
-			    if(np->RealPath[l] == LQHTTPPTH_SEPARATOR)
+			    if(np->RealPath[l] == LQ_PATH_SEPARATOR)
 				break;
 			}
 			char UpDirPath[LQ_MAX_PATH];
@@ -373,7 +373,7 @@ void LQ_CALL LqHttpMdlHandlersMime(const char* Path, LqHttpConn* Connection, cha
     if(MimeDestBuf == nullptr)
 	return;
     const char* f, *e;
-    if(((f = strrchr(Path, LQHTTPPTH_SEPARATOR)) == nullptr) || ((e = strrchr(f + 1, '.')) == nullptr) || (e == (f + 1)))
+    if(((f = strrchr(Path, LQ_PATH_SEPARATOR)) == nullptr) || ((e = strrchr(f + 1, '.')) == nullptr) || (e == (f + 1)))
 	e = "";
     else
 	e++;

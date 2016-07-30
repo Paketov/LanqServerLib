@@ -7,6 +7,7 @@
 */
 
 #include "LqAlloc.hpp"
+#include "LqOs.h"
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
@@ -57,9 +58,9 @@ public:
 	auto e = LqFastAlloc::New<El>();
 	if(e != nullptr)
 	{
-	    e->n = s.n;
-	    e->p = &s;
-	    s.n = s.n->p = e;
+	    e->h.n = s.n;
+	    e->h.p = &s;
+	    s.n = s.n->p = (ElH*)e;
 	    c++;
 	}
 	return e;
@@ -97,12 +98,17 @@ public:
 
     El* StartEnum()
     {
-	return (s.n == &s) ? nullptr : s.n;
+	return (s.n == &s) ? nullptr : (El*)s.n;
     }
 
     El* NextEnum(El* Prev)
     {
-	return (Prev->h.n == &s) ? nullptr : Prev->h.n;
+	return (Prev->h.n == &s) ? nullptr : (El*)Prev->h.n;
+    }
+
+    size_t Count() const
+    {
+	return c;
     }
 };
 

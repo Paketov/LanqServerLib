@@ -339,13 +339,13 @@ lblAgain:
 			break;
 		    case LQHTTPMDL_LOAD_FAIL:
 			fprintf(OutFile, " ERROR: Fail load module \"%s\"\n", strerror(lq_errno));
-
 			break;
 		    case LQHTTPMDL_LOAD_PROC_NOT_FOUND:
 			fprintf(OutFile, " ERROR: Fail load module. Not found entry point\n");
 			break;
 		    case LQHTTPMDL_LOAD_INDEPENDENTLY_UNLOADED:
 			fprintf(OutFile, " NOTE: Independently unloaded\n");
+			break;
 		    case LQHTTPMDL_LOAD_OK:
 		    {
 			char NameBuf[1024];
@@ -392,7 +392,7 @@ lblAgain:
 		    fprintf(OutFile, " #%llx (%s) %s\n", (ullong)h, Buf, (IsFree) ? "released" : "");
 	    }
 	    break;
-	    LQSTR_CASE("mdlcommand")
+	    LQSTR_CASE("mdlcmd")
 	    {
 		LqString ModuleName = ReadPath(CommandData);
 		if(ModuleName.empty())
@@ -584,7 +584,8 @@ lblAgain:
 			switch(Type & LQHTTPPTH_TYPE_SEP)
 			{
 			    case LQHTTPPTH_TYPE_DIR:
-				fprintf(
+				fprintf
+				(
 				    OutFile,
 				    "  %s\n   dir%s\n   \"%s\"\n   #%llx (%s)\n   %s",
 				    NetAddress,
@@ -596,7 +597,8 @@ lblAgain:
 				);
 				break;
 			    case LQHTTPPTH_TYPE_FILE:
-				fprintf(
+				fprintf
+				(
 				    OutFile,
 				    "  %s\n   file\n   \"%s\"\n   #%llx (%s)\n   %s",
 				    NetAddress,
@@ -607,7 +609,8 @@ lblAgain:
 				);
 				break;
 			    case LQHTTPPTH_TYPE_EXEC_DIR:
-				fprintf(
+				fprintf
+				(
 				    OutFile,
 				    "  %s\n   exec dir%s\n   #%llx\n   #%llx (%s)\n   %s",
 				    NetAddress,
@@ -619,7 +622,8 @@ lblAgain:
 				);
 				break;
 			    case LQHTTPPTH_TYPE_EXEC_FILE:
-				fprintf(
+				fprintf
+				(
 				    OutFile,
 				    "  %s\n   exec file\n   #%llx\n   #%llx (%s)\n   %s",
 				    NetAddress,
@@ -630,7 +634,8 @@ lblAgain:
 				);
 				break;
 			    case LQHTTPPTH_TYPE_FILE_REDIRECTION:
-				fprintf(
+				fprintf
+				(
 				    OutFile,
 				    "  %s\n   file redirection\n   %s\n   #%llx (%s)\n   %s",
 				    NetAddress,
@@ -641,7 +646,8 @@ lblAgain:
 				);
 				break;
 			    case LQHTTPPTH_TYPE_DIR_REDIRECTION:
-				fprintf(
+				fprintf
+				(
 				    OutFile,
 				    "  %s\n   dir redirection%s\n   %s\n   #%llx (%s)\n   %s",
 				    NetAddress,
@@ -1182,7 +1188,7 @@ const char* PrintHlp()
 	"   ldmdl <path to module> - Load module. Ex: ldmdl C:\\lanq\\Module.dll, ldmdl /usr/lanq/Module.so\n"
 	"   rmmdl  <name or #handle> - Remove module by internal name or handle. Ex: rmmdl #0777AD78, rmmdl Site1\n"
 	"   mdllist - Show all modules.\n"
-	"   mdlcommand <Module name or #handle> <Command> [<Command arguments>] - Send command to module.\n"
+	"   mdlcmd <Module name or #handle> <Command> [<Command arguments>] - Send command to module.\n"
 
 	"   mkredirect [-(f - for file(otherwise for dir);)] <domen name or *> <URI path> <Real path> <Respose status> <permissions> - Add redirection."
 	" Ex: mkredirect * /hello http://lanqsite.com/hello 301 rt\n"

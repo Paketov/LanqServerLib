@@ -14,6 +14,7 @@
 #include <thread>
 #include "LqDef.h"
 
+
 typedef std::basic_string<char>                 LqString;
 typedef std::mutex                              LqMutex;
 typedef std::condition_variable                 LqCondVar;

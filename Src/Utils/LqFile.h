@@ -93,6 +93,8 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileMakeDir(const char* lqautf8 lqain NewDirName, 
 LQ_IMPORTEXPORT int LQ_CALL LqFileMakeSubdirs(const char* lqautf8 lqain NewSubdirsDirName, int Access);
 LQ_IMPORTEXPORT int LQ_CALL LqFileRemoveDir(const char* lqautf8 lqain NewDirName);
 
+LQ_IMPORTEXPORT int LQ_CALL LqFileRealPath(const char* lqain Source, char* lqaout Dest, size_t DestLen);
+
 LQ_EXTERN_C_END
 
 

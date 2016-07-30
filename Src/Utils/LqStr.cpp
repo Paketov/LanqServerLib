@@ -319,7 +319,8 @@ LQ_EXTERN_C char* LQ_CALL LqStrUtf8ToUpper(char* Dest, size_t DestSize, const ch
     {
 	if((unsigned char)*i < 128)
 	{
-	    if((md - Dest) < 1) return Dest;
+	    if((md - Dest) < 1)
+		return Dest;
 	    *Dest = (*i >= 'a' && *i <= 'z') ? (*i & ~0x20) : *i;
 	    Dest++;
 	    i++;
@@ -334,7 +335,8 @@ LQ_EXTERN_C char* LQ_CALL LqStrUtf8ToUpper(char* Dest, size_t DestSize, const ch
 		return Dest;
 	}
     }
-    if((md - Dest) >= 1) *Dest = '\0';
+    if((md - Dest) >= 1) 
+	*Dest = '\0';
     return Dest;
 }
 
@@ -399,6 +401,15 @@ LQ_EXTERN_C size_t LQ_CALL LqStrCopy(char* DestStr, const char* SourceStr)
     char *d = DestStr;
     for(; (*d = *s) != '\0'; d++, s++);
     return s - SourceStr;
+}
+
+LQ_EXTERN_C size_t LQ_CALL LqStrCat(char* DestStr, const char* SourceStr)
+{
+    register char *d = DestStr;
+    register const char *s = SourceStr;
+    for(; *d != '\0'; d++);
+    for(; (*d = *s) != '\0'; d++, s++);
+    return d - SourceStr;
 }
 
 LQ_EXTERN_C size_t LQ_CALL LqStrLen(const char* SourceStr)

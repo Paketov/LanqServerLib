@@ -16,12 +16,12 @@ CFLAGS := -O3
 endif
 
 CFLAGS			:= $(CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden
-LDFLAGS			:= -shared -nostartfiles -L../../../Linux -fvisibility=hidden -fvisibility-inlines-hidden
+LDFLAGS			:= -shared  -L../../../Linux -fvisibility=hidden -fvisibility-inlines-hidden
 LDLIBS			:= -llanq
 
 PROGRAM			:= libexample.so
 SOURCE_DIR		:= ../Src
-INCLUDE_DIRS	:= ../Src ../../../Src
+INCLUDE_DIRS	        := ../Src ../../../Src
 OBJECT_DIR		:= Obj
 
 

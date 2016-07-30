@@ -2,7 +2,7 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-*   LqFileTrd... - (Lanq File Transaction) Implements transactions for correct saving file in os fs.
+*   LqFileTrd... - (Lanq File Transaction) Implements transactions for correct saving file in OS FS.
 */
 
 #include "LqOs.h"
@@ -71,7 +71,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCreate(const char* FileName, uint32_t Flags, in
 	}
     }
     std::string LocalFileName = FileName;
-    auto SepPos = LocalFileName.find_last_of(LQHTTPPTH_SEPARATOR);
+    auto SepPos = LocalFileName.find_last_of(LQ_PATH_SEPARATOR);
     LocalFileName.insert(SepPos + 1, LQ_RECIVE_PARTIAL_MASK);
     int Fd = -1;
     for(int i = 0; (Fd == -1) && (i < 3); i++)
@@ -121,7 +121,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCommitToPlace(int Fd, const char* DestPath)
 	    for(; i < 3; i++)
 	    {
 		TempDestName = DestPath;
-		auto SepPos = TempDestName.find_last_of(LQHTTPPTH_SEPARATOR);
+		auto SepPos = TempDestName.find_last_of(LQ_PATH_SEPARATOR);
 		char Hidden[] = LQ_RECIVE_PARTIAL_MASK;
 		TempDestName.insert(SepPos + 1, Hidden);
 		MakeTempName((char*)TempDestName.c_str());
@@ -157,7 +157,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdGetNameTarget(int Fd, char* DestBuf, size_t Des
     if(LqFileGetPath(Fd, Name, sizeof(Name)) == -1)
 	return -1;
     std::basic_string<char> DestPath = Name;
-    auto SepPos = DestPath.find_last_of(LQHTTPPTH_SEPARATOR);
+    auto SepPos = DestPath.find_last_of(LQ_PATH_SEPARATOR);
     if(LqStrSameMax(&DestPath[SepPos + 1], ".partial_", sizeof(".partial_") - 1))
 	DestPath.erase(SepPos + 1, sizeof(LQ_RECIVE_PARTIAL_MASK) - 1);
     LqStrCopyMax(DestBuf, DestPath.c_str(), DestBufLen);
@@ -193,7 +193,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCommit(int Fd)
     }
 
     std::basic_string<wchar_t> DestPath = Path;
-    auto SepPos = DestPath.find_last_of(LQHTTPPTH_SEPARATOR);
+    auto SepPos = DestPath.find_last_of(LQ_PATH_SEPARATOR);
     DestPath.erase(SepPos + 1, sizeof(LQ_RECIVE_PARTIAL_MASK) - 1);
     int Res = 0;
     LqFileClose(Fd);
@@ -210,7 +210,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCommit(int Fd)
 	    for(; i < 3; i++)
 	    {
 		TempDestName = DestPath;
-		auto SepPos = TempDestName.find_last_of(LQHTTPPTH_SEPARATOR);
+		auto SepPos = TempDestName.find_last_of(LQ_PATH_SEPARATOR);
 		wchar_t Hidden[] = LQ_RECIVE_PARTIAL_MASK_WCHAR;
 		TempDestName.insert(SepPos + 1, Hidden);
 		MakeTempName((wchar_t*)TempDestName.c_str());
@@ -264,7 +264,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCommit(int Fd)
     }
 
     std::basic_string<char> DestPath = Path;
-    auto SepPos = DestPath.find_last_of(LQHTTPPTH_SEPARATOR);
+    auto SepPos = DestPath.find_last_of(LQ_PATH_SEPARATOR);
     DestPath.erase(SepPos + 1, sizeof(LQ_RECIVE_PARTIAL_MASK) - 1);
     int Res = 0;
     LqFileClose(Fd);
@@ -280,7 +280,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCommit(int Fd)
 	    for(; i < 3; i++)
 	    {
 		TempDestName = DestPath;
-		auto SepPos = TempDestName.find_last_of(LQHTTPPTH_SEPARATOR);
+		auto SepPos = TempDestName.find_last_of(LQ_PATH_SEPARATOR);
 		char Hidden[] = LQ_RECIVE_PARTIAL_MASK;
 		TempDestName.insert(SepPos + 1, Hidden);
 		MakeTempName((char*)TempDestName.c_str());

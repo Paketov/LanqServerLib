@@ -6,7 +6,7 @@
 * This part of server support:
 *	+Windows native events objects.
 *	+linux epoll.
-*	+kevent for FreeBSD like systems.(*But not yet implemented)
+*	+kevent for BSD like systems.(*But not yet implemented)
 *	+poll for others unix systems.
 *
 */
@@ -70,7 +70,7 @@ void LqEvntUninit(LqEvnt* Dest)
 	close(Dest->EpollFd);
 }
 
-bool LqEvntAddConnection(LqEvnt* Dest, LqConn* Client)
+bool LqEvntAddConn(LqEvnt* Dest, LqConn* Client)
 {
     if(Dest->Count >= Dest->AllocCount)
     {

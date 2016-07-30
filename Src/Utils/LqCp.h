@@ -24,8 +24,13 @@
 
 LQ_EXTERN_C_BEGIN
 
+/* Set global code page */
 LQ_IMPORTEXPORT int LQ_CALL LqCpSet(int NewCodePage);
+
+/* Get current global code page */
 LQ_IMPORTEXPORT int LQ_CALL LqCpGet();
+
+
 LQ_IMPORTEXPORT int LQ_CALL LqCpConvertToWcs(const char* Source, wchar_t* Dest, size_t DestCount);
 LQ_IMPORTEXPORT int LQ_CALL LqCpConvertFromWcs(const wchar_t* Source, char* Dest, size_t DestCount);
 

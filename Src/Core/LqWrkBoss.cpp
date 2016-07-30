@@ -252,7 +252,7 @@ bool LqWrkBoss::Bind()
     Sock.Flag = 0;
     LqConnSetEvents(&Sock, LQCONN_FLAG_RD | LQCONN_FLAG_HUP);
     Sock.SockDscr = s;
-    if(!LqEvntAddConnection(&EventChecker, &Sock))
+    if(!LqEvntAddConn(&EventChecker, &Sock))
     {
 	ErrBind = lq_errno;
 	LQ_ERR("not adding sock in event checker");

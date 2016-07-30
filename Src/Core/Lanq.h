@@ -98,6 +98,8 @@ struct LqProto
 
 #pragma pack(pop)
 
+#define LqWrkBossByProto(Proto) ((LqWrkBoss*)((LqProto*)(Proto))->LqWorkerBoss)
+
 LQ_EXTERN_C_END
 
 #endif

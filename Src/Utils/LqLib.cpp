@@ -13,18 +13,8 @@
 
 #if defined(_MSC_VER)
 #include <Windows.h>
-static void LqLibConvertNameToWcs(const char* Name, wchar_t* DestBuf, size_t DestBufSize)
-{
-    if(((Name[0] >= 'a') && (Name[0] <= 'z')) || ((Name[0] >= 'A') && (Name[0] <= 'Z')) && (Name[1] == ':') && (Name[2] == '/'))
-    {
-	memcpy(DestBuf, L"\\\\?\\", sizeof(L"\\\\?\\"));
-	DestBufSize -= 4;
-	LqCpConvertToWcs(Name, DestBuf + 4, DestBufSize);
-    } else
-    {
-	LqCpConvertToWcs(Name, DestBuf, DestBufSize);
-    }
-}
+
+int _LqFileConvertNameToWcs(const char* Name, wchar_t* DestBuf, size_t DestBufSize);
 
 #else
 #include <dlfcn.h>
@@ -34,8 +24,11 @@ LQ_EXTERN_C uintptr_t LQ_CALL LqLibLoad(const char* ModuleName)
 {
 #if defined(_MSC_VER)
     wchar_t Name[LQ_MAX_PATH];
-    LqLibConvertNameToWcs(ModuleName, Name, sizeof(Name));
-    return (uintptr_t)LoadLibraryW(Name);
+    _LqFileConvertNameToWcs(ModuleName, Name, sizeof(Name));
+    auto PrevErrVal = SetErrorMode(SEM_FAILCRITICALERRORS);
+    auto ResHandle = (uintptr_t)LoadLibraryW(Name);
+    SetErrorMode(PrevErrVal);
+    return ResHandle;
 #else
     return (uintptr_t)dlopen(ModuleName, RTLD_LAZY);
 #endif

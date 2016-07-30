@@ -14,6 +14,8 @@
 
 #include <string.h>
 
+#undef max
+
 LqWrkTask::LqWrkTask(): Count(0), Tasks(nullptr), LqThreadBase("Task worker"), SafeReg() {}
 
 LqWrkTask::~LqWrkTask()
@@ -35,7 +37,7 @@ void LqWrkTask::BeginThread()
     while(true)
     {
 	SafeReg.EnterSafeRegion();
-#undef max
+
 	TimeWait = LqTimeGetMaxMillisec();
 
 	auto CurTime = LqTimeGetLocMillisec();
@@ -44,7 +46,9 @@ void LqWrkTask::BeginThread()
 
 	if(LqThreadBase::IsShouldEnd)
 	    break;
-	CondVar.wait_for(Lock, std::chrono::milliseconds(TimeWait));
+	if(!HasNotify)
+	    CondVar.wait_for(Lock, std::chrono::milliseconds(TimeWait));
+	HasNotify = false;
     }
 }
 
@@ -58,7 +62,7 @@ bool LqWrkTask::Add(Task* Service)
 	    return true;
 	}
     Service->WorkerOwner = this;
-    auto NewArr = (decltype(Tasks))realloc(Tasks, sizeof(Tasks[0]) * (Count + 1));
+    auto NewArr = (Task**)realloc(Tasks, sizeof(Tasks[0]) * (Count + 1));
     if(NewArr == nullptr)
     {
 	UnlockWrite();
@@ -97,7 +101,7 @@ bool LqWrkTask::LockWrite() const
 	return true;
     }
     SafeReg.OccupyWrite();
-    CondVar.notify_one();
+    CheckNow();
     while(!SafeReg.TryWaitRegion())
     {
 	if(IsOut)
@@ -115,10 +119,10 @@ bool LqWrkTask::LockRead() const
 	return true;
     }
     SafeReg.OccupyRead();
-    CondVar.notify_one();
+    CheckNow();
     while(!SafeReg.TryWaitRegion())
     {
-	if(!joinable())
+	if(IsOut)
 	    return false;
 	LqThreadYield();
     }
@@ -129,7 +133,14 @@ void LqWrkTask::UnlockRead() const { SafeReg.ReleaseRead(); }
 
 void LqWrkTask::UnlockWrite() const { SafeReg.ReleaseWrite(); }
 
-void LqWrkTask::CheckNow() const { if(joinable()) CondVar.notify_one(); }
+void LqWrkTask::CheckNow() const
+{ 
+    if(!IsOut)
+    {
+	HasNotify = true;
+	CondVar.notify_one();
+    }
+}
 
 bool LqWrkTask::Task::GoWork(LqTimeMillisec CurTime, LqTimeMillisec& NewElapsedTime)
 {
@@ -168,7 +179,6 @@ LqWrkTask::Task::~Task()
 	WorkerOwner->Remove(this);
 }
 
-
 LqWrkTask::Task* LqWrkTask::operator[](const char* Name) const
 {
     Task* r = nullptr;
@@ -183,9 +193,16 @@ LqWrkTask::Task* LqWrkTask::operator[](const char* Name) const
     return r;
 }
 
-void LqWrkTask::NotifyThread() { CondVar.notify_one(); }
+void LqWrkTask::NotifyThread() 
+{
+    HasNotify = true;
+    CondVar.notify_one();
+}
 
-LqString LqWrkTask::Task::DebugInfo() { return ""; }
+LqString LqWrkTask::Task::DebugInfo() 
+{ 
+    return ""; 
+}
 
 LqString LqWrkTask::DebugInfo() const
 {

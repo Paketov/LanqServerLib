@@ -53,8 +53,7 @@ struct LqWrkCmdWaitEvnt
     void* UserData;
     inline LqWrkCmdWaitEvnt() {};
     inline LqWrkCmdWaitEvnt(void(*NewEventProc)(void* Data), void* NewUserData):
-	EventAct(NewEventProc), UserData(NewUserData)
-    {}
+	EventAct(NewEventProc), UserData(NewUserData) {}
 };
 
 
@@ -64,8 +63,7 @@ struct LqWrkCmdTakeAllConn
     void* UserData;
     inline LqWrkCmdTakeAllConn() {};
     inline LqWrkCmdTakeAllConn(void(*TakeEventProc)(void* Data, LqListConn& Connection), void* NewUserData):
-	TakeProc(TakeEventProc), UserData(NewUserData)
-    {}
+	TakeProc(TakeEventProc), UserData(NewUserData) {}
 };
 
 #pragma pack(pop)
@@ -96,9 +94,16 @@ LqWrk::LqWrk(bool IsStart):
     if(IsStart) StartSync();
 }
 
-LqWrk::~LqWrk() { EndWorkSync(); }
+LqWrk::~LqWrk() 
+{ 
+    EndWorkSync();
+    LqEvntUninit(&EventChecker);
+}
 
-ullong LqWrk::GetId() const { return Id; }
+ullong LqWrk::GetId() const
+{
+    return Id; 
+}
 
 void LqWrk::ParseInputCommands()
 {
@@ -310,11 +315,10 @@ lblOut:
     }
 }
 
-
 bool LqWrk::AddConn(LqConn* Connection)
 {
     LQ_LOG_DEBUG("Connection recived from boss\n");
-    return LqEvntAddConnection(&EventChecker, Connection);
+    return LqEvntAddConn(&EventChecker, Connection);
 }
 
 void LqWrk::TakeAllConn(void(*TakeEventProc)(void *Data, LqListConn &Connection), void * NewUserData)
@@ -342,7 +346,6 @@ void LqWrk::RemoveConnByIp(const sockaddr* Addr)
 	}
     }
 }
-
 
 size_t LqWrk::AddConnections(LqListConn& ConnectionList)
 {
@@ -655,9 +658,9 @@ bool LqWrk::LockRead()
     return true;
 }
 
-void LqWrk::UnlockRead() const { SafeReg.ReleaseRead(); }
+void LqWrk::UnlockRead() const {  SafeReg.ReleaseRead(); }
 
-void LqWrk::UnlockWrite() const { SafeReg.ReleaseWrite(); }
+void LqWrk::UnlockWrite() const{  SafeReg.ReleaseWrite(); }
 
 void LqWrk::NotifyThread() { LqEvntSignalSet(&EventChecker); }
 

@@ -15,6 +15,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Module", "..\Modules\Exampl
 		{B7EB2CE3-2ADA-4AAE-90E2-9FB826162B5F} = {B7EB2CE3-2ADA-4AAE-90E2-9FB826162B5F}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MdlAutoLoad", "..\Modules\MdlAutoLoad\VS2015\MdlAutoLoad.vcxproj", "{00EB5F95-C0F2-43E3-95F4-674AA93744D0}"
+	ProjectSection(ProjectDependencies) = postProject
+		{B7EB2CE3-2ADA-4AAE-90E2-9FB826162B5F} = {B7EB2CE3-2ADA-4AAE-90E2-9FB826162B5F}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM = Debug|ARM
@@ -57,6 +62,16 @@ Global
 		{00BC98FB-4DAC-47DC-99E9-C999440D831A}.Release|x64.Build.0 = Release|x64
 		{00BC98FB-4DAC-47DC-99E9-C999440D831A}.Release|x86.ActiveCfg = Release|Win32
 		{00BC98FB-4DAC-47DC-99E9-C999440D831A}.Release|x86.Build.0 = Release|Win32
+		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Debug|ARM.ActiveCfg = Debug|Win32
+		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Debug|x64.ActiveCfg = Debug|x64
+		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Debug|x64.Build.0 = Debug|x64
+		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Debug|x86.ActiveCfg = Debug|Win32
+		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Debug|x86.Build.0 = Debug|Win32
+		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Release|ARM.ActiveCfg = Release|Win32
+		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Release|x64.ActiveCfg = Release|x64
+		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Release|x64.Build.0 = Release|x64
+		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Release|x86.ActiveCfg = Release|Win32
+		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

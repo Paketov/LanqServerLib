@@ -32,7 +32,7 @@ LOCAL_SRC_FILES 	:= $(sort $(call rwildcard,$(SOURCE_DIR)/,*.c) $(call rwildcard
 LOCAL_C_INCLUDES	:= $(INCLUDE_SUBDIRS)
 
 
-include $(BUILD_EXECUTABLE)
+include $(BUILD_SHARED_LIBRARY) 
 
 include $(CLEAR_VARS) 
 LOCAL_MODULE := lanq_lib 

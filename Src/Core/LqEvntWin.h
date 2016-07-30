@@ -6,7 +6,7 @@
 * This part of server support:
 *	+Windows native events objects.
 *	+linux epoll.
-*	+kevent for FreeBSD like systems.(*But not yet implemented)
+*	+kevent for BSD like systems.(*But not yet implemented)
 *	+poll for others unix systems.
 *
 */
@@ -42,6 +42,7 @@ bool LqEvntInit(LqEvnt* Dest)
     Dest->ClientArr[0] = nullptr;
     Dest->IsSignalSended = false;
     Dest->EventEnumIndex = 0;
+    Dest->StartReadyIndex = 0;
     return true;
 }
 
@@ -57,7 +58,7 @@ void LqEvntUninit(LqEvnt* Dest)
 	free(Dest->ClientArr);
 }
 
-bool LqEvntAddConnection(LqEvnt* Dest, LqConn* Client)
+bool LqEvntAddConn(LqEvnt* Dest, LqConn* Client)
 {
     HANDLE Event = WSACreateEvent();
     if(Event == WSA_INVALID_EVENT)
@@ -92,7 +93,12 @@ lblErrOut:
 
 LqConnFlag LqEvntEnumEventBegin(LqEvnt* Events)
 {
-    Events->EventEnumIndex = 0; //Set start index
+    if(Events->StartReadyIndex >= Events->Count)
+	return 0;
+    if(Events->StartReadyIndex > 0)
+	Events->EventEnumIndex = Events->StartReadyIndex - 1; //Set start index
+    else 
+	Events->EventEnumIndex = Events->StartReadyIndex;
     return LqEvntEnumEventNext(Events);
 }
 
@@ -232,12 +238,14 @@ void LqEvntSignalSet(LqEvnt* Events)
 
 int LqEvntCheck(LqEvnt* Events, LqTimeMillisec WaitTime)
 {
-    switch(WSAWaitForMultipleEvents(Events->Count, Events->EventArr, FALSE, (DWORD)WaitTime, FALSE))
+    switch(auto Index = WSAWaitForMultipleEvents(Events->Count, Events->EventArr, FALSE, (DWORD)WaitTime, FALSE))
     {
 	case WSA_WAIT_FAILED:
 	    return -1;
 	case WAIT_TIMEOUT:
 	    return  0;
+	default:
+	    Events->StartReadyIndex = Index - WSA_WAIT_EVENT_0;
     }
     return 1;
 }

@@ -39,6 +39,7 @@
 
 #include <stdint.h>
 #include <ctype.h>
+#include <string.h>
 #include "LqStr.hpp"
 
 

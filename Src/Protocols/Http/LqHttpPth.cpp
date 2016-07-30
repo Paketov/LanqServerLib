@@ -1059,11 +1059,11 @@ static LqHttpPth* LqHttpPthGetFileByDir(LqHttpConn* c, uint CountSubDirs)
     char* s = Pth->RealPath, *d = NewPth->RealPath;
     for(; *s; s++, d++)
 	*d = *s;
-    if((s > Pth->RealPath) && (*(s - 1) != LQHTTPPTH_SEPARATOR))
-	*d = LQHTTPPTH_SEPARATOR, d++;
+    if((s > Pth->RealPath) && (*(s - 1) != LQ_PATH_SEPARATOR))
+	*d = LQ_PATH_SEPARATOR, d++;
     s = Query->Path + i;
     auto m = s + (Query->PathLen - i);
-    if(LQHTTPPTH_SEPARATOR != '/')
+    if(LQ_PATH_SEPARATOR != '/')
     {
 	for(; s < m; s++, d++)
 	    *d = (*s == '/') ? '\\' : *s;

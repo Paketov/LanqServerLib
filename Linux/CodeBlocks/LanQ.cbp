@@ -62,6 +62,7 @@
 			<Add option="-fexceptions" />
 		</Compiler>
 		<Unit filename="../../Modules/HttpConsoleShell/Src/LqConsoleShell.cpp" />
+		<Unit filename="../../Modules/MdlAutoLoad/Src/MdlAutoLoad.cpp" />
 		<Unit filename="../../Src/Core/Lanq.h" />
 		<Unit filename="../../Src/Core/LqEvnt.cpp" />
 		<Unit filename="../../Src/Core/LqEvnt.h" />
@@ -120,6 +121,12 @@
 		<Unit filename="../../Src/Utils/LqDef.h" />
 		<Unit filename="../../Src/Utils/LqDef.hpp" />
 		<Unit filename="../../Src/Utils/LqDfltRef.hpp" />
+		<Unit filename="../../Src/Utils/LqDirEnm.cpp" />
+		<Unit filename="../../Src/Utils/LqDirEnm.h" />
+		<Unit filename="../../Src/Utils/LqDirEvnt.cpp" />
+		<Unit filename="../../Src/Utils/LqDirEvnt.h" />
+		<Unit filename="../../Src/Utils/LqDirEvntInotify.h" />
+		<Unit filename="../../Src/Utils/LqDirEvntWin.h" />
 		<Unit filename="../../Src/Utils/LqErr.cpp" />
 		<Unit filename="../../Src/Utils/LqErr.h" />
 		<Unit filename="../../Src/Utils/LqFile.cpp" />
@@ -132,6 +139,8 @@
 		<Unit filename="../../Src/Utils/LqLib.h" />
 		<Unit filename="../../Src/Utils/LqList.hpp" />
 		<Unit filename="../../Src/Utils/LqLock.hpp" />
+		<Unit filename="../../Src/Utils/LqMd5.cpp" />
+		<Unit filename="../../Src/Utils/LqMd5.h" />
 		<Unit filename="../../Src/Utils/LqOs.h" />
 		<Unit filename="../../Src/Utils/LqSbuf.cpp" />
 		<Unit filename="../../Src/Utils/LqSbuf.h" />
@@ -143,8 +152,6 @@
 		<Unit filename="../../Src/Utils/LqTime.cpp" />
 		<Unit filename="../../Src/Utils/LqTime.h" />
 		<Unit filename="../../Src/Utils/LqTime.hpp" />
-		<Unit filename="../../Src/Utils/md5.cpp" />
-		<Unit filename="../../Src/Utils/md5.h" />
 		<Extensions>
 			<code_completion />
 			<debugger />

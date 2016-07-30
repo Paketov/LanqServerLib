@@ -38,16 +38,19 @@ static int LqFileOpenFlagsToCreateFileFlags(int openFlags)
     return 0;
 }
 
-static void LqFileConvertNameToWcs(const char* Name, wchar_t* DestBuf, size_t DestBufSize)
+int _LqFileConvertNameToWcs(const char* Name, wchar_t* DestBuf, size_t DestBufSize)
 {
-    if((Name[0] != '\\') || (Name[1] != '\\') || (Name[2] != '?') || (Name[3] != '\\'))
+    if((DestBufSize > 5) && (((Name[0] >= 'a') && (Name[0] <= 'z')) || ((Name[0] >= 'A') && (Name[0] <= 'Z')) && (Name[1] == ':') && (Name[2] == '\\')))
     {
 	memcpy(DestBuf, L"\\\\?\\", sizeof(L"\\\\?\\"));
 	DestBufSize -= 4;
-	LqCpConvertToWcs(Name, DestBuf + 4, DestBufSize);
+	auto l = LqCpConvertToWcs(Name, DestBuf + 4, DestBufSize);
+	if(l < 0)
+	    return l;
+	return l + 4;
     } else
     {
-	LqCpConvertToWcs(Name, DestBuf, DestBufSize);
+	return LqCpConvertToWcs(Name, DestBuf, DestBufSize);
     }
 }
 
@@ -56,7 +59,7 @@ LQ_EXTERN_C int LQ_CALL LqFileOpen(const char *FileName, uint32_t Flags, int Acc
     //int			fd;
     HANDLE		h;
     wchar_t Name[LQ_MAX_PATH];
-    LqFileConvertNameToWcs(FileName, Name, LQ_MAX_PATH);
+    _LqFileConvertNameToWcs(FileName, Name, LQ_MAX_PATH);
 
     if(
 	(
@@ -127,7 +130,7 @@ LQ_EXTERN_C int LQ_CALL LqFileGetStat(const char* FileName, LqFileStat* StatDest
 
     WIN32_FILE_ATTRIBUTE_DATA   info;
     wchar_t Name[LQ_MAX_PATH];
-    LqFileConvertNameToWcs(FileName, Name, LQ_MAX_PATH);
+    _LqFileConvertNameToWcs(FileName, Name, LQ_MAX_PATH);
     if(GetFileAttributesExW(Name, GetFileExInfoStandard, &info) == FALSE)
 	return -1;
     StatDest->CreateTime = FileTimeToTimeSec(&info.ftCreationTime);
@@ -139,12 +142,12 @@ LQ_EXTERN_C int LQ_CALL LqFileGetStat(const char* FileName, LqFileStat* StatDest
     StatDest->Gid = 0;
     StatDest->Uid = 0;
     StatDest->Id = 0;
-    if(info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+    if(info.dwFileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_ARCHIVE))
 	StatDest->Type = LQ_F_REG;
     else if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 	StatDest->Type = LQ_F_DIR;
     else
-	StatDest->Type = LQ_F_REG;
+	StatDest->Type = LQ_F_OTHER;
 
     if(info.dwFileAttributes & FILE_ATTRIBUTE_READONLY)
 	StatDest->Access = 0444;
@@ -178,12 +181,12 @@ LQ_EXTERN_C int LQ_CALL LqFileGetStatByFd(int Fd, LqFileStat* StatDest)
     StatDest->Gid = 0;
     StatDest->Uid = 0;
     StatDest->Id = 0;
-    if(info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+    if(info.dwFileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_ARCHIVE))
 	StatDest->Type = LQ_F_REG;
     else if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 	StatDest->Type = LQ_F_DIR;
     else
-	StatDest->Type = LQ_F_REG;
+	StatDest->Type = LQ_F_OTHER;
 
     if(info.dwFileAttributes & FILE_ATTRIBUTE_READONLY)
 	StatDest->Access = 0444;
@@ -249,14 +252,14 @@ LQ_EXTERN_C int LQ_CALL LqFileWrite(int Fd, const void* SourceBuf, unsigned int 
 LQ_EXTERN_C int LQ_CALL LqFileMakeDir(const char* NewDirName, int Access)
 {
     wchar_t Name[LQ_MAX_PATH];
-    LqFileConvertNameToWcs(NewDirName, Name, LQ_MAX_PATH);
+    _LqFileConvertNameToWcs(NewDirName, Name, LQ_MAX_PATH);
     return CreateDirectoryW(Name, nullptr) == TRUE;
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileRemoveDir(const char* NewDirName)
 {
     wchar_t Name[LQ_MAX_PATH];
-    LqFileConvertNameToWcs(NewDirName, Name, LQ_MAX_PATH);
+    _LqFileConvertNameToWcs(NewDirName, Name, LQ_MAX_PATH);
     return RemoveDirectoryW(Name) == TRUE;
 }
 
@@ -264,16 +267,26 @@ LQ_EXTERN_C int LQ_CALL LqFileMove(const char* OldName, const char* NewName)
 {
     wchar_t Old[LQ_MAX_PATH];
     wchar_t New[LQ_MAX_PATH];
-    LqFileConvertNameToWcs(OldName, Old, LQ_MAX_PATH);
-    LqFileConvertNameToWcs(NewName, New, LQ_MAX_PATH);
+    _LqFileConvertNameToWcs(OldName, Old, LQ_MAX_PATH);
+    _LqFileConvertNameToWcs(NewName, New, LQ_MAX_PATH);
     return (MoveFileW(Old, New) == TRUE) ? 0 : -1;
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileRemove(const char* FileName)
 {
     wchar_t Name[LQ_MAX_PATH];
-    LqFileConvertNameToWcs(FileName, Name, LQ_MAX_PATH);
+    _LqFileConvertNameToWcs(FileName, Name, LQ_MAX_PATH);
     return (DeleteFileW(Name) == TRUE) ? 0 : -1;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileRealPath(const char* Source, char* Dest, size_t DestLen)
+{
+    wchar_t Name[LQ_MAX_PATH];
+    wchar_t New[LQ_MAX_PATH];
+    _LqFileConvertNameToWcs(Source, Name, LQ_MAX_PATH);
+    auto Ret = GetFullPathNameW(Name, LQ_MAX_PATH - 1, New, NULL);
+    LqCpConvertFromWcs(New, Dest, DestLen);
+    return (Ret == 0)? -1: Ret;
 }
 
 #else
@@ -283,6 +296,7 @@ LQ_EXTERN_C int LQ_CALL LqFileRemove(const char* FileName)
 #include <sys/types.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 
 #ifndef O_SHORT_LIVED
@@ -456,13 +470,23 @@ LQ_EXTERN_C int LQ_CALL LqFileWrite(int Fd, const void* SourceBuf, unsigned int 
     return write(Fd, SourceBuf, SizeBuf);
 }
 
+LQ_EXTERN_C int LQ_CALL LqFileRealPath(const char* Source, char* Dest, size_t DestLen)
+{
+    auto Ret = realpath(Source, nullptr);
+    if(Ret == nullptr)
+	return -1;
+    auto Len = LqStrCopyMax(Dest, Ret, DestLen);
+    free(Ret);
+    return Len;
+}
+
+
 #endif
-
-
 
 
 LQ_EXTERN_C int LQ_CALL LqFileMakeSubdirs(const char* NewSubdirsDirName, int Access)
 {
+    
     size_t DirPos = 0;
     char c;
     char Name[LQ_MAX_PATH];
@@ -472,7 +496,7 @@ LQ_EXTERN_C int LQ_CALL LqFileMakeSubdirs(const char* NewSubdirsDirName, int Acc
     int RetStat = 1;
     while(true)
     {
-	if((Sep = strchr(Sep, LQHTTPPTH_SEPARATOR)) == nullptr)
+	if((Sep = strchr(Sep, LQ_PATH_SEPARATOR)) == nullptr)
 	    break;
 	Sep++;
 	c = *Sep;

@@ -103,7 +103,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 				for(char* r = (char*)Name.c_str(); *r != '\0'; r++)
 				{
 					if(*r == '/')
-						*r = LQHTTPPTH_SEPARATOR;
+						*r = LQ_PATH_SEPARATOR;
 				}
 				LqHttpRspFileAuto(c, Name.c_str());
 				LqHttpEvntActSetIgnore(c);
@@ -216,18 +216,6 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason_for_call, LPVOID lpReserve
 			break;
 	}
 	return TRUE;
-}
-
-#else
-
-extern "C" void _init(void)
-{
-	printf("Module init\n");
-}
-
-extern "C" void _fini(void)
-{
-	printf("Module uninit\n");
 }
 
 #endif

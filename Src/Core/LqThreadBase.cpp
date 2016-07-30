@@ -129,6 +129,10 @@ static LqThreadPriorEnm __GetPrior(int Code)
     }
 }
 
+#if defined(LQPLATFORM_ANDROID)
+thread_local char* NameThread = nullptr;
+#endif
+
 #endif
 
 LqThreadBase::LqThreadBase(const char* NewName): IsShouldEnd(true), Priority(LQTHREAD_PRIOR_NONE), AffinMask(0), IsOut(true)

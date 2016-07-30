@@ -13,6 +13,11 @@
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
+/*
+    Read/write locker.
+
+*/
+
 template<typename TypeFlag = unsigned>
 class LqLocker
 {
@@ -69,6 +74,7 @@ public:
     /* Use only thread owner*/
     inline bool IsLockRead() { return Locker > 1; }
     inline bool IsLockWrite() { return Locker == 0; }
+    /* Common unlock. Use for read/write lock */
     inline void Unlock()
     {
 	if(IsLockRead())

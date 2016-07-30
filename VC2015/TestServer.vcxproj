@@ -49,6 +49,8 @@
     <ClCompile Include="..\Src\Utils\LqBse64.cpp" />
     <ClCompile Include="..\Src\Utils\LqConn.cpp" />
     <ClCompile Include="..\Src\Utils\LqCp.cpp" />
+    <ClCompile Include="..\Src\Utils\LqDirEnm.cpp" />
+    <ClCompile Include="..\Src\Utils\LqDirEvnt.cpp" />
     <ClCompile Include="..\Src\Utils\LqErr.cpp" />
     <ClCompile Include="..\Src\Utils\LqFile.cpp" />
     <ClCompile Include="..\Src\Utils\LqFileTrd.cpp" />
@@ -95,6 +97,10 @@
     <ClInclude Include="..\Src\Utils\LqDef.h" />
     <ClInclude Include="..\Src\Utils\LqDef.hpp" />
     <ClInclude Include="..\Src\Utils\LqDfltRef.hpp" />
+    <ClInclude Include="..\Src\Utils\LqDirEnm.h" />
+    <ClInclude Include="..\Src\Utils\LqDirEvnt.h" />
+    <ClInclude Include="..\Src\Utils\LqDirEvntInotify.h" />
+    <ClInclude Include="..\Src\Utils\LqDirEvntWin.h" />
     <ClInclude Include="..\Src\Utils\LqErr.h" />
     <ClInclude Include="..\Src\Utils\LqFile.h" />
     <ClInclude Include="..\Src\Utils\LqFileChe.hpp" />

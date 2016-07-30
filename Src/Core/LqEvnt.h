@@ -6,7 +6,7 @@
 * This part of server support:
 *       +Windows native events objects.
 *       +linux epoll.
-*       +kevent for FreeBSD like systems.(*But not yet implemented)
+*       +kevent for BSD like systems.(*But not yet implemented)
 *       +poll for others unix systems.
 *
 */
@@ -42,6 +42,7 @@ struct LqEvnt
     HANDLE*             EventArr;
     LqConn**            ClientArr;
     int                 EventEnumIndex;
+    uintptr_t		StartReadyIndex; //Use for optimize
 #elif defined(LQEVNT_KEVENT)
 #elif defined(LQEVNT_EPOLL)
     int                 EpollFd;
@@ -77,7 +78,7 @@ void LqEvntUninit(LqEvnt* Dest);
 /*
 * Add connection in event follower list.
 */
-bool LqEvntAddConnection(LqEvnt* Dest, LqConn* Client);
+bool LqEvntAddConn(LqEvnt* Dest, LqConn* Client);
 
 /*
 * Start enumerate events by internal interator.
@@ -106,12 +107,11 @@ LqConn* LqEvntGetClientByEventInterator(LqEvnt* Events);
 #if defined(LQEVNT_WIN_EVENT)
 /*
 * Use only in Windows
-*  @return - true is success
+*  Call before enum nect coonnection
 */
 void LqEvntUnuseClientByEventInterator(LqEvnt* Events);
 #else
 #define LqEvntUnuseClientByEventInterator(Events) ((void)0)
-
 #endif
 
 /*
