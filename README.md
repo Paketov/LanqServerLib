@@ -1,5 +1,6 @@
 # LanqServerLib
- Small server lib for create browser app interfaces. Also has been used as traditional web server. 
+ Small server lib for create web interfaces. Also has been used as traditional web server. 
+ 
  Each module has been dynamic site.
 ###Support:
   + Dynamic load/unload modules for HTTP protocol.
