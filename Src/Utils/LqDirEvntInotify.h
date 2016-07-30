@@ -246,7 +246,7 @@ LQ_EXTERN_C int LQ_CALL LqDirEvntRm(LqDirEvnt* Evnt, const char* Name)
     for(int k = 0; k < Evnt->Count; k++)
     {
 	auto d = ((FollowData**)Evnt->Data)[k];
-	if(LqStrUtf8CmpCase(d->Name, Name))
+	if(LqStrSame(d->Name, Name))
 	{
 	    delete d;
 	    Evnt->Count--;
