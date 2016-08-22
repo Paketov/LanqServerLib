@@ -5,6 +5,7 @@
 * LqHttpMdlHandlers... - Default module handlers.
 */
 
+#include "LqConn.h"
 #include "LqOs.h"
 #include "LqFile.h"
 #include "LqHttpMdlHandlers.h"

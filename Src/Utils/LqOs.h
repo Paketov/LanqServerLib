@@ -24,7 +24,7 @@
 # define LQ_PATH_SEPARATOR	'\\'
 
 #else
-
+#define LQPLATFORM_POSIX
 # ifdef __ANDROID__
 #  define LQPLATFORM_ANDROID
 # endif
@@ -124,5 +124,6 @@
 #define lqatns                  //LanQ Argument Not Thread Save
 #define lqamrelease             //LanQ Argument Must release before use
 #define lqautf8                 //LanQ Argument UTF-8 string
+#define lqautf16                //LanQ Argument UTF-16 string
 
 #endif

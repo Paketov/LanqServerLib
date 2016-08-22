@@ -68,7 +68,7 @@ private:
     LqProto*                ProtoReg;
 
 
-    bool        DistributeListConnections(const LqListConn& List);
+    bool        DistributeListConnections(const LqListEvnt& List);
     size_t      MinBusyWithoutLock(size_t* MinCount = LqDfltPtr());
     size_t      MaxBusyWithoutLock(size_t* MaxCount = LqDfltPtr());
     void        ParseInputCommands();
@@ -99,14 +99,14 @@ public:
 
     size_t      CountConnections() const;
 
-    bool        TransferConnections(const LqListConn& ConnectionsList);
-    bool        TransferConnectionsEnd(LqListConn& ConnectionsList, LqWrk* LqWorker);
+    bool        TransferEvnt(const LqListEvnt& ConnectionsList);
+    bool        TransferEvntEnd(LqListEvnt& ConnectionsList, LqWrk* LqWorker);
 
     bool        AddWorkers(size_t Count = LqSystemThread::hardware_concurrency(), bool IsStart = true);
     bool        AddWorker(const LqWorkerPtr& LqWorker);
 
-    bool        AddConnAsync(LqConn* Connection);
-    bool        AddConnSync(LqConn* Connection);
+    bool        AddEvntAsync(LqEvntHdr* Evnt);
+    bool        AddEvntSync(LqEvntHdr* Evnt);
 
     size_t      CountWorkers() const;
     /* Get worker by id*/
@@ -118,16 +118,16 @@ public:
     bool        KickWorker(ullong IdWorker);
     void        KickWorkers(size_t Count);
 
-    bool        CloseAllConnAsync();
-    void        CloseAllConnSync();
+    bool        CloseAllEvntAsync();
+    void        CloseAllEvntSync();
 
     bool        CloseConnByIpAsync(const sockaddr* Addr);
     void        CloseConnByIpSync(const sockaddr* Addr);
 
     /* !!! In @Proc you must not call in workers or Boss ..Sync methods. In this case block inevitable. !!!*/
-    void        EnumConn(void* UserData, void(*Proc)(void *UserData, LqConn *Conn));
+    void        EnumEvnt(void* UserData, void(*Proc)(void* UserData, LqEvntHdr* Conn));
 
-    bool        UnlockConnection(LqConn* Conn);
+    bool        SyncEvntFlag(LqEvntHdr* Conn);
 
     size_t      KickAllWorkers();
 

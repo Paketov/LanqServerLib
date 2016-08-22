@@ -34,59 +34,60 @@ class LqFastAlloc
     template<size_t SizeElem>
     struct Fields
     {
-	void* StartElement;
-	size_t Count;
-	size_t SizeList;
-	mutable LqLocker<uchar> Locker;
+        void*                   StartElement;
+        size_t                  Count;
+        size_t                  SizeList;
+        mutable LqLocker<uchar> Locker;
 
-	Fields(): StartElement(nullptr), SizeList(80), Count(0) {}
+        Fields(): StartElement(nullptr), SizeList(80), Count(0) {}
+        ~Fields() { for(void* Ptr = StartElement; Ptr != nullptr; Ptr = *(void**)Ptr) ___free(Ptr); }
 
-	void* Alloc()
-	{
-	    Locker.LockWrite();
-	    if(StartElement != nullptr)
-	    {
-		void* Ret = StartElement;
-		StartElement = *(void**)Ret;
-		Count--;
-		Locker.UnlockWrite();
-		return Ret;
-	    } else
-	    {
-		Locker.UnlockWrite();
-		return ___malloc(SizeElem);
-	    }
-	}
-	void Free(void* Data)
-	{
-	    Locker.LockWrite();
-	    if(Count >= SizeList)
-	    {
-		Locker.UnlockWrite();
-		___free(Data);
-	    } else
-	    {
-		*(void**)Data = StartElement;
-		StartElement = Data;
-		Count++;
-		Locker.UnlockWrite();
-	    }
-	}
-	void ClearList()
-	{
-	    Locker.LockWrite();
-	    void * Cur = StartElement;
-	    StartElement = nullptr;
-	    while(Cur != nullptr)
-	    {
-		void * v = *(void**)Cur;
-		___free(Cur);
-		Cur = v;
-	    }
-	    Count = 0;
-	    Locker.UnlockWrite();
-	}
-	inline void SetMaxCount(size_t NewVal) { SizeList = NewVal; }
+        void* Alloc()
+        {
+            Locker.LockWriteYield();
+            if(StartElement != nullptr)
+            {
+                void* Ret = StartElement;
+                StartElement = *(void**)Ret;
+                Count--;
+                Locker.UnlockWrite();
+                return Ret;
+            } else
+            {
+                Locker.UnlockWrite();
+                return ___malloc(SizeElem);
+            }
+        }
+        void Free(void* Data)
+        {
+            Locker.LockWriteYield();
+            if(Count >= SizeList)
+            {
+                Locker.UnlockWrite();
+                ___free(Data);
+            } else
+            {
+                *(void**)Data = StartElement;
+                StartElement = Data;
+                Count++;
+                Locker.UnlockWrite();
+            }
+        }
+        void ClearList()
+        {
+            Locker.LockWriteYield();
+            void * Cur = StartElement;
+            StartElement = nullptr;
+            while(Cur != nullptr)
+            {
+                void * v = *(void**)Cur;
+                ___free(Cur);
+                Cur = v;
+            }
+            Count = 0;
+            Locker.UnlockWrite();
+        }
+        inline void SetMaxCount(size_t NewVal) { SizeList = NewVal; }
     };
 
     template<size_t Len>

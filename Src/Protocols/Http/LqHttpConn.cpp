@@ -158,6 +158,14 @@ size_t LqHttpConnSend_Native(LqHttpConn* c, const void* SourceBuf, size_t SizeBu
     return LqConnSend(&c->CommonConn, SourceBuf, SizeBuf);
 }
 
+LQ_EXTERN_C void LQ_CALL LqHttpConnCallEvntAct(LqHttpConn * Conn)
+{
+    auto f = Conn->CommonConn.Flag;
+    Conn->EventAct(Conn);
+    if(f != Conn->CommonConn.Flag)
+	Conn->CommonConn.Flag |= _LQEVNT_FLAG_USER_SET;
+}
+
 LQ_EXTERN_C size_t LQ_CALL LqHttpConnSend(LqHttpConn* c, const void* SourceBuf, size_t SizeBuf)
 {
     size_t r;
@@ -228,7 +236,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpConnRecive(LqHttpConn* c, void* Buf, int ReadSize)
 #endif
         r = LqConnRecive(&c->CommonConn, Buf, ReadSize, 0);
 
-    if((r < ReadSize) && LQCONN_IS_WOULD_BLOCK)
+    if((r < ReadSize) && LQERR_IS_WOULD_BLOCK)
     {
         if(r == -1)
             r = 0;
@@ -249,7 +257,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpConnPeek(LqHttpConn* c, void* Buf, int ReadSize)
     else
 #endif
         Res = LqConnRecive(&c->CommonConn, Buf, ReadSize, MSG_PEEK);
-    if((Res == -1) && (LQCONN_IS_WOULD_BLOCK))
+    if((Res == -1) && LQERR_IS_WOULD_BLOCK)
         Res = 0;
     return Res;
 }
@@ -297,23 +305,5 @@ LQ_EXTERN_C size_t LQ_CALL LqHttpConnSkip(LqHttpConn* c, size_t Count)
         r = LqConnSkip(&c->CommonConn, Count);
     c->ReadedBodySize += r;
     return r;
-}
-
-
-LQ_EXTERN_C void LQ_CALL LqHttpConnLock(LqHttpConn* c)
-{
-    LqConnLock(c);
-}
-
-
-LQ_EXTERN_C void LQ_CALL LqHttpConnUnlock(LqHttpConn* c)
-{
-    if(LqConnIsLock(c))
-        LqConnUnlock(&c->CommonConn);
-}
-
-LQ_EXTERN_C int LQ_CALL LqHttpConnWaitUnlock(LqHttpConn* c, LqTimeMillisec TimeWait)
-{
-    return LqConnWaitUnlock(&c->CommonConn, TimeWait);
 }
 

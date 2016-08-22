@@ -52,7 +52,7 @@ private:
     Task**                                      Tasks;
     size_t                                      Count;
 
-    mutable volatile bool			HasNotify;
+    mutable volatile bool           HasNotify;
 
     virtual void BeginThread();
     virtual void NotifyThread();

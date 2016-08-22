@@ -15,7 +15,7 @@
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-class LqZombieKillerTask:
+class LQ_IMPORTEXPORT LqZombieKillerTask:
     public LqWrkTask::Task,
     public virtual LqWrkList
 {

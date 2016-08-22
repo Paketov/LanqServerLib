@@ -754,5 +754,4 @@ lblSearchStart:
     }
 };
 
-
 #pragma pack(pop)

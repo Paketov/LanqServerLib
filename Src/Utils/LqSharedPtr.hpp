@@ -7,7 +7,7 @@
 *     Object must have public integer field "CountPointers".
 */
 
-
+#include "LqAtm.hpp"
 
 
 template<typename T>
@@ -27,20 +27,28 @@ class LqSharedPtr
     _t* p;
     inline void Deinit()
     {
-	if(p == nullptr) return;
-	p->CountPointers--;
-	if(p->CountPointers <= 0) DeleteProc(p);
+        if(p == nullptr)
+            return;
+        decltype(p->CountPointers) Expected;
+        bool IsDelete = false;
+        do
+        {
+            Expected = p->CountPointers;
+            IsDelete = Expected == 1;
+        } while(!LqAtmCmpXchg(p->CountPointers, Expected, Expected - 1));
+        if(IsDelete)
+            DeleteProc(p);
     }
 public:
     inline LqSharedPtr(): p(nullptr) {};
-    inline LqSharedPtr(_t* Pointer): p(Pointer) { if(p != nullptr) p->CountPointers++; }
-    inline LqSharedPtr(const LqSharedPtr& a) : p(a.p) { if(p != nullptr) p->CountPointers++; }
+    inline LqSharedPtr(_t* Pointer): p(Pointer) { if(p != nullptr) LqAtmIntrlkInc(p->CountPointers); }
+    inline LqSharedPtr(const LqSharedPtr& a) : p(a.p) { if(p != nullptr) LqAtmIntrlkInc(p->CountPointers); }
     inline ~LqSharedPtr() { Deinit(); }
     inline LqSharedPtr& operator=(const LqSharedPtr& a)
     {
 	Deinit();
 	p = a.p;
-	if(p != nullptr) p->CountPointers++;
+	if(p != nullptr) LqAtmIntrlkInc(p->CountPointers);
 	return *this;
     }
 
@@ -51,5 +59,6 @@ public:
     inline bool operator ==(decltype(nullptr) n) const { return p == nullptr; }
     inline bool operator !=(decltype(nullptr) n) const { return p != nullptr; }
 };
+
 
 #pragma pack(pop)

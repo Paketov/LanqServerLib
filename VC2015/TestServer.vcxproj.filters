@@ -108,12 +108,6 @@
     <ClCompile Include="..\Src\Utils\LqMd5.cpp">
       <Filter>Utils</Filter>
     </ClCompile>
-    <ClCompile Include="..\Src\Utils\LqDirEnm.cpp">
-      <Filter>Utils</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Src\Utils\LqDirEvnt.cpp">
-      <Filter>Utils</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Src\Core\LqListConn.hpp">
@@ -273,18 +267,6 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Utils\LqMd5.h">
-      <Filter>Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Utils\LqDirEnm.h">
-      <Filter>Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Utils\LqDirEvnt.h">
-      <Filter>Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Utils\LqDirEvntInotify.h">
-      <Filter>Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Utils\LqDirEvntWin.h">
       <Filter>Utils</Filter>
     </ClInclude>
   </ItemGroup>

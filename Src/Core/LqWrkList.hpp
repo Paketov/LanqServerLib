@@ -12,6 +12,7 @@ class LqWrk;
 #include "LqLock.hpp"
 #include "LqSharedPtr.hpp"
 #include "LqAlloc.hpp"
+#include "LqWrk.hpp"
 
 typedef LqSharedPtr<LqWrk, LqFastAlloc::Delete> LqWorkerPtr;
 

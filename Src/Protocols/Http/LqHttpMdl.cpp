@@ -25,6 +25,7 @@
 *
 */
 
+#include "LqConn.h"
 #include "LqHttpMdl.h"
 #include "LqLock.hpp"
 #include "LqHttp.h"
@@ -61,7 +62,7 @@ static void LqHttpMdlModuleRemoveFromReg(LqHttpMdl* Module)
     Module->Proto->CountModules--;
     LqHttpMdlListUnlockWrite(Module->Proto);
     //====
-    if(auto HandleModule = Module->FreeModuleNotifyProc(Module))
+    if(auto HandleModule = Module->FreeNotifyProc(Module))
         LqLibFree(HandleModule);
 }
 
@@ -97,9 +98,30 @@ static void LqHttpMdlPathUnregister(LqHttpPathListHdr* l)
     LqHttpMdlUnlockWrite(m);
 }
 
+static bool _LqHttpMdlEnumDomenProc(void* UserData, LqHttpDomainPaths* Element)
+{
+    auto Result = true;
+    LqHttpPth* WebPath = (LqHttpPth*)UserData;
+    auto Pth = Element->t.Search(WebPath);
+    if((Pth != nullptr) && (Pth->p == WebPath))
+    {
+	auto DelPth = Element->t.RemoveRetPointer(WebPath);
+	Result = !LqHttpPthRelease(DelPth->p);
+	DelPth->p = nullptr;
+	Element->t.DeleteRetPointer(DelPth);
+    }
+    return Result;
+}
+
+static bool _LqHttpMdlEnumDomenForResize(LqHttpDomainPaths* Element)
+{
+    if((size_t)(Element->t.Count() * 1.7f) < Element->t.AllocCount())
+	Element->t.ResizeAfterRemove();
+    return true;
+}
 
 static void LqHttpMdlFree_Native(LqHttpMdl* Module)
-{
+{	
     auto& FileSystem = ((LqHttpProto*)Module->Proto)->FileSystem;
     LqHttpMdlLockWrite(Module);
     Module->CountPointers++;
@@ -109,36 +131,11 @@ static void LqHttpMdlFree_Native(LqHttpMdl* Module)
     for(auto i = Module->StartPathList.Next; i != &Module->StartPathList; )
     {
         auto t = i->Next;
-        FileSystem.t.EnumValues
-        (
-            [](void* UserData, LqHttpDomainPaths* Element)
-	    {
-		auto r = true;
-		LqHttpPth* WebPath = (LqHttpPth*)UserData;
-		auto v = Element->t.Search(WebPath);
-		if((v != nullptr) && (v->p == WebPath))
-		{
-		    auto v = Element->t.RemoveRetPointer(WebPath);
-		    r = !LqHttpPthRelease(v->p);
-		    v->p = nullptr;
-		    Element->t.DeleteRetPointer(v);
-		}
-		return r;
-	    },
-            &i->Path
-        );
+        FileSystem.t.EnumValues(_LqHttpMdlEnumDomenProc, &i->Path);
         i = t;
     }
     LqHttpMdlLockForThisThread();
-    FileSystem.t.EnumValues
-    (
-        [](LqHttpDomainPaths* Element)
-	{
-	    if((size_t)(Element->t.Count() * 1.7f) < Element->t.AllocCount())
-		Element->t.ResizeAfterRemove();
-	    return true;
-	}
-    );
+    FileSystem.t.EnumValues(_LqHttpMdlEnumDomenForResize);
     FileSystem.l.UnlockWrite();
     Module->CountPointers--;
 }
@@ -149,20 +146,39 @@ static void LqHttpMdlEnmFree(LqHttpMdl* Module)
     bool Expected = false;
     if(LqAtmCmpXchg(Module->IsFree, Expected, true))
     {
+        Module->BeforeFreeNotifyProc(Module);
         LqHttpMdlFree_Native(Module);
         if(Module->CountPointers == 0)
         {
             Module->Next->Prev = Module->Prev;
             Module->Prev->Next = Module->Next;
             ((LqHttpProto*)Module->Proto)->Base.CountModules--;
-            if(auto HandleModule = Module->FreeModuleNotifyProc(Module))
+            if(auto HandleModule = Module->FreeNotifyProc(Module))
                 LqLibFree(HandleModule);
+            //Unlock module not use in this because module not used any more
         } else
         {
             LqHttpMdlUnlockWrite(Module);
         }
     }
 }
+
+//LQ_EXTERN_C bool LQ_CALL LqHttpMdlFree(LqHttpMdl* Module)
+//{
+//    if(&Module->Proto->StartModule == Module)
+//        return false;
+//    bool Expected = false;
+//    if(LqAtmCmpXchg(Module->IsFree, Expected, true))
+//    {
+//        LqHttpMdlFree_Native(Module);
+//        if(Module->CountPointers == 0)
+//            LqHttpMdlModuleRemoveFromReg(Module);
+//        else
+//            LqHttpMdlUnlockWrite(Module);
+//        return true;
+//    }
+//    return false;
+//}
 
 LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByName(LqHttpProtoBase* Reg, const char* NameModule, bool IsAll)
 {
@@ -273,7 +289,6 @@ LQ_EXTERN_C bool LQ_CALL LqHttpMdlSendCommandByName(LqHttpProtoBase* Reg, const 
     return Res;
 }
 
-
 LQ_EXTERN_C int LQ_CALL LqHttpMdlIsHave(LqHttpProtoBase* Reg, uintptr_t Handle)
 {
     LqHttpMdlListLockRead(Reg);
@@ -292,7 +307,6 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlIsHave(LqHttpProtoBase* Reg, uintptr_t Handle)
     LqHttpMdlListUnlockRead(Reg);
     return Res;
 }
-
 
 LQ_EXTERN_C bool LQ_CALL LqHttpMdlEnm(LqHttpProtoBase* Reg, uintptr_t* ModuleHandle, char* Name, size_t NameLen, bool* IsFree)
 {
@@ -326,24 +340,6 @@ LQ_EXTERN_C bool LQ_CALL LqHttpMdlEnm(LqHttpProtoBase* Reg, uintptr_t* ModuleHan
     return false;
 }
 
-
-LQ_EXTERN_C bool LQ_CALL LqHttpMdlFree(LqHttpMdl* Module)
-{
-    if(&Module->Proto->StartModule == Module)
-        return false;
-    bool Expected = false;
-    if(LqAtmCmpXchg(Module->IsFree, Expected, true))
-    {
-        LqHttpMdlFree_Native(Module);
-        if(Module->CountPointers == 0)
-            LqHttpMdlModuleRemoveFromReg(Module);
-        else
-            LqHttpMdlUnlockWrite(Module);
-        return true;
-    }
-    return false;
-}
-
 LQ_EXTERN_C void LQ_CALL LqHttpMdlInit(LqHttpProtoBase* Reg, LqHttpMdl* Module, const char* Name, uintptr_t Handle)
 {
     Module->CountPointers = 0;
@@ -351,7 +347,8 @@ LQ_EXTERN_C void LQ_CALL LqHttpMdlInit(LqHttpProtoBase* Reg, LqHttpMdl* Module, 
 
     struct Procs
     {
-        static uintptr_t LQ_CALL FreeModuleNotifyProc(LqHttpMdl* Module) { return Module->Handle; }
+        static uintptr_t LQ_CALL FreeNotifyProc(LqHttpMdl* Module) { return Module->Handle; }
+        static void LQ_CALL BeforeFreeNotifyProc(LqHttpMdl* Module) { }
         static void LQ_CALL DelCreatePathProc(LqHttpPth*) {}
         static bool LQ_CALL RegisterPathInDomenProc(LqHttpPth*, const char*) { return true; }
         static void LQ_CALL UnregisterPathFromDomenProc(LqHttpPth*, const char*) {}
@@ -359,7 +356,8 @@ LQ_EXTERN_C void LQ_CALL LqHttpMdlInit(LqHttpProtoBase* Reg, LqHttpMdl* Module, 
     };
 
     Module->Handle = Handle;
-    Module->FreeModuleNotifyProc = Procs::FreeModuleNotifyProc;
+    Module->FreeNotifyProc = Procs::FreeNotifyProc;
+    Module->BeforeFreeNotifyProc = Procs::BeforeFreeNotifyProc;
     Module->CreatePathProc = Module->DeletePathProc = Procs::DelCreatePathProc;
     Module->RegisterPathInDomenProc = Procs::RegisterPathInDomenProc;
     Module->UnregisterPathFromDomenProc = Procs::UnregisterPathFromDomenProc;

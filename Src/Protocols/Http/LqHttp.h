@@ -74,7 +74,7 @@ typedef uint8_t LqHttpActState;
 typedef uint16_t LqHttpActResult;
 
 
-enum
+enum LqHttpActResultEnm
 {
     LQHTTPACT_RES_BEGIN,
     LQHTTPACT_RES_OK,
@@ -102,9 +102,9 @@ enum
 //Action classes
 enum LqHttpActClassEnm
 {
-    LQHTTPACT_CLASS_QER = 0 << (sizeof(LqHttpActState) * 8 - 2),          //Query field used
-    LQHTTPACT_CLASS_RSP = 1 << (sizeof(LqHttpActState) * 8 - 2), //Response field used
-    LQHTTPACT_CLASS_CLS = 2 << (sizeof(LqHttpActState) * 8 - 2)     //Response and Query filed not used
+    LQHTTPACT_CLASS_QER = 0 << (sizeof(LqHttpActState) * 8 - 2),    /*Query field used*/
+    LQHTTPACT_CLASS_RSP = 1 << (sizeof(LqHttpActState) * 8 - 2),    /*Response field used*/
+    LQHTTPACT_CLASS_CLS = 2 << (sizeof(LqHttpActState) * 8 - 2)     /*Response and Query filed not used*/
 };
 
 //All actions
@@ -121,7 +121,7 @@ enum LqHttpActEnm
     LQHTTPACT_STATE_MULTIPART_RCV_STREAM =      LQHTTPACT_CLASS_QER | 9,
     LQHTTPACT_STATE_HANDLE_PROCESS =            LQHTTPACT_CLASS_QER | 10,
     LQHTTPACT_STATE_RSP_HANDLE_PROCESS =        LQHTTPACT_CLASS_RSP | 11,
-    LQHTTPACT_STATE_SKIP_QUERY_BODY =           LQHTTPACT_CLASS_RSP | 12,
+    LQHTTPACT_STATE_SKIP_QUERY_BODY =           LQHTTPACT_CLASS_QER | 12,
     LQHTTPACT_STATE_RSP =                       LQHTTPACT_CLASS_RSP | 13,
     LQHTTPACT_STATE_RSP_CACHE =                 LQHTTPACT_CLASS_RSP | 14,
     LQHTTPACT_STATE_RSP_FD =                    LQHTTPACT_CLASS_RSP | 15,
@@ -349,7 +349,8 @@ struct LqHttpMdl
     size_t                      CountPointers;
     uintptr_t                   Handle;
 
-    uintptr_t(LQ_CALL* FreeModuleNotifyProc)(LqHttpMdl* This);  //ret != 0, then unload module. If ret == 0 otherwise
+    void (LQ_CALL* BeforeFreeNotifyProc)(LqHttpMdl* This);
+    uintptr_t (LQ_CALL* FreeNotifyProc)(LqHttpMdl* This);  //ret != 0, then unload module. If ret == 0, then the module remains in the memory
 
     //Create and delete path proc
     void (LQ_CALL* DeletePathProc)(LqHttpPth* lqaio Pth);
@@ -524,6 +525,9 @@ LQ_IMPORTEXPORT size_t LQ_CALL LqHttpCheGetMaxCountOfPrepared(LqHttpProtoBase* R
 LQ_IMPORTEXPORT void LQ_CALL LqHttpCheSetMaxCountOfPrepared(LqHttpProtoBase* Reg, size_t Count);
 /*----------------------------
 */
+
+LQ_IMPORTEXPORT LqEvntFlag LQ_CALL LqHttpEvntGetFlagByAct(LqHttpConn* Conn);
+LQ_IMPORTEXPORT int LQ_CALL LqHttpEvntSetFlagByAct(LqHttpConn* Conn);
 
 LQ_EXTERN_C_END
 

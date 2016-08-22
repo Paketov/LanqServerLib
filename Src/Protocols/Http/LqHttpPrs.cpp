@@ -6,6 +6,7 @@
 */
 
 #include "LqOs.h"
+#include "LqStr.hpp"
 #include <ctype.h>
 #include <stdint.h>
 
@@ -15,7 +16,7 @@
 #define	IS_DIGIT(c)  ((*(c) >= '0') && (*(c) <=	'9'))
 #define	IS_ENG_ALPHA(c)	((*(c) >= 'a') && (*(c)	<= 'z')	|| (*(c) >= 'A') && (*(c) <= 'Z'))
 #define	IS_HEX(c) (IS_DIGIT(c) || (*(c)	>= 'A')	&& (*(c) <= 'F') || (*(c) >= 'a') && (*(c) <= 'f'))
-#define	IS_ESCAPE(c) ((*(c) == '%') && IS_HEX((c) + 1) && IS_HEX((c) + 2))
+
 #define	IS_RESERVED(c) (\
 	(*(c) == ';') || (*(c) == '/') || \
 	(*(c) == '?') || (*(c) == ':') || \
@@ -23,12 +24,6 @@
 	(*(c) == '=') || (*(c) == '+') || \
 	(*(c) == '$') || (*(c) == ',') || \
 	(*(c) == '#'))
-#define	IS_UNRESERVED(c) (\
-	isalnum(*(c)) || (*(c) == '-') || \
-	(*(c) == '.') || (*(c) == '_') || \
-	(*(c) == '~') || (*(c) == '!') || \
-	(*(c) == '*') || (*(c) == '\'')	|| \
-	(*(c) == '(') || (*(c) == ')'))
 
 #define	IS_UNWISE(c) (\
 	(*(c) == '{') || (*(c) == '}') ||\
@@ -40,27 +35,84 @@
 	(*(c) == '<') || (*(c) == '>') ||\
 	(*(c) == '#') || (*(c) == '%') ||\
 	(*(c) == '"'))
-#define	IS_USER_INFO(c)	(\
-	IS_UNRESERVED(c) || IS_ESCAPE(c) || \
-	(*(c) == ';') || (*(c) == ':') || \
-	(*(c) == '&') || (*(c) == '=') || \
-	(*(c) == '+') || (*(c) == '$') || \
-	(*(c) == ','))
 
-#define	IS_PCHAR(c) (\
-	IS_UNRESERVED(c) || IS_ESCAPE(c) || \
-	(*(c) == ':') || (*(c) == '@') || \
-	(*(c) == '&') || (*(c) == '=') || \
-	(*(c) == '+') || (*(c) == '$') || \
-	(*(c) == ','))
-#define	IS_URIC_WITHOUT_EQ_AMP(c) (\
-	IS_UNRESERVED(c) || IS_ESCAPE(c) || \
-	(*(c) == ';') || (*(c) == '/') || \
-	(*(c) == '?') || (*(c) == ':') || \
-	(*(c) == '@') || (*(c) == '+') || \
-	(*(c) == '$') || (*(c) == ','))
-#define	IS_URIC(c) (IS_UNRESERVED(c) ||	IS_ESCAPE(c) ||	IS_RESERVED(c))
-#define	IS_DIR(c) ((*c == '/') || IS_PCHAR(c) || (*c ==	';'))
+static char* IS_ESCAPE(const char* c)
+{
+    if((*c == '%') && IS_HEX(c + 1) && IS_HEX(c + 2))
+	return (char*)c + 3;
+    return nullptr;
+}
+
+static char* IS_UNRESERVED(const char* c)
+{
+    if((*(c) == '-') ||
+       (*(c) == '.') || (*(c) == '_') ||
+       (*(c) == '~') || (*(c) == '!') ||
+       (*(c) == '*') || (*(c) == '\'') ||
+       (*(c) == '(') || (*(c) == ')'))
+	return (char*)c + 1;
+    return LqStrUtf8IsAlphaNum(c);
+}
+
+static char* IS_USER_INFO(const char* c)
+{
+    if(auto r = IS_UNRESERVED(c))
+	return r;
+    if(auto r = IS_ESCAPE(c))
+	return r;
+    if((*(c) == ';') || (*(c) == ':') ||
+       (*(c) == '&') || (*(c) == '=') ||
+       (*(c) == '+') || (*(c) == '$') ||
+       (*(c) == ','))
+	return (char*)c + 1;
+    return nullptr;
+}
+
+static char* IS_PCHAR(const char* c)
+{
+    if(auto r = IS_UNRESERVED(c))
+	return r;
+    if(auto r = IS_ESCAPE(c))
+	return r;
+    if((*(c) == ':') || (*(c) == '@') ||
+       (*(c) == '&') || (*(c) == '=') || 
+       (*(c) == '+') || (*(c) == '$') || 
+       (*(c) == ','))
+	return (char*)c + 1;
+    return nullptr;
+}
+static char* IS_URIC_WITHOUT_EQ_AMP(const char* c)
+{
+    if(auto r = IS_UNRESERVED(c))
+	return r;
+    if(auto r = IS_ESCAPE(c))
+	return r;
+    if((*(c) == ';') || (*(c) == '/') ||
+       (*(c) == '?') || (*(c) == ':') ||
+       (*(c) == '@') || (*(c) == '+') ||
+       (*(c) == '$') || (*(c) == ','))
+	return (char*)c + 1;
+    return nullptr;
+}
+static char* IS_URIC(const char* c)
+{
+    if(auto r = IS_UNRESERVED(c))
+	return r;
+    if(auto r = IS_ESCAPE(c))
+	return r;
+    if(IS_RESERVED(c))
+	return (char*)c + 1;
+    return nullptr;
+}
+
+static char* IS_DIR(const char* c)
+{
+    if((*c == '/') || (*c == ';'))
+	return (char*)c + 1;
+    if(auto r = IS_PCHAR(c))
+	return r;
+    return nullptr;
+}
 
 
 /*
@@ -111,7 +163,7 @@ LqHttpPrsUrlStatEnm LqHttpPrsUrl
     }
     /*Read user	info*/
     t = c;
-    for(; IS_USER_INFO(c); c++);
+    for(; auto r = IS_USER_INFO(c); c = r);
     if((*c == '@') && (c != t))
     {
 	StartUserInfo = t;
@@ -141,14 +193,27 @@ LqHttpPrsUrlStatEnm LqHttpPrsUrl
     }
 lblHostName:
     c = t;
-    if(isalnum(*c))
+    if(LqStrUtf8IsAlpha(c))
     {
 	/*Read symbolic	host name*/
 lblRep:
-	for(; isalnum(*c) || (*c == '-'); c++);
+	
+	for(char* r;;)
+	{
+	    if((r = LqStrUtf8IsAlphaNum(c)) != nullptr)
+	    {
+		c = r;
+	    }else if(*c == '-')
+	    {
+		c++;
+	    } else
+	    {
+		break;
+	    }
+	}
 	if(*(c - 1) == '-')
 	    return LQPRS_URL_ERR_SYMBOLIC_HOST_NAME;
-	if((*c == '.') && isalnum(c[1]))
+	if((*c == '.') && (LqStrUtf8IsAlphaNum(c + 1) != nullptr))
 	{
 	    c++;
 	    goto lblRep;
@@ -236,7 +301,7 @@ lblDir:
     /*Read directory*/
     if(*c == '/')
     {
-	for(; IS_DIR(c); c++);
+	for(; auto r = IS_DIR(c); c = r);
 	StartDir = t;
 	EndDir = t = c;
     } else
@@ -249,15 +314,17 @@ lblDir:
 	{
 	    c++;
 	    StartKey = c;
-	    for(; IS_URIC_WITHOUT_EQ_AMP(c); c++);
+	    for(; auto r = IS_URIC_WITHOUT_EQ_AMP(c); c = r);
 	    if((EndKey = c) == StartKey) return	LQPRS_URL_ERR_QUERY;
 	    if(*c == '=')
 	    {
 		StartVal = ++c;
-		for(; IS_URIC_WITHOUT_EQ_AMP(c); c++);
+		for(; auto r = IS_URIC_WITHOUT_EQ_AMP(c); c = r);
 		EndVal = c;
 	    } else
+	    {
 		EndVal = StartVal = &ForEmptyArg;
+	    }
 	    AddQueryProc(UserData, StartKey, EndKey, StartVal, EndVal);
 	    if(*c != '&')
 		break;
@@ -269,7 +336,7 @@ lblDir:
     if(*c == '#')
     {
 	c++;
-	for(; IS_URIC(c); c++);
+	for(; auto r = IS_URIC(c); c = r);
 	StartFragment = t;
 	EndFragment = t = c;
     }

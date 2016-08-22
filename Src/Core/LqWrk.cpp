@@ -27,13 +27,13 @@
 
 enum
 {
-    LQWRK_CMD_ADD_CONN,						/*Add connection to work*/
-    LQWRK_CMD_RM_CONN_ON_TIME_OUT,		/*Signal for close all time out connections*/
-    LQWRK_CMD_WAIT_EVENT,
-    LQWRK_CMD_CLOSE_CONN,
-    LQWRK_CMD_TAKE_ALL_CONN,
-    LQWRK_CMD_RM_CONN_BY_IP,
-    LQWRK_CMD_UNLOCK_CONN
+	LQWRK_CMD_ADD_CONN,						/*Add connection to work*/
+	LQWRK_CMD_RM_CONN_ON_TIME_OUT,		/*Signal for close all time out connections*/
+	LQWRK_CMD_WAIT_EVENT,
+	LQWRK_CMD_CLOSE_CONN,
+	LQWRK_CMD_TAKE_ALL_CONN,
+	LQWRK_CMD_RM_CONN_BY_IP,
+	LQWRK_CMD_UNLOCK_CONN
 };
 
 
@@ -42,28 +42,30 @@ enum
 
 union ClientAddr
 {
-    sockaddr			Addr;
-    sockaddr_in			AddrInet;
-    sockaddr_in6		AddrInet6;
+	sockaddr			Addr;
+	sockaddr_in			AddrInet;
+	sockaddr_in6		AddrInet6;
 };
 
 struct LqWrkCmdWaitEvnt
 {
-    void(*EventAct)(void* Data);
-    void* UserData;
-    inline LqWrkCmdWaitEvnt() {};
-    inline LqWrkCmdWaitEvnt(void(*NewEventProc)(void* Data), void* NewUserData):
-	EventAct(NewEventProc), UserData(NewUserData) {}
+	void(*EventAct)(void* Data);
+	void* UserData;
+	inline LqWrkCmdWaitEvnt() {};
+	inline LqWrkCmdWaitEvnt(void(*NewEventProc)(void* Data), void* NewUserData):
+		EventAct(NewEventProc), UserData(NewUserData)
+	{}
 };
 
 
 struct LqWrkCmdTakeAllConn
 {
-    void(*TakeProc)(void* Data, LqListConn& Connection);
-    void* UserData;
-    inline LqWrkCmdTakeAllConn() {};
-    inline LqWrkCmdTakeAllConn(void(*TakeEventProc)(void* Data, LqListConn& Connection), void* NewUserData):
-	TakeProc(TakeEventProc), UserData(NewUserData) {}
+	void(*TakeProc)(void* Data, LqListEvnt& Connection);
+	void* UserData;
+	inline LqWrkCmdTakeAllConn() {};
+	inline LqWrkCmdTakeAllConn(void(*TakeEventProc)(void* Data, LqListEvnt& Connection), void* NewUserData):
+		TakeProc(TakeEventProc), UserData(NewUserData)
+	{}
 };
 
 #pragma pack(pop)
@@ -73,594 +75,609 @@ static LqLocker<uchar> __IdGenLocker;
 
 static ullong GenId()
 {
-    ullong r;
-    __IdGenLocker.LockWrite();
-    r = __IdGen;
-    __IdGen++;
-    __IdGenLocker.UnlockWrite();
-    return r;
+	ullong r;
+	__IdGenLocker.LockWrite();
+	r = __IdGen;
+	__IdGen++;
+	__IdGenLocker.UnlockWrite();
+	return r;
 }
 
 LqWorkerPtr LqWrk::New(bool IsStart) { return LqFastAlloc::New<LqWrk>(IsStart); }
 
 
 LqWrk::LqWrk(bool IsStart):
-    CountPointers(0),
-    LqThreadBase(([&] { Id = GenId();  LqString Str = "Worker #" + LqToString(Id); return Str; })().c_str())
+	CountPointers(0),
+	LqThreadBase(([&] { Id = GenId();  LqString Str = "Worker #" + LqToString(Id); return Str; })().c_str())
 {
-    LqEvntInit(&EventChecker);
-    TimeStart = LqTimeGetLocMillisec();
-    CountConnectionsInQueue = 0;
-    if(IsStart) StartSync();
+	LqEvntInit(&EventChecker);
+	TimeStart = LqTimeGetLocMillisec();
+	CountConnectionsInQueue = 0;
+	if(IsStart) StartSync();
 }
 
-LqWrk::~LqWrk() 
-{ 
-    EndWorkSync();
-    LqEvntUninit(&EventChecker);
+LqWrk::~LqWrk()
+{
+	EndWorkSync();
+	LqEvntUninit(&EventChecker);
 }
 
 ullong LqWrk::GetId() const
 {
-    return Id; 
+	return Id;
 }
 
 void LqWrk::ParseInputCommands()
 {
-    /*
-    * Recive async command loop.
-    */
-    for(auto Command = CommandQueue.Fork(); Command;)
-    {
-	switch(Command.Type)
+	/*
+	* Recive async command loop.
+	*/
+	for(auto Command = CommandQueue.Fork(); Command;)
 	{
-	    case LQWRK_CMD_ADD_CONN:
-		/*
-		Adding new connection.
-		*/
-	    {
-		LqConn* Connection = Command.Val<LqConn*>();
-		Command.Pop<LqConn*>();
-		CountConnectionsInQueue--;
-		AddConn(Connection);
-	    }
-	    break;
-	    case LQWRK_CMD_RM_CONN_ON_TIME_OUT:
-		/*
-		Remove zombie connections by time val.
-		*/
-	    {
-		LqTimeMillisec TimeLiveMilliseconds = Command.Val<LqTimeMillisec>();
-		Command.Pop<LqTimeMillisec>();
-		RemoveConnOnTimeOut(TimeLiveMilliseconds);
-	    }
-	    break;
-	    case LQWRK_CMD_WAIT_EVENT:
-		/*
-		Call procedure for wait event.
-		*/
-		Command.Val<LqWrkCmdWaitEvnt>().EventAct(Command.Val<LqWrkCmdWaitEvnt>().UserData);
-		Command.Pop<LqWrkCmdWaitEvnt>();
-		break;
-	    case LQWRK_CMD_CLOSE_CONN:
-		/*
-		Close all waiting connections.
-		*/
-		Command.Pop();
-		CloseAllConn();
-		break;
-	    case LQWRK_CMD_TAKE_ALL_CONN:
-		TakeAllConn(Command.Val<LqWrkCmdTakeAllConn>().TakeProc,
-			    Command.Val<LqWrkCmdTakeAllConn>().UserData);
-		Command.Pop<LqWrkCmdTakeAllConn>();
-		break;
-	    case LQWRK_CMD_RM_CONN_BY_IP:
-		RemoveConnByIp(&Command.Val<ClientAddr>().Addr);
-		Command.Pop<LqWrkCmdTakeAllConn>();
-		break;
-	    case LQWRK_CMD_UNLOCK_CONN:
-		/*
-		* Unlock connection.
-		*/
-		LqEvntUnlock(&EventChecker, Command.Val<LqConn*>());
-		Command.Pop<LqConn*>();
-		break;
-	    default:
-		/*
-		Is command unknown.
-		*/
-		Command.JustPop();
-	}
+		switch(Command.Type)
+		{
+			case LQWRK_CMD_ADD_CONN:
+				/*
+				Adding new connection.
+				*/
+			{
+				LqEvntHdr* Connection = Command.Val<LqEvntHdr*>();
+				Command.Pop<LqEvntHdr*>();
+				CountConnectionsInQueue--;
+				AddEvnt(Connection);
+			}
+			break;
+			case LQWRK_CMD_RM_CONN_ON_TIME_OUT:
+				/*
+				Remove zombie connections by time val.
+				*/
+			{
+				LqTimeMillisec TimeLiveMilliseconds = Command.Val<LqTimeMillisec>();
+				Command.Pop<LqTimeMillisec>();
+				RemoveConnOnTimeOut(TimeLiveMilliseconds);
+			}
+			break;
+			case LQWRK_CMD_WAIT_EVENT:
+				/*
+				Call procedure for wait event.
+				*/
+				Command.Val<LqWrkCmdWaitEvnt>().EventAct(Command.Val<LqWrkCmdWaitEvnt>().UserData);
+				Command.Pop<LqWrkCmdWaitEvnt>();
+				break;
+			case LQWRK_CMD_CLOSE_CONN:
+				/*
+				Close all waiting connections.
+				*/
+				Command.Pop();
+				CloseAllEvnt();
+				break;
+			case LQWRK_CMD_TAKE_ALL_CONN:
+				TakeAllEvnt(Command.Val<LqWrkCmdTakeAllConn>().TakeProc,
+							Command.Val<LqWrkCmdTakeAllConn>().UserData);
+				Command.Pop<LqWrkCmdTakeAllConn>();
+				break;
+			case LQWRK_CMD_RM_CONN_BY_IP:
+				RemoveConnByIp(&Command.Val<ClientAddr>().Addr);
+				Command.Pop<LqWrkCmdTakeAllConn>();
+				break;
+			case LQWRK_CMD_UNLOCK_CONN:
+				/*
+				* Unlock connection.
+				*/
+				LqEvntSetMaskByHdr(&EventChecker, Command.Val<LqEvntHdr*>());
+				Command.Pop<LqEvntHdr*>();
+				break;
+			default:
+				/*
+				Is command unknown.
+				*/
+				Command.JustPop();
+		}
 
-    }
+	}
 }
 
 void LqWrk::RewindToEndForketCommandQueue(LqQueueCmd<uchar>::Interator& Command)
 {
-    while(Command)
-    {
-	switch(Command.Type)
+	while(Command)
 	{
-	    case LQWRK_CMD_ADD_CONN:
-	    {
-		auto Connection = Command.Val<LqConn*>();
-		Connection->Proto->EndConnProc(Connection);
-		Command.Pop<LqConn*>();
-	    }
-	    break;
-	    default:
-		Command.JustPop();
+		switch(Command.Type)
+		{
+			case LQWRK_CMD_ADD_CONN:
+			{
+				auto Evnt = Command.Val<LqEvntHdr*>();
+				LqEvntHdrClose(Evnt);
+				Command.Pop<LqEvntHdr*>();
+			}
+			break;
+			default:
+				Command.JustPop();
+		}
 	}
-    }
 }
 
-void LqWrk::CloseAllConn()
+void LqWrk::CloseAllEvnt()
 {
-    LqEvntConnInterator Interator;
-    if(LqEvntEnumConnBegin(&EventChecker, &Interator))
-    {
-	do
+	LqEvntInterator Interator;
+	if(LqEvntEnumBegin(&EventChecker, &Interator))
 	{
-	    auto Connection = LqEvntGetClientByConnInterator(&EventChecker, &Interator);
-	    Connection->Proto->EndConnProc(Connection);
-	    LqEvntRemoveByConnInterator(&EventChecker, &Interator);
-	} while(LqEvntEnumConnNext(&EventChecker, &Interator));
-    }
+		do
+		{
+			auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &Interator);
+			LqEvntHdrClose(Evnt);
+			LqEvntRemoveByInterator(&EventChecker, &Interator);
+		} while(LqEvntEnumNext(&EventChecker, &Interator));
+	}
 }
 
 void LqWrk::ClearQueueCommands()
 {
-    for(auto Command = CommandQueue.Fork(); Command;)
-    {
-	switch(Command.Type)
+	for(auto Command = CommandQueue.Fork(); Command;)
 	{
-	    case LQWRK_CMD_ADD_CONN:
-	    {
-		auto Connection = Command.Val<LqConn*>();
-		Connection->Proto->EndConnProc(Connection);
-		Command.Pop<LqConn*>();
-	    }
-	    break;
-	    default:
-		Command.JustPop();
-	}
-    }
-}
-
-void LqWrk::RemoveConnInList(LqListConn& Dest)
-{
-    LqEvntConnInterator Interator;
-    if(LqEvntEnumConnBegin(&EventChecker, &Interator))
-    {
-	do
-	{
-	    auto Connection = LqEvntGetClientByConnInterator(&EventChecker, &Interator);
-	    if(!Dest.Add(Connection))
-	    {
-		Connection->Proto->EndConnProc(Connection);
-		LQ_ERR("Not remove connection in list from #%llu worker", Id);
-	    }
-	    LqEvntRemoveByConnInterator(&EventChecker, &Interator);
-	} while(LqEvntEnumConnNext(&EventChecker, &Interator));
-    }
-}
-
-void LqWrk::RemoveConnInListFromCmd(LqListConn& Dest)
-{
-    for(auto Command = CommandQueue.SeparateBegin(); !CommandQueue.SeparateIsEnd(Command);)
-    {
-	switch(Command.Type)
-	{
-	    case LQWRK_CMD_ADD_CONN:
-	    {
-		/* Is command - adding connection, add this connection in List*/
-		auto Connection = Command.Val<LqConn*>();
-		if(!Dest.Add(Connection))
+		switch(Command.Type)
 		{
-		    LQ_ERR("LqWrk::RemoveConnInListFromCmd: not alloc memory in list.");
-		    Connection->Proto->EndConnProc(Connection);
+			case LQWRK_CMD_ADD_CONN:
+			{
+				auto Evnt = Command.Val<LqEvntHdr*>();
+				LqEvntHdrClose(Evnt);
+				Command.Pop<LqEvntHdr*>();
+			}
+			break;
+			default:
+				Command.JustPop();
 		}
-		Command.Pop<LqConn*>();
-	    }
-	    break;
-	    default:
-		/* Otherwise return current command in list*/
-		CommandQueue.SeparatePush(Command);
 	}
-    }
+}
+
+void LqWrk::RemoveEvntInList(LqListEvnt& Dest)
+{
+	LqEvntInterator Interator;
+	if(LqEvntEnumBegin(&EventChecker, &Interator))
+	{
+		do
+		{
+			auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &Interator);
+			if(!Dest.Add(Evnt))
+			{
+				LqEvntHdrClose(Evnt);
+				LQ_ERR("Not remove connection in list from #%llu worker", Id);
+			}
+			LqEvntRemoveByInterator(&EventChecker, &Interator);
+		} while(LqEvntEnumNext(&EventChecker, &Interator));
+	}
+}
+
+void LqWrk::RemoveEvntInListFromCmd(LqListEvnt& Dest)
+{
+	for(auto Command = CommandQueue.SeparateBegin(); !CommandQueue.SeparateIsEnd(Command);)
+	{
+		switch(Command.Type)
+		{
+			case LQWRK_CMD_ADD_CONN:
+			{
+				/* Is command - adding connection, add this connection in List*/
+				auto Connection = Command.Val<LqEvntHdr*>();
+				if(!Dest.Add(Connection))
+				{
+					LQ_ERR("LqWrk::RemoveEvntInListFromCmd: not alloc memory in list.");
+					LqEvntHdrClose(Connection);
+				}
+				Command.Pop<LqEvntHdr*>();
+			}
+			break;
+			default:
+				/* Otherwise return current command in list*/
+				CommandQueue.SeparatePush(Command);
+		}
+	}
 }
 
 void LqWrk::BeginThread()
 {
 #if !defined(LQPLATFORM_WINDOWS)
-    signal(SIGPIPE, SIG_IGN);
+	signal(SIGPIPE, SIG_IGN);
 #endif
-    while(true)
-    {
-	if(LqEvntSignalCheckAndReset(&EventChecker))
+	while(true)
 	{
-	    SafeReg.EnterSafeRegion();
-	    if(LqThreadBase::IsShouldEnd) goto lblOut;
-	    ParseInputCommands();
-	    if(LqThreadBase::IsShouldEnd)
-	    {
+		if(LqEvntSignalCheckAndReset(&EventChecker))
+		{
+			SafeReg.EnterSafeRegion();
+			if(LqThreadBase::IsShouldEnd) 
+				goto lblOut;
+			ParseInputCommands();
+			if(LqThreadBase::IsShouldEnd)
+			{
 lblOut:
-		CloseAllConn();
-		ClearQueueCommands();
-		return;
-	    }
+				CloseAllEvnt();
+				ClearQueueCommands();
+				return;
+			}
+		}
+		for(LqEvntFlag Revent = LqEvntEnumEventBegin(&EventChecker); Revent != 0; Revent = LqEvntEnumEventNext(&EventChecker))
+		{
+			auto h = LqEvntGetHdrByCurrent(&EventChecker);
+			auto OldFlags = h->Flag;
+			h->Flag |= _LQEVNT_FLAG_NOW_EXEC;
+			if(h->Flag & _LQEVNT_FLAG_CONN)
+			{
+				if(Revent & LQEVNT_FLAG_WR)
+					((LqConn*)h)->Proto->WriteProc((LqConn*)h);
+				if(Revent & LQEVNT_FLAG_RD)
+					((LqConn*)h)->Proto->ReciveProc((LqConn*)h);
+				if(Revent & LQEVNT_FLAG_ERR)
+					((LqConn*)h)->Proto->ErrorProc((LqConn*)h);
+			} else
+			{
+				if(Revent & (LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RD | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_ERR))
+					((LqEvntFd*)h)->Handler((LqEvntFd*)h, Revent);
+			}
+
+			if((Revent & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_END)) || (h->Flag & LQEVNT_FLAG_END))
+			{
+				LqEvntUnuseCurrent(&EventChecker);
+				LqEvntRemoveCurrent(&EventChecker);
+				LqEvntHdrClose(h);
+			} else
+			{
+				h->Flag &= ~(_LQEVNT_FLAG_NOW_EXEC | _LQEVNT_FLAG_USER_SET);
+				if(h->Flag != OldFlags) //If have event changes
+					LqEvntSetMaskByCurrent(&EventChecker);
+				LqEvntUnuseCurrent(&EventChecker);
+			}
+		}
+		LqEvntCheck(&EventChecker, LqTimeGetMaxMillisec());
 	}
-	//Проверка всех подключений на предмет входящих данных
-	for(LqConnFlag Revent = LqEvntEnumEventBegin(&EventChecker); Revent != 0; Revent = LqEvntEnumEventNext(&EventChecker))
-	{
-	    auto c = LqEvntGetClientByEventInterator(&EventChecker);
-	    auto OldFlags = c->Flag;
-	    if(Revent & LQCONN_FLAG_WR)
-		c->Proto->WriteProc(c);
-	    if(Revent & LQCONN_FLAG_RD)
-		c->Proto->ReciveProc(c);
-	    if(((Revent & (LQCONN_FLAG_HUP | LQCONN_FLAG_RDHUP)) || (c->Flag & LQCONN_FLAG_END)) && !LqConnIsLock(c))
-	    {
-		LqEvntUnuseClientByEventInterator(&EventChecker);
-		LqEvntRemoveByEventInterator(&EventChecker);
-		c->Proto->EndConnProc(c);
-	    } else
-	    {
-		if(c->Flag != OldFlags) //If have event changes
-		    LqEvntSetMaskByEventInterator(&EventChecker);
-		LqEvntUnuseClientByEventInterator(&EventChecker);
-	    }
-	}
-	LqEvntCheck(&EventChecker, LqTimeGetMaxMillisec());
-    }
 }
 
-bool LqWrk::AddConn(LqConn* Connection)
+bool LqWrk::AddEvnt(LqEvntHdr* Connection)
 {
-    LQ_LOG_DEBUG("Connection recived from boss\n");
-    return LqEvntAddConn(&EventChecker, Connection);
+	LQ_LOG_DEBUG("Conn recived from boss\n");
+	return LqEvntAddHdr(&EventChecker, Connection);
 }
 
-void LqWrk::TakeAllConn(void(*TakeEventProc)(void *Data, LqListConn &Connection), void * NewUserData)
+void LqWrk::TakeAllEvnt(void(*TakeEventProc)(void *Data, LqListEvnt &Connection), void * NewUserData)
 {
-    LqListConn DestList;
-    RemoveConnInList(DestList);
-    TakeEventProc(NewUserData, DestList);
+	LqListEvnt DestList;
+	RemoveEvntInList(DestList);
+	TakeEventProc(NewUserData, DestList);
 }
 
 void LqWrk::RemoveConnByIp(const sockaddr* Addr)
 {
-    switch(Addr->sa_family)
-    {
-	case AF_INET: case AF_INET6: break;
-	default: return;
-    }
-    LqEvntConnInterator Interator;
-    for(auto r = LqEvntEnumConnBegin(&EventChecker, &Interator); r; r = LqEvntEnumConnNext(&EventChecker, &Interator))
-    {
-	auto Connection = LqEvntGetClientByConnInterator(&EventChecker, &Interator);
-	if(Connection->Proto->CmpAddressProc(Connection, Addr))
+	switch(Addr->sa_family)
 	{
-	    LqEvntRemoveByConnInterator(&EventChecker, &Interator);
-	    Connection->Proto->EndConnProc(Connection);
+		case AF_INET: case AF_INET6: break;
+		default: return;
 	}
-    }
+	LqEvntInterator Interator;
+	for(auto r = LqEvntEnumBegin(&EventChecker, &Interator); r; r = LqEvntEnumNext(&EventChecker, &Interator))
+	{
+		auto Connection = LqEvntGetHdrByInterator(&EventChecker, &Interator);
+		if((Connection->Flag & _LQEVNT_FLAG_CONN) && (((LqConn*)Connection)->Proto->CmpAddressProc((LqConn*)Connection, Addr)))
+		{
+			LqEvntRemoveByInterator(&EventChecker, &Interator);
+			((LqConn*)Connection)->Proto->EndConnProc((LqConn*)Connection);
+		}
+	}
 }
 
-size_t LqWrk::AddConnections(LqListConn& ConnectionList)
+size_t LqWrk::AddEvnt(LqListEvnt& ConnectionList)
 {
-    size_t CountAdded = 0;
-    for(size_t i = 0; i < ConnectionList.GetCount(); i++)
-    {
-	if(!AddConn(ConnectionList[i]))
+	size_t CountAdded = 0;
+	for(size_t i = 0; i < ConnectionList.GetCount(); i++)
 	{
-	    ConnectionList[i]->Proto->EndConnProc(ConnectionList[i]);
-	    LQ_ERR("Not adding #%u connection in #%llu worker", i, Id);
-	} else
-	{
-	    CountAdded++;
-	    ConnectionList[i] = nullptr;
+		if(!AddEvnt(ConnectionList[i]))
+		{
+			LqEvntHdrClose(ConnectionList[i]);
+			LQ_ERR("Not adding #%u connection in #%llu worker", i, Id);
+		} else
+		{
+			CountAdded++;
+			ConnectionList[i] = nullptr;
+		}
 	}
-    }
-    return CountAdded;
+	return CountAdded;
 }
 
 void LqWrk::RemoveConnOnTimeOut(LqTimeMillisec TimeLiveMilliseconds)
 {
-    LqEvntConnInterator Interator;
-    auto CurTime = LqTimeGetLocMillisec();
-    for(auto r = LqEvntEnumConnBegin(&EventChecker, &Interator); r; r = LqEvntEnumConnNext(&EventChecker, &Interator))
-    {
-	auto c = LqEvntGetClientByConnInterator(&EventChecker, &Interator);
-	if(c->Proto->KickByTimeOutProc(c, CurTime, TimeLiveMilliseconds))
+	LqEvntInterator Interator;
+	auto CurTime = LqTimeGetLocMillisec();
+	for(auto r = LqEvntEnumBegin(&EventChecker, &Interator); r; r = LqEvntEnumNext(&EventChecker, &Interator))
 	{
-	    LQ_LOG_USER("Remove connection  by timeout");
-	    LqEvntRemoveByConnInterator(&EventChecker, &Interator);
-	    c->Proto->EndConnProc(c);
+		auto c = LqEvntGetHdrByInterator(&EventChecker, &Interator);
+		if((c->Flag & _LQEVNT_FLAG_CONN) && (((LqConn*)c)->Proto->KickByTimeOutProc((LqConn*)c, CurTime, TimeLiveMilliseconds)))
+		{
+			LQ_LOG_USER("Remove connection  by timeout");
+			LqEvntRemoveByInterator(&EventChecker, &Interator);
+			((LqConn*)c)->Proto->EndConnProc((LqConn*)c);
+		}
 	}
-    }
 }
 
-size_t LqWrk::AddConnListAsync(LqListConn& ConnectionList)
+size_t LqWrk::AddEvntListAsync(LqListEvnt& ConnectionList)
 {
-    size_t r = 0;
-    for(size_t i = 0; i < ConnectionList.GetCount(); i++)
-    {
-	if(ConnectionList[i] == nullptr)
-	    continue;
-	if(!AddConnAsync(ConnectionList[i]))
+	size_t r = 0;
+	for(size_t i = 0; i < ConnectionList.GetCount(); i++)
 	{
-	    ConnectionList[i]->Proto->EndConnProc(ConnectionList[i]);
-	    LQ_ERR("Not adding #%u connection in #%llu worker", i, Id);
-	} else
-	{
-	    r++;
+		if(ConnectionList[i] == nullptr)
+			continue;
+		if(!AddEvntAsync(ConnectionList[i]))
+		{
+			LqEvntHdrClose(ConnectionList[i]);
+			LQ_ERR("Not adding #%u connection in #%llu worker", i, Id);
+		} else
+		{
+			r++;
+		}
+		ConnectionList[i] = nullptr;
 	}
-	ConnectionList[i] = nullptr;
-    }
-    return r;
+	return r;
 }
 
-size_t LqWrk::AddConnListSync(LqListConn& ConnectionList)
+size_t LqWrk::AddEvntListSync(LqListEvnt& ConnectionList)
 {
-    LockWrite();
-    auto r = AddConnections(ConnectionList);
-    UnlockWrite();
-    return r;
+	LockWrite();
+	auto r = AddEvnt(ConnectionList);
+	UnlockWrite();
+	return r;
 }
 
 bool LqWrk::RemoveConnOnTimeOutAsync(LqTimeMillisec TimeLiveMilliseconds)
 {
-    if(!CommandQueue.PushBegin(LQWRK_CMD_RM_CONN_ON_TIME_OUT, TimeLiveMilliseconds))
-	return false;
-    NotifyThread();
-    return true;
+	if(!CommandQueue.PushBegin(LQWRK_CMD_RM_CONN_ON_TIME_OUT, TimeLiveMilliseconds))
+		return false;
+	NotifyThread();
+	return true;
 }
 
 bool LqWrk::RemoveConnOnTimeOutSync(LqTimeMillisec TimeLiveMilliseconds)
 {
-    LockWrite();
-    RemoveConnOnTimeOut(TimeLiveMilliseconds);
-    UnlockWrite();
-    return true;
+	LockWrite();
+	RemoveConnOnTimeOut(TimeLiveMilliseconds);
+	UnlockWrite();
+	return true;
 }
 
-bool LqWrk::AddConnAsync(LqConn* Connection)
+bool LqWrk::AddEvntAsync(LqEvntHdr* Connection)
 {
-    if(!CommandQueue.Push(LQWRK_CMD_ADD_CONN, Connection))
-	return false;
-    CountConnectionsInQueue++;
-    NotifyThread();
-    return true;
+	if(!CommandQueue.Push(LQWRK_CMD_ADD_CONN, Connection))
+		return false;
+	CountConnectionsInQueue++;
+	NotifyThread();
+	return true;
 }
 
-bool LqWrk::AddConnSync(LqConn* Connection)
+bool LqWrk::AddEvntSync(LqEvntHdr* Connection)
 {
-    LockWrite();
-    auto r = AddConn(Connection);
-    UnlockWrite();
-    return r;
+	LockWrite();
+	auto r = AddEvnt(Connection);
+	UnlockWrite();
+	return r;
 }
 
-bool LqWrk::UnlockConnAsync(LqConn* Connection)
+bool LqWrk::SyncEvntFlagAsync(LqEvntHdr* Connection)
 {
-    if(!CommandQueue.PushBegin<LqConn*>(LQWRK_CMD_UNLOCK_CONN, Connection))
-	return false;
-    NotifyThread();
-    return true;
+	if(!CommandQueue.PushBegin<LqEvntHdr*>(LQWRK_CMD_UNLOCK_CONN, Connection))
+		return false;
+	NotifyThread();
+	return true;
 }
 
-int LqWrk::UnlockConnSync(LqConn* Connection)
+int LqWrk::SyncEvntFlagSync(LqEvntHdr* Connection)
 {
-    LockWrite();
-    auto r = LqEvntUnlock(&EventChecker, Connection);
-    UnlockWrite();
-    return r;
+	LockWrite();
+	auto r = LqEvntSetMaskByHdr(&EventChecker, Connection);
+	UnlockWrite();
+	return r;
 }
 
 bool LqWrk::WaitEvent(void(*NewEventProc)(void* Data), void* NewUserData)
 {
-    if(!CommandQueue.PushBegin<LqWrkCmdWaitEvnt>(LQWRK_CMD_WAIT_EVENT, LqWrkCmdWaitEvnt(NewEventProc, NewUserData)))
-	return false;
-    NotifyThread();
-    return true;
+	if(!CommandQueue.PushBegin<LqWrkCmdWaitEvnt>(LQWRK_CMD_WAIT_EVENT, LqWrkCmdWaitEvnt(NewEventProc, NewUserData)))
+		return false;
+	NotifyThread();
+	return true;
 }
 
-bool LqWrk::CloseAllConnAsync()
+bool LqWrk::CloseAllEvntAsync()
 {
-    if(!CommandQueue.PushBegin(LQWRK_CMD_CLOSE_CONN))
-	return false;
-    NotifyThread();
-    return true;
+	if(!CommandQueue.PushBegin(LQWRK_CMD_CLOSE_CONN))
+		return false;
+	NotifyThread();
+	return true;
 }
 
-void LqWrk::CloseAllConnSync()
+void LqWrk::CloseAllEvntSync()
 {
-    LockWrite();
-    CloseAllConn();
-    UnlockWrite();
+	LockWrite();
+	CloseAllEvnt();
+	UnlockWrite();
 }
 
-bool LqWrk::TakeAllConnAsync(void(*TakeEventProc)(void *Data, LqListConn &ConnectionList), void * NewUserData)
+bool LqWrk::TakeAllConnAsync(void(*TakeEventProc)(void *Data, LqListEvnt &ConnectionList), void * NewUserData)
 {
-    if(!CommandQueue.PushBegin<LqWrkCmdTakeAllConn>(LQWRK_CMD_TAKE_ALL_CONN, LqWrkCmdTakeAllConn(TakeEventProc, NewUserData)))
-	return false;
-    NotifyThread();
-    return true;
+	if(!CommandQueue.PushBegin<LqWrkCmdTakeAllConn>(LQWRK_CMD_TAKE_ALL_CONN, LqWrkCmdTakeAllConn(TakeEventProc, NewUserData)))
+		return false;
+	NotifyThread();
+	return true;
 }
 
-bool LqWrk::TakeAllConn(LqListConn & ConnectionList)
+bool LqWrk::TakeAllEvnt(LqListEvnt & ConnectionList)
 {
-    LockWrite();
-    RemoveConnInList(ConnectionList);
-    RemoveConnInListFromCmd(ConnectionList);
-    UnlockWrite();
-    return true;
+	LockWrite();
+	RemoveEvntInList(ConnectionList);
+	RemoveEvntInListFromCmd(ConnectionList);
+	UnlockWrite();
+	return true;
 }
 
-bool LqWrk::TakeAllConnSync(LqListConn& ConnectionList)
+bool LqWrk::TakeAllConnSync(LqListEvnt& ConnectionList)
 {
-    LockWrite();
-    RemoveConnInList(ConnectionList);
-    UnlockWrite();
-    return true;
+	LockWrite();
+	RemoveEvntInList(ConnectionList);
+	UnlockWrite();
+	return true;
 }
 
 
 bool LqWrk::CloseConnByIpSync(const sockaddr* Addr)
 {
-    LockWrite();
-    RemoveConnByIp(Addr);
-    UnlockWrite();
-    return true;
+	LockWrite();
+	RemoveConnByIp(Addr);
+	UnlockWrite();
+	return true;
 }
 
 bool LqWrk::CloseConnByIpAsync(const sockaddr* Addr)
 {
-    StartThreadLocker.LockWrite();
-    switch(Addr->sa_family)
-    {
-	case AF_INET:
+	StartThreadLocker.LockWriteYield();
+	switch(Addr->sa_family)
 	{
-	    ClientAddr s;
-	    s.AddrInet = *(sockaddr_in*)Addr;
-	    if(!CommandQueue.PushBegin<ClientAddr>(LQWRK_CMD_RM_CONN_BY_IP, s))
-	    {
-		StartThreadLocker.UnlockWrite();
-		return false;
-	    }
+		case AF_INET:
+		{
+			ClientAddr s;
+			s.AddrInet = *(sockaddr_in*)Addr;
+			if(!CommandQueue.PushBegin<ClientAddr>(LQWRK_CMD_RM_CONN_BY_IP, s))
+			{
+				StartThreadLocker.UnlockWrite();
+				return false;
+			}
+		}
+		break;
+		case AF_INET6:
+		{
+			ClientAddr s;
+			s.AddrInet6 = *(sockaddr_in6*)Addr;
+			if(!CommandQueue.PushBegin<ClientAddr>(LQWRK_CMD_RM_CONN_BY_IP, s))
+			{
+				StartThreadLocker.UnlockWrite();
+				return false;
+			}
+		}
+		break;
+		default: StartThreadLocker.UnlockWrite(); return false;
 	}
-	break;
-	case AF_INET6:
-	{
-	    ClientAddr s;
-	    s.AddrInet6 = *(sockaddr_in6*)Addr;
-	    if(!CommandQueue.PushBegin<ClientAddr>(LQWRK_CMD_RM_CONN_BY_IP, s))
-	    {
-		StartThreadLocker.UnlockWrite();
-		return false;
-	    }
-	}
-	break;
-	default: StartThreadLocker.UnlockWrite(); return false;
-    }
-    StartThreadLocker.UnlockWrite();
-    NotifyThread();
-    return true;
+	StartThreadLocker.UnlockWrite();
+	NotifyThread();
+	return true;
 }
 
-void LqWrk::EnumConn(void* UserData, void(*Proc)(void *UserData, LqConn *Conn))
+void LqWrk::EnumEvnt(void* UserData, void(*Proc)(void *UserData, LqEvntHdr* Conn))
 {
-    LockWrite();
-    LqEvntConnInterator Interator;
-    for(auto r = LqEvntEnumConnBegin(&EventChecker, &Interator); r; r = LqEvntEnumConnNext(&EventChecker, &Interator))
-    {
-	auto Connection = LqEvntGetClientByConnInterator(&EventChecker, &Interator);
-	Proc(UserData, Connection);
-    }
-    UnlockWrite();
+	LockWrite();
+	LqEvntInterator Interator;
+	for(auto r = LqEvntEnumBegin(&EventChecker, &Interator); r; r = LqEvntEnumNext(&EventChecker, &Interator))
+	{
+		auto Connection = LqEvntGetHdrByInterator(&EventChecker, &Interator);
+		Proc(UserData, Connection);
+	}
+	UnlockWrite();
 }
 
 LqString LqWrk::DebugInfo() const
 {
-    char Buf[1024];
-    size_t ccip = LqEvntCount(&EventChecker);
-    size_t cciq = CountConnectionsInQueue;
+	char Buf[1024];
+	size_t ccip = LqEvntCount(&EventChecker);
+	size_t cciq = CountConnectionsInQueue;
 
-    auto CurrentTimeMillisec = LqTimeGetLocMillisec();
-    sprintf
-    (
-	Buf,
-	"Worker Id: %llu\n"
-	"Time start: %s (%s)\n"
-	"Count connections in process: %u\n"
-	"Count connections in queue: %u\n"
-	"Common count connections: %u\n",
-	Id,
-	LqTimeLocSecToStlStr(CurrentTimeMillisec / 1000).c_str(),
-	LqTimeDiffMillisecToStlStr(TimeStart, CurrentTimeMillisec).c_str(),
-	(uint)ccip,
-	(uint)cciq,
-	(uint)(ccip + cciq)
-    );
-    return Buf;
+	auto CurrentTimeMillisec = LqTimeGetLocMillisec();
+	sprintf
+	(
+		Buf,
+		"Worker Id: %llu\n"
+		"Time start: %s (%s)\n"
+		"Count connections in process: %u\n"
+		"Count connections in queue: %u\n"
+		"Common count connections: %u\n",
+		Id,
+		LqTimeLocSecToStlStr(CurrentTimeMillisec / 1000).c_str(),
+		LqTimeDiffMillisecToStlStr(TimeStart, CurrentTimeMillisec).c_str(),
+		(uint)ccip,
+		(uint)cciq,
+		(uint)(ccip + cciq)
+	);
+	return Buf;
 }
 
 LqString LqWrk::AllDebugInfo()
 {
-    LqString r =
-	"---------\nCommon worker info\n" +
-	DebugInfo() +
-	"---------\nThread info\n" +
-	LqThreadBase::DebugInfo() +
-	"---------\n";
-    LockRead();
+	LqString r =
+		"---------\nCommon worker info\n" +
+		DebugInfo() +
+		"---------\nThread info\n" +
+		LqThreadBase::DebugInfo() +
+		"---------\n";
+	LockRead();
 
-    LqEvntConnInterator Interator;
-    ullong CurTime = LqTimeGetLocMillisec();
-    if(LqEvntEnumConnBegin(&EventChecker, &Interator))
-    {
-	int k = 0;
-	do
+	LqEvntInterator Interator;
+	ullong CurTime = LqTimeGetLocMillisec();
+	if(LqEvntEnumBegin(&EventChecker, &Interator))
 	{
-	    auto Connection = LqEvntGetClientByConnInterator(&EventChecker, &Interator);
-	    r += "Connection #" + LqToString(k) + "\n";
-	    char* DbgInf = Connection->Proto->DebugInfoProc(Connection);
-	    if(DbgInf != nullptr)
-	    {
-		r += DbgInf;
-		r += "\n";
-		free(DbgInf);
-	    }
-	    k++;
-	} while(LqEvntEnumConnNext(&EventChecker, &Interator));
-    }
-    UnlockRead();
-    r += "---------\n";
-    return r;
+		int k = 0;
+		do
+		{
+			auto Conn = LqEvntGetHdrByInterator(&EventChecker, &Interator);
+			if(Conn->Flag & _LQEVNT_FLAG_CONN)
+			{
+				r += "Conn #" + LqToString(k) + "\n";
+				char* DbgInf = ((LqConn*)Conn)->Proto->DebugInfoProc((LqConn*)Conn);
+				if(DbgInf != nullptr)
+				{
+					r += DbgInf;
+					r += "\n";
+					free(DbgInf);
+				}
+				k++;
+			}
+		} while(LqEvntEnumNext(&EventChecker, &Interator));
+	}
+	UnlockRead();
+	r += "---------\n";
+	return r;
 }
 
 size_t LqWrk::GetAssessmentBusy() const { return CountConnectionsInQueue + LqEvntCount(&EventChecker); }
 
 bool LqWrk::LockWrite()
 {
-    if(std::this_thread::get_id() == get_id())
-    {
-	SafeReg.EnterSafeRegionAndSwitchToWriteMode();
+	if(IsThisThread())
+	{
+		SafeReg.EnterSafeRegionAndSwitchToWriteMode();
+		return true;
+	}
+	SafeReg.OccupyWriteYield();
+	NotifyThread();
+	while(!SafeReg.TryWaitRegion())
+	{
+		if(IsThreadEnd())
+			return false;
+		std::this_thread::yield();
+	}
 	return true;
-    }
-    SafeReg.OccupyWrite();
-    NotifyThread();
-    while(!SafeReg.TryWaitRegion())
-    {
-	if(IsThreadEnd())
-	    return false;
-	std::this_thread::yield();
-    }
-    return true;
 }
 
 bool LqWrk::LockRead()
 {
-    if(std::this_thread::get_id() == this->get_id())
-    {
-	SafeReg.EnterSafeRegionAndSwitchToReadMode();
+	if(IsThisThread())
+	{
+		SafeReg.EnterSafeRegionAndSwitchToReadMode();
+		return true;
+	}
+	SafeReg.OccupyReadYield();
+	NotifyThread();
+	while(!SafeReg.TryWaitRegion())
+	{
+		if(IsThreadEnd())
+			return false;
+		std::this_thread::yield();
+	}
 	return true;
-    }
-    SafeReg.OccupyRead();
-    NotifyThread();
-    while(!SafeReg.TryWaitRegion())
-    {
-	if(IsThreadEnd())
-	    return false;
-	std::this_thread::yield();
-    }
-    return true;
 }
 
-void LqWrk::UnlockRead() const {  SafeReg.ReleaseRead(); }
+void LqWrk::UnlockRead() const { SafeReg.ReleaseRead(); }
 
-void LqWrk::UnlockWrite() const{  SafeReg.ReleaseWrite(); }
+void LqWrk::UnlockWrite() const { SafeReg.ReleaseWrite(); }
 
 void LqWrk::NotifyThread() { LqEvntSignalSet(&EventChecker); }
 

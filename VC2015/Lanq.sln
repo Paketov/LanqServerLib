@@ -20,6 +20,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MdlAutoLoad", "..\Modules\M
 		{B7EB2CE3-2ADA-4AAE-90E2-9FB826162B5F} = {B7EB2CE3-2ADA-4AAE-90E2-9FB826162B5F}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RemoteTerminal", "..\Modules\RemoteTerminal\VS2015\RemoteTerminal.vcxproj", "{57F40A35-93A7-4E2A-A130-60962589ACD6}"
+	ProjectSection(ProjectDependencies) = postProject
+		{B7EB2CE3-2ADA-4AAE-90E2-9FB826162B5F} = {B7EB2CE3-2ADA-4AAE-90E2-9FB826162B5F}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM = Debug|ARM
@@ -72,6 +77,16 @@ Global
 		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Release|x64.Build.0 = Release|x64
 		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Release|x86.ActiveCfg = Release|Win32
 		{00EB5F95-C0F2-43E3-95F4-674AA93744D0}.Release|x86.Build.0 = Release|Win32
+		{57F40A35-93A7-4E2A-A130-60962589ACD6}.Debug|ARM.ActiveCfg = Debug|Win32
+		{57F40A35-93A7-4E2A-A130-60962589ACD6}.Debug|x64.ActiveCfg = Debug|x64
+		{57F40A35-93A7-4E2A-A130-60962589ACD6}.Debug|x64.Build.0 = Debug|x64
+		{57F40A35-93A7-4E2A-A130-60962589ACD6}.Debug|x86.ActiveCfg = Debug|Win32
+		{57F40A35-93A7-4E2A-A130-60962589ACD6}.Debug|x86.Build.0 = Debug|Win32
+		{57F40A35-93A7-4E2A-A130-60962589ACD6}.Release|ARM.ActiveCfg = Release|Win32
+		{57F40A35-93A7-4E2A-A130-60962589ACD6}.Release|x64.ActiveCfg = Release|x64
+		{57F40A35-93A7-4E2A-A130-60962589ACD6}.Release|x64.Build.0 = Release|x64
+		{57F40A35-93A7-4E2A-A130-60962589ACD6}.Release|x86.ActiveCfg = Release|Win32
+		{57F40A35-93A7-4E2A-A130-60962589ACD6}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

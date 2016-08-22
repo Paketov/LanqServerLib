@@ -22,33 +22,33 @@ LqWrkTask::~LqWrkTask()
 {
     LockWrite();
     for(int i = Count - 1; i >= 0; i--)
-	Tasks[i]->WorkerOwner = nullptr;
+        Tasks[i]->WorkerOwner = nullptr;
     Count = 0;
     if(Tasks != nullptr)
-	free(Tasks);
+        free(Tasks);
     UnlockWrite();
     EndWorkSync();
 }
 
 void LqWrkTask::BeginThread()
 {
-    LqUniqueLock			Lock(Mut);
-    LqTimeMillisec			TimeWait = 0;
+    LqUniqueLock            Lock(Mut);
+    LqTimeMillisec          TimeWait = 0;
     while(true)
     {
-	SafeReg.EnterSafeRegion();
+        SafeReg.EnterSafeRegion();
 
-	TimeWait = LqTimeGetMaxMillisec();
+        TimeWait = LqTimeGetMaxMillisec();
 
-	auto CurTime = LqTimeGetLocMillisec();
-	for(size_t i = 0; i < Count; i++)
-	    Tasks[i]->GoWork(CurTime, TimeWait);
+        auto CurTime = LqTimeGetLocMillisec();
+        for(size_t i = 0; i < Count; i++)
+            Tasks[i]->GoWork(CurTime, TimeWait);
 
-	if(LqThreadBase::IsShouldEnd)
-	    break;
-	if(!HasNotify)
-	    CondVar.wait_for(Lock, std::chrono::milliseconds(TimeWait));
-	HasNotify = false;
+        if(LqThreadBase::IsShouldEnd)
+            break;
+        if(!HasNotify)
+            CondVar.wait_for(Lock, std::chrono::milliseconds(TimeWait));
+        HasNotify = false;
     }
 }
 
@@ -56,17 +56,17 @@ bool LqWrkTask::Add(Task* Service)
 {
     LockWrite();
     for(size_t i = 0; i < Count; i++)
-	if(Tasks[i] == Service)
-	{
-	    UnlockWrite();
-	    return true;
-	}
+        if(Tasks[i] == Service)
+        {
+            UnlockWrite();
+            return true;
+        }
     Service->WorkerOwner = this;
     auto NewArr = (Task**)realloc(Tasks, sizeof(Tasks[0]) * (Count + 1));
     if(NewArr == nullptr)
     {
-	UnlockWrite();
-	return false;
+        UnlockWrite();
+        return false;
     }
     NewArr[Count++] = Service;
     Tasks = NewArr;
@@ -79,15 +79,15 @@ bool LqWrkTask::Remove(Task* Service)
 {
     LockWrite();
     for(size_t i = 0; i < Count; i++)
-	if(Tasks[i] == Service)
-	{
-	    Count--;
-	    Tasks[i] = Tasks[Count];
-	    Tasks = (decltype(Tasks))realloc(Tasks, sizeof(Tasks[0]) * Count);
-	    Service->WorkerOwner = nullptr;
-	    UnlockWrite();
-	    return true;
-	}
+        if(Tasks[i] == Service)
+        {
+            Count--;
+            Tasks[i] = Tasks[Count];
+            Tasks = (decltype(Tasks))realloc(Tasks, sizeof(Tasks[0]) * Count);
+            Service->WorkerOwner = nullptr;
+            UnlockWrite();
+            return true;
+        }
     UnlockWrite();
     CheckNow();
     return false;
@@ -97,16 +97,16 @@ bool LqWrkTask::LockWrite() const
 {
     if(std::this_thread::get_id() == get_id())
     {
-	SafeReg.EnterSafeRegionAndSwitchToWriteMode();
-	return true;
+        SafeReg.EnterSafeRegionAndSwitchToWriteMode();
+        return true;
     }
-    SafeReg.OccupyWrite();
+    SafeReg.OccupyWriteYield();
     CheckNow();
     while(!SafeReg.TryWaitRegion())
     {
-	if(IsOut)
-	    return false;
-	LqThreadYield();
+        if(IsOut)
+            return false;
+        LqThreadYield();
     }
     return true;
 }
@@ -115,16 +115,16 @@ bool LqWrkTask::LockRead() const
 {
     if(std::this_thread::get_id() == get_id())
     {
-	SafeReg.EnterSafeRegionAndSwitchToReadMode();
-	return true;
+        SafeReg.EnterSafeRegionAndSwitchToReadMode();
+        return true;
     }
-    SafeReg.OccupyRead();
+    SafeReg.OccupyReadYield();
     CheckNow();
     while(!SafeReg.TryWaitRegion())
     {
-	if(IsOut)
-	    return false;
-	LqThreadYield();
+        if(IsOut)
+            return false;
+        LqThreadYield();
     }
     return true;
 }
@@ -134,11 +134,11 @@ void LqWrkTask::UnlockRead() const { SafeReg.ReleaseRead(); }
 void LqWrkTask::UnlockWrite() const { SafeReg.ReleaseWrite(); }
 
 void LqWrkTask::CheckNow() const
-{ 
+{
     if(!IsOut)
     {
-	HasNotify = true;
-	CondVar.notify_one();
+        HasNotify = true;
+        CondVar.notify_one();
     }
 }
 
@@ -149,13 +149,13 @@ bool LqWrkTask::Task::GoWork(LqTimeMillisec CurTime, LqTimeMillisec& NewElapsedT
 
     if(TimeLeft <= 0)
     {
-	WorkingMethod();
-	TimeLeft = Period;
-	LastCheck = CurTime;
-	r = true;
+        WorkingMethod();
+        TimeLeft = Period;
+        LastCheck = CurTime;
+        r = true;
     }
     if(TimeLeft < NewElapsedTime)
-	NewElapsedTime = TimeLeft;
+        NewElapsedTime = TimeLeft;
     return r;
 }
 
@@ -165,7 +165,7 @@ void LqWrkTask::Task::SetPeriodMillisec(LqTimeMillisec NewVal)
 {
     Period = NewVal;
     if(WorkerOwner != nullptr)
-	WorkerOwner->CheckNow();
+        WorkerOwner->CheckNow();
 }
 
 
@@ -176,7 +176,7 @@ LqWrkTask* LqWrkTask::Task::GetOwner() { return WorkerOwner; }
 LqWrkTask::Task::~Task()
 {
     if(WorkerOwner != nullptr)
-	WorkerOwner->Remove(this);
+        WorkerOwner->Remove(this);
 }
 
 LqWrkTask::Task* LqWrkTask::operator[](const char* Name) const
@@ -184,24 +184,24 @@ LqWrkTask::Task* LqWrkTask::operator[](const char* Name) const
     Task* r = nullptr;
     LockRead();
     for(size_t i = 0; i < Count; i++)
-	if(LqStrSame(Tasks[i]->Name, Name))
-	{
-	    r = Tasks[i];
-	    break;
-	}
+        if(LqStrSame(Tasks[i]->Name, Name))
+        {
+            r = Tasks[i];
+            break;
+        }
     UnlockRead();
     return r;
 }
 
-void LqWrkTask::NotifyThread() 
+void LqWrkTask::NotifyThread()
 {
     HasNotify = true;
     CondVar.notify_one();
 }
 
-LqString LqWrkTask::Task::DebugInfo() 
-{ 
-    return ""; 
+LqString LqWrkTask::Task::DebugInfo()
+{
+    return "";
 }
 
 LqString LqWrkTask::DebugInfo() const
@@ -210,7 +210,7 @@ LqString LqWrkTask::DebugInfo() const
     LqString r = "Count services: " + LqToString(Count) + "\nServices: ";
     for(size_t i = 0; i < Count; i++)
     {
-	r = r + "\"" + Tasks[i]->Name + "\" ";
+        r = r + "\"" + Tasks[i]->Name + "\" ";
     }
     r += "\n";
     UnlockRead();
@@ -223,7 +223,7 @@ LqString LqWrkTask::AllDebugInfo() const
     LqString r = "---------\nCount services: " + LqToString(Count) + "\n---------\nServices: ";
     for(size_t i = 0; i < Count; i++)
     {
-	r = r + "\nService #" + LqToString(i) + " \"" + Tasks[i]->Name + "\" \n" + Tasks[i]->DebugInfo();
+        r = r + "\nService #" + LqToString(i) + " \"" + Tasks[i]->Name + "\" \n" + Tasks[i]->DebugInfo();
     }
     r += "---------\n";
     UnlockRead();

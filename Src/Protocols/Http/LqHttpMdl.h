@@ -43,7 +43,7 @@ typedef enum
 typedef LqHttpMdlRegistratorEnm(LQ_CALL* LqHttpModuleRegistratorProc)(LqHttpProtoBase* Reg, uintptr_t ModuleHandle, const char* LibPath, void* UserData);
 
 LQ_IMPORTEXPORT LqHttpMdlLoadEnm LQ_CALL LqHttpMdlLoad(LqHttpProtoBase* lqain Reg, const char* lqain lqautf8 PathToLib, void* lqain lqaopt UserData, uintptr_t* lqaout lqaopt Handle);
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpMdlFree(LqHttpMdl* lqain Module);
+//LQ_IMPORTEXPORT bool LQ_CALL LqHttpMdlFree(LqHttpMdl* lqain Module);
 /*
 * Use for registrate module in http proto reg.
 *	If module is static linking, then generate not even number.

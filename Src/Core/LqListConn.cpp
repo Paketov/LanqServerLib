@@ -6,68 +6,72 @@
 */
 
 #include "LqOs.h"
+#include "LqConn.h"
 #include "LqListConn.hpp"
 #include <string.h>
 
 
-LqListConn::LqListConn(): Count(0), Conn(nullptr) {}
 
-LqListConn::~LqListConn()
+LqListEvnt::LqListEvnt(): Count(0), Conn(nullptr) {}
+
+LqListEvnt::~LqListEvnt()
 {
     if(Conn != nullptr)
     {
-	for(size_t i = 0; i < Count; i++)
-	{
-	    if(Conn[i] != nullptr)
-		Conn[i]->Proto->EndConnProc(Conn[i]);
-	}
-	free(Conn);
+        for(size_t i = 0; i < Count; i++)
+        {
+            if(Conn[i] != nullptr)
+            {
+				LqEvntHdrClose(Conn[i]);
+            }
+        }
+        free(Conn);
     }
 }
 
-LqListConn::LqListConn(LqListConn&& AnotherList)
+LqListEvnt::LqListEvnt(LqListEvnt&& AnotherList)
 {
     Count = AnotherList.Count;
     AnotherList.Count = 0;
     Conn = AnotherList.Conn;
     AnotherList.Conn = nullptr;
 }
-LqListConn::LqListConn(const LqListConn& AnotherList): Count(0), Conn(nullptr)
+LqListEvnt::LqListEvnt(const LqListEvnt& AnotherList): Count(0), Conn(nullptr)
 {
     auto r = realloc(Conn, sizeof(Conn[0]) * AnotherList.Count);
     if(r == nullptr)
-	return;
-    Conn = (LqConn**)r;
+        return;
+    Conn = (LqEvntHdr**)r;
     Count = AnotherList.Count;
     memcpy(Conn, AnotherList.Conn, sizeof(Conn[0]) * Count);
 }
 
-size_t LqListConn::GetCount() const
+size_t LqListEvnt::GetCount() const
 {
     return Count;
 }
 
-LqConn* &LqListConn::operator[](size_t Index) const
+LqEvntHdr* &LqListEvnt::operator[](size_t Index) const
 {
     return Conn[Index];
 }
 
-LqListConn & LqListConn::operator=(const LqListConn & AnotherList)
+LqListEvnt & LqListEvnt::operator=(const LqListEvnt & AnotherList)
 {
     auto r = realloc(Conn, sizeof(Conn[0]) * AnotherList.Count);
     if(r == nullptr)
-	return *this;
-    Conn = (LqConn**)r;
+        return *this;
+    Conn = (LqEvntHdr**)r;
     Count = AnotherList.Count;
     memcpy(Conn, AnotherList.Conn, sizeof(Conn[0]) * Count);
     return *this;
 }
 
-bool LqListConn::Add(LqConn* NewConnection)
+bool LqListEvnt::Add(LqEvntHdr* NewConnection)
 {
-    auto r = realloc(Conn, (Count + 1) * sizeof(LqConn*));
+    auto r = realloc(Conn, (Count + 1) * sizeof(LqEvntHdr*));
     if(r == nullptr) return false;
-    Conn = (LqConn**)r;
+    Conn = (LqEvntHdr**)r;
     Conn[Count] = NewConnection;
     Count++;
     return true;

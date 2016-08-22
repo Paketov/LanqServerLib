@@ -3,7 +3,7 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-* LqListConn - List of connections. Use for transfer connections between workers.
+* LqListEvnt - List of connections. Use for transfer connections between workers.
 */
 
 #include "LqAlloc.hpp"
@@ -12,23 +12,23 @@
 #pragma pack(push) 
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-class LQ_IMPORTEXPORT LqListConn
+class LQ_IMPORTEXPORT LqListEvnt
 {
     size_t              Count;
-    LqConn**            Conn;
+    LqEvntHdr**         Conn;
 public:
 
-    LqListConn();
-    ~LqListConn();
+    LqListEvnt();
+    ~LqListEvnt();
 
-    LqListConn(LqListConn&& Another);
-    LqListConn(const LqListConn& Another);
+    LqListEvnt(LqListEvnt&& Another);
+    LqListEvnt(const LqListEvnt& Another);
 
     size_t GetCount() const;
-    LqConn* &operator[](size_t Index) const;
-    LqListConn& operator=(const LqListConn& AnotherList);
+    LqEvntHdr* &operator[](size_t Index) const;
+    LqListEvnt& operator=(const LqListEvnt& AnotherList);
 
-    bool Add(LqConn* NewConnection);
+    bool Add(LqEvntHdr* NewConnection);
 };
 
 #pragma pack(pop)

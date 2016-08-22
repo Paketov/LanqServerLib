@@ -43,21 +43,21 @@ LQ_EXTERN_C int LQ_CALL LqHttpRspStatus(LqHttpConn* c, int Status)
 static void LqHttpRspBasicHeaders(LqHttpConn* c, char* Etag, char* CacheControl, tm* LastMod, tm* Expires)
 {
     if(LastMod != nullptr)
-	LqHttpRspHdrAddPrintf(c, "Last-Modified", PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*LastMod));
+        LqHttpRspHdrAddPrintf(c, "Last-Modified", PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*LastMod));
     if(Expires != nullptr)
-	LqHttpRspHdrAddPrintf(c, "Expires", PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*Expires));
+        LqHttpRspHdrAddPrintf(c, "Expires", PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*Expires));
     if(CacheControl[0] != '\0')
-	LqHttpRspHdrAdd(c, "Cache-Control", CacheControl);
+        LqHttpRspHdrAdd(c, "Cache-Control", CacheControl);
     if(Etag[0] != '\0')
-	LqHttpRspHdrAdd(c, "ETag", Etag);
+        LqHttpRspHdrAdd(c, "ETag", Etag);
 }
 
 static bool LqHttpRsp200Headers(LqHttpConn* c, LqFileSz SizeFile, char* MimeType, char* Etag, char* CacheControl, tm* LastMod, tm* CurrTime, tm* Expires)
 {
     if(LqHttpRspStatus(c, 200))
     {
-	LqHttpActSwitchToClose(c);
-	return false;
+        LqHttpActSwitchToClose(c);
+        return false;
     }
     LqHttpRspHdrAdd(c, "Content-Type", (MimeType == nullptr) ? "application/octet-stream" : MimeType);
     LqHttpRspHdrAddPrintf(c, "Content-Length", "%llu", (unsigned long long)SizeFile);
@@ -69,8 +69,8 @@ static bool LqHttpRsp304Headers(LqHttpConn* c, char* Etag, char* CacheControl, t
 {
     if(LqHttpRspStatus(c, 304))
     {
-	LqHttpActSwitchToClose(c);
-	return false;
+        LqHttpActSwitchToClose(c);
+        return false;
     }
     LqHttpRspBasicHeaders(c, Etag, CacheControl, LastMod, Expires);
     LqHttpActKeepOnlyHeaders(c);
@@ -81,14 +81,14 @@ int LqHttpRspPrintRangeBoundaryHeaders(char* Buf, size_t SizeBuf, LqHttpConn* c,
 {
     return snprintf
     (
-	Buf,
-	SizeBuf,
-	"\r\n--z3d6b6a416f9b53e416f9b5z\r\n"
-	"Content-Type: %s\r\n"
-	"Content-Range: bytes %llu-%llu/%llu\r\n"
-	"\r\n",
-	(char*)((MimeType == nullptr) ? "application/octet-stream" : MimeType),
-	(ullong)Start, (ullong)(End - 1), (ullong)SizeFile
+        Buf,
+        SizeBuf,
+        "\r\n--z3d6b6a416f9b53e416f9b5z\r\n"
+        "Content-Type: %s\r\n"
+        "Content-Range: bytes %llu-%llu/%llu\r\n"
+        "\r\n",
+        (char*)((MimeType == nullptr) ? "application/octet-stream" : MimeType),
+        (ullong)Start, (ullong)(End - 1), (ullong)SizeFile
     );
 }
 
@@ -96,9 +96,9 @@ int LqHttpRspPrintEndRangeBoundaryHeader(char* Buf, size_t SizeBuf)
 {
     return snprintf
     (
-	Buf,
-	SizeBuf,
-	"\r\n--z3d6b6a416f9b53e416f9b5z--"
+        Buf,
+        SizeBuf,
+        "\r\n--z3d6b6a416f9b53e416f9b5z--"
     );
 }
 
@@ -121,111 +121,111 @@ static LqHttpRspByRngResultEnm LqHttpRspByRage(LqHttpConn* c, char *RangeHeader,
 
     for(uint i = 0; "bytes="[i] != '\0'; i++, p++)
     {
-	if("bytes="[i] != *p) return LQHTTPRSP_RNG_IGNORED;
+        if("bytes="[i] != *p) return LQHTTPRSP_RNG_IGNORED;
     }
     uint8_t IndexRange = 0;
     LqFileSz FragmentsLen = 0;
     bool IsSatisfiable = false;
     while(true)
     {
-	for(; *p == ' '; p++);
-	llong Start = 0;
-	ullong End = 0;
-	int Readed;
-	if((Readed = LqStrToInt(&Start, p)) == 0)
-	    return LQHTTPRSP_RNG_IGNORED; //Ignore this header
-	p += Readed;
-	if(*p == '-')
-	{
-	    p++;
-	    if(Start < 0) return LQHTTPRSP_RNG_IGNORED;
-	    if((Readed = LqStrToInt(&End, p)) == 0)
-		End = SizeFile;
-	    else
-		End += 1;
-	    p += Readed;
-	} else
-	{
-	    End = SizeFile;
-	}
-	if(End > SizeFile) End = SizeFile;
-	if(Start < 0)
-	{
-	    Start = (llong)End + Start;
-	    if(Start < 0) Start = 0;
-	}
-	if(Start >= End) IsSatisfiable = true;
-	c->Response.Ranges[IndexRange].Start = Start;
-	c->Response.Ranges[IndexRange].End = End;
-	IndexRange++;
-	FragmentsLen += (End - Start);
-	for(; *p == ' '; p++);
-	if((*p == ',') && (IndexRange < LQHTTPRSP_MAX_RANGES))
-	{
-	    p++;
-	    continue;
-	} else if(*p == '\r')
-	{
-	    break;
-	} else
-	{
-	    return LQHTTPRSP_RNG_IGNORED;
-	}
+        for(; *p == ' '; p++);
+        llong Start = 0;
+        ullong End = 0;
+        int Readed;
+        if((Readed = LqStrToInt(&Start, p)) == 0)
+            return LQHTTPRSP_RNG_IGNORED; //Ignore this header
+        p += Readed;
+        if(*p == '-')
+        {
+            p++;
+            if(Start < 0) return LQHTTPRSP_RNG_IGNORED;
+            if((Readed = LqStrToInt(&End, p)) == 0)
+                End = SizeFile;
+            else
+                End += 1;
+            p += Readed;
+        } else
+        {
+            End = SizeFile;
+        }
+        if(End > SizeFile) End = SizeFile;
+        if(Start < 0)
+        {
+            Start = (llong)End + Start;
+            if(Start < 0) Start = 0;
+        }
+        if(Start >= End) IsSatisfiable = true;
+        c->Response.Ranges[IndexRange].Start = Start;
+        c->Response.Ranges[IndexRange].End = End;
+        IndexRange++;
+        FragmentsLen += (End - Start);
+        for(; *p == ' '; p++);
+        if((*p == ',') && (IndexRange < LQHTTPRSP_MAX_RANGES))
+        {
+            p++;
+            continue;
+        } else if(*p == '\r')
+        {
+            break;
+        } else
+        {
+            return LQHTTPRSP_RNG_IGNORED;
+        }
     }
 
     char* Dest = LqHttpRspHdrResize(c, 4096);
     if(Dest == nullptr)
     {
-	LqHttpActSwitchToClose(c);
-	return LQHTTPRSP_RNG_HAVE_ERR;
+        LqHttpActSwitchToClose(c);
+        return LQHTTPRSP_RNG_HAVE_ERR;
     }
 
     auto r = LqHttpGetReg(c);
     if(IsSatisfiable)
     {
-	if(IndexRange > 1) return LQHTTPRSP_RNG_IGNORED;
-	//// response 416 Requested range not satisfiable
-	LqHttpRspStatus(c, 416);
-	LqHttpRspHdrAdd(c, "Content-Type", MimeType);
-	LqHttpRspHdrAddPrintf(c, "Content-Range", "bytes */%llu", (ullong)SizeFile);
-	LqHttpRspBasicHeaders(c, Etag, CacheControl, LastMod, Expires);
-	LqHttpActKeepOnlyHeaders(c);
-	return LQHTTPRSP_RNG_HAVE_ERR;
+        if(IndexRange > 1) return LQHTTPRSP_RNG_IGNORED;
+        //// response 416 Requested range not satisfiable
+        LqHttpRspStatus(c, 416);
+        LqHttpRspHdrAdd(c, "Content-Type", MimeType);
+        LqHttpRspHdrAddPrintf(c, "Content-Range", "bytes */%llu", (ullong)SizeFile);
+        LqHttpRspBasicHeaders(c, Etag, CacheControl, LastMod, Expires);
+        LqHttpActKeepOnlyHeaders(c);
+        return LQHTTPRSP_RNG_HAVE_ERR;
     }
 
     if(IndexRange > 1)
     {
-	char HedersBuf[4096];
-	LqFileSz CommonSizeBoundaryHeaders = 0;
-	int FirstBoundaryLen = 0;
-	CommonSizeBoundaryHeaders += LqHttpRspPrintEndRangeBoundaryHeader(HedersBuf, sizeof(HedersBuf));
-	for(int i = IndexRange - 1; i >= 0; i--)
-	    CommonSizeBoundaryHeaders += (
-	    FirstBoundaryLen = LqHttpRspPrintRangeBoundaryHeaders
-	    (
-	    HedersBuf,
-	    sizeof(HedersBuf),
-	    c,
-	    SizeFile,
-	    c->Response.Ranges[i].Start,
-	    c->Response.Ranges[i].End,
-	    MimeType
-	    ));
+        char HedersBuf[4096];
+        LqFileSz CommonSizeBoundaryHeaders = 0;
+        int FirstBoundaryLen = 0;
+        CommonSizeBoundaryHeaders += LqHttpRspPrintEndRangeBoundaryHeader(HedersBuf, sizeof(HedersBuf));
+        for(int i = IndexRange - 1; i >= 0; i--)
+            CommonSizeBoundaryHeaders += (
+            FirstBoundaryLen = LqHttpRspPrintRangeBoundaryHeaders
+            (
+            HedersBuf,
+            sizeof(HedersBuf),
+            c,
+            SizeFile,
+            c->Response.Ranges[i].Start,
+            c->Response.Ranges[i].End,
+            MimeType
+            ));
 
-	LqFileSz CommonSize = FragmentsLen + CommonSizeBoundaryHeaders;
-	LqHttpRspStatus(c, 206);
-	LqHttpRspHdrAdd(c, "Content-Type", "multipart/byteranges; boundary=z3d6b6a416f9b53e416f9b5z");
-	LqHttpRspHdrAddPrintf(c, "Content-Length", "%llu", (unsigned long long)CommonSize);
-	LqHttpRspBasicHeaders(c, Etag, CacheControl, LastMod, Expires);
-	LqHttpRspHdrAddSmallContent(c, HedersBuf, FirstBoundaryLen);
+        LqFileSz CommonSize = FragmentsLen + CommonSizeBoundaryHeaders;
+        LqHttpRspStatus(c, 206);
+        LqHttpRspHdrAdd(c, "Content-Type", "multipart/byteranges; boundary=z3d6b6a416f9b53e416f9b5z");
+        LqHttpRspHdrAddPrintf(c, "Content-Length", "%llu", (unsigned long long)CommonSize);
+        LqHttpRspBasicHeaders(c, Etag, CacheControl, LastMod, Expires);
+        LqHttpRspHdrAddSmallContent(c, HedersBuf, FirstBoundaryLen);
     } else
     {
 
-	LqHttpRspStatus(c, 206);
-	LqHttpRspHdrAdd(c, "Content-Type", (MimeType == nullptr) ? "application/octet-stream" : MimeType);
-	LqHttpRspHdrAddPrintf(c, "Content-Length", "%llu", (ullong)((ullong)c->Response.Ranges[0].End - (ullong)c->Response.Ranges[0].Start));
-	LqHttpRspHdrAddPrintf(c, "Content-Range", "bytes %llu-%llu/%llu", (ullong)c->Response.Ranges[0].Start, (ullong)(c->Response.Ranges[0].End - 1), (ullong)SizeFile);
-	LqHttpRspBasicHeaders(c, Etag, CacheControl, LastMod, Expires);
+        LqHttpRspStatus(c, 206);
+        LqHttpRspHdrAdd(c, "Content-Type", (MimeType == nullptr) ? "application/octet-stream" : MimeType);
+        LqHttpRspHdrAddPrintf(c, "Content-Length", "%llu", (ullong)((ullong)c->Response.Ranges[0].End - (ullong)c->Response.Ranges[0].Start));
+        LqHttpRspHdrAddPrintf(c, "Content-Range", "bytes %llu-%llu/%llu", (ullong)c->Response.Ranges[0].Start, (ullong)(c->Response.Ranges[0].End - 1), (ullong)SizeFile);
+        LqHttpRspBasicHeaders(c, Etag, CacheControl, LastMod, Expires);
     }
     c->Response.CountRanges = IndexRange;
     return LQHTTPRSP_RNG_OK;
@@ -235,8 +235,8 @@ static bool LqHttpRsp412Headers(LqHttpConn* c, tm* CurrTime)
 {
     if(LqHttpRspStatus(c, 412))
     {
-	LqHttpActSwitchToClose(c);
-	return false;
+        LqHttpActSwitchToClose(c);
+        return false;
     }
     LqHttpActKeepOnlyHeaders(c);
     return true;
@@ -248,33 +248,33 @@ static int LqHttpRspCheckMatching(char* HdrVal, char* HdrValEnd, char* Etag)
     char t = 1;
     while(true)
     {
-	for(; *p == ' '; p++);
-	if(*p == '*')
-	{
-	    p++;
-	} else
-	{
-	    //Compare Etag
-	    for(char* i = Etag; ; p++, i++)
-	    {
-		if(*p != *i)
-		{
-		    if(*i == '\0')
-			return 0;
-		    else
-			break;
-		}
-	    }
-	}
-	for(; *p == ' '; p++);
-	if(*p == ',')
-	{
-	    p++;
-	    continue;
-	} else
-	{
-	    return 1;
-	}
+        for(; *p == ' '; p++);
+        if(*p == '*')
+        {
+            p++;
+        } else
+        {
+            //Compare Etag
+            for(char* i = Etag; ; p++, i++)
+            {
+                if(*p != *i)
+                {
+                    if(*i == '\0')
+                        return 0;
+                    else
+                        break;
+                }
+            }
+        }
+        for(; *p == ' '; p++);
+        if(*p == ',')
+        {
+            p++;
+            continue;
+        } else
+        {
+            return 1;
+        }
     }
 }
 
@@ -284,12 +284,12 @@ static int LqHttpRspCheckTimeModifyng(LqHttpConn* c, char* Hdr, char* HdrEnd, ti
     *HdrEnd = '\0';
     LqTimeSec ReqGmtTime = 0;
     if(
-	(LqTimeStrToGmtSec(Hdr, &ReqGmtTime) == -1) ||
-	(TimeModify > ReqGmtTime)
-	)
+        (LqTimeStrToGmtSec(Hdr, &ReqGmtTime) == -1) ||
+        (TimeModify > ReqGmtTime)
+        )
     {
-	*HdrEnd = t;
-	return 1;
+        *HdrEnd = t;
+        return 1;
     }
     *HdrEnd = t;
     return 0;
@@ -308,7 +308,7 @@ static LqHttpRspChckPrecondEnm LqHttpRspCheckPrecondition(LqHttpConn* c, char* E
     auto q = &c->Query;
     int r = 0;
     if(Etag[0] == '\0')
-	Etag = "\n\n";
+        Etag = "\n\n";
     auto IfNoneMatch = -1;
     auto IfMatch = -1;
     auto IfModSince = -1;
@@ -321,69 +321,69 @@ static LqHttpRspChckPrecondEnm LqHttpRspCheckPrecondition(LqHttpConn* c, char* E
 
     while(LqHttpRcvHdrEnum(c, &HeaderNameResult, &HeaderNameResultEnd, &HeaderValResult, &HeaderValEnd) >= 0)
     {
-	LQSTR_SWITCH_NI(HeaderNameResult, HeaderNameResultEnd - HeaderNameResult)
-	{
-	    LQSTR_CASE_I("if-range")
-	    {
-		if(IfRange != -1)
-		    return LQHTTPRSP_PRECOND_200;
-		IfRange = LqHttpRspCheckMatching(HeaderValResult, HeaderValEnd, Etag);
-		break;
-	    }
-	    LQSTR_CASE_I("if-none-match")
-	    {
-		if(IfNoneMatch != -1)
-		    return LQHTTPRSP_PRECOND_200;
-		IfNoneMatch = LqHttpRspCheckMatching(HeaderValResult, HeaderValEnd, Etag);
-		IsHaveCond = true;
-		break;
-	    }
-	    LQSTR_CASE_I("if-match")
-	    {
-		if(IfMatch != -1)
-		    return LQHTTPRSP_PRECOND_200;
-		IfMatch = LqHttpRspCheckMatching(HeaderValResult, HeaderValEnd, Etag);
-		break;
-	    }
-	    LQSTR_CASE_I("if-modified-since")
-	    {
-		if(IfModSince != -1)
-		    return LQHTTPRSP_PRECOND_200;
-		IfModSince = LqHttpRspCheckTimeModifyng(c, HeaderValResult, HeaderValEnd, TimeModify);
-		IsHaveCond = true;
-		break;
-	    }
-	    LQSTR_CASE_I("if-unmodified-since")
-	    {
-		if(IfUnmodSince != -1)
-		    return LQHTTPRSP_PRECOND_200;
-		IfUnmodSince = LqHttpRspCheckTimeModifyng(c, HeaderValResult, HeaderValEnd, TimeModify);
-		break;
-	    }
-	    LQSTR_CASE_I("range")
-	    {
-		if(RangeHdr != nullptr)
-		    return LQHTTPRSP_PRECOND_200;
-		RangeHdr = HeaderValResult;
-		RangeHdrEnd = HeaderValEnd;
-		break;
-	    }
-	}
+        LQSTR_SWITCH_NI(HeaderNameResult, HeaderNameResultEnd - HeaderNameResult)
+        {
+            LQSTR_CASE_I("if-range")
+            {
+                if(IfRange != -1)
+                    return LQHTTPRSP_PRECOND_200;
+                IfRange = LqHttpRspCheckMatching(HeaderValResult, HeaderValEnd, Etag);
+                break;
+            }
+            LQSTR_CASE_I("if-none-match")
+            {
+                if(IfNoneMatch != -1)
+                    return LQHTTPRSP_PRECOND_200;
+                IfNoneMatch = LqHttpRspCheckMatching(HeaderValResult, HeaderValEnd, Etag);
+                IsHaveCond = true;
+                break;
+            }
+            LQSTR_CASE_I("if-match")
+            {
+                if(IfMatch != -1)
+                    return LQHTTPRSP_PRECOND_200;
+                IfMatch = LqHttpRspCheckMatching(HeaderValResult, HeaderValEnd, Etag);
+                break;
+            }
+            LQSTR_CASE_I("if-modified-since")
+            {
+                if(IfModSince != -1)
+                    return LQHTTPRSP_PRECOND_200;
+                IfModSince = LqHttpRspCheckTimeModifyng(c, HeaderValResult, HeaderValEnd, TimeModify);
+                IsHaveCond = true;
+                break;
+            }
+            LQSTR_CASE_I("if-unmodified-since")
+            {
+                if(IfUnmodSince != -1)
+                    return LQHTTPRSP_PRECOND_200;
+                IfUnmodSince = LqHttpRspCheckTimeModifyng(c, HeaderValResult, HeaderValEnd, TimeModify);
+                break;
+            }
+            LQSTR_CASE_I("range")
+            {
+                if(RangeHdr != nullptr)
+                    return LQHTTPRSP_PRECOND_200;
+                RangeHdr = HeaderValResult;
+                RangeHdrEnd = HeaderValEnd;
+                break;
+            }
+        }
     }
     if((IfMatch == 1) || (IfUnmodSince == 1))
-	return LQHTTPRSP_PRECOND_412;
+        return LQHTTPRSP_PRECOND_412;
     if(IsHaveCond && (IfNoneMatch < 1) && (IfModSince < 1))
     {
-	//Return 304
-	return LQHTTPRSP_PRECOND_304;
+        //Return 304
+        return LQHTTPRSP_PRECOND_304;
     } else
     {
-	if((RangeHdr != nullptr) && (IfRange < 1))
-	{
-	    *RangeHeader = RangeHdr;
-	    *RangeHeaderEnd = RangeHdrEnd;
-	    return LQHTTPRSP_PRECOND_206;
-	}
+        if((RangeHdr != nullptr) && (IfRange < 1))
+        {
+            *RangeHeader = RangeHdr;
+            *RangeHeaderEnd = RangeHdrEnd;
+            return LQHTTPRSP_PRECOND_206;
+        }
     }
 
     return LQHTTPRSP_PRECOND_200;
@@ -407,31 +407,31 @@ LQ_EXTERN_C int LQ_CALL LqHttpRspFileAuto(LqHttpConn* c, const char* Path)
     char *RangeHdr = nullptr, *RangeHdrEnd = nullptr;
     if(Path == nullptr)
     {
-	switch(np->Type & LQHTTPPTH_TYPE_SEP)
-	{
-	    case LQHTTPPTH_TYPE_DIR: case LQHTTPPTH_TYPE_FILE:
-		Path = np->RealPath;
-		break;
-	    default:
-		LqHttpRspError(c, 404);
-		return -1;
-	}
+        switch(np->Type & LQHTTPPTH_TYPE_SEP)
+        {
+            case LQHTTPPTH_TYPE_DIR: case LQHTTPPTH_TYPE_FILE:
+                Path = np->RealPath;
+                break;
+            default:
+                LqHttpRspError(c, 404);
+                return -1;
+        }
 
     }
 
     auto CachInter = r->Cache.UpdateAndRead(Path, &s);
     if(CachInter != nullptr)
     {
-	CommonFileSize = CachInter->SizeFile;
+        CommonFileSize = CachInter->SizeFile;
     } else
     {
-	if(((Fd = LqFileOpen(Path, LQ_O_RD | LQ_O_BIN, 0)) == -1) || ((s.ModifTime == -1) ? (LqFileGetStatByFd(Fd, &s) != 0) : false))
-	{
-	    if(Fd != -1) LqFileClose(Fd);
-	    LqHttpRspError(c, 404);
-	    return -1;
-	}
-	CommonFileSize = s.Size;
+        if(((Fd = LqFileOpen(Path, LQ_O_RD | LQ_O_BIN, 0)) == -1) || ((s.ModifTime == -1) ? (LqFileGetStatByFd(Fd, &s) != 0) : false))
+        {
+            if(Fd != -1) LqFileClose(Fd);
+            LqHttpRspError(c, 404);
+            return -1;
+        }
+        CommonFileSize = s.Size;
     }
 
     char Etag[1024], CacheControl[1024], Mime[1024];
@@ -445,25 +445,25 @@ LQ_EXTERN_C int LQ_CALL LqHttpRspFileAuto(LqHttpConn* c, const char* Path)
 
     if(LastModificate != -1)
     {
-	LqTimeLocSecToGmtTm(&TmModif, LastModificate);
-	LastModificate = LqTimeLocSecToGmtSec(LastModificate);
+        LqTimeLocSecToGmtTm(&TmModif, LastModificate);
+        LastModificate = LqTimeLocSecToGmtSec(LastModificate);
     } else
     {
-	LpTmModif = nullptr;
+        LpTmModif = nullptr;
     }
     if(Expires != -1)
-	LqTimeLocSecToGmtTm(&TmExpires, Expires);
+        LqTimeLocSecToGmtTm(&TmExpires, Expires);
     else
-	LpTmExpires = nullptr;
+        LpTmExpires = nullptr;
 
     LqHttpRspChckPrecondEnm PrecondRes;
     if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_RSP)
     {
-	PrecondRes = LQHTTPRSP_PRECOND_200;
+        PrecondRes = LQHTTPRSP_PRECOND_200;
     } else
     {
-	PrecondRes = LqHttpRspCheckPrecondition(c, Etag, LastModificate, &RangeHdr, &RangeHdrEnd);
-	LqHttpActSwitchToRsp(c);
+        PrecondRes = LqHttpRspCheckPrecondition(c, Etag, LastModificate, &RangeHdr, &RangeHdrEnd);
+        LqHttpActSwitchToRsp(c);
     }
 
     c->Response.Ranges[0].Start = 0;
@@ -471,72 +471,72 @@ LQ_EXTERN_C int LQ_CALL LqHttpRspFileAuto(LqHttpConn* c, const char* Path)
     c->Response.CountRanges = 1;
     if(CachInter != nullptr)
     {
-	c->Response.CacheInterator = CachInter;
-	c->ActionState = LQHTTPACT_STATE_RSP_CACHE;
+        c->Response.CacheInterator = CachInter;
+        c->ActionState = LQHTTPACT_STATE_RSP_CACHE;
     } else
     {
-	c->Response.Fd = Fd;
-	c->ActionState = LQHTTPACT_STATE_RSP_FD;
+        c->Response.Fd = Fd;
+        c->ActionState = LQHTTPACT_STATE_RSP_FD;
     }
 
     c->ActionResult = LQHTTPACT_RES_BEGIN;
     switch(PrecondRes)
     {
-	case LQHTTPRSP_PRECOND_304:
-	{
-	    if(!LqHttpRsp304Headers(c, Etag, CacheControl, LpTmModif, &TmCur, LpTmExpires))
-		return -1;
-	}
-	break;
-	case LQHTTPRSP_PRECOND_206:
-	{
-	    switch(LqHttpRspByRage(c, RangeHdr, RangeHdrEnd, CommonFileSize, Mime, Etag, CacheControl, LpTmModif, &TmCur, LpTmExpires))
-	    {
-		case LQHTTPRSP_RNG_IGNORED: goto lblCase200Cache;
-		case LQHTTPRSP_RNG_HAVE_ERR:
-		{
-		    LqHttpActKeepOnlyHeaders(c);
-		    return -1;
-		}
-	    }
-	}
-	break;
-	case LQHTTPRSP_PRECOND_412:
-	{
-	    LqHttpRspError(c, 412);
-	}
-	break;
+        case LQHTTPRSP_PRECOND_304:
+        {
+            if(!LqHttpRsp304Headers(c, Etag, CacheControl, LpTmModif, &TmCur, LpTmExpires))
+                return -1;
+        }
+        break;
+        case LQHTTPRSP_PRECOND_206:
+        {
+            switch(LqHttpRspByRage(c, RangeHdr, RangeHdrEnd, CommonFileSize, Mime, Etag, CacheControl, LpTmModif, &TmCur, LpTmExpires))
+            {
+                case LQHTTPRSP_RNG_IGNORED: goto lblCase200Cache;
+                case LQHTTPRSP_RNG_HAVE_ERR:
+                {
+                    LqHttpActKeepOnlyHeaders(c);
+                    return -1;
+                }
+            }
+        }
+        break;
+        case LQHTTPRSP_PRECOND_412:
+        {
+            LqHttpRspError(c, 412);
+        }
+        break;
 lblCase200Cache:
-	case LQHTTPRSP_PRECOND_200:
-	{
-	    if(!LqHttpRsp200Headers(c, CommonFileSize, Mime, Etag, CacheControl, LpTmModif, &TmCur, LpTmExpires))
-	    {
-		LqHttpActKeepOnlyHeaders(c);
-		return -1;
-	    }
-	    if(c->Flags & LQHTTPCONN_FLAG_NO_BODY)
-	    {
-		LqHttpActKeepOnlyHeaders(c);
-	    } else if((c->BufSize - c->Response.HeadersEnd) > CommonFileSize)
-	    {
-		if(CachInter != nullptr)
-		{
-		    if((CommonFileSize == 0) || (LqHttpRspHdrAddSmallContent(c, CachInter->Buf, CommonFileSize) > 0))
-		    {
-			LqHttpActKeepOnlyHeaders(c);
-		    }
-		} else
-		{
-		    if(char * NewDest = LqHttpRspHdrAppendSize(c, CommonFileSize))
-		    {
-			LqFileRead(Fd, NewDest, CommonFileSize);
-			LqHttpActKeepOnlyHeaders(c);
-		    }
-		}
+        case LQHTTPRSP_PRECOND_200:
+        {
+            if(!LqHttpRsp200Headers(c, CommonFileSize, Mime, Etag, CacheControl, LpTmModif, &TmCur, LpTmExpires))
+            {
+                LqHttpActKeepOnlyHeaders(c);
+                return -1;
+            }
+            if(c->Flags & LQHTTPCONN_FLAG_NO_BODY)
+            {
+                LqHttpActKeepOnlyHeaders(c);
+            } else if((c->BufSize - c->Response.HeadersEnd) > CommonFileSize)
+            {
+                if(CachInter != nullptr)
+                {
+                    if((CommonFileSize == 0) || (LqHttpRspHdrAddSmallContent(c, CachInter->Buf, CommonFileSize) > 0))
+                    {
+                        LqHttpActKeepOnlyHeaders(c);
+                    }
+                } else
+                {
+                    if(char * NewDest = LqHttpRspHdrAppendSize(c, CommonFileSize))
+                    {
+                        LqFileRead(Fd, NewDest, CommonFileSize);
+                        LqHttpActKeepOnlyHeaders(c);
+                    }
+                }
 
-	    }
-	}
-	break;
+            }
+        }
+        break;
     }
     return 0;
 }
@@ -547,9 +547,9 @@ lblCase200Cache:
 LQ_EXTERN_C LqHttpActResult LQ_CALL LqHttpRspFileByFd(LqHttpConn* c, int Fd, LqFileSz OffsetStart, LqFileSz OffsetEnd)
 {
     if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER)
-	LqHttpActSwitchToRsp(c);
+        LqHttpActSwitchToRsp(c);
     else
-	LqHttpActKeepOnlyHeaders(c);
+        LqHttpActKeepOnlyHeaders(c);
     c->ActionResult = LQHTTPACT_RES_BEGIN;
     c->ActionState = LQHTTPACT_STATE_RSP_FD;
     c->Response.Fd = Fd;
@@ -568,40 +568,40 @@ LQ_EXTERN_C LqHttpActResult LQ_CALL LqHttpRspFile(LqHttpConn* c, const char* Pat
     s.ModifTime = -1;
     if(Path == nullptr)
     {
-	switch(c->Pth->Type & LQHTTPPTH_TYPE_SEP)
-	{
-	    case LQHTTPPTH_TYPE_DIR: case LQHTTPPTH_TYPE_FILE:
-		Path = c->Pth->RealPath;
-		break;
-	    default:
-		return LQHTTPACT_RES_INVALID_TYPE_PATH;
-	}
+        switch(c->Pth->Type & LQHTTPPTH_TYPE_SEP)
+        {
+            case LQHTTPPTH_TYPE_DIR: case LQHTTPPTH_TYPE_FILE:
+                Path = c->Pth->RealPath;
+                break;
+            default:
+                return LQHTTPACT_RES_INVALID_TYPE_PATH;
+        }
     }
 
     if(auto CachInter = LqHttpGetReg(c)->Cache.UpdateAndRead(Path, &s))
     {
-	if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER)
-	    LqHttpActSwitchToRsp(c);
-	else
-	    LqHttpActKeepOnlyHeaders(c);
-	c->ActionState = LQHTTPACT_STATE_RSP_CACHE;
-	c->Response.CacheInterator = CachInter;
-	c->Response.Ranges[0].End = lq_min(OffsetEnd, CachInter->SizeFile);
+        if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER)
+            LqHttpActSwitchToRsp(c);
+        else
+            LqHttpActKeepOnlyHeaders(c);
+        c->ActionState = LQHTTPACT_STATE_RSP_CACHE;
+        c->Response.CacheInterator = CachInter;
+        c->Response.Ranges[0].End = lq_min(OffsetEnd, CachInter->SizeFile);
     } else
     {
-	int Fd;
-	if(((Fd = LqFileOpen(Path, LQ_O_RD | LQ_O_BIN, 0)) == -1) || ((s.ModifTime == -1) ? (LqFileGetStatByFd(Fd, &s) != 0) : false))
-	{
-	    if(Fd != -1) LqFileClose(Fd);
-	    return LQHTTPACT_RES_FILE_NOT_OPEN;
-	}
-	if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER)
-	    LqHttpActSwitchToRsp(c);
-	else
-	    LqHttpActKeepOnlyHeaders(c);
-	c->ActionState = LQHTTPACT_STATE_RSP_FD;
-	c->Response.Fd = Fd;
-	c->Response.Ranges[0].End = lq_min(OffsetEnd, s.Size);
+        int Fd;
+        if(((Fd = LqFileOpen(Path, LQ_O_RD | LQ_O_BIN, 0)) == -1) || ((s.ModifTime == -1) ? (LqFileGetStatByFd(Fd, &s) != 0) : false))
+        {
+            if(Fd != -1) LqFileClose(Fd);
+            return LQHTTPACT_RES_FILE_NOT_OPEN;
+        }
+        if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER)
+            LqHttpActSwitchToRsp(c);
+        else
+            LqHttpActKeepOnlyHeaders(c);
+        c->ActionState = LQHTTPACT_STATE_RSP_FD;
+        c->Response.Fd = Fd;
+        c->Response.Ranges[0].End = lq_min(OffsetEnd, s.Size);
     }
     c->Response.CountRanges = 1;
     c->Response.Ranges[0].Start = OffsetStart;
@@ -614,16 +614,20 @@ LQ_EXTERN_C LqHttpActResult LQ_CALL LqHttpRspFile(LqHttpConn* c, const char* Pat
 * Adding contents after headers.
 * Use for optimizing response.
 */
-LQ_EXTERN_C size_t LQ_CALL LqHttpRspHdrAddSmallContent(LqHttpConn* c, const void* Content, size_t LenContent)
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpRspHdrAddSmallContent(LqHttpConn* c, const void* Content, size_t LenContent)
 {
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return -1;
     char* Place = LqHttpRspHdrAppendSize(c, LenContent);
     if(Place == nullptr) return 0;
     memcpy(Place, Content, LenContent);
     return LenContent;
 }
 
-LQ_EXTERN_C size_t LQ_CALL LqHttpRspHdrPrintfContent(LqHttpConn* c, const char* FormatStr, ...)
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpRspHdrPrintfContent(LqHttpConn* c, const char* FormatStr, ...)
 {
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return -1;
     va_list Va;
     va_start(Va, FormatStr);
     char LocalBuf[LQCONN_MAX_LOCAL_SIZE];
@@ -632,43 +636,50 @@ LQ_EXTERN_C size_t LQ_CALL LqHttpRspHdrPrintfContent(LqHttpConn* c, const char* 
 }
 
 
-LQ_EXTERN_C size_t LQ_CALL LqHttpRspContentWrite(LqHttpConn* c, const void* Content, size_t LenContent)
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpRspContentWrite(LqHttpConn* c, const void* Content, size_t LenContent)
 {
     if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
-	LqHttpActSwitchToRsp(c);
+        return -1;
     if(c->ActionState != LQHTTPACT_STATE_RSP_STREAM)
     {
-	LqHttpActKeepOnlyHeaders(c);
-	LqSbufInit(&c->Response.Stream);
-	c->ActionResult = LQHTTPACT_RES_BEGIN;
-	c->ActionState = LQHTTPACT_STATE_RSP_STREAM;
+        LqHttpActKeepOnlyHeaders(c);
+        LqSbufInit(&c->Response.Stream);
+        c->ActionResult = LQHTTPACT_RES_BEGIN;
+        c->ActionState = LQHTTPACT_STATE_RSP_STREAM;
     }
     return LqSbufWrite(&c->Response.Stream, Content, LenContent);
 }
 
-LQ_EXTERN_C size_t LQ_CALL LqHttpRspContentWritePrintf(LqHttpConn* c, const char* FormatStr, ...)
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpRspContentWritePrintf(LqHttpConn* c, const char* FormatStr, ...)
 {
     va_list Va;
     va_start(Va, FormatStr);
+    return LqHttpRspContentWritePrintfVa(c, FormatStr, Va);
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpRspContentWritePrintfVa(LqHttpConn* c, const char* FormatStr, va_list Va)
+{
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return -1;
     char LocalBuf[LQCONN_MAX_LOCAL_SIZE];
     auto Written = vsnprintf(LocalBuf, sizeof(LocalBuf) - 1, FormatStr, Va);
     return LqHttpRspContentWrite(c, LocalBuf, Written);
 }
 
-LQ_EXTERN_C size_t LQ_CALL LqHttpRspContentGetSz(LqHttpConn* c)
+LQ_EXTERN_C LqFileSz LQ_CALL LqHttpRspContentGetSz(LqHttpConn* c)
 {
     switch(c->ActionState)
     {
-	case LQHTTPACT_STATE_RSP_STREAM: return c->Response.Stream.Len;
-	case LQHTTPACT_STATE_RSP_FD:
-	{
-	    LqFileStat Stat;
-	    if(LqFileGetStatByFd(c->Response.Fd, &Stat) != 0)
-		return 0;
-	    return Stat.Size;
-	}
-	case LQHTTPACT_STATE_RSP_CACHE:
-	    return ((LqFileChe<LqCachedFileHdr>::CachedFile*)c->Response.CacheInterator)->SizeFile;
+        case LQHTTPACT_STATE_RSP_STREAM: return c->Response.Stream.Len;
+        case LQHTTPACT_STATE_RSP_FD:
+        {
+            LqFileStat Stat;
+            if(LqFileGetStatByFd(c->Response.Fd, &Stat) != 0)
+                return 0;
+            return Stat.Size;
+        }
+        case LQHTTPACT_STATE_RSP_CACHE:
+            return ((LqFileChe<LqCachedFileHdr>::CachedFile*)c->Response.CacheInterator)->SizeFile;
     }
     return 0;
 }
@@ -679,7 +690,7 @@ static char* LqHttpRspHdrInsertInOffset(LqHttpConn* c, size_t DestOffset, const 
     size_t NewHeaderLen = HeaderNameLen + HeaderValLen + 4;
     auto OldHeadersEnd = c->Response.HeadersEnd;
     if(LqHttpRspHdrAppendSize(c, NewHeaderLen) == nullptr)
-	return nullptr;
+        return nullptr;
     auto Headers = c->Buf + (c->Response.HeadersStart + DestOffset);
     char* Ret = Headers;
     memmove(Headers + NewHeaderLen, Headers, OldHeadersEnd - DestOffset);
@@ -701,13 +712,13 @@ static char* LqHttpRspHdrInsertEx(LqHttpConn* c, size_t DestOffset, size_t DestO
     char* Headers = c->Buf + c->Response.HeadersStart;
     if(NewEnd > DestOffsetEnd)
     {
-	if(LqHttpRspHdrAppendSize(c, NewEnd - DestOffsetEnd) == nullptr)
-	    return nullptr;
-	memmove(Headers + NewEnd, Headers + DestOffsetEnd, OldHeadersEnd - DestOffsetEnd);
+        if(LqHttpRspHdrAppendSize(c, NewEnd - DestOffsetEnd) == nullptr)
+            return nullptr;
+        memmove(Headers + NewEnd, Headers + DestOffsetEnd, OldHeadersEnd - DestOffsetEnd);
     } else
     {
-	memmove(Headers + NewEnd, Headers + DestOffsetEnd, OldHeadersEnd - DestOffsetEnd);
-	LqHttpRspHdrSizeDecrease(c, DestOffsetEnd - NewEnd);
+        memmove(Headers + NewEnd, Headers + DestOffsetEnd, OldHeadersEnd - DestOffsetEnd);
+        LqHttpRspHdrSizeDecrease(c, DestOffsetEnd - NewEnd);
     }
     Headers = c->Buf + (c->Response.HeadersStart + DestOffset);
     char* Ret = Headers;
@@ -723,18 +734,20 @@ static char* LqHttpRspHdrInsertEx(LqHttpConn* c, size_t DestOffset, size_t DestO
 
 LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrInsertStrEx(LqHttpConn* c, size_t DestOffset, size_t DestOffsetEnd, const char* Val, size_t ValLen)
 {
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return nullptr;
     size_t NewEnd = DestOffset + ValLen;
     char* Headers = c->Buf + c->Response.HeadersStart;
     if(NewEnd > DestOffsetEnd)
     {
-	auto OldHeadersEnd = c->Response.HeadersEnd;
-	if(LqHttpRspHdrAppendSize(c, NewEnd - DestOffsetEnd) == nullptr)
-	    return nullptr;
-	memmove(Headers + NewEnd, Headers + DestOffsetEnd, OldHeadersEnd - DestOffsetEnd);
+        auto OldHeadersEnd = c->Response.HeadersEnd;
+        if(LqHttpRspHdrAppendSize(c, NewEnd - DestOffsetEnd) == nullptr)
+            return nullptr;
+        memmove(Headers + NewEnd, Headers + DestOffsetEnd, OldHeadersEnd - DestOffsetEnd);
     } else
     {
-	memmove(Headers + NewEnd, Headers + DestOffsetEnd, c->Response.HeadersEnd - DestOffsetEnd);
-	LqHttpRspHdrSizeDecrease(c, DestOffsetEnd - NewEnd);
+        memmove(Headers + NewEnd, Headers + DestOffsetEnd, c->Response.HeadersEnd - DestOffsetEnd);
+        LqHttpRspHdrSizeDecrease(c, DestOffsetEnd - NewEnd);
     }
     Headers = c->Buf + (c->Response.HeadersStart + DestOffset);
     memcpy(Headers, Val, ValLen);
@@ -748,48 +761,50 @@ LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrInsertStr(LqHttpConn* c, size_t DestOffset
 
 LQ_EXTERN_C intptr_t LQ_CALL LqHttpRspHdrSearchEx(const LqHttpConn* c, const char* HeaderName, size_t HeaderNameLen, char** HeaderNameResult, char** HeaderValResult, char** HeaderValEnd)
 {
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return -1;
     size_t SizeHeaders = c->Response.HeadersEnd - c->Response.HeadersStart;
     if(SizeHeaders == 0) return -1;
     char* Headers = c->Buf + c->Response.HeadersStart, *i = Headers, t = c->Buf[c->Response.HeadersEnd - 1];
     c->Buf[c->Response.HeadersEnd - 1] = '\0';
     if((i[0] == 'H') && (i[1] == 'T') && (i[2] == 'T') && (i[3] == 'P') && (i[4] == '/'))
-	i += 4;
+        i += 4;
     else
-	goto lblCheckName;
+        goto lblCheckName;
 
     for(; *i != '\0'; i++)
     {
-	if((*i == '\r') && (i[1] == '\n'))
-	{
-	    i += 2;
-	    if((*i == '\r') && (i[1] == '\n'))
-	    {
-		c->Buf[c->Response.HeadersEnd - 1] = t;
-		return -1;
-	    } else
-	    {
+        if((*i == '\r') && (i[1] == '\n'))
+        {
+            i += 2;
+            if((*i == '\r') && (i[1] == '\n'))
+            {
+                c->Buf[c->Response.HeadersEnd - 1] = t;
+                return -1;
+            } else
+            {
 lblCheckName:
-		for(; *i == ' '; i++);
-		if(LqStrUtf8CmpCaseLen(HeaderName, i, HeaderNameLen) && ((i[HeaderNameLen] == ':') || (i[HeaderNameLen] == ' ')))
-		{
-		    intptr_t Res = i - Headers;
-		    if(HeaderNameResult != nullptr) *HeaderNameResult = i;
-		    i += HeaderNameLen;
-		    if(HeaderValResult != nullptr)
-		    {
-			for(; ((*i == ' ') || (*i == ':')) && (*i != '0'); i++);
-			*HeaderValResult = i;
-		    }
-		    if(HeaderValEnd != nullptr)
-		    {
-			for(; !((*i == '\r') && (i[1] == '\n')) && (*i != '\0'); i++);
-			*HeaderValEnd = i;
-		    }
-		    c->Buf[c->Response.HeadersEnd - 1] = t;
-		    return Res;
-		}
-	    }
-	}
+                for(; *i == ' '; i++);
+                if(LqStrUtf8CmpCaseLen(HeaderName, i, HeaderNameLen) && ((i[HeaderNameLen] == ':') || (i[HeaderNameLen] == ' ')))
+                {
+                    intptr_t Res = i - Headers;
+                    if(HeaderNameResult != nullptr) *HeaderNameResult = i;
+                    i += HeaderNameLen;
+                    if(HeaderValResult != nullptr)
+                    {
+                        for(; ((*i == ' ') || (*i == ':')) && (*i != '0'); i++);
+                        *HeaderValResult = i;
+                    }
+                    if(HeaderValEnd != nullptr)
+                    {
+                        for(; !((*i == '\r') && (i[1] == '\n')) && (*i != '\0'); i++);
+                        *HeaderValEnd = i;
+                    }
+                    c->Buf[c->Response.HeadersEnd - 1] = t;
+                    return Res;
+                }
+            }
+        }
     }
     c->Buf[c->Response.HeadersEnd - 1] = t;
     return -1;
@@ -802,23 +817,27 @@ LQ_EXTERN_C intptr_t LQ_CALL LqHttpRspHdrSearch(const LqHttpConn* c, const char*
 
 LQ_EXTERN_C intptr_t LQ_CALL LqHttpRspHdrEnum(const LqHttpConn* c, char** HeaderNameResult, char** HeaderNameResultEnd, char** HeaderValResult, char** HeaderValEnd)
 {
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return -1;
     return LqHttpConnHdrEnm(true, c->Buf + c->Response.HeadersStart, c->Response.HeadersEnd - c->Response.HeadersStart, HeaderNameResult, HeaderNameResultEnd, HeaderValResult, HeaderValEnd);
 }
 
 LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrAddEx(LqHttpConn* c, const char* HeaderName, size_t HeaderNameLen, const char* HeaderVal, size_t HeaderValLen)
 {
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return nullptr;
     size_t SizeHeaders = c->Response.HeadersEnd - c->Response.HeadersStart;
     char* Headers = c->Buf + c->Response.HeadersStart;
     size_t DestOffset = 0;
     for(intptr_t i = 0, m = SizeHeaders - 1; i < m; i++)
     {
-	if((Headers[i] == '\r') && (Headers[i + 1] == '\n'))
-	{
-	    i += 2;
-	    DestOffset = i;
-	    if((i >= m) || ((Headers[i] == '\r') && (Headers[i + 1] == '\n')))
-		break;
-	}
+        if((Headers[i] == '\r') && (Headers[i + 1] == '\n'))
+        {
+            i += 2;
+            DestOffset = i;
+            if((i >= m) || ((Headers[i] == '\r') && (Headers[i + 1] == '\n')))
+                break;
+        }
     }
     return LqHttpRspHdrInsertInOffset(c, DestOffset, HeaderName, HeaderNameLen, HeaderVal, HeaderValLen);
 }
@@ -828,19 +847,26 @@ LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrAdd(LqHttpConn* c, const char* HeaderName,
     return LqHttpRspHdrAddEx(c, HeaderName, LqStrLen(HeaderName), HeaderVal, LqStrLen(HeaderVal));
 }
 
+LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrAddPrintfVa(LqHttpConn* c, const char* HeaderName, const char* FormatStr, va_list Va)
+{
+    char LocalBuf[LQCONN_MAX_LOCAL_SIZE];
+    auto Written = vsnprintf(LocalBuf, sizeof(LocalBuf) - 1, FormatStr, Va);
+    if(Written >= (sizeof(LocalBuf) - 2))
+        return nullptr;
+    return LqHttpRspHdrAddEx(c, HeaderName, LqStrLen(HeaderName), LocalBuf, Written);
+}
+
 LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrAddPrintf(LqHttpConn* c, const char* HeaderName, const char* FormatStr, ...)
 {
     va_list Va;
     va_start(Va, FormatStr);
-    char LocalBuf[LQCONN_MAX_LOCAL_SIZE];
-    auto Written = vsnprintf(LocalBuf, sizeof(LocalBuf) - 1, FormatStr, Va);
-    if(Written >= (sizeof(LocalBuf) - 2))
-	return nullptr;
-    return LqHttpRspHdrAddEx(c, HeaderName, LqStrLen(HeaderName), LocalBuf, Written);
+    return LqHttpRspHdrAddPrintfVa(c, HeaderName, FormatStr, Va);
 }
 
 LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrChangeEx(LqHttpConn* c, const char* HeaderName, size_t HeaderNameLen, const char* HeaderVal, size_t HeaderValLen)
 {
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return nullptr;
     size_t SizeHeaders = c->Response.HeadersEnd - c->Response.HeadersStart;
 
     if(SizeHeaders == 0) return LqHttpRspHdrInsertEx(c, 0, 0, HeaderName, HeaderNameLen, HeaderVal, HeaderValLen);
@@ -848,43 +874,43 @@ LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrChangeEx(LqHttpConn* c, const char* Header
     c->Buf[c->Response.HeadersEnd - 1] = '\0';
     size_t LastOffset = 0;
     if((i[0] == 'H') && (i[1] == 'T') && (i[2] == 'T') && (i[3] == 'P') && (i[4] == '/'))
-	i += 4;
+        i += 4;
     else
-	goto lblCheckName;
+        goto lblCheckName;
 
     for(; *i != '\0'; i++)
     {
-	if((*i == '\r') && (i[1] == '\n'))
-	{
-	    i += 2;
-	    LastOffset = i - Headers;
-	    if((*i == '\r') && (i[1] == '\n'))
-	    {
-		c->Buf[c->Response.HeadersEnd - 1] = t;
-		return LqHttpRspHdrInsertInOffset(c, i - Headers, HeaderName, HeaderNameLen, HeaderVal, HeaderValLen);
-	    } else
-	    {
+        if((*i == '\r') && (i[1] == '\n'))
+        {
+            i += 2;
+            LastOffset = i - Headers;
+            if((*i == '\r') && (i[1] == '\n'))
+            {
+                c->Buf[c->Response.HeadersEnd - 1] = t;
+                return LqHttpRspHdrInsertInOffset(c, i - Headers, HeaderName, HeaderNameLen, HeaderVal, HeaderValLen);
+            } else
+            {
 lblCheckName:
-		for(; *i == ' '; i++);
-		if(LqStrUtf8CmpCaseLen(HeaderName, i, HeaderNameLen) && ((i[HeaderNameLen] == ':') || (i[HeaderNameLen] == ' ')))
-		{
-		    size_t FoundedOffset = i - Headers;
-		    for(;; i++)
-			if(*i == '\0')
-			{
-			    i++;
-			    break;
-			} else if((*i == '\r') && (i[1] == '\n'))
-			{
-			    i += 2;
-			    break;
-			}
-			size_t FoundedOffsetEnd = i - Headers;
-			c->Buf[c->Response.HeadersEnd - 1] = t;
-			return LqHttpRspHdrInsertEx(c, FoundedOffset, FoundedOffsetEnd, HeaderName, HeaderNameLen, HeaderVal, HeaderValLen);
-		}
-	    }
-	}
+                for(; *i == ' '; i++);
+                if(LqStrUtf8CmpCaseLen(HeaderName, i, HeaderNameLen) && ((i[HeaderNameLen] == ':') || (i[HeaderNameLen] == ' ')))
+                {
+                    size_t FoundedOffset = i - Headers;
+                    for(;; i++)
+                        if(*i == '\0')
+                        {
+                            i++;
+                            break;
+                        } else if((*i == '\r') && (i[1] == '\n'))
+                        {
+                            i += 2;
+                            break;
+                        }
+                        size_t FoundedOffsetEnd = i - Headers;
+                        c->Buf[c->Response.HeadersEnd - 1] = t;
+                        return LqHttpRspHdrInsertEx(c, FoundedOffset, FoundedOffsetEnd, HeaderName, HeaderNameLen, HeaderVal, HeaderValLen);
+                }
+            }
+        }
     }
     c->Buf[c->Response.HeadersEnd - 1] = t;
     return LqHttpRspHdrInsertEx(c, LastOffset, LastOffset, HeaderName, HeaderNameLen, HeaderVal, HeaderValLen);
@@ -897,83 +923,89 @@ LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrChange(LqHttpConn* c, const char* HeaderNa
 
 LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrAddStartLine(LqHttpConn* c, uint16_t StatusCode)
 {
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return nullptr;
     char Buf[1024];
     auto Written = snprintf(Buf, sizeof(Buf) - 1, "HTTP/%s %u %s\r\n", LqHttpProtoGetByConn(c)->HTTPProtoVer, (unsigned)StatusCode, LqHttpPrsGetMsgByStatus(StatusCode));
     if(auto Res = LqHttpRspHdrInsertStrEx(c, 0, 0, Buf, Written))
     {
-	c->Response.Status = StatusCode;
-	return Res;
+        c->Response.Status = StatusCode;
+        return Res;
     } else
     {
-	return nullptr;
+        return nullptr;
     }
 }
 
 LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrSetEnd(LqHttpConn* c)
 {
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return nullptr;
     size_t SizeHeaders = c->Response.HeadersEnd - c->Response.HeadersStart;
     char* Headers = c->Buf + c->Response.HeadersStart;
     size_t DestOffset = 0;
     for(intptr_t i = 0, m = SizeHeaders - 1; i < m; i++)
     {
-	if((Headers[i] == '\r') && (Headers[i + 1] == '\n'))
-	{
-	    i += 2;
-	    DestOffset = i;
-	    if(i >= m)
-		break;
-	    else if((Headers[i] == '\r') && (Headers[i + 1] == '\n'))
-		return Headers + i;
-	}
+        if((Headers[i] == '\r') && (Headers[i + 1] == '\n'))
+        {
+            i += 2;
+            DestOffset = i;
+            if(i >= m)
+                break;
+            else if((Headers[i] == '\r') && (Headers[i + 1] == '\n'))
+                return Headers + i;
+        }
     }
     return LqHttpRspHdrInsertStrEx(c, DestOffset, DestOffset, "\r\n", 2);
 }
 
 LQ_EXTERN_C bool LQ_CALL LqHttpRspHdrRemoveEx(LqHttpConn* c, const char* HeaderName, size_t HeaderNameLen)
 {
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return false;
     size_t SizeHeaders = c->Response.HeadersEnd - c->Response.HeadersStart;
     if(SizeHeaders == 0) return false;
     char* Headers = c->Buf + c->Response.HeadersStart, *i = Headers, t = c->Buf[c->Response.HeadersEnd - 1];
     c->Buf[c->Response.HeadersEnd - 1] = '\0';
     if((i[0] == 'H') && (i[1] == 'T') && (i[2] == 'T') && (i[3] == 'P') && (i[4] == '/'))
-	i += 4;
+        i += 4;
     else
-	goto lblCheckName;
+        goto lblCheckName;
 
     for(; *i != '\0'; i++)
     {
-	if((*i == '\r') && (i[1] == '\n'))
-	{
-	    i += 2;
-	    if((*i == '\r') && (i[1] == '\n'))
-	    {
-		c->Buf[c->Response.HeadersEnd - 1] = t;
-		return false;
-	    } else
-	    {
+        if((*i == '\r') && (i[1] == '\n'))
+        {
+            i += 2;
+            if((*i == '\r') && (i[1] == '\n'))
+            {
+                c->Buf[c->Response.HeadersEnd - 1] = t;
+                return false;
+            } else
+            {
 lblCheckName:
-		for(; *i == ' '; i++);
-		if(LqStrUtf8CmpCaseLen(HeaderName, i, HeaderNameLen) && ((i[HeaderNameLen] == ':') || (i[HeaderNameLen] == ' ')))
-		{
-		    size_t FoundedOffset = i - Headers;
-		    for(;; i++)
-		    {
-			if(*i == '\0')
-			{
-			    i++;
-			    break;
-			} else if((*i == '\r') && (i[1] == '\n'))
-			{
-			    i += 2;
-			    break;
-			}
-		    }
-		    size_t FoundedOffsetEnd = i - Headers;
-		    c->Buf[c->Response.HeadersEnd - 1] = t;
-		    return LqHttpRspHdrInsertStrEx(c, FoundedOffset, FoundedOffsetEnd, "", 0) != nullptr;
-		}
-	    }
-	}
+                for(; *i == ' '; i++);
+                if(LqStrUtf8CmpCaseLen(HeaderName, i, HeaderNameLen) && ((i[HeaderNameLen] == ':') || (i[HeaderNameLen] == ' ')))
+                {
+                    size_t FoundedOffset = i - Headers;
+                    for(;; i++)
+                    {
+                        if(*i == '\0')
+                        {
+                            i++;
+                            break;
+                        } else if((*i == '\r') && (i[1] == '\n'))
+                        {
+                            i += 2;
+                            break;
+                        }
+                    }
+                    size_t FoundedOffsetEnd = i - Headers;
+                    c->Buf[c->Response.HeadersEnd - 1] = t;
+                    return LqHttpRspHdrInsertStrEx(c, FoundedOffset, FoundedOffsetEnd, "", 0) != nullptr;
+                }
+            }
+        }
     }
     c->Buf[c->Response.HeadersEnd - 1] = t;
     return false;
@@ -986,11 +1018,13 @@ LQ_EXTERN_C bool LQ_CALL LqHttpRspHdrRemove(LqHttpConn* c, const char* HeaderNam
 
 LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrAppendSize(LqHttpConn* c, size_t Size)
 {
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return nullptr;
     size_t NewLen = c->Response.HeadersEnd + Size;
     if(c->BufSize < NewLen)
     {
-	if(!LqHttpConnBufferRealloc(c, NewLen))
-	    return nullptr;
+        if(!LqHttpConnBufferRealloc(c, NewLen))
+            return nullptr;
     }
     auto t = c->Response.HeadersEnd;
     c->Response.HeadersEnd = NewLen;
@@ -999,11 +1033,13 @@ LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrAppendSize(LqHttpConn* c, size_t Size)
 
 LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrResize(LqHttpConn* c, size_t Size)
 {
+    if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
+        return nullptr;
     size_t NewLen = c->Response.HeadersStart + Size;
     if(NewLen > c->BufSize)
     {
-	if(!LqHttpConnBufferRealloc(c, NewLen))
-	    return nullptr;
+        if(!LqHttpConnBufferRealloc(c, NewLen))
+            return nullptr;
     }
     c->Response.HeadersEnd = Size;
     return c->Buf + c->Response.HeadersStart;
@@ -1019,45 +1055,45 @@ LQ_EXTERN_C bool LQ_CALL LqHttpRspGetFileMd5(LqHttpConn* c, const char* FileName
 {
     if(FileName == nullptr)
     {
-	if(c->ActionState == LQHTTPACT_STATE_RSP_CACHE)
-	{
-	    if(c->Response.CacheInterator != nullptr)
-	    {
-		((LqFileChe<LqCachedFileHdr>::CachedFile*)c->Response.CacheInterator)->GetMD5(c->Response.CacheInterator, DestMd5);
-		return true;
-	    }
-	}
-	switch(c->Pth->Type & LQHTTPPTH_TYPE_SEP)
-	{
-	    case LQHTTPPTH_TYPE_DIR: case LQHTTPPTH_TYPE_FILE:
-		FileName = c->Pth->RealPath;
-		break;
-	    default:
-		return false;
-	}
+        if(c->ActionState == LQHTTPACT_STATE_RSP_CACHE)
+        {
+            if(c->Response.CacheInterator != nullptr)
+            {
+                ((LqFileChe<LqCachedFileHdr>::CachedFile*)c->Response.CacheInterator)->GetMD5(c->Response.CacheInterator, DestMd5);
+                return true;
+            }
+        }
+        switch(c->Pth->Type & LQHTTPPTH_TYPE_SEP)
+        {
+            case LQHTTPPTH_TYPE_DIR: case LQHTTPPTH_TYPE_FILE:
+                FileName = c->Pth->RealPath;
+                break;
+            default:
+                return false;
+        }
     }
     if(auto CachInter = LqHttpGetReg(c)->Cache.UpdateAndRead(FileName))
     {
-	CachInter->GetMD5(CachInter, DestMd5);
-	LqHttpGetReg(c)->Cache.Release(CachInter);
+        CachInter->GetMD5(CachInter, DestMd5);
+        LqHttpGetReg(c)->Cache.Release(CachInter);
     } else
     {
-	int Fd;
-	if(((Fd = LqFileOpen(FileName, LQ_O_RD | LQ_O_BIN, 0)) == -1))
-	    return false;
-	char Buf[LQCONN_MAX_LOCAL_SIZE];
-	LqMd5Ctx ctx;
-	LqMd5Init(&ctx);
-	while(true)
-	{
-	    auto Count = LqFileRead(Fd, Buf, sizeof(Buf));
-	    if(Count < 0)
-		break;
-	    LqMd5Update(&ctx, Buf, Count);
-	    if(Count < sizeof(Buf))
-		break;
-	}
-	LqMd5Final((uchar*)DestMd5, &ctx);
+        int Fd;
+        if(((Fd = LqFileOpen(FileName, LQ_O_RD | LQ_O_BIN, 0)) == -1))
+            return false;
+        char Buf[LQCONN_MAX_LOCAL_SIZE];
+        LqMd5Ctx ctx;
+        LqMd5Init(&ctx);
+        while(true)
+        {
+            auto Count = LqFileRead(Fd, Buf, sizeof(Buf));
+            if(Count < 0)
+                break;
+            LqMd5Update(&ctx, Buf, Count);
+            if(Count < sizeof(Buf))
+                break;
+        }
+        LqMd5Final((uchar*)DestMd5, &ctx);
     }
     return true;
 }
@@ -1067,13 +1103,13 @@ LQ_EXTERN_C bool LQ_CALL LqHttpRspGetSbufMd5(LqHttpConn* c, LqSbuf* StreamBuf, L
 {
     if(StreamBuf == nullptr)
     {
-	if(c->ActionState == LQHTTPACT_STATE_RSP_STREAM)
-	{
-	    StreamBuf = &c->Response.Stream;
-	} else
-	{
-	    return false;
-	}
+        if(c->ActionState == LQHTTPACT_STATE_RSP_STREAM)
+        {
+            StreamBuf = &c->Response.Stream;
+        } else
+        {
+            return false;
+        }
     }
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     LqMd5Ctx ctx;
@@ -1082,12 +1118,12 @@ LQ_EXTERN_C bool LQ_CALL LqHttpRspGetSbufMd5(LqHttpConn* c, LqSbuf* StreamBuf, L
     LqSbufPtrSet(StreamBuf, &Ptr);
     while(true)
     {
-	auto Count = LqSbufReadByPtr(StreamBuf, &Ptr, Buf, sizeof(Buf));
-	if(Count < 0)
-	    break;
-	LqMd5Update(&ctx, Buf, Count);
-	if(Count < sizeof(Buf))
-	    break;
+        auto Count = LqSbufReadByPtr(StreamBuf, &Ptr, Buf, sizeof(Buf));
+        if(Count < 0)
+            break;
+        LqMd5Update(&ctx, Buf, Count);
+        if(Count < sizeof(Buf))
+            break;
     }
     LqMd5Final((uchar*)DestMd5, &ctx);
     return true;

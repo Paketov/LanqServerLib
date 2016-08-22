@@ -30,11 +30,7 @@
 #define gai_strerror gai_strerrorA
 
 
-# ifdef EWOULDBLOCK
-#  define LQCONN_IS_WOULD_BLOCK (lq_errno == EWOULDBLOCK)
-# else
-#  define LQCONN_IS_WOULD_BLOCK (lq_errno == EAGAIN)
-# endif
+
 #define SHUT_RD SD_RECEIVE
 #define SHUT_WR SD_SEND
 #define SHUT_RDWR  SD_BOTH
@@ -50,16 +46,6 @@
 # include <poll.h>
 # include <sys/ioctl.h>
 # define closesocket(socket)  close(socket)
-
-# if defined(__sun__)
-#  define LQCONN_IS_WOULD_BLOCK (uwsgi_is_again())
-# elif defined(EWOULDBLOCK) && defined(EAGAIN)
-#  define LQCONN_IS_WOULD_BLOCK ((lq_errno == EWOULDBLOCK) || (lq_errno == EAGAIN))
-# elif defined(EWOULDBLOCK)
-#  define LQCONN_IS_WOULD_BLOCK (lq_errno == EWOULDBLOCK)
-# else
-#  define LQCONN_IS_WOULD_BLOCK (lq_errno == EAGAIN)
-# endif
 
 #endif
 
@@ -87,18 +73,52 @@ size_t LqConnSkip(LqConn* c, size_t Count);
 
 LqFileSz LqConnReciveInFile(LqConn* c, int OutFd, LqFileSz Count);
 intptr_t LqConnReciveInStream(LqConn* c, LqSbuf* Stream, intptr_t Count);
+LQ_EXTERN_C_BEGIN
+/*
+* @Conn - Target connection or children of connection.
+* @Flag - New flags LQEVNT_FLAG_RD, LQEVNT_FLAG_WR, LQEVNT_FLAG_HUP, LQEVNT_FLAG_RDHUP
+* @return: 0 - Time out, 1 - thread work set a new value
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqEvntSetFlags(void* Conn, LqEvntFlag Flag, LqTimeMillisec WaitTime = 0 /* Wait while worker set new events value*/);
 
-#define LqConnSetEvents(Conn, Flags) (void)(((LqConn*)(Conn))->Flag &= ~(LQCONN_FLAG_RD | LQCONN_FLAG_WR | LQCONN_FLAG_HUP | LQCONN_FLAG_RDHUP), ((LqConn*)(Conn))->Flag |= (Flags));
+/*
+* Set close connection.
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose(void* Conn);
+#define LqConnIsClose(Conn) (((LqConn*)(Conn))->Flag | LQEVNT_FLAG_END)
 
-#define LqConnSetClose(Conn) (void)(((LqConn*)(Conn))->Flag |= LQCONN_FLAG_END)
-#define LqConnIsClose(Conn) (((LqConn*)(Conn))->Flag | LQCONN_FLAG_END)
+/*
+* Add new file descriptor to follow
+*/
+LQ_IMPORTEXPORT bool LQ_CALL LqEvntFdAdd(LqEvntFd* Evnt);
 
-#define LqConnLock(Conn) (void)(((LqConn*)(Conn))->Flag |= LQCONN_FLAG_LOCK)
-#define LqConnIsLock(Conn) (((LqConn*)(Conn))->Flag & LQCONN_FLAG_LOCK)
+LQ_EXTERN_C_END
 
-int LqConnWaitUnlock(LqConn* Conn, LqTimeMillisec WaitTime);
-void LqConnUnlock(LqConn* Conn);
+#define LqConnInit(Conn, NewFd, NewProto, NewFlags)                     \
+    ((LqConn*)(Conn))->Fd = NewFd;                                      \
+    ((LqConn*)(Conn))->Proto = NewProto;                                \
+    ((LqConn*)(Conn))->Flag = _LQEVNT_FLAG_NOW_EXEC | _LQEVNT_FLAG_CONN;\
+    LqEvntSetFlags(Conn, NewFlags);                                     \
+    ((LqConn*)(Conn))->Flag &= ~_LQEVNT_FLAG_NOW_EXEC;                  \
 
+#define LqEvntHdrClose(Event)                                           \
+    (((LqEvntHdr*)(Event))->Flag |= _LQEVNT_FLAG_NOW_EXEC,              \
+	((((LqEvntHdr*)(Event))->Flag & _LQEVNT_FLAG_CONN)?                 \
+    ((LqConn*)(Event))->Proto->EndConnProc(((LqConn*)(Event))):         \
+    (((LqEvntFd*)(Event))->CloseHandler((LqEvntFd*)(Event), 0))))
+
+#define LqEvntFdInit(Evnt, NewFd, NewWrkBoss, NewFlags)                 \
+    ((LqEvntFd*)(Evnt))->Boss = (void*)(NewWrkBoss);                    \
+    ((LqEvntFd*)(Evnt))->Fd = (NewFd);                                  \
+    ((LqEvntFd*)(Evnt))->Flag = _LQEVNT_FLAG_NOW_EXEC ;                 \
+    LqEvntSetFlags((LqEvntFd*)(Evnt), NewFlags);                        \
+    ((LqEvntFd*)(Evnt))->Flag &= ~_LQEVNT_FLAG_NOW_EXEC;                \
+
+
+#define LqEvntBossByHdr(EvntHdr)										\
+    ((LqWrkBoss*)((((LqEvntHdr*)(EvntHdr))->Flag & _LQEVNT_FLAG_CONN)?  \
+    ((LqConn*)(EvntHdr))->Proto->Boss:									\
+    ((LqEvntFd*)(EvntHdr))->Boss))
 
 #if defined(HAVE_OPENSSL)
 

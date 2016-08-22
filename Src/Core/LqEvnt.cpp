@@ -15,6 +15,9 @@
 #include "LqLog.h"
 #include "LqConn.h"
 
+#include "LqAlloc.hpp"
+#define __METHOD_DECLS__
+#include "LqAlloc.hpp"
 
 #ifndef LQEVNT_INCREASE_COEFFICIENT
 # define LQEVNT_INCREASE_COEFFICIENT 1.61f
@@ -34,4 +37,3 @@
 #elif defined(LQEVNT_POLL)
 # include "LqEvntPoll.h"
 #endif
-

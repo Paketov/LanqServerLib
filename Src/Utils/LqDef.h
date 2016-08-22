@@ -20,8 +20,7 @@ typedef unsigned long long      ullong;
 typedef llong                   LqFileSz;
 typedef llong                   LqTimeSec;
 typedef llong                   LqTimeMillisec;
-typedef unsigned char           LqConnFlag;
-
+typedef uint16_t                LqEvntFlag;
 
 #define lq_max(a,b) (((a) > (b)) ? (a) : (b))
 #define lq_min(a,b) (((a) < (b)) ? (a) : (b))

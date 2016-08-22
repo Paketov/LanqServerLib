@@ -16,6 +16,7 @@
 
 
 typedef std::basic_string<char>                 LqString;
+typedef std::basic_string<wchar_t>              LqString16;
 typedef std::mutex                              LqMutex;
 typedef std::condition_variable                 LqCondVar;
 typedef std::unique_lock<LqMutex>               LqUniqueLock;

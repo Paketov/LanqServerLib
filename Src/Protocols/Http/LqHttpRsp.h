@@ -36,26 +36,28 @@ LQ_IMPORTEXPORT LqHttpActResult LQ_CALL LqHttpRspFileByFd(LqHttpConn* lqaio c, i
 LQ_IMPORTEXPORT LqHttpActResult LQ_CALL LqHttpRspFile(LqHttpConn* lqaio c, const char* lqaopt lqain lqautf8 Path, LqFileSz OffsetStart, LqFileSz OffsetEnd);
 
 /*
-*	Dynamic content functions.
+*   Dynamic content functions.
 */
 
 /*Add a little content to headers*/
-LQ_IMPORTEXPORT size_t LQ_CALL LqHttpRspHdrAddSmallContent(LqHttpConn* c, const void* Content, size_t LenContent);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRspHdrAddSmallContent(LqHttpConn* c, const void* Content, size_t LenContent);
 /*Add a little content to headers*/
-LQ_IMPORTEXPORT size_t LQ_CALL LqHttpRspHdrPrintfContent(LqHttpConn* c, const char* FormatStr, ...);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRspHdrPrintfContent(LqHttpConn* c, const char* FormatStr, ...);
 
 
 /* Add content to stream */
-LQ_IMPORTEXPORT size_t LQ_CALL LqHttpRspContentWrite(LqHttpConn* c, const void* Content, size_t LenContent);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRspContentWrite(LqHttpConn* c, const void* Content, size_t LenContent);
 /* Add content to stream */
-LQ_IMPORTEXPORT size_t LQ_CALL LqHttpRspContentWritePrintf(LqHttpConn* c, const char* FormatStr, ...);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRspContentWritePrintf(LqHttpConn* c, const char* FormatStr, ...);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRspContentWritePrintfVa(LqHttpConn* c, const char* FormatStr, va_list Va);
 /* Get size content in stream */
-LQ_IMPORTEXPORT size_t LQ_CALL LqHttpRspContentGetSz(LqHttpConn* c);
+LQ_IMPORTEXPORT LqFileSz LQ_CALL LqHttpRspContentGetSz(LqHttpConn* c);
 
 
 /* Work with responsed headers */
 LQ_IMPORTEXPORT char* LQ_CALL LqHttpRspHdrAddEx(LqHttpConn* c, const char*  HeaderName, size_t HeaderNameLen, const char* HeaderVal, size_t HeaderValLen);
 LQ_IMPORTEXPORT char* LQ_CALL LqHttpRspHdrAdd(LqHttpConn* c, const char* HeaderName, const char* HeaderVal);
+LQ_IMPORTEXPORT char* LQ_CALL LqHttpRspHdrAddPrintfVa(LqHttpConn* c, const char* HeaderName, const char* FormatStr, va_list Va);
 LQ_IMPORTEXPORT char* LQ_CALL LqHttpRspHdrAddPrintf(LqHttpConn* c, const char* HeaderName, const char* FormatStr, ...);
 LQ_IMPORTEXPORT char* LQ_CALL LqHttpRspHdrChangeEx(LqHttpConn* c, const char* HeaderName, size_t HeaderNameLen, const char* HeaderVal, size_t HeaderValLen);
 LQ_IMPORTEXPORT char* LQ_CALL LqHttpRspHdrChange(LqHttpConn* c, const char* HeaderName, const char* HeaderVal);

@@ -9,9 +9,11 @@
 #include "LqWrkBoss.hpp"
 #include "LqStrSwitch.h"
 #include "LqHttpMdl.h"
-#include "LqDirEvnt.h"
-#include "LqDirEnm.h"
+#include "LqFile.h"
 #include "LqDfltRef.hpp"
+
+#define __METHOD_DECLS__
+#include "LqAlloc.hpp"
 
 #include <vector>
 
@@ -59,18 +61,21 @@ static LqString ReadParams(LqString& Source, const char * Params)
     return "";
 }
 
+
 class LqMdlPathFollowTask:
     public LqWrkTask::Task
 {
 public:
-    LqDirEvnt			Dirs;
+
+    std::vector<LqFilePathEvnt*> Dirs;
+    std::vector<LqFilePoll>      DirsPoll;
     LqLocker<uint>		PathsLocker;
     LqLocker<uint>		ModuleLocker;
     LqHttpProtoBase*		RegDest;
     struct Module
     {
-	LqString		ModuleName;
-	uintptr_t		Handle;
+        LqString		ModuleName;
+        uintptr_t		Handle;
     };
 
     std::vector<Module>	Modules;
@@ -86,33 +91,45 @@ public:
 
     virtual void WorkingMethod()
     {
-	LqDirEvntPath* Paths = nullptr;
-	PathsLocker.LockWriteYield();
-	LqDirEvntCheck(&Dirs, &Paths, 10);
-	PathsLocker.UnlockWrite();
-	for(auto j = Paths; j != nullptr; j = j->Next)
-	{
-	    if(j->Flag & (LQDIREVNT_ADDED | LQDIREVNT_MOVE_TO))
-	    {
-		LoadModule(j->Name);
-	    } else if(j->Flag & (LQDIREVNT_RM | LQDIREVNT_MOVE_FROM))
-	    {
-		ModuleLocker.LockWrite();
-		for(unsigned i = 0; i < Modules.size(); i++)
-		{
-		    if(LqStrSame(Modules[i].ModuleName.c_str(), j->Name))
-		    {
-			if(LqHttpMdlFreeByHandle(RegDest, Modules[i].Handle) > -1)
-			{
-			    Modules[i] = Modules[Modules.size() - 1];
-			    Modules.pop_back();
-			}
-		    }
-		}
-		ModuleLocker.UnlockWrite();
-	    }
-	}
-	LqDirEvntPathFree(&Paths);
+        LqFilePathEvntEnm* Paths = nullptr;
+        PathsLocker.LockWriteYield();
+        int CountEvents = LqFilePollCheck(DirsPoll.data(), DirsPoll.size(), 2);
+        if(CountEvents <= 0)
+        {
+            PathsLocker.UnlockWrite();
+            return;
+        }
+
+        for(size_t i = 0; i < DirsPoll.size(); i++)
+        {
+            if(!(DirsPoll[i].events & LQEVNT_FLAG_RD))
+                continue;
+            LqFilePathEvntDoEnum(Dirs[i], &Paths);
+            for(auto j = Paths; j != nullptr; j = j->Next)
+            {
+                if(j->Flag & (LQDIREVNT_ADDED | LQDIREVNT_MOVE_TO))
+                {
+                    LoadModule(j->Name);
+                } else if(j->Flag & (LQDIREVNT_RM | LQDIREVNT_MOVE_FROM))
+                {
+                    ModuleLocker.LockWrite();
+                    for(unsigned i = 0; i < Modules.size(); i++)
+                    {
+                        if(LqStrSame(Modules[i].ModuleName.c_str(), j->Name))
+                        {
+                            if(LqHttpMdlFreeByHandle(RegDest, Modules[i].Handle) > -1)
+                            {
+                                Modules[i] = Modules[Modules.size() - 1];
+                                Modules.pop_back();
+                            }
+                        }
+                    }
+                    ModuleLocker.Unlock();
+                }
+            }
+            LqFilePathEvntFreeEnum(&Paths);
+        }
+        PathsLocker.Unlock();
     }
 };
 
@@ -135,11 +152,11 @@ static void LoadModule(const char* ModuleFileName)
 
 static void LoadAllModulesFromDir(const char * Dir, bool IsSubdir)
 {
-    LqDirEnm DirEnm;
+    LqFileEnm DirEnm;
     char FileName[32768];
     uint8_t Flag;
 
-    for(auto r = LqDirEnmStart(&DirEnm, Dir, FileName, sizeof(FileName) - 1, &Flag); r != -1; r = LqDirEnmNext(&DirEnm, FileName, sizeof(FileName) - 1, &Flag))
+    for(auto r = LqFileEnmStart(&DirEnm, Dir, FileName, sizeof(FileName) - 1, &Flag); r != -1; r = LqFileEnmNext(&DirEnm, FileName, sizeof(FileName) - 1, &Flag))
     {
 	if(LqStrSame(FileName, ".") || LqStrSame(FileName, ".."))
 	    continue;
@@ -195,12 +212,6 @@ static void UnloadAllModules()
 
 LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHttpProtoBase* Reg, uintptr_t ModuleHandle, const char* LibPath, void* UserData)
 {
-    if(LqDirEvntInit(&Task.Dirs) == -1)
-    {
-	printf("MdlAutoLoad error: Not init dir following \"%s\"\n", strerror(lq_errno));
-	return LQHTTPMDL_REG_FREE_LIB;
-    }
-
     LqHttpMdlInit(Reg, &Mod, "MdlAutoLoad", ModuleHandle);
 
     Mod.ReciveCommandProc =
@@ -228,44 +239,79 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 	
 	LQSTR_SWITCH(Cmd.c_str())
 	{
-	    LQSTR_CASE("mkdir")
-	    {
-		LqString Params = ReadParams(FullCommand, "lr");
-		LqString Path = ReadPath(FullCommand);
+            LQSTR_CASE("mkdir")
+            {
+                LqString Params = ReadParams(FullCommand, "lr");
+                LqString Path = ReadPath(FullCommand);
 
-		Task.PathsLocker.LockWrite();
-		auto r = LqDirEvntAdd
+
+                auto DirEvent = LqFastAlloc::New<LqFilePathEvnt>();
+                if(DirEvent == nullptr)
+                {
+                    if(OutBuffer)
+                        fprintf(OutBuffer, " MdlAutoLoad: Path not added (Not mem alloc)");
+                    break;
+                }
+		auto r = LqFilePathEvntCreate
 		(
-		    &Task.Dirs, Path.c_str(),
+                    DirEvent,
+                    Path.c_str(),
 		    LQDIREVNT_MOVE_TO | LQDIREVNT_MOVE_FROM | LQDIREVNT_ADDED | LQDIREVNT_RM | ((Params.find_first_of('r') != LqString::npos)? LQDIREVNT_SUBTREE: 0)
 		);
-		Task.PathsLocker.UnlockWrite();
-		if(r >= 0)
-		{
-		    if(Params.find_first_of('l') != LqString::npos)
-			LoadAllModulesFromDir(Path.c_str(), Params.find_first_of('r') != LqString::npos);
-		    if(OutBuffer)
-			fprintf(OutBuffer, " MdlAutoLoad: Path added");
-		} else
-		{
-		    if(OutBuffer)
-			fprintf(OutBuffer, " MdlAutoLoad: Path not added");
-		}
+                if(r == -1)
+                {
+                    if(OutBuffer)
+                        fprintf(OutBuffer, " MdlAutoLoad: Path not added");
+                    break;
+                }
+
+                /*Adding new dir event */
+                Task.PathsLocker.LockWrite();
+                
+                LqFilePoll Pl;
+                Pl.fd = DirEvent->Fd;
+                Pl.events = LQ_POLLIN;
+
+                Task.DirsPoll.push_back(Pl);
+                Task.Dirs.push_back(DirEvent);
+                /*  */
+		Task.PathsLocker.Unlock();
+
+                if(Params.find_first_of('l') != LqString::npos)
+                    LoadAllModulesFromDir(Path.c_str(), Params.find_first_of('r') != LqString::npos);
+                if(OutBuffer)
+                    fprintf(OutBuffer, " MdlAutoLoad: Path added");
 	    }
 	    break;
 	    LQSTR_CASE("rmdir")
 	    {
 		LqString Params = ReadParams(FullCommand, "u");
 		LqString Path = ReadPath(FullCommand);
+                int CountDeleted = 0;
 		Task.PathsLocker.LockWrite();
-		auto r = LqDirEvntRm(&Task.Dirs, Path.c_str());
-		Task.PathsLocker.UnlockWrite();
-		if(r >= 0)
+                for(size_t i = 0; i < Task.Dirs.size(); i++)
+                {
+                    char DestName[LQ_MAX_PATH];
+                    LqFilePathEvntGetName(Task.Dirs[i], DestName, sizeof(DestName) - 1);
+                    if(LqStrSame(DestName, Path.c_str()))
+                    {
+                        LqFilePathEvntFree(Task.Dirs[i]);
+                        LqFastAlloc::Delete(Task.Dirs[i]);
+                        Task.Dirs[i] = Task.Dirs[Task.Dirs.size() - 1];
+                        Task.Dirs.pop_back();
+                        Task.DirsPoll[i] = Task.DirsPoll[Task.DirsPoll.size() - 1];
+                        Task.DirsPoll.pop_back();
+                        CountDeleted++;
+                    }
+                }
+		Task.PathsLocker.Unlock();
+
+		if(CountDeleted > 0)
 		{
 		    if(Params.find_first_of('u') != LqString::npos)
 			UnloadAllModules(Path.c_str());
 		    if(OutBuffer)
-			fprintf(OutBuffer, " MdlAutoLoad: Path removed");
+			fprintf(OutBuffer, " MdlAutoLoad: Path removed (%i count)", CountDeleted);
 		} else
 		{
 		    if(OutBuffer)
@@ -302,11 +348,19 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 	}
     };
 
-    Mod.FreeModuleNotifyProc =
+    Mod.FreeNotifyProc =
     [](LqHttpMdl* This) -> uintptr_t
     {
 	LqWrkBossByProto(This->Proto)->Tasks.Remove(&Task);
-	LqDirEvntUninit(&Task.Dirs);
+
+        Task.PathsLocker.LockWrite();
+        for(auto& i : Task.Dirs)
+        {
+            LqFilePathEvntFree(i);
+            LqFastAlloc::Delete(i);
+        }
+        Task.PathsLocker.Unlock();
+
 	printf("Unload MdlAutoLoad module\n");
 	return This->Handle;
     };

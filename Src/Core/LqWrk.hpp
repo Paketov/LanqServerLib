@@ -37,7 +37,7 @@ class LQ_IMPORTEXPORT LqWrk:
     friend LqFastAlloc;
 
     /*GetCount external reference, used in SharedPtr*/
-    LqAtomic<int>                                       CountPointers;
+    size_t                                              CountPointers;
 
     /* GetCount waiting connections */
     LqAtomic<size_t>                                    CountConnectionsInQueue;
@@ -58,19 +58,19 @@ class LQ_IMPORTEXPORT LqWrk:
     void UnlockWrite() const;
 
     void ClearQueueCommands();
-    void RemoveConnInListFromCmd(LqListConn& Dest);
+    void RemoveEvntInListFromCmd(LqListEvnt& Dest);
 
-    void RemoveConnInList(LqListConn& Dest);
+    void RemoveEvntInList(LqListEvnt& Dest);
 
     void RewindToEndForketCommandQueue(LqQueueCmd<uchar>::Interator& Command);
 
-    void TakeAllConn(void(*TakeEventProc)(void* Data, LqListConn& Connection), void* NewUserData);
+    void TakeAllEvnt(void(*TakeEventProc)(void* Data, LqListEvnt& Connection), void* NewUserData);
 
-    bool AddConn(LqConn* Connection);
-    void CloseAllConn();
+    bool AddEvnt(LqEvntHdr* Connection);
+    void CloseAllEvnt();
     void RemoveConnOnTimeOut(LqTimeMillisec TimeLiveMilliseconds);
 
-    size_t AddConnections(LqListConn& ConnectionList);
+    size_t AddEvnt(LqListEvnt& ConnectionList);
     void RemoveConnByIp(const sockaddr* Addr);
 
     LqWrk(bool IsStart);
@@ -87,33 +87,33 @@ public:
     bool RemoveConnOnTimeOutAsync(LqTimeMillisec TimeLiveMilliseconds);
     bool RemoveConnOnTimeOutSync(LqTimeMillisec TimeLiveMilliseconds);
 
-    bool AddConnAsync(LqConn* Connection);
-    bool AddConnSync(LqConn* Connection);
+    bool AddEvntAsync(LqEvntHdr* Connection);
+    bool AddEvntSync(LqEvntHdr* Connection);
 
-    bool UnlockConnAsync(LqConn* Connection);
-    int UnlockConnSync(LqConn* Connection);
+    bool SyncEvntFlagAsync(LqEvntHdr* Connection);
+    int SyncEvntFlagSync(LqEvntHdr* Connection);
 
-    size_t AddConnListAsync(LqListConn& ConnectionList);
-    size_t AddConnListSync(LqListConn& ConnectionList);
+    size_t AddEvntListAsync(LqListEvnt& ConnectionList);
+    size_t AddEvntListSync(LqListEvnt& ConnectionList);
 
     bool WaitEvent(void(*NewEventProc)(void* Data), void* NewUserData = nullptr);
 
     /*
     This method return all connection from this worker.
     */
-    bool TakeAllConn(LqListConn& ConnectionList);
-    bool TakeAllConnSync(LqListConn& ConnectionList);
-    bool TakeAllConnAsync(void(*TakeEventProc)(void* Data, LqListConn& ConnectionList), void* NewUserData = nullptr);
+    bool TakeAllEvnt(LqListEvnt& ConnectionList);
+    bool TakeAllConnSync(LqListEvnt& ConnectionList);
+    bool TakeAllConnAsync(void(*TakeEventProc)(void* Data, LqListEvnt& ConnectionList), void* NewUserData = nullptr);
 
 
 
-    bool CloseAllConnAsync();
-    void CloseAllConnSync();
+    bool CloseAllEvntAsync();
+    void CloseAllEvntSync();
 
     bool CloseConnByIpSync(const sockaddr* Addr);
     bool CloseConnByIpAsync(const sockaddr* Addr);
 
-    void EnumConn(void* UserData, void(*Proc)(void* UserData, LqConn* Conn));
+    void EnumEvnt(void* UserData, void(*Proc)(void* UserData, LqEvntHdr* Conn));
 
     LqString DebugInfo() const;
     LqString AllDebugInfo();

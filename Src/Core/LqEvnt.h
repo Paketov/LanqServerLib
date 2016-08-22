@@ -24,7 +24,7 @@
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-struct LqEvntConnInterator
+struct LqEvntInterator
 {
 #if defined(LQEVNT_KEVENT)
 #else
@@ -35,31 +35,32 @@ struct LqEvntConnInterator
 
 struct LqEvnt
 {
-    bool IsSignalSended;
 #if defined(LQEVNT_WIN_EVENT)
     int                 Count;
     int                 AllocCount;
     HANDLE*             EventArr;
-    LqConn**            ClientArr;
+    LqEvntHdr**         ClientArr;
     int                 EventEnumIndex;
-    uintptr_t		StartReadyIndex; //Use for optimize
+	int                 SignalFd;
 #elif defined(LQEVNT_KEVENT)
 #elif defined(LQEVNT_EPOLL)
     int                 EpollFd;
     int                 SignalFd;
-    LqConn**            ClientArr;
+    LqEvntHdr**         ClientArr;
     int                 Count;
     int                 AllocCount;
     void*               EventArr;
     int                 EventArrCount;
     int                 CountReady;
     int                 EventEnumIndex;
+    int                 FirstEnd;
 #elif defined(LQEVNT_POLL)
     void*               EventArr;
-    LqConn**            ClientArr;
+    LqEvntHdr**         ClientArr;
     int                 Count;
     int                 AllocCount;
     int                 EventEnumIndex;
+	int                 SignalFd;
 #endif
 };
 
@@ -78,75 +79,75 @@ void LqEvntUninit(LqEvnt* Dest);
 /*
 * Add connection in event follower list.
 */
-bool LqEvntAddConn(LqEvnt* Dest, LqConn* Client);
+bool LqEvntAddHdr(LqEvnt* Dest, LqEvntHdr* Client);
 
 /*
 * Start enumerate events by internal interator.
-*  @return - 0 - is not have event, otherwise flag LQCONN_FLAG_RD, LQCONN_FLAG_WR, LQCONN_FLAG_HUP
+*  @return - 0 - is not have event, otherwise flag LQEVNT_FLAG_RD, LQEVNT_FLAG_WR, LQEVNT_FLAG_HUP
 */
-LqConnFlag LqEvntEnumEventBegin(LqEvnt* Events);
+LqEvntFlag LqEvntEnumEventBegin(LqEvnt* Events);
 
 /*
 * Enumerate next event by internal interator.
-*  @return - 0 - is not have event, otherwise flag LQCONN_FLAG_RD, LQCONN_FLAG_WR, LQCONN_FLAG_HUP
+*  @return - 0 - is not have event, otherwise flag LQEVNT_FLAG_RD, LQEVNT_FLAG_WR, LQEVNT_FLAG_HUP
 */
-LqConnFlag LqEvntEnumEventNext(LqEvnt* Events);
+LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events);
 
 /*
 * Remove connection by internal event interator.
 */
-void LqEvntRemoveByEventInterator(LqEvnt* Events);
+void LqEvntRemoveCurrent(LqEvnt* Events);
 
 /*
 * Get client struct by internal interator.
 *  @return - ptr on event connection.
 */
-LqConn* LqEvntGetClientByEventInterator(LqEvnt* Events);
+LqEvntHdr* LqEvntGetHdrByCurrent(LqEvnt* Events);
 
 
 #if defined(LQEVNT_WIN_EVENT)
 /*
 * Use only in Windows
-*  Call before enum nect coonnection
+*  Call before enum next coonnection
 */
-void LqEvntUnuseClientByEventInterator(LqEvnt* Events);
+void LqEvntUnuseCurrent(LqEvnt* Events);
 #else
-#define LqEvntUnuseClientByEventInterator(Events) ((void)0)
+#define LqEvntUnuseCurrent(Events) ((void)0)
 #endif
 
 /*
 * Set event mask for connection by internal interator.
 *  @return - true is success
 */
-bool LqEvntSetMaskByEventInterator(LqEvnt* Events);
+bool LqEvntSetMaskByCurrent(LqEvnt* Events);
 
 /*
 * Unlock connection. After call events for @Conn recived again
 *  @return - true - is locket, otherwise - false.
 */
-bool LqEvntUnlock(LqEvnt* Events, LqConn* Conn);
+bool LqEvntSetMaskByHdr(LqEvnt* Events, LqEvntHdr* Hdr);
 
 /*
 * Start enumerate connections.
 *  @Interator - Index
 *  @return - true - is have element
 */
-bool LqEvntEnumConnBegin(LqEvnt* Events, LqEvntConnInterator* Interator);
+bool LqEvntEnumBegin(LqEvnt* Events, LqEvntInterator* Interator);
 
 /*
 * Enumerate next connection.
 *  @Interator - Index
 *  @return - true - is have next element
 */
-bool LqEvntEnumConnNext(LqEvnt* Events, LqEvntConnInterator* Interator);
+bool LqEvntEnumNext(LqEvnt* Events, LqEvntInterator* Interator);
 
 /*
 * Start enumerate by interator.
 *  @Interator - Index
 *  @return - true - is have next element
 */
-void LqEvntRemoveByConnInterator(LqEvnt* Events, LqEvntConnInterator* Interator);
-LqConn* LqEvntGetClientByConnInterator(LqEvnt* Events, LqEvntConnInterator* Interator);
+void LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator);
+LqEvntHdr* LqEvntGetHdrByInterator(LqEvnt* Events, LqEvntInterator* Interator);
 
 
 /*

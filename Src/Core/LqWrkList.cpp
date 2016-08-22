@@ -20,9 +20,9 @@ LqWrkList::~LqWrkList()
 {
     WorkerListLocker.LockWrite();
     for(size_t i = 0, m = WorkersCount; i < m; i++)
-	Workers[i].~LqWorkerPtr();
+        Workers[i].~LqWorkerPtr();
     if(Workers != nullptr)
-	free(Workers);
+        free(Workers);
     WorkerListLocker.UnlockWrite();
 }
 

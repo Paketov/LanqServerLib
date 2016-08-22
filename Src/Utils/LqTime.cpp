@@ -29,25 +29,27 @@ LQ_EXTERN_C LqTimeSec LQ_CALL LqTimeSetGmtCorrection(LqTimeSec NewCorrection)
     return GmtCorrection = NewCorrection;
 }
 
-LQ_EXTERN_C LqString LQ_CALL LqTimeDiffSecToStlStr(LqTimeSec t1, LqTimeSec t2)
+LQ_EXTERN_CPP LqString LQ_CALL LqTimeDiffSecToStlStr(LqTimeSec t1, LqTimeSec t2)
 {
     time_t r = t2 - t1;
-    int Years = r / (365 * 24 * 60 * 60);
+    time_t Years = r / (365 * 24 * 60 * 60);
     r %= (365 * 24 * 60 * 60);
-    int Days = r / (24 * 60 * 60);
+    time_t Days = r / (24 * 60 * 60);
     r %= (24 * 60 * 60);
-    int Hours = r / (60 * 60);
+    time_t Hours = r / (60 * 60);
     r %= (60 * 60);
-    int Minutes = r / 60;
+    time_t Minutes = r / 60;
     r %= 60;
-    int Seconds = r;
+    time_t Seconds = r;
 
     bool k = false;
     LqString str_r;
-    if(Years != 0) str_r = LqToString(Years) + " years ", k = true;
-    if((Days != 0) || k) str_r += LqToString(Days) + " days ", k = true;
+    if(Years != 0) 
+	str_r = LqToString(Years) + " years ", k = true;
+    if((Days != 0) || k) 
+	str_r += LqToString(Days) + " days ", k = true;
     char Buf[30];
-    sprintf(Buf, "%02i:%02i:%02i", Hours, Minutes, Seconds);
+    sprintf(Buf, "%02i:%02i:%02i", (int)Hours, (int)Minutes, (int)Seconds);
     return str_r + Buf;
 }
 
@@ -82,14 +84,14 @@ LQ_EXTERN_CPP LqString LQ_CALL LqTimeGmtSecToStlStr(LqTimeSec t)
 LQ_EXTERN_C int LQ_CALL LqTimeStrToLocTm(const char* Str, tm* Result)
 {
     tm OutTm;
-    int n = -1;
+    int n = 0;
     int t;
     char MonthBuf[4] = {'\0'}, WeekBuf[4] = {'\0'};
-    for(; isalpha(Str[n]) && (n < 3); n++)
+    for(; ((Str[n] >= 'a') && (Str[n] <= 'z') || (Str[n] >= 'A') && (Str[n] <= 'Z')) && (n < 3); n++)
 	WeekBuf[n] = Str[n];
     if(Str[n] != ' ') return -1;
     n++;
-    for(int i = 0; isalpha(Str[n]) && (i < 3); n++, i++)
+    for(int i = 0; ((Str[n] >= 'a') && (Str[n] <= 'z') || (Str[n] >= 'A') && (Str[n] <= 'Z')) && (i < 3); n++, i++)
 	MonthBuf[i] = Str[n];
     if(Str[n] != ' ') return -1;
     n++;
@@ -141,7 +143,7 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToGmtTm(const char * Str, tm* Result)
     int t;
     char MonthBuf[4] = {'\0'}, WeekBuf[4] = {'\0'};
 
-    for(; isalpha(Str[n]) && (n < 3); n++)
+    for(; ((Str[n] >= 'a') && (Str[n] <= 'z') || (Str[n] >= 'A') && (Str[n] <= 'Z')) && (n < 3); n++)
 	WeekBuf[n] = Str[n];
     if(Str[n] != ',') return -1;
     n++;
@@ -151,7 +153,7 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToGmtTm(const char * Str, tm* Result)
     n += t;
     if(Str[n] != ' ') return -1;
     n++;
-    for(int i = 0; isalpha(Str[n]) && (i < 3); n++, i++)
+    for(int i = 0; ((Str[n] >= 'a') && (Str[n] <= 'z') || (Str[n] >= 'A') && (Str[n] <= 'Z')) && (i < 3); n++, i++)
 	MonthBuf[i] = Str[n];
     if(Str[n] != ' ') return -1;
     n++;

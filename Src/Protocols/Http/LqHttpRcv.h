@@ -30,19 +30,21 @@ enum LqHttpRcvFileResultEnm
 };
 
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFile(LqHttpConn* c, const char* lqaopt lqain lqautf8 Path, LqFileSz ReadLen, int Access, bool IsReplace, bool IsCreateSubdir);
-LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFileByFd(LqHttpConn* c, int Fd, LqFileSz ReadLen, int Access, bool IsReplace, bool IsCreateSubdir);
+LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFileByFd(LqHttpConn* c, int Fd, LqFileSz ReadLen);
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFileCommit(LqHttpConn* c);
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFileCommitToPlace(LqHttpConn* c, const char* DestPath);
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFileCancel(LqHttpConn* c);
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpRcvFileGetTempName(LqHttpConn* c, char* lqaout lqautf8 NameBuffer, size_t NameBufSize);
-LQ_IMPORTEXPORT int LQ_CALL LqHttpRcvFileGetTargetName(LqHttpConn* c, char* lqaout lqautf8 NameBuffer, size_t NameBufSize);
+LQ_IMPORTEXPORT int LQ_CALL LqHttpRcvFileGetTempName(const LqHttpConn* c, char* lqaout lqautf8 NameBuffer, size_t NameBufSize);
+LQ_IMPORTEXPORT int LQ_CALL LqHttpRcvFileGetTargetName(const LqHttpConn* c, char* lqaout lqautf8 NameBuffer, size_t NameBufSize);
+
+LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvStream(LqHttpConn* c, LqFileSz ReadLen);
 
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvMultipartHdrRecive(LqHttpConn* c);
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvMultipartSkip(LqHttpConn* c);
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvMultipartHdrRemoveLast(LqHttpConn* c);
 
-LQ_IMPORTEXPORT size_t LQ_CALL LqHttpRcvMultipartHdrGetDeep(LqHttpConn* c);
+LQ_IMPORTEXPORT size_t LQ_CALL LqHttpRcvMultipartHdrGetDeep(const LqHttpConn* c);
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvMultipartHdrRemoveAll(LqHttpConn* c);
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvMultipartInFile(LqHttpConn* c, const char* lqain lqautf8 DestPath, int Access, bool IsCreateSubdir, bool IsReplace);
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvMultipartInStream(LqHttpConn* c, LqFileSz ReadLen);
@@ -50,8 +52,18 @@ LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvMultipartInStream(LqHttp
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRcvStreamRead(LqHttpConn* c, void* lqaout Buffer, intptr_t BufferSize);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRcvStreamPeek(LqHttpConn* c, void* lqaout Buffer, intptr_t BufferSize);
 
+/* I like C scan style */
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRcvHdrScanf(const LqHttpConn* c, size_t Deep /*Multipart header deep*/, const char* lqautf8 lqain HeaderName, const char* lqautf8 Format, ...);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRcvHdrScanf(const LqHttpConn* c, size_t Deep, const char* lqautf8 lqain HeaderName, const char* lqautf8 Format, ...);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRcvHdrScanfVa
+(
+    const LqHttpConn* lqain c,
+    size_t Deep,
+    const char* lqain lqautf8 HeaderName,
+    const char* lqautf8 Format,
+    va_list Va
+);
+
 /*
 * Query functions
 */
@@ -75,6 +87,8 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRcvHdrSearch
     char** lqaopt lqaout lqautf8 HeaderValResult,
     char** lqaopt lqaout lqautf8 HeaderValEnd
 );
+
+
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqHttpRcvHdrEnum
 (

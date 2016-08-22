@@ -39,14 +39,7 @@ size_t LqHttpConnSend_Native(LqHttpConn* c, const void* SourceBuf, size_t SizeBu
 #define LqHttpEvntActSetIgnore(Conn) LqHttpEvntActSet(Conn, LqHttpEvntDfltIgnoreAnotherEventHandler)
 #define LqHttpEvntCloseSetIgnore(Conn) LqHttpEvntActSet(Conn, LqHttpEvntDfltIgnoreAnotherEventHandler)
 
-
-LQ_IMPORTEXPORT void LQ_CALL LqHttpConnLock(LqHttpConn* lqaio lqatns c);
-
-/* After call this function Connection not use again*/
-LQ_IMPORTEXPORT void LQ_CALL LqHttpConnUnlock(LqHttpConn* lqaio lqats c);
-
-/*!!! Not use in thread worker !!!*/
-LQ_IMPORTEXPORT int LQ_CALL LqHttpConnWaitUnlock(LqHttpConn* lqaio lqats c, LqTimeMillisec TimeWait);
+LQ_IMPORTEXPORT void LQ_CALL LqHttpConnCallEvntAct(LqHttpConn* Conn);
 
 LQ_IMPORTEXPORT void LQ_CALL LqHttpEvntDfltIgnoreAnotherEventHandler(LqHttpConn* lqaio lqatns c);
 

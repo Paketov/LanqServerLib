@@ -4,9 +4,9 @@
 * 2016
 * LqQueueCmd - Command queue. Class to work with the incoming commands for workers and worker boss.
 * Thread safe.
-*	       Push()             PushBegin()
-*			  \                  \
-*	LqQueueCmd -> [o][o][o][o][o]  >
+*          Push()             PushBegin()
+*             \                  \
+*   LqQueueCmd -> [o][o][o][o][o]  >
 *                /
 *            Fork()                     LqQueueCmd::Interator::Pop
 *              /                         /
@@ -17,7 +17,9 @@
 #ifndef __LQ_QUEUE_CMD_H_1_
 #define __LQ_QUEUE_CMD_H_1_
 
+#include "LqOs.h"
 #include "LqLock.hpp"
+
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
@@ -45,41 +47,41 @@ public:
 
     struct Interator
     {
-	class
-	{
-	    friend LqQueueCmd;
-	    friend Interator;
-	    ElementHeader* Cmd;
-	public:
-	    /*
-	    * Get type of command.
-	    */
-	    inline operator TypeCommand() const { return Cmd->Type; }
-	} Type;
+        class
+        {
+            friend LqQueueCmd;
+            friend Interator;
+            ElementHeader* Cmd;
+        public:
+            /*
+            * Get type of command.
+            */
+            inline operator TypeCommand() const { return Cmd->Type; }
+        } Type;
 
-	/*
-	* Is have last command. Use for termunate in loop.
-	*/
-	operator bool() const;
+        /*
+        * Is have last command. Use for termunate in loop.
+        */
+        operator bool() const;
 
-	/*
-	* Get value command.
-	*/
-	template<typename ValType>
-	ValType& Val();
+        /*
+        * Get value command.
+        */
+        template<typename ValType>
+        ValType& Val();
 
-	/*
-	* Remove command from forked queue.
-	*/
-	template<typename ValType>
-	void Pop();
+        /*
+        * Remove command from forked queue.
+        */
+        template<typename ValType>
+        void Pop();
 
-	void Pop();
+        void Pop();
 
-	/*
-	* Remove command from forked queue. Without call desructor!
-	*/
-	void JustPop();
+        /*
+        * Remove command from forked queue. Without call desructor!
+        */
+        void JustPop();
     };
 
     /*
@@ -121,33 +123,33 @@ public:
 
     Interator SeparateBegin()
     {
-	Interator i;
-	Locker.LockWrite();
-	i.Type.Cmd = Begin;
-	Begin = End = nullptr;
-	return i;
+        Interator i;
+        Locker.LockWriteYield();
+        i.Type.Cmd = Begin;
+        Begin = End = nullptr;
+        return i;
     }
 
     void SeparatePush(Interator& Source)
     {
-	ElementHeader* NewCommand = Source.Type.Cmd;
-	Source.Type.Cmd = Source.Type.Cmd->Next;
-	NewCommand->Next = nullptr;
-	if(End != nullptr)
-	    End->Next = NewCommand;
-	else
-	    Begin = NewCommand;
-	End = NewCommand;
+        ElementHeader* NewCommand = Source.Type.Cmd;
+        Source.Type.Cmd = Source.Type.Cmd->Next;
+        NewCommand->Next = nullptr;
+        if(End != nullptr)
+            End->Next = NewCommand;
+        else
+            Begin = NewCommand;
+        End = NewCommand;
     }
 
     bool SeparateIsEnd(Interator& Source)
     {
-	if(!Source)
-	{
-	    Locker.UnlockWrite();
-	    return true;
-	}
-	return false;
+        if(!Source)
+        {
+            Locker.UnlockWrite();
+            return true;
+        }
+        return false;
     }
 
 };
@@ -203,7 +205,7 @@ template<typename TypeCommand>
 typename LqQueueCmd<TypeCommand>::Interator LqQueueCmd<TypeCommand>::Fork()
 {
     Interator i;
-    Locker.LockWrite();
+    Locker.LockWriteYield();
     i.Type.Cmd = Begin;
     Begin = End = nullptr;
     Locker.UnlockWrite();
@@ -221,9 +223,9 @@ LqQueueCmd<TypeCommand>::~LqQueueCmd()
 {
     for(auto i = Begin; i != nullptr; )
     {
-	auto Type = i;
-	i = i->Next;
-	LqFastAlloc::JustDelete(Type);
+        auto Type = i;
+        i = i->Next;
+        LqFastAlloc::JustDelete(Type);
     }
 }
 
@@ -232,15 +234,15 @@ bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand)
 {
     auto NewCommand = LqFastAlloc::New<ElementHeader>();
     if(NewCommand == nullptr)
-	return false;
+        return false;
     NewCommand->Next = nullptr;
     NewCommand->Type = tCommand;
 
-    Locker.LockWrite();
+    Locker.LockWriteYield();
     if(End != nullptr)
-	End->Next = NewCommand;
+        End->Next = NewCommand;
     else
-	Begin = NewCommand;
+        Begin = NewCommand;
     End = NewCommand;
     Locker.UnlockWrite();
     return true;
@@ -252,16 +254,16 @@ bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand, ValType Val)
 {
     auto NewCommand = LqFastAlloc::New<Element<ValType>>();
     if(NewCommand == nullptr)
-	return false;
+        return false;
     NewCommand->Header.Next = nullptr;
     NewCommand->Header.Type = tCommand;
     NewCommand->Value = Val;
 
-    Locker.LockWrite();
+    Locker.LockWriteYield();
     if(End != nullptr)
-	End->Next = &(NewCommand->Header);
+        End->Next = &(NewCommand->Header);
     else
-	Begin = &(NewCommand->Header);
+        Begin = &(NewCommand->Header);
     End = &(NewCommand->Header);
     Locker.UnlockWrite();
     return true;
@@ -274,15 +276,15 @@ bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand, ValType Val)
 {
     auto NewCommand = LqFastAlloc::New<Element<ValType>>();
     if(NewCommand == nullptr)
-	return false;
+        return false;
     NewCommand->Header.Type = tCommand;
     NewCommand->Value = Val;
 
-    Locker.LockWrite();
+    Locker.LockWriteYield();
     NewCommand->Header.Next = Begin;
     Begin = &(NewCommand->Header);
     if(End == nullptr)
-	End = &(NewCommand->Header);
+        End = &(NewCommand->Header);
     Locker.UnlockWrite();
     return true;
 }
@@ -292,14 +294,14 @@ bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand)
 {
     auto NewCommand = LqFastAlloc::New<ElementHeader>();
     if(NewCommand == nullptr)
-	return false;
+        return false;
     NewCommand->Type = tCommand;
 
-    Locker.LockWrite();
+    Locker.LockWriteYield();
     NewCommand->Next = Begin;
     Begin = NewCommand;
     if(End == nullptr)
-	End = NewCommand;
+        End = NewCommand;
     Locker.UnlockWrite();
     return true;
 }

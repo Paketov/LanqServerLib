@@ -1,0 +1,776 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Html console</title>
+
+    <script type="text/jscript" language="jscript">
+    /*
+    TerminalJs.AppendLocalData          Function
+    TerminalJs.BindList                 Array
+    TerminalJs.CnclDefaEvn              Function
+    TerminalJs.ConvStringToType         Function
+    TerminalJs.GetFiles                 Function
+    TerminalJs.GetLocalData             Function
+    TerminalJs.GetObj                   Function
+    TerminalJs.GetSavedBind             Function
+    TerminalJs.IntrpCommand             Function
+    TerminalJs.LoadJs                   Function
+    TerminalJs.RemoveLocalData          Function
+    TerminalJs.SaveBind                 Function
+    TerminalJs.SaveLocalData            Function
+    TerminalJs.SavedBind                Array
+    TerminalJs.UnloadJs                 Function
+    TerminalJs.convertstring            Function
+    TerminalJs.getCursPos               Function
+    TerminalJs.gets                     Function
+    TerminalJs.history                  Object
+    TerminalJs.invite ">"               String
+    TerminalJs.isstrquotes              Function
+    TerminalJs.printf                   Function
+    TerminalJs.puts                     Function
+    TerminalJs.runf                     Function
+    TerminalJs.scanf                    Function
+    TerminalJs.setCursPos               Function
+    TerminalJs.showlast                 Function
+    TerminalJs.sprintf                  Function
+    TerminalJs.sscanf                   Function
+    TerminalJs.CommandList              Array
+    */
+        var TerminalJs = {};
+
+        TerminalJs.LoadJs = function (Name, Id, callback)
+        {
+            var NewJs = document.createElement("script");
+            NewJs.type = "text/javascript";
+            if (Id)
+                NewJs.id = Id;
+            NewJs.src = Name;
+            if (NewJs.readyState && !NewJs.onload)
+            {
+                NewJs.onreadystatechange = function ()
+                {
+                    if (NewJs.readyState == "loaded" || NewJs.readyState == "complete")
+                    {
+                        NewJs.onreadystatechange = null;
+                        callback();
+                    }
+                }
+            } else
+                NewJs.onload = callback;
+            TerminalJs.CurLoadJs = NewJs;
+            document.getElementsByTagName("head")[0].appendChild(NewJs);
+        }
+        TerminalJs.UnloadJs = function (Id, Name)
+        {
+            if (Id)
+            {
+                var t = document.getElementById(Id);
+                if(t.UnloadProc)
+                {
+                    try{
+                        t.UnloadProc();
+                    } catch (e) {}
+                }
+                try{
+                    return document.getElementsByTagName("head")[0].removeChild(t ? t : Id);
+                } catch (e) {}
+            }
+            if (Name)
+            {
+                var Scripts = document.getElementsByTagName("head")[0].getElementsByTagName("script");
+                for (var i = 0; i < Scripts.length; i++)
+                    if (Scripts[i].src.match(/\/?([^\/]*)$/)[1] == Name)
+                    {   
+                        if(Scripts[i].UnloadProc)
+                        {
+                            try{
+                                Scripts[i].UnloadProc();
+                            } catch (e) {}
+                        }
+                        return document.getElementsByTagName("head")[0].removeChild(Scripts[i]);
+                    }
+            }
+        }
+        TerminalJs.runf = function (Name, arg)
+        {
+            for (var i = 0, t; i < arg.length; i++)
+            if (arg[i] == "null")
+                  arg[i] = null;
+            else if ((t = this.ConvStringToType(arg[i])) == null)
+            {
+                this.printf("\n%#ff0000s", "ERROR: Variable " + arg[i] + " not declared;");
+                return false;
+            } else
+                arg[i] = t;
+            var Func = TerminalJs.GetObj(Name);
+            try
+            {
+                if (Func == null)
+                {
+                    this.printf("\n%#ff0000s", "ERROR: Function " + Name + " not declared;");
+                    return false;
+                }
+                else if ((Name = Func.apply(null, arg)) != undefined)
+                    this.printf("\nFunction return: %#008080s ;", Name.toString());
+            } catch (e)
+            {
+                this.printf("\n%#ff0000s", "ERROR: Unhandled exception in function " + Name + ";");
+                return false;
+            }
+            return true;
+        }
+
+        TerminalJs.GetObj = function (Name)
+        {
+            if (Name.indexOf(".") != -1)
+            {
+                var AccessObj = Name.split("."), Func;
+                for (var i = 1, Func = window[AccessObj[0]]; (i < AccessObj.length) && Func && (Func = Func[AccessObj[i]]); i++);
+            } else
+                return window[Name];
+            return Func;
+        }
+        TerminalJs.ConvStringToType = function (str)
+        {
+            if (TerminalJs.isstrquotes(str))
+                return TerminalJs.convertstring(str);
+            else if (/^\d+\.?(?:\d+)?$/.test(str))
+                return parseFloat(str);
+            else if (/true|false/.test(str))
+                return str == "true";
+            else
+                return TerminalJs.GetObj(str);
+        }
+        TerminalJs.history = { data: [], maxel: null, isSave: null };
+        TerminalJs.history.add = function (com)
+        {
+            var Ind;
+            if ((Ind = this.data.indexOf(com)) == -1)
+            {
+                this.data.push(com.toString().replace("\n", ""));
+                if ((this.maxel != null) && (this.maxel < this.size()))
+                    this.remove(this.size() - this.maxel);
+            } else
+                this.data.push(this.data.splice(Ind, 1)[0]);
+        }
+        TerminalJs.history.getup = function ()
+        {
+            var ret;
+            this.data.push(ret = this.data.shift());
+            return ret;
+        }
+        TerminalJs.history.getdown = function ()
+        {
+            var ret;
+            this.data.unshift(ret = this.data.pop());
+            return ret;
+        }
+        TerminalJs.history.size = function ()
+        {
+            return this.data.length;
+        }
+        TerminalJs.history.remove = function (cou)
+        {
+            this.data.splice(0, cou);
+        }
+        TerminalJs.history.save = function ()
+        {
+          TerminalJs.SaveLocalData("History",this.data.join("\n"));
+        }
+        TerminalJs.history.load = function ()
+        {
+            var gD = TerminalJs.GetLocalData("History");
+            if (gD != null)
+                this.data = gD.split("\n");
+        }
+        TerminalJs.puts = function (str)
+        {
+            OutputArea.appendText("\n" + (str?str:""));
+        }
+        TerminalJs.gets = function (evthand)
+        {
+            InputArea.value = "";
+            TerminalJs.EntrHan = evthand;
+            InputArea.onkeyup = function () { if (event.keyCode == 13) InputArea.value = ""; };
+        }
+
+        Element.prototype.appendText = function (str)
+        {
+            if (str != null)
+                this.innerHTML += str.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\t/g, "&#11;").replace(/\[n]|\n/g, "<br>");
+        }
+
+        TerminalJs.scanf = function (format, evthand)
+        {
+            TerminalJs.scanfhand = { frmt: format, evt: evthand };
+            TerminalJs.gets(function (str) { TerminalJs.scanfhand.evt(TerminalJs.sscanf(str, TerminalJs.scanfhand.frmt)); delete TerminalJs.scanfhand; });
+        }
+        TerminalJs.SaveLocalData = function(key,data)
+        {
+           if (localStorage)
+                localStorage[key] = data;
+        }
+        TerminalJs.GetLocalData= function(key)
+        {
+           if (localStorage)
+                return localStorage[key];
+        }
+        TerminalJs.RemoveLocalData = function(key)
+        {
+           if (localStorage)
+                return localStorage.removeItem(key);
+        }
+        TerminalJs.AppendLocalData = function(key, NewData)
+        {
+          if(!localStorage)
+            return;
+            if(localStorage[key])
+               localStorage[key] += NewData;
+             else 
+               localStorage[key] = NewData;
+        }
+        TerminalJs.GetSavedBind = function()
+        {
+            var BindStr = TerminalJs.GetLocalData("Bind");
+            if(!BindStr)
+               return [];
+            BindStr = BindStr.split("\n\n");
+            var ret = [];
+            for(var i = 0,k;i < BindStr.length;i++)
+            {
+               if(BindStr[i] == "")
+               continue;
+               k = BindStr[i].split("\n");
+               ret[k[0]] = k[1];
+            }
+            return ret;
+        }
+        TerminalJs.SaveBind = function(Comm,Bind)
+        {
+          if(!TerminalJs.SavedBind)
+              TerminalJs.SavedBind = TerminalJs.GetSavedBind()
+          if(Comm)
+              TerminalJs.SavedBind[Comm] = Bind;
+          var s = "";
+          for(var i in TerminalJs.SavedBind)
+            s += i + "\n" + TerminalJs.SavedBind[i] + "\n\n";
+          TerminalJs.SaveLocalData("Bind",s)   
+        }
+        TerminalJs.sscanf = function (str, format)
+        {
+            if (!format)
+                return [str];
+            var ManagSeq = format.match(/%(?:\*)?(?:\d+)?(?:s|f|d|x|o|c|\[[^\[\]]*\])/g);
+            var r = [];
+            for (var i = 0; i < ManagSeq.length; i++)
+            {
+                var t = /%(\*)?(\d+)?(s|f|d|x|o|c|\[[^\[\]]*\])/.exec(ManagSeq[i]), k;
+                switch (t[3])
+                {
+                    case "s":
+                        if (k = str.match(new RegExp("\\S" + (t[2] ? ("{" + t[2] + "}") : "+"))))
+                        {
+                            if (!t[1]) 
+                              r.push(k[0]);
+                        } else
+                            r.push(null);
+                        break;
+                    case "d":
+                        if (k = str.match(new RegExp("\\d" + (t[2] ? ("{" + t[2] + "}") : "+"))))
+                        {
+                            if (!t[1]) 
+                              r.push(parseInt(k[0]));
+                        } else
+                            r.push(null);
+                        break;
+                    case "f":
+                        if (k = str.match(/\d+(?:\.\d+)?/))
+                        {
+                            if (!t[1]) 
+                              r.push(parseFloat(k[0]));
+                        } else
+                            r.push(null);
+                        break;
+                    case "x":
+                        if (k = str.match(new RegExp("[0-9a-fA-F]" + (t[2] ? ("{" + t[2] + "}") : "+"))))
+                        {
+                            if (!t[1]) 
+                               r.push(parseInt(k[0], 16));
+                        } else
+                            r.push(null);
+                        break;
+                    case "o":
+                        if (k = str.match(new RegExp("[0-7]" + (t[2] ? ("{" + t[2] + "}") : "+"))))
+                        {
+                            if (!t[1]) 
+                               r.push(parseInt(k[0], 8));
+                        } else
+                            r.push(null);
+                        break;
+                    case "c":
+                        if (k = str.match(/[\s\S]/))
+                        {
+                            if (!t[1]) 
+                                r.push(k[0]);
+                        } else
+                            r.push(null);
+                        break;
+                    default:
+
+                }
+                if (k)
+                    str = str.slice(k.index + k[0].length);
+            }
+            return r;
+        }
+        TerminalJs.sprintf = function (format)
+        {
+            //arguments
+            var ManagSeq = format.match(/%[0 +]?(?:\d+|\*)?(?:\.(?:\d+|\*))?(?:#(?:[0-9a-fA-F]{6}|\*))?[sfdxob]/g);
+            var CommPart = format.split(/%[0 +]?(?:\d+|\*)?(?:\.(?:\d+|\*))?(?:#(?:[0-9a-fA-F]{6}|\*))?[sfdxob]/);
+            var t, r, carg = 1, ret = "";
+            if (ManagSeq != null)
+                for (var i = 0; i in ManagSeq; i++)
+                {
+                    r = "";
+                    ret += CommPart.shift();
+                    t = /%([0 +-])?(\d+|\*)?(?:\.(\d+|\*))?(?:#([0-9a-fA-F]{6}|\*))?([sfdxob])/.exec(ManagSeq[i]);
+                    for (var j = 2; j < 4; j++)
+                        if (t[j])
+                            if (t[j] == "*")
+                                t[j] = parseInt(arguments[carg] ? arguments[carg++] : 0);
+                            else
+                                t[j] = parseInt(t[j]);
+                    if (arguments[carg] != undefined)
+                        switch (t[5])
+                    {
+                        case "s":
+                            r = arguments[carg++].toString();
+                            if (t[3])
+                                r = r.substr(0, t[3]);
+                            break;
+                        case "f":
+                            r = parseFloat(arguments[carg++]);
+                            if (t[3])
+                                r = r.toFixed(t[3]);
+                            r = r.toString();
+                            break;
+                        case "d":
+                            r = arguments[carg++].toString();
+                            break;
+                        case "x":
+                            r = arguments[carg++].toString(16);
+                            break;
+                         case "b":
+                            r = arguments[carg++].toString(2);
+                            break;
+                        case "o":
+                            r = arguments[carg++].parseFloat(8);
+                            break;
+                    }
+                    if (t[2])
+                        for (var j = r.length; j < t[2]; j++)
+                            r = ((t[1] == "0") ? "0" : " ") + r;
+                    ret += r;
+                }
+            return ret + CommPart.shift();
+        }
+        TerminalJs.printf = function (format)
+        {
+            //arguments
+            var ManagSeq = format.match(/%[0 +]?(?:\d+|\*)?(?:\.(?:\d+|\*))?(?:#(?:[0-9a-fA-F]{6}|\*))?[sfdxob]/g);
+            var CommPart = format.split(/%[0 +]?(?:\d+|\*)?(?:\.(?:\d+|\*))?(?:#(?:[0-9a-fA-F]{6}|\*))?[sfdxob]/);
+            var t, r, carg = 1, FontStyle;
+            if (ManagSeq != null)
+                for (var i = 0; i in ManagSeq; i++)
+                {
+                    r = "";
+                    OutputArea.appendText(CommPart.shift());
+                    t = /%([0 +-])?(\d+|\*)?(?:\.(\d+|\*))?(?:#([0-9a-fA-F]{6}|\*))?([sfdxob])/.exec(ManagSeq[i]);
+                    for (var j = 2; j < 4; j++)
+                        if (t[j])
+                            if (t[j] == "*")
+                                t[j] = parseInt(arguments[carg] ? arguments[carg++] : 0);
+                            else
+                                t[j] = parseInt(t[j]);
+                    if (t[4])
+                    {
+                        FontStyle = document.createElement("font");
+                        if (t[4] == "*")
+                            FontStyle.color = arguments[carg] ? arguments[carg++] : "ffffff";
+                        else
+                            FontStyle.color = t[4];
+                    }
+                    if (arguments[carg] != undefined)
+                        switch (t[5])
+                    {
+                        case "s":
+                            r = arguments[carg++].toString();
+                            if (t[3])
+                                r = r.substr(0, t[3]);
+                            break;
+                        case "f":
+                            r = parseFloat(arguments[carg++]);
+                            if (t[3])
+                                r = r.toFixed(t[3]);
+                            r = r.toString();
+                            break;
+                        case "d":
+                            r = arguments[carg++].toString();
+                            break;
+                        case "x":
+                            r = arguments[carg++].toString(16);
+                            break;
+                        case "b":
+                            r = arguments[carg++].toString(2);
+                            break;
+                        case "o":
+                            r = arguments[carg++].parseFloat(8);
+                            break;
+                    }
+                    if (t[2])
+                        for (var j = r.length; j < t[2]; j++)
+                            r = ((t[1] == "0") ? "0" : " ") + r;
+
+                    if (t[4])
+                    {
+                        FontStyle.appendText(r);
+                        OutputArea.appendChild(FontStyle);
+                    }
+                    else
+                        OutputArea.appendText(r);
+                }
+            OutputArea.appendText(CommPart.length ? CommPart.shift() : "");
+        }
+        TerminalJs.IntrpCommand = function (com)
+        {
+            var AllCommand = (/^\s*bind/.test(com))?[com]:com.split(/\&\&|\|\|/);
+            for(var l in AllCommand)
+            {
+                var arg = AllCommand[l].match(/"(?:\\"|[^"])*"|\S+/g);
+                if (!arg)
+                    return;
+                //arg[0] - Intrpret command                    
+                if(TerminalJs.CommandList[arg[0]])
+                    TerminalJs.CommandList[arg[0]](arg);
+                else if(TerminalJs.BindList[arg[0]])
+                    TerminalJs.IntrpCommand(TerminalJs.BindList[arg.shift()] + " " + arg);
+            }
+        }
+        TerminalJs.convertstring = function (arg)
+        {
+            return arg.replace(/^"|"$/g, '').replace(/\\"/g, '"').replace(/\\n/g, '\n');
+        }
+        TerminalJs.isstrquotes = function (arg)
+        {
+            return /^"(?:[^"]|\\")*"$/.test(arg);
+        }
+        TerminalJs.showlast = function ()
+        {
+            document.documentElement.scrollTop = document.body.clientHeight;
+        }
+        TerminalJs.GetFiles = function (evnthand, type, mult)
+        {
+            var GlFile = document.getElementsByName('__gl_file__')[0];
+            GlFile.accept = type;
+            GlFile.multiple = mult;
+            GlFile.click();
+            window.onfocus = function ()
+            {
+                setTimeout(function () { if (TerminalJs.isFileChange) { delete TerminalJs.isFileChange; evnthand(GlFile); } else evnthand(null); }, 50)
+                window.onfocus = null;
+            }
+        }
+
+        TerminalJs.getCursPos = function ()
+        {
+            if (InputArea.selectionStart)
+                return InputArea.selectionStart;
+            else if (document.selection)
+            {
+                InputArea.focus();
+                var r = document.selection.createRange();
+                var re = InputArea.createTextRange(),
+                rc = re.duplicate();
+                re.moveToBookmark(r.getBookmark());
+                rc.setEndPoint('EndToStart', re);
+                return rc.text.length;
+            }
+            return 0;
+        }
+
+        TerminalJs.setCursPos = function (pos)
+        {
+            if (InputArea.setSelectionRange)
+                InputArea.setSelectionRange(pos, pos);
+        }
+        TerminalJs.CnclDefaEvn = function (evt)
+        {
+            if (evt.preventDefault)
+                evt.preventDefault();
+            else
+                evt.returnValue = false;
+        } 
+        TerminalJs.UnbindListProc = {};
+        TerminalJs.SetUnbindNotifer = function(CallBackProc)
+        {
+            TerminalJs.UnbindListProc["sfsd"] = CallBackProc; 
+        }
+        
+        
+        
+        ////////Command list 
+        TerminalJs.CommandList = {};
+        TerminalJs.CommandList["loadjs"] = function(arg)
+        {
+            TerminalJs.LoadJs(TerminalJs.convertstring(arg[1]), arg[2], 
+                    function (e)
+                    {
+                        if (!e) 
+                            e = window.event; 
+                        TerminalJs.printf("\n%#00ff00s", e.srcElement.src + " loaded");
+                    }
+            );
+        }
+                
+        TerminalJs.CommandList["unloadjs"] = function(arg)
+        {
+            var t = arg.indexOf("-id"), k = true,l = arg.indexOf("-m");
+            while(k)
+            {
+                if (k = ((t != -1) ? TerminalJs.UnloadJs(arg[t + 1]) : TerminalJs.UnloadJs(null, arg[1])))
+                    TerminalJs.printf("\n%#00ff00s", "Script " + k.src + " unloaded;");
+                if(l == -1)
+                    k = false;
+            }
+        }
+                
+        TerminalJs.CommandList["runf"] = function(arg)
+        {
+            arg.shift();
+            TerminalJs.runf(arg.shift(), arg);
+        }
+       
+        TerminalJs.CommandList["title"] = function(arg)
+        {
+            document.title = arg[1] ? TerminalJs.convertstring(arg[1]) : "";
+        }
+        
+        TerminalJs.CommandList["background"] = function(arg)
+        {
+            if (arg[1])
+                GlobalBody.style.backgroundColor = arg[1];
+        }
+        
+        TerminalJs.CommandList["fontsize"] = function(arg)
+        {
+            if (!arg[1])
+                return;
+            InputArea.style.fontSize = OutputArea.style.fontSize = arg[1];
+            InputArea.cols = InputArea.GetCountChInLine();
+        }
+        
+        TerminalJs.CommandList["clear"] = function(arg)
+        {
+                OutputArea.innerHTML = "";
+        }
+        
+        TerminalJs.CommandList["gscripts"] = function(arg)
+        {
+            var CurScript = document.getElementsByTagName("HEAD")[0].getElementsByTagName("SCRIPT");
+            TerminalJs.printf("\n№ Address Id");
+            for (var i = 0; i < CurScript.length; i++)
+                TerminalJs.printf("\n%d) %s %s", i, CurScript[i].src ? CurScript[i].src : "-", CurScript[i].id ? CurScript[i].id : "-");
+        }
+        
+        TerminalJs.CommandList["bind"] = function(arg)
+        {
+             if(arg[1])
+             {
+                var fSave = arg[1] == "-s",newBind = arg.splice(0,fSave?3:2).pop();
+                if(arg[0] == newBind)
+                {
+                  TerminalJs.printf("\n%#ff0000s","Command will run "+ newBind+ " can not be her name.");
+                  return;
+                 }
+                TerminalJs.BindList[newBind] = arg.join(" ");
+                if(fSave)
+                  TerminalJs.SaveBind(newBind,TerminalJs.BindList[newBind]);
+             }
+        } 
+        
+        TerminalJs.CommandList["unbind"] = function(arg)
+        {                     
+             if(arg[1])
+             {
+                var fSave = arg.indexOf("-s");
+                if(fSave != -1)
+                {
+                  arg.splice(fSave,1);
+                  delete TerminalJs.SavedBind[arg[1]];
+                  TerminalJs.SaveBind();
+                }
+               if(TerminalJs.BindList)
+                   delete TerminalJs.BindList[arg[1]];
+             }
+        }
+        //=======================================
+        window.onload = function ()
+        {
+            TerminalJs.printf("hello %#ff0000s on %s", "world", "printf\n");
+            TerminalJs.printf("hello %#ff8f0fs on %s", "world", "printf");
+            
+            TerminalJs.history.maxel = 20;
+            TerminalJs.history.load();
+            TerminalJs.BindList = TerminalJs.GetSavedBind();
+            TerminalJs.SavedBind = TerminalJs.GetSavedBind();
+            //Приглашение командной строки
+            TerminalJs.invite = ">";
+            if (!Array.prototype.indexOf)
+                Array.prototype.indexOf = function (srh, start)
+                {
+                    for (var i = (start == null) ? 0 : start; i < this.length; i++)
+                        if (this[i] == srh)
+                            return i;
+                    return -1;
+                }
+            InputArea.GetCountChInLine = function ()
+            {
+                var t = this.value, o = this.style.overflow, i, n;
+                this.value = "W";
+                this.style.overflow = "visible";
+                for (i = 1, n = this.scrollHeight; i < 900; i++)
+                {
+                    this.value += "W";
+                    if (this.scrollHeight != n)
+                        break;
+                }
+                this.style.overflow = o;
+                this.value = t;
+                return (i == 900) ? this.cols : i;
+            }
+            InputArea.cols = InputArea.GetCountChInLine();
+            InputArea.onblur = function ()
+            {
+                InputArea.focus();
+            }
+            InputArea.origkeyup = InputArea.onkeyup = function (e)
+            {
+                if (!e) e = window.event;
+                if (e.keyCode == 13)
+                {
+                    this.value = TerminalJs.invite;
+                    TerminalJs.showlast();
+                }
+            }
+            InputArea.onmouseup = function ()
+            {
+                if (TerminalJs.getCursPos() < TerminalJs.invite.length)
+                    TerminalJs.setCursPos(TerminalJs.invite.length);
+            }
+            InputArea.oninput = InputArea.onpropertychange = function ()
+            {
+                if (this.value.charAt(0) == "\n")
+                    this.value = "";
+                if ((this.value.indexOf(TerminalJs.invite) != 0) && !TerminalJs.EntrHan)
+                    this.value = TerminalJs.invite + this.value;
+                if ((this.cols * this.rows) <= this.value.length)
+                    this.rows = parseInt(this.value.length / this.cols) + 1;
+            }
+            InputArea.onkeydown = function (e)
+            {
+                if (!e) e = window.event;
+                switch (e.keyCode)
+                {
+                    case 13:
+                        if (TerminalJs.EntrHan)
+                        {
+                            this.onkeyup = this.origkeyup;
+                            try
+                            {
+                                TerminalJs.EntrHan(this.value);
+                            } catch (ev) { }
+                            delete TerminalJs.EntrHan;
+                        } else
+                        {
+                            OutputArea.appendText("\n" + this.value);
+                            TerminalJs.history.add(this.value);
+                            TerminalJs.history.save();
+                            TerminalJs.IntrpCommand(this.value.substr(TerminalJs.invite.length));
+                        }
+                        this.value = "";
+                        this.rows = 1;
+                        break;
+                    case 40:
+                        if (TerminalJs.history.size() != 0)
+                            this.value = TerminalJs.history.getdown();
+                        InputArea.oninput();
+                        TerminalJs.showlast();
+                        break;
+                    case 38:
+                        if (TerminalJs.history.size() != 0)
+                            this.value = TerminalJs.history.getup();
+                        InputArea.oninput();
+                        TerminalJs.showlast();
+                        TerminalJs.setCursPos(TerminalJs.invite.length);
+                        TerminalJs.CnclDefaEvn(e);
+                        break;
+                    case 8:
+                    case 37:
+                        if (!TerminalJs.EntrHan && (TerminalJs.getCursPos() == TerminalJs.invite.length))
+                            TerminalJs.CnclDefaEvn(e);
+                        break;
+                    default:
+                        if (!TerminalJs.EntrHan && (TerminalJs.getCursPos() < TerminalJs.invite.length))
+                            TerminalJs.CnclDefaEvn(e);
+                }
+            }
+
+            hh = function ()
+            {
+                 TerminalJs.printf("==========%.3#005500f\nTest\n", Math.random());
+                setTimeout(hh, 100);
+                TerminalJs.showlast();
+            }
+            InputArea.value = TerminalJs.invite;
+            InputArea.onblur();
+        }; 
+
+    </script>
+
+    <style type="text/css">
+        .csGlobalBody
+        {
+            background-color: #000000;
+        }
+        .csGlobalDiv
+        {
+            color: #ffffff;
+            width: 100%;
+            font-family: Consolas;
+            font-size: 17px;
+        }
+        .csOutputArea
+        {
+            word-wrap: break-word;
+        }
+        .csInputArea
+        {
+            background: none;
+            border: none;
+            outline: none;
+            resize: none;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body id="GlobalBody" class="csGlobalBody">
+    <input type="file" onchange="TerminalJs.isFileChange=true;" multiple="true" name="__gl_file__"
+        style="visibility: hidden; position: absolute;" />
+    <div class="csGlobalDiv">
+        <div id="OutputArea" class="csOutputArea csGlobalDiv">
+        </div>
+        <textarea autofocus="true" rows="1" id="InputArea" class="csGlobalDiv csInputArea"></textarea>
+    </div>
+</body>
+</html>

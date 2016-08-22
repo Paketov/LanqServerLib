@@ -127,7 +127,6 @@ LQ_EXTERN_C int LQ_CALL ___lq_windows_errno()
         case ERROR_NO_MORE_FILES:               return ENMFILE;
 #endif
 
-
             //WsaErrors
         case WSAENOTEMPTY:                      return ENOTEMPTY;
 #ifdef EADDRINUSE

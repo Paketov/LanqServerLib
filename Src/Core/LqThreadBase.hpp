@@ -65,6 +65,8 @@ public:
 
     bool IsThreadEnd() const;
 
+    bool IsThisThread();
+
     static int GetName(intptr_t Id, char* DestBuf, size_t Len);
 
     LqString DebugInfo() const;

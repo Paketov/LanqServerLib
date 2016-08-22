@@ -39,7 +39,7 @@ LQ_EXTERN_C LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFile(LqHttpConn* c, const ch
     return LQHTTPRCV_FILE_OK;
 }
 
-LQ_EXTERN_C LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFileByFd(LqHttpConn* c, int Fd, LqFileSz ReadLen, int Access, bool IsReplace, bool IsCreateSubdir)
+LQ_EXTERN_C LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFileByFd(LqHttpConn* c, int Fd, LqFileSz ReadLen)
 {
     if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_QER)
 	return LQHTTPRCV_ACT_ERR;
@@ -131,14 +131,14 @@ LQ_EXTERN_C LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFileCancel(LqHttpConn* c)
     return LQHTTPRCV_ERR;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpRcvFileGetTempName(LqHttpConn* c, char* NameBuffer, size_t NameBufSize)
+LQ_EXTERN_C int LQ_CALL LqHttpRcvFileGetTempName(const LqHttpConn* c, char* NameBuffer, size_t NameBufSize)
 {
     if((c->ActionState != LQHTTPACT_STATE_MULTIPART_RCV_FILE) && (c->ActionState != LQHTTPACT_STATE_RCV_FILE))
 	return -1;
     return LqFileTrdGetNameTemp(c->Query.OutFd, NameBuffer, NameBufSize);
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpRcvFileGetTargetName(LqHttpConn* c, char* NameBuffer, size_t NameBufSize)
+LQ_EXTERN_C int LQ_CALL LqHttpRcvFileGetTargetName(const LqHttpConn* c, char* NameBuffer, size_t NameBufSize)
 {
     if((c->ActionState != LQHTTPACT_STATE_MULTIPART_RCV_FILE) && (c->ActionState != LQHTTPACT_STATE_RCV_FILE))
 	return -1;
@@ -184,7 +184,7 @@ LQ_EXTERN_C LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvMultipartHdrRemoveLast(LqHtt
     return LQHTTPRCV_FILE_OK;
 }
 
-LQ_EXTERN_C size_t LQ_CALL LqHttpRcvMultipartHdrGetDeep(LqHttpConn* c)
+LQ_EXTERN_C size_t LQ_CALL LqHttpRcvMultipartHdrGetDeep(const LqHttpConn* c)
 {
     size_t Result = 0;
     auto q = &c->Query;
@@ -216,7 +216,6 @@ LQ_EXTERN_C LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvMultipartInFile(LqHttpConn* 
 {
     if(c->Query.ContentBoundary == nullptr)
 	return LQHTTPRCV_NOT_MULTIPART;
-    char* HdrVal, *HdrValEnd;
     int Fd;
     if((Fd = LqFileTrdCreate(DestPath, LQ_O_CREATE | LQ_O_BIN | LQ_O_WR | LQ_O_TRUNC | ((IsCreateSubdir) ? LQ_TC_SUBDIR : 0) | ((IsReplace) ? LQ_TC_REPLACE : 0), Access)) == -1)
 	return LQHTTPRCV_ERR;
@@ -301,6 +300,12 @@ LQ_EXTERN_C intptr_t LQ_CALL LqHttpRcvHdrScanf(const LqHttpConn* c, size_t Deep,
 {
     va_list Va;
     va_start(Va, Format);
+
+    return LqHttpRcvHdrScanfVa(c, Deep, HeaderName, Format, Va);
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpRcvHdrScanfVa(const LqHttpConn* c, size_t Deep, const char* HeaderName, const char* Format, va_list Va)
+{
     char* StartVal = "", *EndVal = StartVal;
     if(LqHttpRcvHdrSearchEx(c, Deep, HeaderName, LqStrLen(HeaderName), nullptr, &StartVal, &EndVal) == -1)
 	return -1;
@@ -310,6 +315,8 @@ LQ_EXTERN_C intptr_t LQ_CALL LqHttpRcvHdrScanf(const LqHttpConn* c, size_t Deep,
     *EndVal = t;
     return r;
 }
+
+
 
 LQ_EXTERN_C intptr_t LQ_CALL LqHttpRcvHdrEnum(const LqHttpConn* c, char** HeaderNameResult, char** HeaderNameResultEnd, char** HeaderValResult, char** HeaderValEnd)
 {

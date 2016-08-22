@@ -4,10 +4,10 @@
 * 2016
 * LqEvnt... - Multiplatform abstracted event folower
 * This part of server support:
-*	+Windows native events objects.
-*	+linux epoll.
-*	+kevent for BSD like systems.(*But not yet implemented)
-*	+poll for others unix systems.
+*   +Windows native events objects.
+*   +linux epoll.
+*   +kevent for BSD like systems.(*But not yet implemented)
+*   +poll for others unix systems.
 *
 */
 
@@ -16,230 +16,273 @@
 #endif
 
 #include <sys/epoll.h>
-#include <sys/eventfd.h>
 #include <sys/select.h>
 #include <stdlib.h>
 #include <string.h>
+#include "LqFile.h"
 
 #ifndef EPOLLRDHUP
 # define LQ_NOT_HAVE_EPOLLRDHUP
 # define EPOLLRDHUP 0
 #endif
 
-#define LqEvntSystemEventByConnEvents(Client)				\
-		((((Client)->Flag & LQCONN_FLAG_RD) ?	EPOLLIN : 0) |	\
-		(((Client)->Flag & LQCONN_FLAG_WR) ?	EPOLLOUT : 0) | \
-		(((Client)->Flag & LQCONN_FLAG_HUP) ?	EPOLLHUP: 0) |	\
-		(((Client)->Flag & LQCONN_FLAG_RDHUP) ? EPOLLRDHUP: 0))
+#define LqEvntSystemEventByConnEvents(Client)               \
+        ((((Client)->Flag & LQEVNT_FLAG_RD) ?   EPOLLIN : 0) |  \
+        (((Client)->Flag & LQEVNT_FLAG_WR) ?    EPOLLOUT : 0) | \
+        (((Client)->Flag & LQEVNT_FLAG_HUP) ?   EPOLLHUP: 0) |  \
+        (((Client)->Flag & LQEVNT_FLAG_RDHUP) ? EPOLLRDHUP: 0))
+
+#define LqConnIsLock(c) ((c->Flag & (LQEVNT_FLAG_RD | LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP)) == 0)
 
 bool LqEvntInit(LqEvnt* Dest)
 {
-    Dest->IsSignalSended = false;
     Dest->AllocCount = 1;
     Dest->Count = 0;
-    Dest->ClientArr = (LqConn**)malloc(sizeof(LqConn*));
+    Dest->ClientArr = (LqEvntHdr**)malloc(sizeof(LqEvntHdr*));
     if(Dest->ClientArr == nullptr)
-	return false;
+        return false;
     Dest->EpollFd = epoll_create(65000);
-    Dest->SignalFd = eventfd(0, EFD_NONBLOCK);
+
+    Dest->SignalFd = LqFileEventCreate(LQ_O_INHERIT);
     if(Dest->SignalFd == -1)
-	return false;
+        return false;
     epoll_event ev;
     ev.data.ptr = nullptr;
     ev.events = EPOLLIN;
     if(epoll_ctl(Dest->EpollFd, EPOLL_CTL_ADD, Dest->SignalFd, &ev) == -1)
-	return false;
+        return false;
     Dest->EventArr = malloc(sizeof(epoll_event) * LQEVNT_EPOOL_MAX_WAIT_EVENTS);
     if(Dest->EventArr == nullptr)
-	return false;
+        return false;
     Dest->EventArrCount = LQEVNT_EPOOL_MAX_WAIT_EVENTS;
     Dest->CountReady = -1;
     Dest->EventEnumIndex = 0;
+	Dest->FirstEnd = -1;
     return true;
 }
 
 void LqEvntUninit(LqEvnt* Dest)
 {
     if(Dest->EventArr != nullptr)
-	free(Dest->EventArr);
+        free(Dest->EventArr);
     if(Dest->ClientArr != nullptr)
-	free(Dest->ClientArr);
+        free(Dest->ClientArr);
     if(Dest->SignalFd != -1)
-	close(Dest->SignalFd);
+        close(Dest->SignalFd);
     if(Dest->EpollFd != -1)
-	close(Dest->EpollFd);
+        close(Dest->EpollFd);
 }
 
-bool LqEvntAddConn(LqEvnt* Dest, LqConn* Client)
+bool LqEvntAddHdr(LqEvnt* Dest, LqEvntHdr* Client)
 {
     if(Dest->Count >= Dest->AllocCount)
     {
-	size_t NewSize = (size_t)((decltype(LQEVNT_INCREASE_COEFFICIENT))Dest->Count * LQEVNT_INCREASE_COEFFICIENT) + 1;
-	auto ClientArr = (LqConn**)realloc(Dest->ClientArr, sizeof(LqConn*) * NewSize);
-	if(ClientArr == nullptr)
-	    return false;
-	Dest->ClientArr = ClientArr;
-	Dest->AllocCount = NewSize;
+        size_t NewSize = (size_t)((decltype(LQEVNT_INCREASE_COEFFICIENT))Dest->Count * LQEVNT_INCREASE_COEFFICIENT) + 1;
+        auto ClientArr = (LqEvntHdr**)realloc(Dest->ClientArr, sizeof(LqEvntHdr*) * NewSize);
+        if(ClientArr == nullptr)
+            return false;
+        Dest->ClientArr = ClientArr;
+        Dest->AllocCount = NewSize;
     }
     epoll_event ev;
     ev.data.ptr = Dest->ClientArr[Dest->Count] = Client;
     ev.events = LqEvntSystemEventByConnEvents(Client);
     Dest->Count++;
+    auto r = true;
     if(!LqConnIsLock(Client))
     {
-	if(epoll_ctl(Dest->EpollFd, EPOLL_CTL_ADD, Client->SockDscr, &ev) == -1)
-	    return false;
+        if(epoll_ctl(Dest->EpollFd, EPOLL_CTL_ADD, Client->Fd, &ev) == -1)
+            r = false;
     }
-    return true;
+    Client->Flag &= ~_LQEVNT_FLAG_SYNC;
+    return r;
 }
 
-LqConnFlag LqEvntEnumEventBegin(LqEvnt* Events)
+LqEvntFlag LqEvntEnumEventBegin(LqEvnt* Events)
 {
     Events->EventEnumIndex = -1;//Set start index
     return LqEvntEnumEventNext(Events);
 }
 
-LqConnFlag LqEvntEnumEventNext(LqEvnt* Events)
+LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
 {
     for(int i = Events->EventEnumIndex + 1, m = Events->CountReady; i < m; i++)
     {
-	if(((epoll_event*)Events->EventArr)[i].data.ptr != nullptr)
-	{
-	    auto c = (LqConn*)((epoll_event*)Events->EventArr)[i].data.ptr;
-	    auto e = ((epoll_event*)Events->EventArr)[Events->EventEnumIndex = i].events;
-	    LqConnFlag r = 0;
-	    if(e & EPOLLIN)
-	    {
+        if(((epoll_event*)Events->EventArr)[i].data.ptr != nullptr)
+        {
+            auto c = (LqEvntHdr*)((epoll_event*)Events->EventArr)[i].data.ptr;
+            auto e = ((epoll_event*)Events->EventArr)[Events->EventEnumIndex = i].events;
+            LqEvntFlag r = 0;
+            if(e & EPOLLIN)
+            {
 #ifdef LQ_NOT_HAVE_EPOLLRDHUP
-		if((c->Flag & LQCONN_FLAG_RDHUP) && (LqConnCountPendingData(c) <= 0))
-		    r |= LQCONN_FLAG_RDHUP;
+                int res = -1;
+				if(
+					(c->Flag & LQEVNT_FLAG_RDHUP) &&
+					(ioctl(c->Fd, FIONREAD, &res) >= 0) &&
+					(res <= 0)
+					)
+                    r |= LQEVNT_FLAG_RDHUP;
 #endif
-		r |= LQCONN_FLAG_RD;
-	    }
-	    if(e & EPOLLOUT)
-		r |= LQCONN_FLAG_WR;
-	    if(e & EPOLLHUP)
-		r |= LQCONN_FLAG_HUP;
-	    if(e & EPOLLRDHUP)
-		r |= LQCONN_FLAG_RDHUP;
-	    return r;
-	}
+                r |= LQEVNT_FLAG_RD;
+            }
+            if(e & EPOLLOUT)
+                r |= LQEVNT_FLAG_WR;
+            if(e & EPOLLHUP)
+                r |= LQEVNT_FLAG_HUP;
+            if(e & EPOLLRDHUP)
+                r |= LQEVNT_FLAG_RDHUP;
+			if(e & EPOLLERR)
+				r |= LQEVNT_FLAG_ERR;
+			if(c->Flag & LQEVNT_FLAG_END)
+				r |= LQEVNT_FLAG_END;
+            return r;
+        }
     }
     Events->CountReady = -1;
     return 0;
 }
 
-void LqEvntRemoveByEventInterator(LqEvnt* Events)
+void LqEvntRemoveCurrent(LqEvnt* Events)
 {
-    LqConn* c = (LqConn*)((epoll_event*)Events->EventArr)[Events->EventEnumIndex].data.ptr;
+    LqEvntHdr* c = (LqEvntHdr*)((epoll_event*)Events->EventArr)[Events->EventEnumIndex].data.ptr;
+    c->Flag &= ~_LQEVNT_FLAG_SYNC;
     ((epoll_event*)Events->EventArr)[Events->EventEnumIndex].data.ptr = nullptr;
-    if(epoll_ctl(Events->EpollFd, EPOLL_CTL_DEL, c->SockDscr, nullptr) != 0)
+    if(epoll_ctl(Events->EpollFd, EPOLL_CTL_DEL, c->Fd, nullptr) != 0)
     {
-	LQ_ERR("Connection not removed from epoll\n");
+        LQ_ERR("Connection not removed from epoll\n");
     }
     int i = 0;
     while(true)
     {
-	if(Events->ClientArr[i] == c)
-	    break;
-	i++;
+        if(Events->ClientArr[i] == c)
+            break;
+        i++;
     }
     Events->Count--;
     Events->ClientArr[i] = Events->ClientArr[Events->Count];
     if((size_t)((decltype(LQEVNT_DECREASE_COEFFICIENT))Events->Count * LQEVNT_DECREASE_COEFFICIENT) < Events->AllocCount)
     {
-	size_t NewCount = lq_max(Events->Count, 1);
-	Events->ClientArr = (LqConn**)realloc(Events->ClientArr, NewCount * sizeof(LqConn*));
-	Events->AllocCount = NewCount;
+        size_t NewCount = lq_max(Events->Count, 1);
+        Events->ClientArr = (LqEvntHdr**)realloc(Events->ClientArr, NewCount * sizeof(LqEvntHdr*));
+        Events->AllocCount = NewCount;
     }
 }
 
-LqConn* LqEvntGetClientByEventInterator(LqEvnt* Events)
+LqEvntHdr* LqEvntGetHdrByCurrent(LqEvnt* Events)
 {
-    return (LqConn*)((epoll_event*)Events->EventArr)[Events->EventEnumIndex].data.ptr;
+    return (LqEvntHdr*)((epoll_event*)Events->EventArr)[Events->EventEnumIndex].data.ptr;
 }
 
-bool LqEvntSetMaskByEventInterator(LqEvnt* Events)
+bool LqEvntSetMaskByCurrent(LqEvnt* Events)
 {
-    LqConn* c = (LqConn*)((epoll_event*)Events->EventArr)[Events->EventEnumIndex].data.ptr;
+    LqEvntHdr* c = (LqEvntHdr*)((epoll_event*)Events->EventArr)[Events->EventEnumIndex].data.ptr;
+    if(c->Flag & LQEVNT_FLAG_END)
+	{
+		if((Events->FirstEnd == -1) || (Events->FirstEnd > Events->EventEnumIndex))
+			Events->FirstEnd = Events->EventEnumIndex;
+	}
     epoll_event ev;
     ev.events = LqEvntSystemEventByConnEvents(c);
     ev.data.ptr = c;
-    return epoll_ctl(Events->EpollFd, LqConnIsLock(c) ? EPOLL_CTL_DEL : EPOLL_CTL_MOD, c->SockDscr, &ev) != -1;
+    auto r = epoll_ctl(Events->EpollFd, LqConnIsLock(c) ? EPOLL_CTL_DEL : EPOLL_CTL_MOD, c->Fd, &ev) != -1;
+    c->Flag &= ~_LQEVNT_FLAG_SYNC;
+    return r;
 }
 
-bool LqEvntUnlock(LqEvnt* Events, LqConn* Conn)
+bool LqEvntSetMaskByHdr(LqEvnt* Events, LqEvntHdr* Conn)
 {
     for(size_t i = 0, m = Events->Count; i < m; i++)
-	if(Events->ClientArr[i] == Conn)
-	{
-	    epoll_event ev;
-	    ev.events = LqEvntSystemEventByConnEvents(Conn);
-	    ev.data.ptr = Conn;
-	    Conn->Flag &= ~((LqConnFlag)LQCONN_FLAG_LOCK);
-	    return epoll_ctl(Events->EpollFd, EPOLL_CTL_ADD, Conn->SockDscr, &ev) == 0;
-	}
+        if(Events->ClientArr[i] == Conn)
+        {
+			if(Conn->Flag & LQEVNT_FLAG_END)
+			{
+				if((Events->FirstEnd == -1) || (Events->FirstEnd > i))
+					Events->FirstEnd = i;
+			}
+            epoll_event ev;
+            ev.events = LqEvntSystemEventByConnEvents(Conn);
+            ev.data.ptr = Conn;
+            auto r = epoll_ctl(Events->EpollFd, LqConnIsLock(Conn) ? EPOLL_CTL_DEL : EPOLL_CTL_MOD, Conn->Fd, &ev) != -1;
+            Conn->Flag &= ~_LQEVNT_FLAG_SYNC;
+            return r;
+        }
     return false;
 }
 
-bool LqEvntEnumConnBegin(LqEvnt* Events, LqEvntConnInterator* Interator)
+bool LqEvntEnumBegin(LqEvnt* Events, LqEvntInterator* Interator)
 {
     return (Interator->Index = 0) < Events->Count;
 }
 
-bool LqEvntEnumConnNext(LqEvnt* Events, LqEvntConnInterator* Interator)
+bool LqEvntEnumNext(LqEvnt* Events, LqEvntInterator* Interator)
 {
     return ++Interator->Index < Events->Count;
 }
 
-void LqEvntRemoveByConnInterator(LqEvnt* Events, LqEvntConnInterator* Interator)
+void LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator)
 {
-    LqConn* c = Events->ClientArr[Interator->Index];
-    epoll_ctl(Events->EpollFd, EPOLL_CTL_DEL, c->SockDscr, nullptr);
+    LqEvntHdr* c = Events->ClientArr[Interator->Index];
+    c->Flag &= ~_LQEVNT_FLAG_SYNC;
+    epoll_ctl(Events->EpollFd, EPOLL_CTL_DEL, c->Fd, nullptr);
     auto EventArr = (epoll_event*)Events->EventArr;
     for(int i = 0, m = Events->CountReady; i < m; i++)
-	if(EventArr[i].data.ptr == c)
-	{
-	    EventArr[i].data.ptr = nullptr;
-	}
+        if(EventArr[i].data.ptr == c)
+        {
+            EventArr[i].data.ptr = nullptr;
+        }
     Events->Count--;
     Events->ClientArr[Interator->Index] = Events->ClientArr[Events->Count];
     if((size_t)((decltype(LQEVNT_DECREASE_COEFFICIENT))Events->Count * LQEVNT_DECREASE_COEFFICIENT) < Events->AllocCount)
     {
-	size_t NewCount = lq_max(Events->Count, 1);
-	Events->ClientArr = (LqConn**)realloc(Events->ClientArr, NewCount * sizeof(LqConn*));
-	Events->AllocCount = NewCount;
+        size_t NewCount = lq_max(Events->Count, 1);
+        Events->ClientArr = (LqEvntHdr**)realloc(Events->ClientArr, NewCount * sizeof(LqEvntHdr*));
+        Events->AllocCount = NewCount;
     }
     Interator->Index--;
 }
 
-LqConn* LqEvntGetClientByConnInterator(LqEvnt* Events, LqEvntConnInterator* Interator)
+LqEvntHdr* LqEvntGetHdrByInterator(LqEvnt* Events, LqEvntInterator* Interator)
 {
     return Events->ClientArr[Interator->Index];
 }
 
 bool LqEvntSignalCheckAndReset(LqEvnt* Events)
 {
-    if(Events->IsSignalSended)
-    {
-	Events->IsSignalSended = false;
-	eventfd_t r[2];
-	read(Events->SignalFd, &r, sizeof(r));
-	return true;
-    }
-    return false;
+	return LqFileEventReset(Events->SignalFd) > 0;
 }
 
 void LqEvntSignalSet(LqEvnt* Events)
 {
-    Events->IsSignalSended = true;
-    eventfd_t r = 1;
-    write(Events->SignalFd, &r, sizeof(r));
+	LqFileEventSet(Events->SignalFd);
 }
 
 int LqEvntCheck(LqEvnt* Events, LqTimeMillisec WaitTime)
 {
-    return Events->CountReady = epoll_wait(Events->EpollFd, (epoll_event*)Events->EventArr, Events->EventArrCount, WaitTime);
+	if(Events->FirstEnd != -1)
+	{
+		int j = 0;
+		auto ea = (epoll_event*)Events->EventArr;
+		int i = Events->FirstEnd;
+		Events->FirstEnd = -1;
+		for(; i < Events->Count; i++)
+		{
+			if(Events->ClientArr[i]->Flag & LQEVNT_FLAG_END)
+			{
+				if(j >= Events->EventArrCount)
+				{
+					Events->FirstEnd = i;
+					break;
+				}
+				ea[j].data.ptr = Events->ClientArr[i];
+				ea[j].events = 0;
+				j++;
+			}
+		}
+		if(j > 0)
+			return Events->CountReady = j;
+	}
+	return Events->CountReady = epoll_wait(Events->EpollFd, (epoll_event*)Events->EventArr, Events->EventArrCount, WaitTime);
 }
 
 size_t LqEvntCount(const LqEvnt* Events)
