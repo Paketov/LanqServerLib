@@ -15,595 +15,281 @@
 #include "LqStr.h"
 #include "LqFile.h"
 
+
 #include <fcntl.h>
 #include <string>
 #include <string.h>
+#include <vector>
+#include "LqWrkBoss.h"
 
 #define __METHOD_DECLS__
 #include "LqAlloc.hpp"
-#include "LqQueueCmd.hpp"
 
 #undef max
 
-#pragma pack(push) 
-#pragma pack(LQSTRUCT_ALIGN_MEM)
+static LqWrkBoss Boss;
 
-struct LqBossCmdTransfConnAndEnd
+
+LqWrkBoss::LqWrkBoss(): MinCount(0) 
 {
-    LqListEvnt				List;
-    LqWrk*					Wrk;
-    inline LqBossCmdTransfConnAndEnd(LqListEvnt& nList, LqWrk* nWorker): List(nList), Wrk(nWorker) {}
-    inline LqBossCmdTransfConnAndEnd() {}
-};
-
-#pragma pack(pop)
-
-enum LqWrkBossCommands
+	Wrks = LqFastAlloc::New<WorkerArray>();
+}
+LqWrkBoss::LqWrkBoss(size_t CountWorkers) : MinCount(0)
 {
-    LQBOSS_CMD_TRANSFER_CONN,
-    LQBOSS_CMD_TRANSFER_CONN_AND_END,
-    LQBOSS_CMD_ADD_CONN,
-    LQBOSS_CMD_REBIND
-};
-
-static ullong __IdGen = 0;
-static LqLocker<uchar> __IdGenLocker;
-
-static ullong GenId()
-{
-    ullong r;
-    __IdGenLocker.LockWriteYield();
-    r = __IdGen;
-    __IdGen++;
-    __IdGenLocker.UnlockWrite();
-    return r;
+	Wrks = LqFastAlloc::New<WorkerArray>();
+	AddWorkers(CountWorkers);
 }
 
-
-LqWrkBoss::LqWrkBoss():
-    Port("80"),
-    MaxConnections(2000),
-    ProtoReg(nullptr),
-    CountConnIgnored(0),
-    CountConnAccepted(0),
-    TransportProtoFamily(AF_UNSPEC),
-    ErrBind(0),
-    IsRebind(false),
-	ZombieKillerIsSyncCheck(false),
-	ZombieKillerTimeLiveConnMillisec(40 * 1000),
-    LqThreadBase(([&] { Id = GenId(); LqString Str = "Boss #" + LqToString(Id); return Str; })().c_str())
+LqWrkBoss::WorkerArray::WorkerArray(const LqWrkArrPtr Another, const LqWrkPtr NewWorker, bool IsAdd): CountPointers(0)
 {
-	int TimerFd = LqFileTimerCreate(LQ_O_NOINHERIT);
-	if(TimerFd == -1)
-		LQ_ERR("LqWrkBoss::LqWrkBoss(): not create ZombieKiller timer for %s\n", this->Name);
-
-	LqEvntFdInit(&ZombieKiller, TimerFd, this, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
-	ZombieKiller.Handler = ZombieKillerHandler;
-	ZombieKiller.CloseHandler = ZombieKillerHandlerClose;
-
-    Sock.Fd = -1;
-    Sock.Proto = nullptr;
-    LqEvntInit(&EventChecker);
+	if(IsAdd)
+	{
+		intptr_t NewCount = Another->Count + 1;
+		auto NewArr = (LqWrkPtr*)malloc(NewCount * sizeof(LqWrkPtr));
+		if(NewArr == nullptr)
+		{
+			LQ_ERR("LqWrkBoss::WorkerArray::WorkerArray() not alloc memory\n");
+			throw "Not alloc";
+		}
+		for(intptr_t i = 0; i < Another->Count; i++)
+			new(NewArr + i) LqWrkPtr(Another->Ptrs[i]);
+		new(NewArr + Another->Count) LqWrkPtr(NewWorker);
+		Count = NewCount;
+		Ptrs = NewArr;
+	} else
+	{
+		auto NewArr = (LqWrkPtr*)malloc(Another->Count * sizeof(LqWrkPtr));
+		if(NewArr == nullptr)
+		{
+			LQ_ERR("LqWrkBoss::WorkerArray::WorkerArray() not alloc memory\n");
+			throw "Not alloc";
+		}
+		int NewCount = 0;
+		for(intptr_t i = 0, j = 0; i < Another->Count;)
+		{
+			if(NewWorker == Another->Ptrs[i])
+			{
+				i++;
+				continue;
+			}
+			new(NewArr + j) LqWrkPtr(Another->Ptrs[i]);
+			j++;
+			i++;
+			NewCount++;
+		}
+		Count = NewCount;
+		Ptrs = NewArr;
+	}
 }
 
-LqWrkBoss::LqWrkBoss(LqProto* ProtocolRegistration):
-    Port("80"),
-    MaxConnections(2000),
-    ProtoReg(ProtocolRegistration),
-    CountConnIgnored(0),
-    CountConnAccepted(0),
-    ErrBind(0),
-    IsRebind(false),
-    TransportProtoFamily(AF_UNSPEC),
-	ZombieKillerIsSyncCheck(false),
-	ZombieKillerTimeLiveConnMillisec(40 * 1000),
-    LqThreadBase(([&] { Id = GenId(); LqString Str = "Boss #" + LqToString(Id); return Str; })().c_str())
+LqWrkBoss::WorkerArray::WorkerArray(const LqWrkArrPtr Another, ullong Id): CountPointers(0)
 {
-	int TimerFd = LqFileTimerCreate(LQ_O_NOINHERIT);
-	if(TimerFd == -1)
-		LQ_ERR("LqWrkBoss::LqWrkBoss(): not create ZombieKiller timer for %s\n", this->Name);
-	LqEvntFdInit(&ZombieKiller, TimerFd, this, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
-	ZombieKiller.Handler = ZombieKillerHandler;
-	ZombieKiller.CloseHandler = ZombieKillerHandlerClose;
-	ZombieKiller.UserData = 0;
+	auto NewArr = (LqWrkPtr*)malloc(Another->Count * sizeof(LqWrkPtr));
+	if(NewArr == nullptr)
+	{
+		LQ_ERR("LqWrkBoss::WorkerArray::WorkerArray() not alloc memory\n");
+		throw "Not alloc";
+	}
+	int NewCount = 0;
+	for(intptr_t i = 0, j = 0; i < Another->Count;)
+	{
+		if(Id == Another->Ptrs[i]->Id)
+		{
+			i++;
+			continue;
+		}
+		new(NewArr + j) LqWrkPtr(Another->Ptrs[i]);
+		j++;
+		i++;
+		NewCount++;
+	}
+	Count = NewCount;
+	Ptrs = NewArr;
+}
 
+LqWrkBoss::WorkerArray::WorkerArray(const LqWrkArrPtr Another, bool, size_t RemoveCount, size_t MinCount): CountPointers(0)
+{
+	intptr_t NewCount = Another->Count - RemoveCount;
+	if(NewCount < MinCount)
+	{
+		if(Another->Count <= MinCount)
+			NewCount = Another->Count;
+		else
+			NewCount = MinCount;
+	}
+	if(NewCount <= 0)
+	{
+		Count = 0;
+		Ptrs = nullptr;
+		return;
+	}
 
-    Sock.Fd = -1;
-    Sock.Proto = nullptr;
-    LqEvntInit(&EventChecker);
-    ProtoReg->Boss = this;
+	auto NewArr = (LqWrkPtr*)malloc(NewCount * sizeof(LqWrkPtr));
+	if(NewArr == nullptr)
+	{
+		LQ_ERR("LqWrkBoss::WorkerArray::WorkerArray() not alloc memory\n");
+		throw "Not alloc";
+	}
+	for(intptr_t i = 0; i < NewCount; i++)
+		new(NewArr + i) LqWrkPtr(Another->Ptrs[i]);
+	Count = NewCount;
+	Ptrs = NewArr;
+}
+
+LqWrkBoss::WorkerArray::WorkerArray(): CountPointers(0), Count(0), Ptrs(nullptr) {}
+
+LqWrkBoss::WorkerArray::~WorkerArray()
+{
+	for(intptr_t i = 0; i < Count; i++)
+		Ptrs[i].~LqWrkPtr();
+	if(Ptrs != nullptr)
+		free(Ptrs);
+}
+
+LqWrk* LqWrkBoss::WorkerArray::operator[](size_t Index) const
+{
+	return Ptrs[Index].Get();
+}
+
+LqWrk* LqWrkBoss::WorkerArray::At(size_t Index) const
+{
+	return Ptrs[Index].Get();
 }
 
 LqWrkBoss::~LqWrkBoss()
-{ 
-	EndWorkSync();
-	if(ZombieKiller.Fd != -1)
-	{
-		LqEvntSetClose(&ZombieKiller);
-		volatile uintptr_t* UsrData = &ZombieKiller.UserData;
-		while(*UsrData != 0)
-			LqThreadYield();
-		LqFileClose(ZombieKiller.Fd);
-	}
-	for(size_t i = 0; i < WorkersCount; i++)
-		Workers[i].~LqWorkerPtr();
-	if(Workers != nullptr)
-		free(Workers);
-	WorkersCount = 0;
-    if(ProtoReg != nullptr)
-        ProtoReg->FreeProtoNotifyProc(ProtoReg);
-    LqEvntUninit(&EventChecker);
+{
 }
 
-void LqWrkBoss::SetPrt(const char * Name)
+size_t LqWrkBoss::TransferAllEvnt(LqWrk* Source) const
 {
-    LockerBind.LockWriteYield();
-    Port = Name;
-    LockerBind.UnlockWrite();
-    Rebind();
-}
-
-void LqWrkBoss::GetPrt(char * DestName, size_t DestLen)
-{
-    LockerBind.LockReadYield();
-    LqStrCopyMax(DestName, Port.c_str(), DestLen);
-    LockerBind.UnlockRead();
-}
-
-void LqWrkBoss::SetProtocolFamily(int Val)
-{
-    LockerBind.LockWriteYield();
-    TransportProtoFamily = Val;
-    LockerBind.UnlockWrite();
-    Rebind();
-}
-
-int LqWrkBoss::GetProtocolFamily()
-{
-    LockerBind.LockReadYield();
-    auto r = TransportProtoFamily;
-    LockerBind.UnlockRead();
-    return r;
-}
-
-void LqWrkBoss::SetMaxConn(int Val)
-{
-    LockerBind.LockWriteYield();
-    MaxConnections = Val;
-    LockerBind.UnlockWrite();
-    Rebind();
-}
-
-int LqWrkBoss::GetMaxConn()
-{
-    LockerBind.LockReadYield();
-    auto r = MaxConnections;
-    LockerBind.UnlockRead();
-    return r;
-}
-
-void LqWrkBoss::Rebind()
-{
-    IsRebind = true;
-    if(!IsShouldEnd)
-        NotifyThread();
-}
-
-bool LqWrkBoss::SetTimeLifeConn(LqTimeMillisec TimeLife)
-{
-	ZombieKillerTimeLiveConnMillisec = TimeLife;
-	if(ZombieKiller.Fd != -1)
-	{
-		return LqFileTimerSet(ZombieKiller.Fd, ZombieKillerTimeLiveConnMillisec / 2) == 0;
-	}
-	return -1;
-}
-
-LqTimeMillisec LqWrkBoss::GetTimeLifeConn() const
-{
-	return ZombieKillerTimeLiveConnMillisec;
-}
-
-
-ullong LqWrkBoss::GetId() const
-{
-    return Id;
-}
-
-bool LqWrkBoss::UnbindSock()
-{
-    LqEvntInterator Interator;
-    if(LqEvntEnumBegin(&EventChecker, &Interator))
+    size_t Res = 0;
+    Source->LockWrite();
+	const LqWrkArrPtr LocalWrks = Wrks;
+	lqevnt_enum_do(Source->EventChecker, i)
     {
-        auto Fd = LqEvntGetHdrByInterator(&EventChecker, &Interator)->Fd;
-        LqEvntRemoveByInterator(&EventChecker, &Interator);
-        closesocket(Fd);
-        return true;
-    }
-    return false;
-}
+        auto Hdr = LqEvntGetHdrByInterator(&Source->EventChecker, &i);
 
-bool LqWrkBoss::Bind()
-{
-    LockerBind.LockWriteYield();
-    UnbindSock();
-    static const int True = 1;
-    int s;
-    addrinfo *Addrs = nullptr, HostInfo = {0};
-    HostInfo.ai_family = TransportProtoFamily;
-    HostInfo.ai_socktype = SOCK_STREAM;
-    HostInfo.ai_flags = AI_PASSIVE;//AI_ALL;
-    HostInfo.ai_protocol = IPPROTO_TCP;
-    int res;
-    if((res = getaddrinfo((Host.length() > 0) ? Host.c_str() : (const char*)nullptr, Port.c_str(), &HostInfo, &Addrs)) != 0)
-    {
-        ErrBind = lq_errno;
-        LQ_ERR("getaddrinfo() failed \"%s\" ", gai_strerror(res));
-        LockerBind.UnlockWrite();
-        return false;
-    }
-
-    for(auto i = Addrs; i != nullptr; i = i->ai_next)
-    {
-        if((s = socket(i->ai_family, i->ai_socktype, i->ai_protocol)) == -1)
-            continue;
-		LqFileDescrSetInherit(s, 0);
-        if(setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char*)&True, sizeof(True)) == -1)
+        intptr_t Min = std::numeric_limits<intptr_t>::max(), Index = -1;
+        for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         {
-            ErrBind = lq_errno;
-            LQ_ERR("setsockopt() failed");
-            continue;
-        }
-
-        if(LqConnSwitchNonBlock(s, 1))
-        {
-            ErrBind = lq_errno;
-            LQ_ERR("not swich socket to non blocket mode");
-            continue;
-        }
-
-        if(i->ai_family == AF_INET6)
-        {
-            if(setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&True, sizeof(True)) == -1)
-            {
-                ErrBind = lq_errno;
-                LQ_ERR("setsockopt() failed");
+            if(LocalWrks->At(i) == Source)
                 continue;
-            }
+            size_t l = LocalWrks->At(i)->GetAssessmentBusy();
+            if(l < Min)
+                Min = l, Index = i;
         }
-        if(bind(s, i->ai_addr, i->ai_addrlen) == -1)
-        {
-            ErrBind = lq_errno;
-            LQ_ERR("bind() failed with error: %s\n", strerror(lq_errno));
-            closesocket(s);
-            s = -1;
-            continue;
-        }
-        if(listen(s, MaxConnections) == -1)
-        {
-            ErrBind = lq_errno;
-            LQ_ERR("bind() failed");
-            closesocket(s);
-            s = -1;
-            continue;
-        }
-        break;
-    }
-
-    if(Addrs != nullptr)
-        freeaddrinfo(Addrs);
-    if(s == -1)
-    {
-        ErrBind = lq_errno;
-        LQ_ERR("not binded to sock");
-        LockerBind.UnlockWrite();
-        return false;
-    }
-    Sock.Flag = _LQEVNT_FLAG_NOW_EXEC | _LQEVNT_FLAG_CONN;
-    LqEvntSetFlags(&Sock, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
-    Sock.Fd = s;
-    if(!LqEvntAddHdr(&EventChecker, (LqEvntHdr*)&Sock))
-    {
-        ErrBind = lq_errno;
-        LQ_ERR("not adding sock in event checker");
-        closesocket(s);
-        LockerBind.UnlockWrite();
-        return false;
-    }
-    ErrBind = 0;
-    LockerBind.UnlockWrite();
-    return true;
-}
-
-LqProto* LqWrkBoss::RegisterProtocol(LqProto* ConnectManager)
-{
-    LqProto* r;
-    WorkerListLocker.LockWriteYield();
-    ProtoReg->FreeProtoNotifyProc(ProtoReg);
-    r = ProtoReg;
-    ProtoReg = ConnectManager;
-    WorkerListLocker.UnlockWrite();
-    return r;
-}
-
-LqProto* LqWrkBoss::GetProto()
-{
-    return ProtoReg;
-}
-
-void LqWrkBoss::BeginThread()
-{
-    /*
-    In this function must be only one thread.
-    This thread have rw privileges for change worker list.
-    Another thread for read worker list, must blocking list.
-    */
-    size_t		MinimumConnectionsInWorker;
-    int			ClientFd;
-    socklen_t	ClientAddrLen;
-    uint		IndexWorker;
-    LqConn*		RegistredConnection;
-    LqEvntFlag	Revent;
-    IsRebind = false;
-    if(!Bind())
-    {
-        LQ_ERR("not bind socket");
-        return;
-    }
-    StartAllWorkersAsync();
-    union
-    {
-        sockaddr			Addr;
-        sockaddr_in			AddrInet;
-        sockaddr_in6		AddrInet6;
-        sockaddr_storage	AddrStorage;
-    } ClientAddr;
-    while(true)
-    {
-        LqEvntCheck(&EventChecker, LqTimeGetMaxMillisec());
-        if(LqEvntSignalCheckAndReset(&EventChecker))
-        {
-            ParseInputCommands();
-            if(IsShouldEnd) break;
-            if(IsRebind)
-            {
-                IsRebind = false;
-                if(!Bind())
-                {
-                    LQ_ERR("not rebind socket");
-                    break;
-                }
-            }
-
-        }
-        if((Revent = LqEvntEnumEventBegin(&EventChecker)) == 0)
-            continue;
-        if(Revent & LQEVNT_FLAG_RD)
-        {
-            LQ_LOG_DEBUG("Has connect request\n");
-            WorkerListLocker.LockReadYield();
-            IndexWorker = MinBusyWithoutLock(&MinimumConnectionsInWorker);
-            if(MinimumConnectionsInWorker > MaxConnections)
-            {
-                if((ClientFd = accept(Sock.Fd, nullptr, nullptr)) != -1) closesocket(ClientFd);
-                WorkerListLocker.UnlockRead();
-                continue;
-            }
-            ClientAddrLen = sizeof(ClientAddr);
-
-            if((ClientFd = accept(Sock.Fd, &ClientAddr.Addr, &ClientAddrLen)) == -1)
-            {
-                LQ_ERR("Client not accepted\n");
-                WorkerListLocker.UnlockRead();
-                continue;
-            }
-            LqWorkerPtr TargetWorker = Workers[IndexWorker];
-            if((RegistredConnection = ProtoReg->NewConnProc(ProtoReg, ClientFd, &ClientAddr.Addr)) == nullptr)
-            {
-                CountConnIgnored++;
-                LQ_LOG_DEBUG("Connection has aborted by application protocol\n");
-                WorkerListLocker.UnlockRead();
-                continue;
-            }
-            TargetWorker->AddEvntAsync((LqEvntHdr*)RegistredConnection);
-            CountConnAccepted++;
-            WorkerListLocker.UnlockRead();
-        } else if(Revent & LQEVNT_FLAG_HUP)
-        {
-            LQ_ERR("Bind socket disconnect\n");
-            LQ_ERR("Try bind again ...\n");
-            if(!Bind())
-            {
-                LQ_ERR("Not binded\n");
-                break;
-            }
-        }
-    }
-    UnbindSock();
-}
-
-
-bool LqWrkBoss::TransferEvntEnd(LqListEvnt& ConnectionsList, LqWrk* LqWorker)
-{
-    if(!CommandQueue.Push(LQBOSS_CMD_TRANSFER_CONN_AND_END, LqBossCmdTransfConnAndEnd(ConnectionsList, LqWorker)))
-        return false;
-    LqEvntSignalSet(&EventChecker);
-    return true;
-}
-
-bool LqWrkBoss::TransferEvnt(const LqListEvnt& ConnectionsList)
-{
-    if(!CommandQueue.Push<LqListEvnt>(LQBOSS_CMD_TRANSFER_CONN, ConnectionsList))
-        return false;
-    LqEvntSignalSet(&EventChecker);
-    return true;
-}
-
-void LqWrkBoss::ParseInputCommands()
-{
-    for(auto Command = CommandQueue.Fork(); Command;)
-    {
-        switch(Command.Type)
-        {
-            case LQBOSS_CMD_TRANSFER_CONN:
-            {
-                LqListEvnt& ConnectionList = Command.Val<LqListEvnt>();
-                if(!DistributeListConnections(ConnectionList))
-                {
-                    LQ_LOG_DEBUG("Not destribute list connections");
-                }
-                Command.Pop<LqListEvnt>();
-            }
+        if(Index == -1)
             break;
-            case LQBOSS_CMD_TRANSFER_CONN_AND_END:
-            {
-                auto& ConnectionList = Command.Val<LqBossCmdTransfConnAndEnd>().List;
-                if(!DistributeListConnections(ConnectionList))
-                {
-                    LQ_LOG_DEBUG("Not destribute list connections");
-                }
-                LqFastAlloc::Delete(Command.Val<LqBossCmdTransfConnAndEnd>().Wrk);
-                Command.Pop<LqBossCmdTransfConnAndEnd>();
-            }
-            break;
-            default:
-                Command.JustPop();
-        }
-    }
-}
-
-void LQ_CALL LqWrkBoss::ZombieKillerHandler(LqEvntFd* Fd, LqEvntFlag RetFlags)
-{
-	auto Ob = (LqWrkBoss*)((char*)Fd - (uintptr_t)&((LqWrkBoss*)0)->ZombieKiller);
-	if(RetFlags & LQEVNT_FLAG_RD)
-	{
-		Ob->WorkerListLocker.LockReadYield();
-		for(size_t i = 0, m = Ob->WorkersCount; i < m; i++)
-		{
-			if(Ob->ZombieKillerIsSyncCheck)
-				Ob->Workers[i]->RemoveConnOnTimeOutSync(Ob->ZombieKillerTimeLiveConnMillisec);
-			else
-				Ob->Workers[i]->RemoveConnOnTimeOutAsync(Ob->ZombieKillerTimeLiveConnMillisec);
-		}
-		Ob->WorkerListLocker.UnlockRead();
-		LqFileTimerSet(Fd->Fd, Ob->ZombieKillerTimeLiveConnMillisec / 2);
-	}
-}
-
-void LQ_CALL LqWrkBoss::ZombieKillerHandlerClose(LqEvntFd* Fd, LqEvntFlag RetFlags)
-{
-	Fd->UserData = 0;
-}
-
-bool LqWrkBoss::DistributeListConnections(const LqListEvnt& List)
-{
-    bool r = false;
-    WorkerListLocker.LockReadYield();
-    if(WorkersCount > 0)
-    {
-        for(size_t i = 0; i < List.GetCount(); i++)
+        LqEvntRemoveByInterator(&Source->EventChecker, &i);
+        if(LocalWrks->At(Index)->AddEvntAsync(Hdr))
         {
-            auto IndexWorker = MinBusyWithoutLock();
-            Workers[IndexWorker]->AddEvnt(List[i]);
+            Res++;
+        } else
+        {
+            LqEvntHdrClose(Hdr);
+            LQ_ERR("LqWrkBoss::TransferAllEvnt() not adding event to list\n");
         }
-        r = true;
-    }
-    WorkerListLocker.UnlockRead();
-    return r;
+	}lqevnt_enum_while(Source->EventChecker);
+    Source->UnlockWrite();
+    return Res;
 }
 
-size_t LqWrkBoss::CountConnections() const
+int LqWrkBoss::AddWorkers(size_t Count, bool IsStart)
 {
-    size_t Summ = 0;
-    WorkerListLocker.LockReadYield();
-    for(size_t i = 0, m = WorkersCount; i < m; i++)
-        Summ += Workers[i]->GetAssessmentBusy();
-    WorkerListLocker.UnlockRead();
-    return Summ;
-}
-
-bool LqWrkBoss::AddWorkers(size_t Count, bool IsStart)
-{
-    for(uint i = 0; i < Count; i++)
+	if(Count <= 0)
+		return 0;
+    int Res = 0;
+	LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0; i < Count; i++)
     {
         auto NewWorker = LqWrk::New(IsStart);
         if(NewWorker == nullptr)
         {
-            LQ_ERR("Not alloc new worker");
+            LQ_ERR("LqWrkBoss::AddWorkers() not alloc new worker\n");
             continue;
         }
-        AddWorker(NewWorker);
+		LocalWrks = LqFastAlloc::New<WorkerArray>(LocalWrks, NewWorker, true);
+        Res++;
     }
-    return true;
+	Wrks = LocalWrks;
+    return Res;
 }
 
-bool LqWrkBoss::AddWorker(const LqWorkerPtr& Wrk)
+bool LqWrkBoss::AddWorker(const LqWrkPtr& Wrk)
 {
-    WorkerListLocker.LockWriteYield();
-    for(size_t i = 0, m = WorkersCount; i < m; i++)
-    {
-        if(Workers[i] == Wrk)
-        {
-            WorkerListLocker.UnlockWrite();
-            return true;
-        }
-    }
-    auto NewWorkers = (LqWorkerPtr*)realloc(Workers, sizeof(LqWorkerPtr) * (WorkersCount + 1));
-    if(NewWorkers == nullptr)
-    {
-        LQ_ERR("Not adding new worker in list");
-        WorkerListLocker.UnlockWrite();
-        return false;
-    }
-    new(&(Workers = NewWorkers)[WorkersCount++]) LqWorkerPtr(Wrk);
-	if(ZombieKiller.UserData == 0)
-	{
-		LqFileTimerSet(ZombieKiller.Fd, this->ZombieKillerTimeLiveConnMillisec / 2);
-		ZombieKiller.UserData = (uintptr_t)Wrk.Get();
-		Wrk->AddEvntAsync((LqEvntHdr*)&ZombieKiller);
-	}
-    WorkerListLocker.UnlockWrite();
+	Wrks = LqFastAlloc::New<WorkerArray>(Wrks, Wrk, true);
     return true;
 }
 
 bool LqWrkBoss::AddEvntAsync(LqEvntHdr* Evnt)
 {
-    WorkerListLocker.LockReadYield();
-    bool Res = true;
-    if(WorkersCount > 0)
-    {
-        auto IndexMinUsed = MinBusyWithoutLock();
-        Res = Workers[IndexMinUsed]->AddEvntAsync(Evnt);
-    }
-    WorkerListLocker.UnlockRead();
-    return Res;
+	bool Res = true;
+	LqWrkArrPtr LocalWrks = Wrks;
+	if(LocalWrks->Count <= 0)
+	{
+		if(!AddWorkers(1, true))
+		{
+			return false;
+		} else
+		{
+			LocalWrks = Wrks;
+			if(LocalWrks->Count <= 0)
+				return false;
+		}
+	}
+	auto IndexMinUsed = MinBusy(LocalWrks);
+	return LocalWrks->At(IndexMinUsed)->AddEvntAsync(Evnt);
 }
 
 bool LqWrkBoss::AddEvntSync(LqEvntHdr* Evnt)
 {
-    WorkerListLocker.LockReadYield();
-    bool Res = true;
-    if(WorkersCount > 0)
+	bool Res = true;
+	LqWrkArrPtr LocalWrks = Wrks;
+
+	if(LocalWrks->Count <= 0)
+	{
+		if(!AddWorkers(1, true))
+		{
+			return false;
+		} else
+		{
+			LocalWrks = Wrks;
+			if(LocalWrks->Count <= 0)
+				return false;
+		}
+	}
+	auto IndexMinUsed = MinBusy(LocalWrks);
+	return LocalWrks->At(IndexMinUsed)->AddEvntSync(Evnt);
+}
+
+bool LqWrkBoss::TransferEvnt(const LqListEvnt & ConnectionsList) const
+{
+    bool Res = false;
+	LqWrkArrPtr LocalWrks = Wrks;
+    if(LocalWrks->Count > 0)
     {
-        auto IndexMinUsed = MinBusyWithoutLock();
-        Res = Workers[IndexMinUsed]->AddEvntSync(Evnt);
+        for(size_t i = 0; i < ConnectionsList.GetCount(); i++)
+        {
+            auto IndexWorker = MinBusy(LocalWrks);
+			LocalWrks->At(IndexWorker)->AddEvntAsync(ConnectionsList[i]);
+        }
+        Res = true;
     }
-    WorkerListLocker.UnlockRead();
     return Res;
 }
 
 size_t LqWrkBoss::CountWorkers() const
 {
-    return WorkersCount;
+	LqWrkArrPtr LocalWrks = Wrks;
+    return LocalWrks->Count;
 }
 
-
-size_t LqWrkBoss::MinBusyWithoutLock(size_t* MinCount)
+size_t LqWrkBoss::MinBusy(const LqWrkArrPtr& AllWrks, size_t* MinCount)
 {
     size_t Min = std::numeric_limits<size_t>::max(), Index = 0;
-    for(size_t i = 0, m = WorkersCount; i < m; i++)
+    for(size_t i = 0, m = AllWrks->Count; i < m; i++)
     {
-        size_t l = Workers[i]->GetAssessmentBusy();
+        size_t l = AllWrks->At(i)->GetAssessmentBusy();
         if(l < Min)
             Min = l, Index = i;
     }
@@ -611,12 +297,12 @@ size_t LqWrkBoss::MinBusyWithoutLock(size_t* MinCount)
     return Index;
 }
 
-size_t LqWrkBoss::MaxBusyWithoutLock(size_t* MaxCount)
+size_t LqWrkBoss::MaxBusy(const LqWrkArrPtr& AllWrks, size_t* MaxCount)
 {
     size_t Max = std::numeric_limits<size_t>::max(), Index = 0;
-    for(size_t i = 0, m = WorkersCount; i < m; i++)
+    for(size_t i = 0, m = AllWrks->Count; i < m; i++)
     {
-        size_t l = Workers[i]->GetAssessmentBusy();
+		size_t l = AllWrks->At(i)->GetAssessmentBusy();
         if(l > Max)
             Max = l, Index = i;
     }
@@ -624,189 +310,349 @@ size_t LqWrkBoss::MaxBusyWithoutLock(size_t* MaxCount)
     return Index;
 }
 
-LqWorkerPtr LqWrkBoss::operator[](size_t Index) const
+LqWrkPtr LqWrkBoss::operator[](size_t Index) const
 {
-    LqWorkerPtr r;
-    WorkerListLocker.LockReadYield();
-    if(Index < WorkersCount)
-        r = Workers[Index];
-    WorkerListLocker.UnlockRead();
-    return r;
+	LqWrkArrPtr LocalWrks = Wrks;
+	return LocalWrks->At(Index);
 }
 
 size_t LqWrkBoss::MinBusy(size_t* MinCount)
 {
-    WorkerListLocker.LockReadYield();
-    auto r = MinBusyWithoutLock(MinCount);
-    WorkerListLocker.UnlockRead();
-    return r;
+	const LqWrkArrPtr LocalWrks = Wrks;
+    return MinBusy(LocalWrks, MinCount);
 }
 
-void LqWrkBoss::StartAllWorkersSync()
+size_t LqWrkBoss::StartAllWorkersSync() const
 {
-    WorkerListLocker.LockReadYield();
-    for(size_t i = 0, m = WorkersCount; i < m; i++)
-        Workers[i]->StartSync();
-    WorkerListLocker.UnlockRead();
+    size_t Res = 0;
+	const LqWrkArrPtr LocalWrks = Wrks;
+	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res += (LocalWrks->At(i)->StartSync() ? 1 : 0);
+    return Res;
 }
 
-void LqWrkBoss::StartAllWorkersAsync()
+size_t LqWrkBoss::StartAllWorkersAsync() const
 {
-    WorkerListLocker.LockReadYield();
-    for(size_t i = 0, m = WorkersCount; i < m; i++)
-        Workers[i]->StartAsync();
-    WorkerListLocker.UnlockRead();
+    size_t Ret = 0;
+	const LqWrkArrPtr LocalWrks = Wrks;//Local ptr for thread safe
+	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Ret += (LocalWrks->At(i)->StartAsync() ? 1 : 0);
+    return Ret;
 }
 
 bool LqWrkBoss::KickWorker(ullong IdWorker)
 {
-    WorkerListLocker.LockWriteYield();
     /*Lock operation remove from array*/
-    for(size_t i = 0, m = WorkersCount; i < m; i++)
-    {
-        if(Workers[i]->Id == IdWorker)
-        {
-            if(WorkersCount > 1)
-            {
-                LqListEvnt Connections;
-                Workers[i]->TakeAllEvnt(Connections);
-                Workers[(i == 0) ? 1 : 0]->AddEvntListAsync(Connections);
-            }
-            WorkersCount--;
-            if(i != WorkersCount)
-                Workers[i] = Workers[WorkersCount];
-            Workers[WorkersCount].~LqWorkerPtr();
-            Workers = (LqWorkerPtr*)realloc(Workers, sizeof(LqWorkerPtr) * WorkersCount);
-            WorkerListLocker.UnlockWrite();
-            return true;
-        }
-    }
-    WorkerListLocker.UnlockWrite();
+	Wrks = LqFastAlloc::New<WorkerArray>(Wrks, IdWorker);
     return false;
 }
 
-void LqWrkBoss::KickWorkers(size_t Count)
+size_t LqWrkBoss::KickWorkers(uintptr_t Count)
 {
-    WorkerListLocker.LockWriteYield();
-    bool IsTrasferConnections = true;
-    if(Count >= WorkersCount)
-    {
-        Count = WorkersCount;
-        IsTrasferConnections = false;
-    }
-
-    if(WorkersCount > 0)
-    {
-        for(int i = WorkersCount - 1, m = i - Count; i > m; i--)
-        {
-            if(IsTrasferConnections)
-            {
-                LqListEvnt Connections;
-                Workers[i]->TakeAllEvnt(Connections);
-                Workers[0]->AddEvntListAsync(Connections);
-            }
-            Workers[i].~LqSharedPtr();
-        }
-        WorkersCount -= Count;
-        Workers = (LqWorkerPtr*)realloc(Workers, sizeof(LqWorkerPtr) * WorkersCount);
-    }
-    WorkerListLocker.UnlockWrite();
+	Wrks = LqFastAlloc::New<WorkerArray>(Wrks, false, Count, MinCount);
+    return Wrks->Count;
 }
 
-bool LqWrkBoss::CloseAllEvntAsync()
+bool LqWrkBoss::CloseAllEvntAsync() const
 {
-    bool r = true;
-    WorkerListLocker.LockReadYield();
-    for(size_t i = 0, m = WorkersCount; i < m; i++)
-        if(!Workers[i]->CloseAllEvntAsync())
-        {
-            r = false;
-            break;
-        }
-    WorkerListLocker.UnlockRead();
-    return r;
+    bool Res = true;
+	const LqWrkArrPtr LocalWrks = Wrks;
+	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res &= LocalWrks->At(i)->CloseAllEvntAsync();
+    return Res;
 }
 
-void LqWrkBoss::CloseAllEvntSync()
+size_t LqWrkBoss::CloseAllEvntSync() const
 {
-    WorkerListLocker.LockReadYield();
-    for(size_t i = 0, m = WorkersCount; i < m; i++)
-        Workers[i]->CloseAllEvntSync();
-    WorkerListLocker.UnlockRead();
+    size_t Res = 0;
+	const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res += LocalWrks->At(i)->CloseAllEvntSync();
+    return Res;
 }
 
-bool LqWrkBoss::CloseConnByIpAsync(const sockaddr* Addr)
+size_t LqWrkBoss::CloseEventAsync(LqEvntHdr* Event) const
 {
-    bool r = true;
-    WorkerListLocker.LockReadYield();
-    for(size_t i = 0, m = WorkersCount; i < m; i++)
-        if(!Workers[i]->CloseConnByIpAsync(Addr))
-        {
-            r = false;
-            break;
-        }
-    WorkerListLocker.UnlockRead();
-    return r;
+	bool Res = true;
+	const LqWrkArrPtr LocalWrks = Wrks;
+	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res &= LocalWrks->At(i)->CloseEvntAsync(Event);
+	return Res;
 }
 
-void LqWrkBoss::CloseConnByIpSync(const sockaddr* Addr)
+bool LqWrkBoss::CloseEventSync(LqEvntHdr* Event) const
 {
-    WorkerListLocker.LockReadYield();
-    for(size_t i = 0, m = WorkersCount; i < m; i++)
-        Workers[i]->CloseConnByIpSync(Addr);
-    WorkerListLocker.UnlockRead();
+	size_t Res = 0;
+	const LqWrkArrPtr LocalWrks = Wrks;
+	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res += LocalWrks->At(i)->CloseEvntSync(Event);
+	return Res;
 }
 
-void LqWrkBoss::EnumEvnt(void * UserData, void(*Proc)(void *UserData, LqEvntHdr* Conn))
+size_t LqWrkBoss::CloseEventByTimeoutSync(LqTimeMillisec LiveTime) const
 {
-    WorkerListLocker.LockReadYield();
-    for(size_t i = 0; i < WorkersCount; i++)
-        Workers[i]->EnumEvnt(UserData, Proc);
-    WorkerListLocker.UnlockRead();
+    size_t Res = 0;
+	const LqWrkArrPtr LocalWrks = Wrks;
+	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res += LocalWrks->At(i)->RemoveConnOnTimeOutSync(LiveTime);
+    return Res;
 }
 
-bool LqWrkBoss::SyncEvntFlag(LqEvntHdr* Conn)
+bool LqWrkBoss::CloseEventByTimeoutAsync(LqTimeMillisec LiveTime) const
 {
-    WorkerListLocker.LockReadYield();
-    for(size_t i = 0; i < WorkersCount; i++)
-        Workers[i]->SyncEvntFlagAsync(Conn);
-    WorkerListLocker.UnlockRead();
-    return true;
+    bool Res = true;
+	const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res &= LocalWrks->At(i)->RemoveConnOnTimeOutAsync(LiveTime);
+    return Res;
+}
+
+size_t LqWrkBoss::CloseEventByTimeoutSync(const LqProto * Proto, LqTimeMillisec LiveTime) const
+{
+    size_t Res = 0;
+	const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res += LocalWrks->At(i)->RemoveConnOnTimeOutSync(Proto, LiveTime);
+    return Res;
+}
+
+bool LqWrkBoss::CloseEventByTimeoutAsync(const LqProto * Proto, LqTimeMillisec LiveTime) const
+{
+    bool Res = true;
+	const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res &= LocalWrks->At(i)->RemoveConnOnTimeOutAsync(Proto, LiveTime);
+    return Res;
+}
+
+bool LqWrkBoss::CloseConnByIpAsync(const sockaddr* Addr) const
+{
+    bool Res = true;
+	const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res &= LocalWrks->At(i)->CloseConnByIpAsync(Addr);
+    return Res;
+}
+
+size_t LqWrkBoss::CloseConnByIpSync(const sockaddr* Addr) const
+{
+    size_t Res = 0;
+	const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res += LocalWrks->At(i)->CloseConnByIpSync(Addr);
+    return Res;
+}
+
+bool LqWrkBoss::CloseConnByProtoAsync(const LqProto* Proto) const
+{
+	bool Res = true;
+	const LqWrkArrPtr LocalWrks = Wrks;
+	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res &= LocalWrks->At(i)->CloseConnByProtoAsync(Proto);
+	return Res;
+}
+
+size_t LqWrkBoss::CloseConnByProtoSync(const LqProto* Proto) const
+{
+    size_t Res = 0;
+	const LqWrkArrPtr LocalWrks = Wrks;
+	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res += LocalWrks->At(i)->CloseConnByProtoSync(Proto);
+    return Res;
+}
+
+size_t LqWrkBoss::EnumDelEvnt(void * UserData, LqBool(*Proc)(void *UserData, LqEvntHdr* Conn)) const
+{
+    size_t Res = 0;
+	const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res += LocalWrks->At(i)->EnumDelEvnt(UserData, Proc);
+    return Res;
+}
+
+size_t LqWrkBoss::EnumDelEvntByProto(const LqProto* Proto, void * UserData, LqBool(*Proc)(void *UserData, LqEvntHdr *Conn)) const
+{
+    size_t Res = 0;
+	const LqWrkArrPtr LocalWrks = Wrks;
+	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res += LocalWrks->At(i)->EnumDelEvntByProto(Proto, UserData, Proc);
+    return Res;
+}
+
+bool LqWrkBoss::SyncEvntFlagAsync(LqEvntHdr* Conn) const
+{
+    bool Res = true;
+	const LqWrkArrPtr LocalWrks = Wrks;
+	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res &= LocalWrks->At(i)->SyncEvntFlagAsync(Conn);
+    return Res;
+}
+
+bool LqWrkBoss::SyncEvntFlagSync(LqEvntHdr * Conn) const
+{
+	bool Res = true;
+	const LqWrkArrPtr LocalWrks = Wrks;
+	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+		Res &= LocalWrks->At(i)->SyncEvntFlagSync(Conn);
+	return Res;
 }
 
 size_t LqWrkBoss::KickAllWorkers()
 {
-    WorkerListLocker.LockWriteYield();
-    for(size_t i = 0; i < WorkersCount; i++)
-        Workers[i].~LqWorkerPtr();
-    size_t r = WorkersCount;
-
-    if(Workers != nullptr)
-    {
-        free(Workers);
-        Workers = nullptr;
-    }
-    WorkersCount = 0;
-    WorkerListLocker.UnlockWrite();
-    return r;
+    return KickWorkers(0xfffffff);
 }
 
-void LqWrkBoss::NotifyThread()
+size_t LqWrkBoss::SetWrkMinCount(size_t NewVal)
 {
-    LqEvntSignalSet(&EventChecker);
+	return MinCount = NewVal;
 }
 
-LqString LqWrkBoss::DebugInfo()
+/*
+* C - shell for global worker boss
+*/
+
+LqWrkBoss * LqWrkBoss::GetGlobal()
 {
-    std::basic_string<char> r;
-    r += "Working on port: " + Port + "\n";
-    r += "Connections accepted: " + LqToString((size_t)CountConnAccepted) + "\n";
-    r += "Connections ignored: " + LqToString((size_t)CountConnIgnored) + "\n";
-    r += "Max connections in queue: " + LqToString(MaxConnections) + "\n";
-    r += "Is waiting connection: ";
-    r += ((Sock.Fd != -1) ? "1" : "0");
-    r += "\n";
-    r += "Count workers: " + LqToString(WorkersCount) + "\n";
-    return r;
+    return &Boss;
 }
 
+LQ_EXTERN_C void *LQ_CALL LqWrkBossGet()
+{
+    return &Boss;
+}
+
+LQ_EXTERN_C void LQ_CALL LqWrkBossKickWrks(size_t Count)
+{
+    Boss.KickWorkers(Count);
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossKickWrk(size_t Index)
+{
+    return Boss.KickWorker(Index) ? 0 : -1;
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossAddWrks(size_t Count, LqBool IsStart)
+{
+    return Boss.AddWorkers(Count, IsStart);
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossAddWrk(void * Wrk)
+{
+    LqWrkPtr Ptr = (LqWrk*)Wrk;
+    return Boss.AddWorker(Ptr) ? 0 : -1;
+}
+
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossKickAllWrk()
+{
+    return Boss.KickAllWorkers();
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossCloseAllEvntAsync()
+{
+    return Boss.CloseAllEvntAsync() ? 0 : -1;
+}
+
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseAllEvntSync()
+{
+    return Boss.CloseAllEvntSync();
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossAddEvntAsync(LqEvntHdr * Conn)
+{
+    return Boss.AddEvntAsync(Conn) ? 0 : -1;
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossAddEvntSync(LqEvntHdr * Conn)
+{
+    return Boss.AddEvntSync(Conn) ? 0 : -1;
+}
+
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseEvntAsync(LqEvntHdr * Conn)
+{
+	return Boss.CloseEventAsync(Conn);
+}
+
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseEvntSync(LqEvntHdr * Conn)
+{
+	return Boss.CloseEventSync(Conn) ? 0 : -1;
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossSyncEvntFlagAsync(LqEvntHdr * Conn)
+{
+    return Boss.SyncEvntFlagAsync(Conn) ? 0 : -1;
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossSyncEvntFlagSync(LqEvntHdr * Conn)
+{
+	return Boss.SyncEvntFlagSync(Conn) ? 0 : -1;
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossCloseConnByIpAsync(const sockaddr* Addr)
+{
+    return Boss.CloseConnByIpAsync(Addr) ? 0 : -1;
+}
+
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseConnByIpSync(const sockaddr* Addr)
+{
+    return Boss.CloseConnByIpSync(Addr);
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossCloseConnByProtoAsync(const LqProto* Addr)
+{
+    return Boss.CloseConnByProtoAsync(Addr);
+}
+
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseConnByProtoSync(const LqProto* Addr)
+{
+    return Boss.CloseConnByProtoSync(Addr);
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossCloseConnByTimeoutAsync(LqTimeMillisec TimeLive)
+{
+    return Boss.CloseEventByTimeoutAsync(TimeLive) ? 0 : -1;
+}
+
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseConnByTimeoutSync(LqTimeMillisec TimeLive)
+{
+    return Boss.CloseEventByTimeoutSync(TimeLive);
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossCloseConnByProtoTimeoutAsync(const LqProto * Proto, LqTimeMillisec TimeLive)
+{
+    return Boss.CloseEventByTimeoutAsync(Proto, TimeLive) ? 0 : -1;
+}
+
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseConnByProtoTimeoutSync(const LqProto * Proto, LqTimeMillisec TimeLive)
+{
+    return Boss.CloseEventByTimeoutSync(Proto, TimeLive) ? 0 : -1;
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossEnumDelEvntByProto(const LqProto* Proto, void * UserData, LqBool(*Proc)(void *UserData, LqEvntHdr *Conn))
+{
+    return Boss.EnumDelEvntByProto(Proto, UserData, Proc);
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossEnumDelEvnt(void * UserData, LqBool(*Proc)(void *UserData, LqEvntHdr *Conn))
+{
+    return Boss.EnumDelEvnt(UserData, Proc);
+}
+
+LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossSetMinWrkCount(size_t NewCount)
+{
+	return Boss.SetWrkMinCount(NewCount);
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossStartAllWrkSync()
+{
+    return Boss.StartAllWorkersSync();
+}
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossStartAllWrkAsync()
+{
+    return Boss.StartAllWorkersAsync();
+}
+
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCountWrk()
+{
+    return Boss.CountWorkers();
+}

@@ -14,7 +14,7 @@
 # define _CRT_SECURE_NO_WARNINGS
 # define LQEVNT_WIN_EVENT
 # define LQPLATFORM_WINDOWS
-//# define LQCONN_HAS_EVNT_AGAIN  //Use primary in windows, because win events not supported level triggered
+
 # pragma warning(disable : 4996)
 # pragma warning(disable : 4307)
 
@@ -24,7 +24,7 @@
 # define LQ_PATH_SEPARATOR	'\\'
 
 #else
-#define LQPLATFORM_POSIX
+# define LQPLATFORM_POSIX
 # ifdef __ANDROID__
 #  define LQPLATFORM_ANDROID
 # endif
@@ -88,10 +88,10 @@
 
 
 /* Architectuire word bits */
-#if defined(_WIN32)
-# define LQARCH_32
-#elif defined(_WIN64)
+#if defined(_WIN64)
 # define LQARCH_64
+#elif defined(_WIN32)
+# define LQARCH_32
 #elif __WORDSIZE == 64
 # define LQARCH_64
 #elif __WORDSIZE == 32
@@ -126,4 +126,7 @@
 #define lqautf8                 //LanQ Argument UTF-8 string
 #define lqautf16                //LanQ Argument UTF-16 string
 
+#define LQ_GOLDEN_RATIO         1.61803398874989484820 
+
 #endif
+

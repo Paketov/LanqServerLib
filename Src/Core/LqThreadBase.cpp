@@ -16,7 +16,6 @@
 
 
 
-
 #if defined(_MSC_VER)
 #include <Windows.h>
 #include "LqHashTable.hpp"
@@ -135,7 +134,14 @@ thread_local char* NameThread = nullptr;
 
 #endif
 
-LqThreadBase::LqThreadBase(const char* NewName): IsShouldEnd(true), Priority(LQTHREAD_PRIOR_NONE), AffinMask(0), IsOut(true)
+LqThreadBase::LqThreadBase(const char* NewName): 
+	IsShouldEnd(true), 
+	Priority(LQTHREAD_PRIOR_NONE), 
+	AffinMask(0), 
+	IsOut(true), 
+	UserData(nullptr), 
+	ExitHandler([](void*) {}),
+	EnterHandler([](void*) {})
 {
     if(NewName != nullptr)
         Name = LqStrDuplicate(NewName);
@@ -203,14 +209,19 @@ void LqThreadBase::SetAffinity(ullong Mask)
 
 void LqThreadBase::WaitEnd()
 {
-    if(!this->IsOut)
-        join();
+	if(!this->IsOut)
+	{
+		try
+		{
+			this->join();
+		} catch(...){}
+	}
 }
 
 void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
 {
-    while(!This->joinable())
-        LqThreadYield();
+	while(!This->joinable())
+		LqThreadYield();
 
 #if defined(LQPLATFORM_LINUX) || defined(LQPLATFORM_WINDOWS) || defined(LQPLATFORM_ANDROID)
     pthread_setname_np(This->ThreadId(), This->Name);
@@ -260,6 +271,8 @@ void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
     }
     This->ThreadParamLocker.UnlockWrite();
 
+	This->EnterHandler(This->UserData);
+
     This->IsShouldEnd = false;
 
     //Enter main func
@@ -275,6 +288,8 @@ void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
 #endif
 
     This->IsOut = true;
+
+	This->ExitHandler(This->UserData);
 }
 
 int LqThreadBase::GetName(intptr_t Id, char* DestBuf, size_t Len)
@@ -328,6 +343,11 @@ bool LqThreadBase::IsThreadEnd() const
     return this->IsOut;
 }
 
+bool LqThreadBase::IsJoinable() const
+{
+	return this->joinable();
+}
+
 bool LqThreadBase::IsThisThread()
 {
     return std::this_thread::get_id() == this->get_id();
@@ -340,7 +360,7 @@ bool LqThreadBase::EndWorkAsync()
     if(!LqThreadBase::IsOut)
     {
         r = LqThreadBase::IsShouldEnd = true;
-        if(std::this_thread::get_id() != get_id())
+        if(!IsThisThread())
             NotifyThread();
     }
     StartThreadLocker.UnlockWrite();
@@ -349,20 +369,32 @@ bool LqThreadBase::EndWorkAsync()
 
 bool LqThreadBase::EndWorkSync()
 {
-    bool r = false;
-    StartThreadLocker.LockWrite();
-    if(!LqThreadBase::IsOut)
-    {
-        r = LqThreadBase::IsShouldEnd = true;
-        if(std::this_thread::get_id() != get_id())
-        {
-            NotifyThread();
-            while(!LqThreadBase::IsOut)
-                std::this_thread::yield();
-        }
-    }
-    StartThreadLocker.UnlockWrite();
-    return r;
+	bool r = false;
+	bool IsCallHandler = false;
+	StartThreadLocker.LockWrite();
+	if(!LqThreadBase::IsOut)
+	{
+		r = LqThreadBase::IsShouldEnd = true;
+		if(!IsThisThread())
+		{
+			NotifyThread();
+			while(!IsOut)
+			{
+				try
+				{
+					this->join();
+				} catch(...)
+				{
+					IsOut = true;
+					IsCallHandler = true;
+				}
+			}
+		}
+	}
+	StartThreadLocker.UnlockWrite();
+	if(IsCallHandler)
+		ExitHandler(UserData);
+	return r;
 }
 
 intptr_t LqThreadBase::ThreadId() const

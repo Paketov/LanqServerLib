@@ -8,6 +8,10 @@
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
+
+/*
+ !! Only use for lqaout arguments !!
+*/
 class LqDfltPtr
 {
     template<typename t, typename at>

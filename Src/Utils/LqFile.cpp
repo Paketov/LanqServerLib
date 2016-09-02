@@ -53,7 +53,7 @@ extern "C" NTSYSAPI NTSTATUS NTAPI NtCancelIoFile(
     _In_ HANDLE               FileHandle,
     _Out_ PIO_STATUS_BLOCK    IoStatusBlock
 );
-
+#pragma pack(push,8)
 typedef struct _FILE_STANDARD_INFORMATION
 {
     LARGE_INTEGER AllocationSize;
@@ -62,7 +62,7 @@ typedef struct _FILE_STANDARD_INFORMATION
     BOOLEAN DeletePending;
     BOOLEAN Directory;
 } FILE_STANDARD_INFORMATION, *PFILE_STANDARD_INFORMATION;
-
+#pragma pack(pop)
 extern "C" __kernel_entry NTSTATUS NTAPI NtQueryInformationFile(
     __in HANDLE FileHandle,
     __out PIO_STATUS_BLOCK IoStatusBlock,
@@ -495,7 +495,7 @@ LQ_EXTERN_C int LQ_CALL LqFilePipeCreate(int* lpReadPipe, int* lpWritePipe, uint
         CurSerNum = PipeSerialNumber + 1;
     } while(!LqAtmCmpXchg(PipeSerialNumber, t, CurSerNum));
 
-    sprintf(PipeNameBuffer, "\\\\.\\Pipe\\AnonPipe_%u%u_%u%u", (uint32_t)(Proc >> 32), (uint32_t)(Proc & 0xffffffff), (uint32_t)(CurSerNum >> 32), (uint32_t)(CurSerNum & 0xffffffff));
+    sprintf(PipeNameBuffer, "\\\\.\\Pipe\\AnonPipe_%u%u_%u%u", (uint)(Proc >> 32), (uint)(Proc & 0xffffffff), (uint)(CurSerNum >> 32), (uint)(CurSerNum & 0xffffffff));
     int ReadPipeHandle = LqFilePipeCreateNamed(PipeNameBuffer, (FlagsRead & (LQ_O_NONBLOCK | LQ_O_BIN | LQ_O_TXT | LQ_O_NOINHERIT)) | LQ_O_RD);
     if(ReadPipeHandle == -1)
         return -1;

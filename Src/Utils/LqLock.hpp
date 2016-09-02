@@ -108,7 +108,7 @@ template<typename TypeFlag = unsigned>
 class LqSafeRegion
 {
     std::atomic<TypeFlag> SafeRegionWaiter;
-    static const TypeFlag TstBit = 1 << (sizeof(TypeFlag) * 8 - 1);
+    static const TypeFlag TstBit = ((TypeFlag)1) << (sizeof(TypeFlag) * 8 - 2);
 public:
     inline LqSafeRegion(): SafeRegionWaiter(1) {}
 

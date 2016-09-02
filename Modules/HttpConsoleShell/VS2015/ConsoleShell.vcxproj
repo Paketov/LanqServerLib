@@ -147,6 +147,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(LocalDebuggerWorkingDirectory)..\..\..\Src\Utils;$(LocalDebuggerWorkingDirectory)..\..\..\Src\Tasks;$(LocalDebuggerWorkingDirectory)..\..\..\Src\Protocols\Http;$(LocalDebuggerWorkingDirectory)..\..\..\Src\Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

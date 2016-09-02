@@ -39,6 +39,9 @@ protected:
     volatile bool                                       IsShouldEnd;
     volatile bool                                       IsOut;
     char*                                               Name;
+	void*                                               UserData;
+	void(*EnterHandler)(void *UserData);
+	void(*ExitHandler)(void *UserData);
     static void BeginThreadHelper(LqThreadBase* This);
     virtual void BeginThread() = 0;
     virtual void NotifyThread() = 0;
@@ -64,6 +67,8 @@ public:
     bool EndWorkSync();
 
     bool IsThreadEnd() const;
+
+	bool IsJoinable() const;
 
     bool IsThisThread();
 

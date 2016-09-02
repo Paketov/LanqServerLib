@@ -34,7 +34,6 @@ struct LqEvntHdr;
 #define _LQEVNT_FLAG_SYNC                       ((LqEvntFlag)64)        /*Use for check sync*/
 #define _LQEVNT_FLAG_NOW_EXEC                   ((LqEvntFlag)128)       /*Exec by protocol handles*/
 #define _LQEVNT_FLAG_USER_SET                   ((LqEvntFlag)256)       /*Is set by user*/
-#define _LQEVNT_FLAG_SYNC_USER_FD               ((LqEvntFlag)512)       /*Is set by user*/
 #define _LQEVNT_FLAG_CONN                       ((LqEvntFlag)1024)      /*Use for check sync*/
 
 #define _LQEVNT_FLAG_RESERVED_1                 ((LqEvntFlag)2048)      /*Use only for windows internal*/
@@ -67,7 +66,6 @@ typedef void (LQ_CALL *LqEvntFdHandlerFn)(LqEvntFd* Fd, LqEvntFlag RetFlags);
 struct LqEvntFd
 {
     LQ_CONN_COMMON_EVNT_HDR;
-    void*               Boss;
     LqEvntFdHandlerFn   Handler;
     LqEvntFdHandlerFn   CloseHandler;
     uintptr_t           UserData;
@@ -84,6 +82,8 @@ struct LqEvntFd
 #endif
 };
 
+#define LqEvntIsConn(Hdr) (((LqEvntHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)
+
 #pragma pack(pop)
 
 /*
@@ -95,17 +95,12 @@ struct LqEvntFd
 
 struct LqProto
 {
-    void* Boss;
     void* UserData;
 
     LqFileSz MaxSendInTact;
     LqFileSz MaxSendInSingleTime;
     LqFileSz MaxReciveInSingleTime;
 
-    /*
-    * Call for create new connection.
-    */
-    LqConn* (LQ_CALL *NewConnProc)(LqProto* This, int ConnectionDescriptor, void* Address/*sockaddr*/);
     /*
     * Read notifycation.
     */
@@ -123,6 +118,7 @@ struct LqProto
     * Close and delete connection
     */
     void (LQ_CALL *EndConnProc)(LqConn* Connection);
+
     bool (LQ_CALL *CmpAddressProc)(LqConn* Connection, const void* Address);
     /*
             Close connection on time out.
@@ -140,14 +136,10 @@ struct LqProto
     */
     char* (LQ_CALL *DebugInfoProc)(LqConn* Connection);
 
-    void (LQ_CALL *FreeProtoNotifyProc)(LqProto* This);
-
 };
 
 
 #pragma pack(pop)
-
-#define LqWrkBossByProto(Proto) ((LqWrkBoss*)((LqProto*)(Proto))->Boss)
 
 LQ_EXTERN_C_END
 

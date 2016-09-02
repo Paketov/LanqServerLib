@@ -8,16 +8,17 @@
 #ifndef __LQ_CONN_HAS_INCLUDED_H__
 #define __LQ_CONN_HAS_INCLUDED_H__
 
+#include "LqOs.h"
 #include "LqErr.h"
 #include "LqSbuf.h"
 #include "LqDef.h"
-#include "LqOs.h"
+
 
 #ifndef LQCONN_MAX_LOCAL_SIZE
 #define LQCONN_MAX_LOCAL_SIZE 32768
 #endif
 
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
 # if  defined(_WINDOWS_) && !defined(_WINSOCK2API_)
 #  error "Must stay before windows.h!"
 # endif
@@ -82,10 +83,18 @@ LQ_EXTERN_C_BEGIN
 LQ_IMPORTEXPORT int LQ_CALL LqEvntSetFlags(void* Conn, LqEvntFlag Flag, LqTimeMillisec WaitTime = 0 /* Wait while worker set new events value*/);
 
 /*
-* Set close connection.
+* Set close connection. (Not call close handler in worker owner)
 */
 LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose(void* Conn);
-#define LqConnIsClose(Conn) (((LqConn*)(Conn))->Flag | LQEVNT_FLAG_END)
+
+/*
+* Set close immediately(call close handler in worker owner)
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose2(void* Conn, LqTimeMillisec WaitTime);
+
+LQ_IMPORTEXPORT int LQ_CALL LqConnBind(const char* Host, const char* Port, int TransportProtoFamily, int MaxConnections);
+
+LQ_IMPORTEXPORT void LQ_CALL __LqEvntFdDfltHandler(LqEvntFd* Instance, LqEvntFlag Flags);
 
 /*
 * Add new file descriptor to follow
@@ -107,18 +116,15 @@ LQ_EXTERN_C_END
     ((LqConn*)(Event))->Proto->EndConnProc(((LqConn*)(Event))):         \
     (((LqEvntFd*)(Event))->CloseHandler((LqEvntFd*)(Event), 0))))
 
-#define LqEvntFdInit(Evnt, NewFd, NewWrkBoss, NewFlags)                 \
-    ((LqEvntFd*)(Evnt))->Boss = (void*)(NewWrkBoss);                    \
+#define LqEvntFdInit(Evnt, NewFd, NewFlags)                             \
     ((LqEvntFd*)(Evnt))->Fd = (NewFd);                                  \
     ((LqEvntFd*)(Evnt))->Flag = _LQEVNT_FLAG_NOW_EXEC ;                 \
     LqEvntSetFlags((LqEvntFd*)(Evnt), NewFlags);                        \
     ((LqEvntFd*)(Evnt))->Flag &= ~_LQEVNT_FLAG_NOW_EXEC;
 
-
-#define LqEvntBossByHdr(EvntHdr)										\
-    ((LqWrkBoss*)((((LqEvntHdr*)(EvntHdr))->Flag & _LQEVNT_FLAG_CONN)?  \
-    ((LqConn*)(EvntHdr))->Proto->Boss:									\
-    ((LqEvntFd*)(EvntHdr))->Boss))
+#define LqConnIsClose(Conn) (((LqConn*)(Conn))->Flag | LQEVNT_FLAG_END)
+#define LqEvntFdIgnoreHandler(Evnt) (((LqEvntFd*)(Evnt))->Handler = __LqEvntFdDfltHandler)
+#define LqEvntFdIgnoreCloseHandler(Evnt) (((LqEvntFd*)(Evnt))->CloseHandler = __LqEvntFdDfltHandler)
 
 #if defined(HAVE_OPENSSL)
 

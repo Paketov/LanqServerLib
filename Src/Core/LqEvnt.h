@@ -34,37 +34,40 @@ struct LqEvntInterator
 
 
 struct LqEvnt
-{
+{	
+	LqBool              IsRemoved;
+	LqBool              DeepLoop;
+	int                 SignalFd;
+	LqEvntHdr**         ClientArr;
 #if defined(LQEVNT_WIN_EVENT)
+	HANDLE*             EventArr;
     int                 Count;
     int                 AllocCount;
-    HANDLE*             EventArr;
-    LqEvntHdr**         ClientArr;
     int                 EventEnumIndex;
-    int                 SignalFd;
 #elif defined(LQEVNT_KEVENT)
 #elif defined(LQEVNT_EPOLL)
+	void*               EventArr;
     int                 EpollFd;
-    int                 SignalFd;
-    LqEvntHdr**         ClientArr;
     int                 Count;
     int                 AllocCount;
-    void*               EventArr;
     int                 EventArrCount;
     int                 CountReady;
     int                 EventEnumIndex;
-    int                 FirstEnd;
 #elif defined(LQEVNT_POLL)
     void*               EventArr;
-    LqEvntHdr**         ClientArr;
     int                 Count;
     int                 AllocCount;
-    int                 EventEnumIndex;
-    int                 SignalFd;
+    int                 EventEnumIndex
 #endif
 };
 
 #pragma pack(pop)
+
+#define lqevnt_enum_changes_do(EventFollower, EventFlags) for(LqEvntFlag EventFlags = LqEvntEnumEventBegin(&(EventFollower)); EventFlags != 0; EventFlags = LqEvntEnumEventNext(&(EventFollower)))
+#define lqevnt_enum_changes_while(EventFollower)  LqEvntRestructAfterRemoves(&(EventFollower))
+
+#define lqevnt_enum_do(EventFollower, IndexName) {LqEvntInterator IndexName; for(auto __r = LqEvntEnumBegin(&EventFollower, &IndexName); __r; __r = LqEvntEnumNext(&EventFollower, &IndexName))
+#define lqevnt_enum_while(EventFollower)  LqEvntRestructAfterRemoves(&(EventFollower));}
 
 /*
 * Init LqEvnt struct.
@@ -97,6 +100,8 @@ LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events);
 * Remove connection by internal event interator.
 */
 void LqEvntRemoveCurrent(LqEvnt* Events);
+
+void LqEvntRestructAfterRemoves(LqEvnt* Events);
 
 /*
 * Get client struct by internal interator.

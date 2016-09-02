@@ -6,6 +6,8 @@
 */
 #include "LqOs.h"
 #include "LqErr.h"
+
+
 #ifdef LQPLATFORM_WINDOWS
 
 #include <errno.h>

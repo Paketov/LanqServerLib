@@ -21,6 +21,7 @@
 #include "LqHttp.hpp"
 #include "LqHttpAtz.h"
 #include "LqLib.h"
+#include "LqShdPtr.hpp"
 
 #include <vector>
 #include <sstream>
@@ -125,7 +126,7 @@ struct CmdSession
     LqEvntFd                                                    TimerFd;
     LqEvntFd                                                    ReadFd;
 
-    volatile size_t                                             CountPointers;
+    size_t                                                      CountPointers;
     LqLocker<intptr_t>                                          Locker;
     int                                                         InFd;
     int                                                         OutFd;
@@ -151,7 +152,7 @@ struct CmdSession
         Locker.Unlock();
     }
 
-    CmdSession(int NewStdIn, int NewStdOut, int NewPid, LqString& NewKey, void* WrkBoss):
+    CmdSession(int NewStdIn, int NewStdOut, int NewPid, LqString& NewKey):
         InFd(NewStdIn),
         OutFd(NewStdOut),
         Pid(NewPid),
@@ -163,15 +164,12 @@ struct CmdSession
         auto Event = LqFileTimerCreate(LQ_O_NOINHERIT);
         LqFileTimerSet(Event, SessionTimeLife);
 
-        LqEvntFdInit(&TimerFd, Event, WrkBoss, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
+        LqEvntFdInit(&TimerFd, Event, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
         TimerFd.Handler = TimerHandler;
         TimerFd.CloseHandler = TimerHandlerClose;
         TimerFd.UserData = (uintptr_t)&TimerFd - (uintptr_t)this;
-        CountPointers++;
+        LqObReference(this);
         LqEvntFdAdd(&TimerFd);
-        ReadFd.Boss = WrkBoss;
-
-
         Sessions.Add(this);
     }
 
@@ -195,11 +193,8 @@ struct CmdSession
         Ob->LockWrite();
         LqFileClose(Ob->TimerFd.Fd);
         Ob->TimerFd.Fd = -1;
-        Ob->CountPointers--;
-        bool Del = Ob->CountPointers <= 0;
         Ob->Unlock();
-        if(Del)
-            LqFastAlloc::Delete(Ob);
+        LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
     }
 
 
@@ -209,13 +204,14 @@ struct CmdSession
         if(Conn == nullptr)
         {
             Conn = c;
-            LqEvntFdInit(&ReadFd, OutFd, ReadFd.Boss, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
+            LqEvntFdInit(&ReadFd, OutFd, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
             ReadFd.Handler = ReadHandler;
             ReadFd.CloseHandler = ReadHandlerClose;
             ReadFd.UserData = (uintptr_t)&ReadFd - (uintptr_t)this;
 
             LqEvntFdAdd(&ReadFd);
-            CountPointers += 2;
+            LqObReference(this);
+            LqObReference(this);
             c->ModuleData = (uintptr_t)this;
             LastAct = LqTimeGetLocMillisec();
             Res = true;
@@ -223,21 +219,19 @@ struct CmdSession
         return Res;
     }
 
-    static void EndRead(LqHttpConn* c)
+	static void EndRead(LqHttpConn* c)
     {
         auto Ob = (CmdSession*)(c->ModuleData);
         Ob->LockWrite();
+
+        Ob->LastAct = LqTimeGetLocMillisec();
         if(Ob->Conn != nullptr)
         {
             Ob->Conn = nullptr;
             LqEvntSetClose(&Ob->ReadFd);
         }
-        Ob->LastAct = LqTimeGetLocMillisec();
-        Ob->CountPointers--;
-        bool Del = Ob->CountPointers <= 0;
         Ob->Unlock();
-        if(Del)
-            LqFastAlloc::Delete(Ob);
+        LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
     }
 
     static void LQ_CALL ReadHandler(LqEvntFd* Instance, LqEvntFlag Flags);
@@ -245,16 +239,9 @@ struct CmdSession
     static void LQ_CALL ReadHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags)
     {
         auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
-        Ob->LockWrite();
-        Ob->CountPointers--;
-        bool Del = Ob->CountPointers <= 0;
-        Ob->Unlock();
-        if(Del)
-            LqFastAlloc::Delete(Ob);
+        LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
     }
 };
-
-
 
 size_t _Sessions::Add(CmdSession* Session)
 {
@@ -327,36 +314,36 @@ struct ConnHandlers
             return;
         }
 
-		int StdInRd = -1, StdInWr = -1, StdOutRd = -1, StdOutWr = -1, StdErrRd = -1, StdErrWr = -1;
-		//Create out pipe
-		if(LqFilePipeCreate(&StdOutRd, &StdOutWr, LQ_O_NONBLOCK | LQ_O_BIN | LQ_O_NOINHERIT, 0) == -1)
-		{
-			Response(c, 500, "Internal server error");
-			return;
-		}
-		//Create in pipe
-		if(LqFilePipeCreate(&StdInRd, &StdInWr, LQ_O_BIN, LQ_O_NONBLOCK | LQ_O_NOINHERIT) == -1)
-		{
-			Response(c, 500, "Internal server error");
-			LqFileClose(StdOutRd);
-			LqFileClose(StdOutWr);
-			return;
-		}
+        int StdInRd = -1, StdInWr = -1, StdOutRd = -1, StdOutWr = -1, StdErrRd = -1, StdErrWr = -1;
+        //Create out pipe
+        if(LqFilePipeCreate(&StdOutRd, &StdOutWr, LQ_O_NONBLOCK | LQ_O_BIN | LQ_O_NOINHERIT, 0) == -1)
+        {
+            Response(c, 500, "Internal server error");
+            return;
+        }
+        //Create in pipe
+        if(LqFilePipeCreate(&StdInRd, &StdInWr, LQ_O_BIN, LQ_O_NONBLOCK | LQ_O_NOINHERIT) == -1)
+        {
+            Response(c, 500, "Internal server error");
+            LqFileClose(StdOutRd);
+            LqFileClose(StdOutWr);
+            return;
+        }
 #if defined(LQPLATFORM_WINDOWS)
         const char* TerminalShell = "cmd";
         char ** Arg = nullptr;
 #else
         const char* TerminalShell = "sh";
         char * Arg[] = {"-", nullptr}; 
-		//TODO: Create tty in here
+        //TODO: Create tty in here
 #endif
-        int Pid = LqFileProcessCreate(TerminalShell, Arg, nullptr, nullptr, StdInRd, StdOutWr, StdOutWr, nullptr);	
-		LqFileClose(StdInRd);
-		LqFileClose(StdOutWr);
+        int Pid = LqFileProcessCreate(TerminalShell, Arg, nullptr, nullptr, StdInRd, StdOutWr, StdOutWr, nullptr);  
+        LqFileClose(StdInRd);
+        LqFileClose(StdOutWr);
         if(Pid == -1)
         {
-			LqFileClose(StdInWr);
-			LqFileClose(StdOutRd);
+            LqFileClose(StdInWr);
+            LqFileClose(StdOutRd);
             Response(c, 500, (LqString("Not create terminal session. ") + strerror(lq_errno)).c_str());
             return;
         }
@@ -367,7 +354,7 @@ struct ConnHandlers
             Key[i] = rand() + clock() * 10000;
         LqStrToHex(KeyBuffer, Key, sizeof(Key) - sizeof(int));
 
-        auto Ses = LqFastAlloc::New<CmdSession>(StdInWr, StdOutRd, Pid, LqString(KeyBuffer), LqEvntBossByHdr(c));
+        auto Ses = LqFastAlloc::New<CmdSession>(StdInWr, StdOutRd, Pid, LqString(KeyBuffer));
         LqString LqResponse;
         LqResponse = "{\"Key\": \"" + LqString(KeyBuffer) + "\", \"SessionIndex\": " + LqToString(Ses->Index) + "}";
         Response(c, 200, LqResponse.c_str());
@@ -386,9 +373,9 @@ struct ConnHandlers
             return;
         }
 
-        Sessions.Remove(Ses);
-        LqEvntSetClose(&Ses->TimerFd);
+        Sessions.Remove(Ses); 
         Response(c, 200, "OK");
+		LqEvntSetClose(&Ses->TimerFd);
         Ses->Unlock();
     }
 

@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\Src\Core\LqListConn.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
     <ClCompile Include="..\Src\Core\LqLog.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -28,9 +25,6 @@
       <Filter>Core</Filter>
     </ClCompile>
     <ClCompile Include="..\Src\Core\LqWrkBoss.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Src\Core\LqWrkList.cpp">
       <Filter>Core</Filter>
     </ClCompile>
     <ClCompile Include="..\Src\Core\LqEvnt.cpp">
@@ -99,11 +93,14 @@
     <ClCompile Include="..\Src\Utils\LqMd5.cpp">
       <Filter>Utils</Filter>
     </ClCompile>
+    <ClCompile Include="..\Src\Core\LqListConn.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Core\LqZmbClr.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Src\Core\LqListConn.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
     <ClInclude Include="..\Src\Core\LqLog.h">
       <Filter>Core</Filter>
     </ClInclude>
@@ -117,9 +114,6 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Core\LqWrkBoss.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Core\LqWrkList.hpp">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Core\Lanq.h">
@@ -168,9 +162,6 @@
       <Filter>Protocols\HTTP</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Utils\LqSbuf.h">
-      <Filter>Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Utils\LqSharedPtr.hpp">
       <Filter>Utils</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Utils\LqStr.h">
@@ -252,6 +243,18 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Utils\LqMd5.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqListConn.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqWrkBoss.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqZmbClr.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqShdPtr.hpp">
       <Filter>Utils</Filter>
     </ClInclude>
   </ItemGroup>

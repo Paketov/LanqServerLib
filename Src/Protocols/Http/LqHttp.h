@@ -432,15 +432,31 @@ struct LqHttpMdl
 struct LqHttpProtoBase
 {
     LqProto                     Proto;
+	LqProto                     BindProto;
+	LqConn                      Conn;
+	LqEvntFd                    ZmbClr;
+
+
+
+	size_t						BindLocker;
     size_t                      CountConnections;
+	size_t                      MaxConnections;
     size_t                      MaxHeadersSize;
     size_t                      MaxMultipartHeadersSize;
+	size_t                      CountConnAccepted;
+	size_t                      CountConnIgnored;
+	uintptr_t                   LockerBind;
+	LqBool                      IsRebind;
+	int                         TransportProtoFamily;
+
+	LqTimeMillisec              TimeLive;
+
     LqTimeSec                   PeriodChangeDigestNonce;
-    bool                        IsResponse429;
-    bool                        IsUnregister;
-    bool                        IsResponseDate;
+	LqBool                      IsResponse429;
+	LqBool                      IsUnregister;
+	LqBool                      IsResponseDate;
     char                        HTTPProtoVer[16];
-    bool                        UseDefaultDmn;
+	LqBool                      UseDefaultDmn;
 
 
     LqHttpMdl                   StartModule;
@@ -456,6 +472,10 @@ struct LqHttpProtoBase
     void*                       _InternalUsed;
     uintptr_t                   _InternalUsed2;
 #endif
+
+	LqEvntFd				    ZombieKiller;
+	LqTimeMillisec              ZombieKillerTimeLiveConnMillisec;
+	LqBool                      ZombieKillerIsSyncCheck;	
 };
 
 
@@ -492,8 +512,34 @@ struct LqHttpAtz
 * Set and get HTTP proto parametrs
 */
 LQ_IMPORTEXPORT LqHttpProtoBase* LQ_CALL LqHttpProtoCreate();
+LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoDelete(LqHttpProtoBase* Proto);
 
-LQ_EXTERN_C bool LQ_CALL LqHttpProtoCreateSSL
+LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoBind(LqHttpProtoBase* Reg);
+LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoUnbind(LqHttpProtoBase* Reg);
+
+LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoGetInfo
+(
+	LqHttpProtoBase* lqaio Reg, 
+	char* lqaout lqaopt Host,
+	size_t HostBufSize, 
+	char* lqaout lqaopt Port,
+	size_t PortBufSize,
+	int* lqaout lqaopt TransportProtoFamily,
+	int* lqaout lqaopt MaxConnections,
+	LqTimeMillisec* lqaout lqaopt TimeLive
+);
+
+LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoSetInfo
+(
+	LqHttpProtoBase* lqaio Reg, 
+	const char* lqain lqaopt Host, 
+	const char* lqain lqaopt Port, 
+	const int* lqain lqaopt TransportProtoFamily,
+	const int* lqain lqaopt MaxConnections, 
+	const LqTimeMillisec* lqain lqaopt TimeLive
+);
+
+LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoCreateSSL
 (
 	LqHttpProtoBase*lqaio Reg,
 	const void*lqain MethodSSL, /* Example SSLv23_method()*/
@@ -505,7 +551,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpProtoCreateSSL
 	const char*lqain lqaopt DhpFile
 );
 
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpProtoSetSSL
+LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoSetSSL
 (
     LqHttpProtoBase* Reg,
     void* SSL_Ctx

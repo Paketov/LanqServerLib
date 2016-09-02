@@ -74,13 +74,13 @@ extern "C" NTSYSAPI NTSTATUS NTAPI NtWaitForMultipleObjects(
 
 
 #define LqEvntSystemEventByConnEvents(Client)                           \
-    ((Client->Flag & LQEVNT_FLAG_RD)            ? (FD_ACCEPT | FD_READ) : 0) |  \
+    (((Client->Flag & LQEVNT_FLAG_RD)            ? (FD_ACCEPT | FD_READ) : 0)  | \
     ((Client->Flag & LQEVNT_FLAG_WR)            ? (FD_WRITE | FD_CONNECT) : 0) |\
-    ((Client->Flag & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP)) ? FD_CLOSE: 0)
+    ((Client->Flag & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP)) ? FD_CLOSE: 0))
 
 #define IsRdAgain(Client)  ((Client->Flag & (LQCONN_FLAG_RD_AGAIN | LQEVNT_FLAG_RD)) == (LQCONN_FLAG_RD_AGAIN | LQEVNT_FLAG_RD))
 #define IsWrAgain(Client)  ((Client->Flag & (LQCONN_FLAG_WR_AGAIN | LQEVNT_FLAG_WR)) == (LQCONN_FLAG_WR_AGAIN | LQEVNT_FLAG_WR))
-#define IsAgain(Client) (IsRdAgain(Client) || IsWrAgain(Client))
+#define IsAgain(Client)    (IsRdAgain(Client) || IsWrAgain(Client))
 
 bool LqEvntInit(LqEvnt* Dest)
 {
@@ -103,9 +103,12 @@ bool LqEvntInit(LqEvnt* Dest)
         Dest->ClientArr = nullptr;
         return false;
     }
+	
     Dest->EventArr[0] = (HANDLE)Dest->SignalFd;
     Dest->ClientArr[0] = nullptr;
     Dest->EventEnumIndex = 0;
+	Dest->DeepLoop = 0;
+	Dest->IsRemoved = 0;
     return true;
 }
 
@@ -125,15 +128,13 @@ void LqEvntUninit(LqEvnt* Dest)
 		___free(Dest->ClientArr);
 }
 
-
-
 /*
 * Adding to follow all type of WinNT objects
 */
 bool LqEvntAddHdr(LqEvnt* Dest, LqEvntHdr* Client)
 {
     int Event = -1;
-    if(Client->Flag & _LQEVNT_FLAG_CONN)
+    if(LqEvntIsConn(Client))
     {
         if((Event = (int)WSACreateEvent()) == 0)
             return false;
@@ -262,6 +263,7 @@ lblErrOut:
 LqEvntFlag LqEvntEnumEventBegin(LqEvnt* Events)
 {
     Events->EventEnumIndex = 0;
+	Events->DeepLoop++;
     return LqEvntEnumEventNext(Events);
 }
 
@@ -271,7 +273,9 @@ LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
     for(int i = Events->EventEnumIndex + 1, m = Events->Count; i < m; i++)
     {
         auto h = Events->ClientArr[i];
-        if(h->Flag & _LQEVNT_FLAG_CONN)
+		if(h == nullptr)
+			continue;
+        if(LqEvntIsConn(h))
         {
             //Check socket connection
             WSAEnumNetworkEvents(h->Fd, Events->EventArr[i], &e);
@@ -379,25 +383,48 @@ LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
 
 void LqEvntRemoveCurrent(LqEvnt* Events)
 {
-    Events->ClientArr[Events->EventEnumIndex]->Flag &= ~_LQEVNT_FLAG_SYNC;
-    if(Events->ClientArr[Events->EventEnumIndex]->Flag & _LQEVNT_FLAG_CONN)
+	Events->ClientArr[Events->EventEnumIndex]->Flag &= ~_LQEVNT_FLAG_SYNC;
+	if(LqEvntIsConn(Events->ClientArr[Events->EventEnumIndex]))
+	{
+		LqFileClose((int)Events->EventArr[Events->EventEnumIndex]);
+	} else
+	{
+		auto Fd = (LqEvntFd*)Events->ClientArr[Events->EventEnumIndex];
+		if((HANDLE)Fd->Fd != Events->EventArr[Events->EventEnumIndex])
+		{
+			if(Fd->__Reserved1.Status == STATUS_PENDING)
+				NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved1);
+			if(Fd->__Reserved2.Status == STATUS_PENDING)
+				NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved2);
+			LqFileClose((int)Events->EventArr[Events->EventEnumIndex]);
+		}
+	}
+	Events->ClientArr[Events->EventEnumIndex] = nullptr;
+	Events->IsRemoved = 1;
+}
+
+void LqEvntRestructAfterRemoves(LqEvnt* Events)
+{
+    Events->DeepLoop--;
+    if((Events->DeepLoop > 0) || (Events->IsRemoved == 0))
+        return;
+    Events->IsRemoved = 0;
+
+    register auto AllClients = Events->ClientArr;
+    register auto AllEvents = Events->EventArr;
+    for(register size_t i = 1; i < Events->Count; )
     {
-        LqFileClose((int)Events->EventArr[Events->EventEnumIndex]);
-    } else
-    {
-        auto Fd = (LqEvntFd*)Events->ClientArr[Events->EventEnumIndex];
-        if((HANDLE)Fd->Fd != Events->EventArr[Events->EventEnumIndex])
+        if(AllClients[i] == nullptr)
         {
-            if(Fd->__Reserved1.Status == STATUS_PENDING)
-                NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved1);
-            if(Fd->__Reserved2.Status == STATUS_PENDING)
-                NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved2);
-            LqFileClose((int)Events->EventArr[Events->EventEnumIndex]);
+            Events->Count--;
+            AllClients[i] = AllClients[Events->Count];
+            AllEvents[i] = AllEvents[Events->Count];
+        } else
+        {
+            i++;
         }
     }
-    Events->Count--;
-    Events->EventArr[Events->EventEnumIndex] = Events->EventArr[Events->Count];
-    Events->ClientArr[Events->EventEnumIndex] = Events->ClientArr[Events->Count];
+
     if((size_t)((decltype(LQEVNT_DECREASE_COEFFICIENT))Events->Count * LQEVNT_DECREASE_COEFFICIENT) < Events->AllocCount)
     {
         size_t NewCount = lq_max(Events->Count, 1);
@@ -405,7 +432,6 @@ void LqEvntRemoveCurrent(LqEvnt* Events)
         Events->ClientArr = (LqEvntHdr**)___realloc(Events->ClientArr, NewCount * sizeof(LqEvntHdr*));
         Events->AllocCount = NewCount;
     }
-    Events->EventEnumIndex--;
 }
 
 LqEvntHdr* LqEvntGetHdrByCurrent(LqEvnt* Events)
@@ -416,7 +442,7 @@ LqEvntHdr* LqEvntGetHdrByCurrent(LqEvnt* Events)
 void LqEvntUnuseCurrent(LqEvnt* Events)
 {
     auto c = Events->ClientArr[Events->EventEnumIndex];
-    if(c->Flag & _LQEVNT_FLAG_CONN)
+    if(LqEvntIsConn(c))
     {
         if(c->Flag & LQEVNT_FLAG_RD)
         {
@@ -482,11 +508,10 @@ lblAgain2:
 
 }
 
-
 static bool LqEvntSetMask(LqEvnt* Events, size_t Index)
 {
     auto h = Events->ClientArr[Index];
-    if(h->Flag & _LQEVNT_FLAG_CONN)
+    if(LqEvntIsConn(h))
     {
         if(h->Flag & LQEVNT_FLAG_END)
            LqFileEventSet((int)Events->EventArr[0]);
@@ -578,6 +603,7 @@ lblAgain2:
     }
     return true;
 }
+
 bool LqEvntSetMaskByCurrent(LqEvnt* Events)
 {
     return LqEvntSetMask(Events, Events->EventEnumIndex);
@@ -595,18 +621,28 @@ bool LqEvntSetMaskByHdr(LqEvnt* Events, LqEvntHdr* Hdr)
 
 bool LqEvntEnumBegin(LqEvnt* Events, LqEvntInterator* Interator)
 {
-    return (Interator->Index = 1) < Events->Count;
+	Events->DeepLoop++;
+	Interator->Index = 0;
+    return LqEvntEnumNext(Events, Interator);
 }
 
 bool LqEvntEnumNext(LqEvnt* Events, LqEvntInterator* Interator)
 {
-    return ++Interator->Index < Events->Count;
+	for(register int Index = Interator->Index + 1; Index < Events->Count; Index++)
+	{
+		if(Events->ClientArr[Index] != nullptr)
+		{
+			Interator->Index = Index;
+			return true;
+		}
+	}
+	return false;
 }
 
 void LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator)
 {
     Events->ClientArr[Interator->Index]->Flag &= ~_LQEVNT_FLAG_SYNC;
-    if(Events->ClientArr[Interator->Index]->Flag & _LQEVNT_FLAG_CONN)
+    if(LqEvntIsConn(Events->ClientArr[Interator->Index]))
     {
         LqFileClose((int)Events->EventArr[Interator->Index]);
     } else
@@ -621,16 +657,8 @@ void LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator)
             LqFileClose((int)Events->EventArr[Interator->Index]);
         }
     }
-    Events->Count--;
-    Events->EventArr[Interator->Index] = Events->EventArr[Events->Count];
-    Events->ClientArr[Interator->Index] = Events->ClientArr[Events->Count];
-    if((size_t)((decltype(LQEVNT_DECREASE_COEFFICIENT))Events->Count * LQEVNT_DECREASE_COEFFICIENT) < Events->AllocCount)
-    {
-        Events->EventArr = (HANDLE*)___realloc(Events->EventArr, Events->Count * sizeof(HANDLE));
-        Events->ClientArr = (LqEvntHdr**)___realloc(Events->ClientArr, Events->Count * sizeof(LqEvntHdr*));
-        Events->AllocCount = Events->Count;
-    }
-    Interator->Index--;
+	Events->ClientArr[Interator->Index] = nullptr;
+	Events->IsRemoved = 1;
 }
 
 LqEvntHdr* LqEvntGetHdrByInterator(LqEvnt* Events, LqEvntInterator* Interator)

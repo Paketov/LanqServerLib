@@ -23,6 +23,7 @@
 #include "LqBse64.hpp"
 #include "LqStr.hpp"
 
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <type_traits>
@@ -103,7 +104,7 @@ int main(int argc, char* argv[])
     FILE* OutFile = stdout;
     FILE* InFile = stdin;
 #if !defined(LQPLATFORM_WINDOWS)
-    signal(SIGTERM, [](int) ->void { IsLoop = false; });
+    signal(SIGTERM, [](int) -> void { IsLoop = false; });
 #endif
 
     LqCpSet(LQCP_UTF_8);
@@ -119,11 +120,11 @@ int main(int argc, char* argv[])
         fprintf(OutFile, "ERROR: Not alloc memory for protocol struct\n");
         return -1;
     }
-    LqWrkBoss Boss(&Reg->Proto);
 
-    Boss.SetProtocolFamily(AF_INET);
-	Boss.SetTimeLifeConn(30 * 1000);
-    Boss.SetMaxConn(32768);
+
+ //   Boss.SetProtocolFamily(AF_INET);
+	//Boss.SetTimeLifeConn(30 * 1000);
+ //   Boss.SetMaxConn(32768);
     char CommandBuf[128];
     int CommandLen;
 
@@ -181,11 +182,11 @@ lblAgain:
                 PortName[0] = '\0';
                 if(sscanf(CommandData.c_str(), "%254[a-zA-Z0-9]", PortName) < 1)
                 {
-                    Boss.GetPrt(PortName, sizeof(PortName) - 2);
+					LqHttpProtoGetInfo(Reg, nullptr, 0, PortName, sizeof(PortName) - 1, nullptr, nullptr, nullptr);
                     fprintf(OutFile, " %s\n", PortName);
                     break;
                 }
-                Boss.SetPrt(PortName);
+				LqHttpProtoSetInfo(Reg, nullptr, PortName, nullptr, nullptr, nullptr);
                 fprintf(OutFile, " OK\n");
             }
             break;
@@ -206,16 +207,20 @@ lblAgain:
                 LqString Param = ReadParams(CommandData, "64u");
                 if(Param.find_first_of("6") != LqString::npos)
                 {
-                    Boss.SetProtocolFamily(AF_INET6);
+					int v = AF_INET6;
+					LqHttpProtoSetInfo(Reg, nullptr, nullptr, &v, nullptr, nullptr);
                 } else if(Param.find_first_of("4") != LqString::npos)
                 {
-                    Boss.SetProtocolFamily(AF_INET);
+					int v = AF_INET;
+					LqHttpProtoSetInfo(Reg, nullptr, nullptr, &v, nullptr, nullptr);
                 } else if(Param.find_first_of("u") != LqString::npos)
                 {
-                    Boss.SetProtocolFamily(AF_UNSPEC);
+					int v = AF_UNSPEC;
+					LqHttpProtoSetInfo(Reg, nullptr, nullptr, &v, nullptr, nullptr);
                 } else
                 {
-                    auto Proto = Boss.GetProtocolFamily();
+					int Proto;
+					LqHttpProtoGetInfo(Reg, nullptr, 0, nullptr, 0, &Proto, nullptr, nullptr);
                     const char * NameProto = "Unspec";
                     switch(Proto)
                     {
@@ -228,42 +233,46 @@ lblAgain:
                 fprintf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("start")
-            {
-                Boss.ErrBind = -1;
-                if(Boss.StartSync())
-                {
-                    while(Boss.ErrBind == -1);
-                    if(Boss.ErrBind != 0)
-                    {
-                        fprintf(OutFile, " ERROR: bind error \"%s\"\n", strerror(Boss.ErrBind));
-                        break;
-                    }
-                    fprintf(OutFile, " OK\n");
-                } else
-                {
-                    Boss.ErrBind = 0;
-                    fprintf(OutFile, " Has been started\n");
-                }
-            }
-            break;
-            LQSTR_CASE("stop")
-            {
-                if(Boss.EndWorkSync())
-                    fprintf(OutFile, " OK\n");
-                else
-                    fprintf(OutFile, " ERROR: Not stopping\n");
-            }
-            break;
+			LQSTR_CASE("start")
+			{
+				int Count;
+				if((Count = LqWrkBossStartAllWrkSync()) >= 0)
+				{
+					if(LqHttpProtoBind(Reg) == -1)
+					{
+						fprintf(OutFile, " Not bind (%s)\n", strerror(lq_errno));
+					} else
+					{
+						fprintf(OutFile, " OK\n");
+					}
+				} else
+				{
+					fprintf(OutFile, " Has been started\n");
+				}
+			}
+			break;
+			LQSTR_CASE("stop")
+			{
+				if(LqHttpProtoUnbind(Reg) == 0)
+				{
+					fprintf(OutFile, " OK\n");
+				} else
+				{
+					fprintf(OutFile, " ERROR: Not stopping\n");
+				}
+			}
+			break;
             LQSTR_CASE("maxconn")
             {
                 int MaxConn = 0;
                 if(!ReadNumber(CommandData, &MaxConn))
                 {
-                    fprintf(OutFile, " %llu\n", (ullong)Boss.GetMaxConn());
+					int Count;
+					LqHttpProtoGetInfo(Reg, nullptr, 0, nullptr, 0, nullptr, &Count, nullptr);
+                    fprintf(OutFile, " %llu\n", (ullong)Count);
                     continue;
                 }
-                Boss.SetMaxConn(MaxConn);
+				LqHttpProtoSetInfo(Reg, nullptr, nullptr, nullptr, &MaxConn, nullptr);
                 fprintf(OutFile, " OK\n");
             }
             break;
@@ -274,13 +283,13 @@ lblAgain:
             {
                 int Count = 0;
                 if(sscanf(CommandData.c_str(), "%i", &Count) < 1)
-                {
-                    fprintf(OutFile, " %llu\n", (ullong)Boss.CountWorkers());
+                {		
+                    fprintf(OutFile, " %llu\n", (ullong)LqWrkBossCountWrk());
                     break;
                 }
                 if(Count < 0)
                     Count = std::thread::hardware_concurrency();
-                if(Boss.AddWorkers(Count))
+                if(LqWrkBossAddWrks(Count, 1) == Count)
                     fprintf(OutFile, " OK\n");
                 else
                     fprintf(OutFile, " ERROR: Not adding workers.\n");
@@ -297,10 +306,10 @@ lblAgain:
 
                 if(Count == -1)
                     Count = std::thread::hardware_concurrency();
-                int CurCount = Boss.CountWorkers();
+                int CurCount = LqWrkBossCountWrk();
                 if(CurCount > 0)
                     Count = lq_min(CurCount, Count);
-                Boss.KickWorkers(Count);
+				LqWrkBossKickWrks(Count);
                 fprintf(OutFile, " OK\n");
             }
             break;
@@ -1028,12 +1037,12 @@ lblAgain:
             */
             LQSTR_CASE("conncount")
             {
-                fprintf(OutFile, " %llu\n", (ullong)Boss.CountConnections());
+                fprintf(OutFile, " %llu\n", (ullong)Reg->CountConnections);
             }
             break;
             LQSTR_CASE("conncloseall")
             {
-                Boss.CloseAllEvntAsync();
+				LqWrkBossCloseConnByProtoAsync(&Reg->Proto);
                 fprintf(OutFile, " OK\n");
             }
             break;
@@ -1060,14 +1069,15 @@ lblAgain:
                     fprintf(OutFile, " ERROR: Invalid ip address\n");
                     break;
                 }
-                Boss.CloseConnByIpSync(&adr.adr);
+
+				LqWrkBossCloseConnByIpSync(&adr.adr);
                 fprintf(OutFile, " OK\n");
             }
             break;
             LQSTR_CASE("connlist")
             {
-                Boss.EnumEvnt(OutFile,
-                              [](void* OutFile, LqEvntHdr* Conn)
+				LqWrkBossEnumDelEvnt(OutFile,
+                 [](void* OutFile, LqEvntHdr* Conn) -> LqBool
                 {
                     union Addr
                     {
@@ -1085,7 +1095,7 @@ lblAgain:
                         getnameinfo(&adr.adr, PeerName, Host, sizeof(Host) - 1, Service, sizeof(Service) - 1, NI_NUMERICSERV | NI_NUMERICHOST);
                         fprintf((FILE*)OutFile, " Host: %s, Port: %s\n", Host, Service);
                     }
-
+					return false;
                 }
                 );
             }
@@ -1113,11 +1123,11 @@ lblAgain:
                 LqTimeMillisec Millisec;
                 if(!ReadNumber(CommandData, &Millisec))
                 {
-					Millisec = Boss.GetTimeLifeConn();
+					LqHttpProtoGetInfo(Reg, nullptr, 0, nullptr, 0, nullptr, nullptr, &Millisec);
                     fprintf(OutFile, " %llu\n", (ullong)Millisec);
                     break;
                 }
-				Boss.SetTimeLifeConn(Millisec);
+				LqHttpProtoSetInfo(Reg, nullptr,nullptr, nullptr, nullptr, &Millisec);
                 fprintf(OutFile, " OK\n");
             }
             break;
@@ -1165,7 +1175,9 @@ lblAgain:
             break;
         }
     }
-	Boss.CloseAllEvntAsync();
+	LqHttpProtoDelete(Reg);
+	LqWrkBossSetMinWrkCount(0);
+	LqWrkBossKickAllWrk();
     return 0;
 }
 

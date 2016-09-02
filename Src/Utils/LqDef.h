@@ -11,7 +11,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef unsigned char           uchar;
+typedef unsigned char           uchar, LqBool;
 typedef unsigned short          ushort;
 typedef unsigned int            uint;
 typedef unsigned long           ulong;

@@ -18,12 +18,13 @@ class LqWrkBoss;
 #include "LqQueueCmd.hpp"
 #include "LqThreadBase.hpp"
 #include "LqListConn.hpp"
-#include "LqSharedPtr.hpp"
+#include "LqShdPtr.hpp"
 #include "LqDef.hpp"
 #include "Lanq.h"
 
+void LqWrkDelete(LqWrk* This);
 
-typedef LqSharedPtr<LqWrk, LqFastAlloc::Delete> LqWorkerPtr;
+typedef LqShdPtr<LqWrk, LqWrkDelete, true> LqWrkPtr;
 
 #pragma pack(push) 
 #pragma pack(LQSTRUCT_ALIGN_FAST)
@@ -33,8 +34,9 @@ class LQ_IMPORTEXPORT LqWrk:
 {
     friend LqWrkBoss;
     friend LqConn;
-    friend LqWorkerPtr;
+    friend LqWrkPtr;
     friend LqFastAlloc;
+	friend void LqWrkDelete(LqWrk* This);
 
     /*GetCount external reference, used in SharedPtr*/
     size_t                                              CountPointers;
@@ -44,17 +46,18 @@ class LQ_IMPORTEXPORT LqWrk:
 
     LqQueueCmd<uchar>                                   CommandQueue;
     LqEvnt                                              EventChecker;
-    mutable LqSafeRegion<uint>                          SafeReg;
-    ullong                                              Id;
+    mutable LqSafeRegion<uintptr_t>                     SafeReg;
+	ullong                                              Id;
     LqTimeMillisec                                      TimeStart;
+	bool                                                IsDelete;
 
     void ParseInputCommands();
     virtual void BeginThread();
     virtual void NotifyThread();
 
-    bool LockRead();
+    int LockRead();
     void UnlockRead() const;
-    bool LockWrite();
+    int LockWrite();
     void UnlockWrite() const;
 
     void ClearQueueCommands();
@@ -67,31 +70,44 @@ class LQ_IMPORTEXPORT LqWrk:
     void TakeAllEvnt(void(*TakeEventProc)(void* Data, LqListEvnt& Connection), void* NewUserData);
 
     bool AddEvnt(LqEvntHdr* Connection);
-    void CloseAllEvnt();
-    void RemoveConnOnTimeOut(LqTimeMillisec TimeLiveMilliseconds);
+    size_t CloseAllEvnt();
+    size_t RemoveConnOnTimeOut(LqTimeMillisec TimeLiveMilliseconds);
+    size_t RemoveConnOnTimeOut(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds);
+
+    size_t CloseConnByProto(const LqProto* Proto);
 
     size_t AddEvnt(LqListEvnt& ConnectionList);
-    void RemoveConnByIp(const sockaddr* Addr);
+    size_t RemoveConnByIp(const sockaddr* Addr);
+
+	int CloseEvnt(LqEvntHdr* Connection);
+
+	static void ExitHandlerFn(void* Data);
 
     LqWrk(bool IsStart);
+	~LqWrk();
 public:
 
-    static LqWorkerPtr New(bool IsStart = true);
-    ~LqWrk();
+    static LqWrkPtr New(bool IsStart = true);
 
-    ullong GetId() const;
+	ullong GetId() const;
 
     /*Получить загруженность потока-обработчика*/
     size_t GetAssessmentBusy() const;
 
     bool RemoveConnOnTimeOutAsync(LqTimeMillisec TimeLiveMilliseconds);
-    bool RemoveConnOnTimeOutSync(LqTimeMillisec TimeLiveMilliseconds);
+    size_t RemoveConnOnTimeOutSync(LqTimeMillisec TimeLiveMilliseconds);
+
+    bool RemoveConnOnTimeOutAsync(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds);
+    size_t RemoveConnOnTimeOutSync(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds);
 
     bool AddEvntAsync(LqEvntHdr* Connection);
     bool AddEvntSync(LqEvntHdr* Connection);
 
     bool SyncEvntFlagAsync(LqEvntHdr* Connection);
-    int SyncEvntFlagSync(LqEvntHdr* Connection);
+    bool SyncEvntFlagSync(LqEvntHdr* Connection);
+
+	bool CloseEvntAsync(LqEvntHdr* Connection);
+	int CloseEvntSync(LqEvntHdr* Connection);
 
     size_t AddEvntListAsync(LqListEvnt& ConnectionList);
     size_t AddEvntListSync(LqListEvnt& ConnectionList);
@@ -105,18 +121,20 @@ public:
     bool TakeAllConnSync(LqListEvnt& ConnectionList);
     bool TakeAllConnAsync(void(*TakeEventProc)(void* Data, LqListEvnt& ConnectionList), void* NewUserData = nullptr);
 
+    int CloseAllEvntAsync();
+    size_t CloseAllEvntSync();
 
-
-    bool CloseAllEvntAsync();
-    void CloseAllEvntSync();
-
-    bool CloseConnByIpSync(const sockaddr* Addr);
+    size_t CloseConnByIpSync(const sockaddr* Addr);
     bool CloseConnByIpAsync(const sockaddr* Addr);
 
-    void EnumEvnt(void* UserData, void(*Proc)(void* UserData, LqEvntHdr* Conn));
+    bool CloseConnByProtoAsync(const LqProto* Addr);
+    size_t CloseConnByProtoSync(const LqProto* Addr);
+
+    size_t EnumDelEvnt(void* UserData, LqBool(*Proc)(void* UserData, LqEvntHdr* Conn));
+    size_t EnumDelEvntByProto(const LqProto* Proto, void* UserData, LqBool(*Proc)(void* UserData, LqEvntHdr* Conn));
 
     LqString DebugInfo() const;
-    LqString AllDebugInfo();
+	LqString AllDebugInfo();
 };
 
 
