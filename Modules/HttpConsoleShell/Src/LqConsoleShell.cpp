@@ -8,7 +8,6 @@
 #include "LqWrkBoss.hpp"
 #include "LqTime.h"
 #include "LqLog.h"
-#include "LqZombieKiller.hpp"
 #include "LqHttpMdl.h"
 #include "LqHttp.hpp"
 #include "LqHttpPth.hpp"
@@ -98,6 +97,9 @@ bool IsLoop = true;
 
 int main(int argc, char* argv[])
 {
+	int Fd = LqFileOpen("nul", LQ_O_RD, 0);
+
+
     FILE* OutFile = stdout;
     FILE* InFile = stdin;
 #if !defined(LQPLATFORM_WINDOWS)
@@ -120,7 +122,7 @@ int main(int argc, char* argv[])
     LqWrkBoss Boss(&Reg->Proto);
 
     Boss.SetProtocolFamily(AF_INET);
-    Boss.Tasks["LqZombieKillerTask"]->SetPeriodMillisec(10 * 1000);
+	Boss.SetTimeLifeConn(30 * 1000);
     Boss.SetMaxConn(32768);
     char CommandBuf[128];
     int CommandLen;
@@ -229,12 +231,11 @@ lblAgain:
             LQSTR_CASE("start")
             {
                 Boss.ErrBind = -1;
-                if(Boss.StartSync() && Boss.Tasks.StartSync())
+                if(Boss.StartSync())
                 {
                     while(Boss.ErrBind == -1);
                     if(Boss.ErrBind != 0)
                     {
-                        Boss.Tasks.EndWorkSync();
                         fprintf(OutFile, " ERROR: bind error \"%s\"\n", strerror(Boss.ErrBind));
                         break;
                     }
@@ -248,7 +249,7 @@ lblAgain:
             break;
             LQSTR_CASE("stop")
             {
-                if(Boss.EndWorkSync() && Boss.Tasks.EndWorkSync())
+                if(Boss.EndWorkSync())
                     fprintf(OutFile, " OK\n");
                 else
                     fprintf(OutFile, " ERROR: Not stopping\n");
@@ -936,11 +937,10 @@ lblAgain:
                     SSLv23_method(),
                     CertName.c_str(),
                     KeyFileName.c_str(),
+					nullptr,
                     (Param.find_first_of("p") != LqString::npos) ? SSL_FILETYPE_PEM : SSL_FILETYPE_ASN1,
                     nullptr,
-                    nullptr,
-                    0,
-                    0
+                    nullptr
                 );
                 if(Res)
                 {
@@ -1113,13 +1113,11 @@ lblAgain:
                 LqTimeMillisec Millisec;
                 if(!ReadNumber(CommandData, &Millisec))
                 {
-                    Boss.Tasks["LqZombieKillerTask"]->SendCommand("gettimelife", &Millisec);
+					Millisec = Boss.GetTimeLifeConn();
                     fprintf(OutFile, " %llu\n", (ullong)Millisec);
                     break;
                 }
-                Boss.Tasks["LqZombieKillerTask"]->SendCommand("settimelife", Millisec);
-                Boss.Tasks["LqZombieKillerTask"]->SetPeriodMillisec(Millisec / 2);
-                Boss.Tasks.CheckNow();
+				Boss.SetTimeLifeConn(Millisec);
                 fprintf(OutFile, " OK\n");
             }
             break;
@@ -1167,6 +1165,7 @@ lblAgain:
             break;
         }
     }
+	Boss.CloseAllEvntAsync();
     return 0;
 }
 

@@ -23,8 +23,21 @@ typedef struct pollfd LqFilePoll;
 #define LQ_POLLHUP  POLLHUP
 #define LQ_POLLNVAL POLLNVAL
 #define LQ_POLLERR  POLLERR
+/*Use in LqFileOpen*/
+#define LQ_NULLDEV "/dev/null"
 
 #else
+
+LQ_EXTERN_C_BEGIN
+LQ_IMPORTEXPORT int LQ_CALL __LqStdErrFileNo();
+LQ_IMPORTEXPORT int LQ_CALL __LqStdOutFileNo();
+LQ_IMPORTEXPORT int LQ_CALL __LqStdInFileNo();
+LQ_EXTERN_C_END
+
+#define STDERR_FILENO __LqStdErrFileNo()
+#define STDOUT_FILENO __LqStdOutFileNo()
+#define STDIN_FILENO  __LqStdInFileNo()
+
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
@@ -42,6 +55,9 @@ struct LqFilePoll
 #define LQ_POLLNVAL  8
 #define LQ_POLLERR   16
 
+/*Use in LqFileOpen*/
+#define LQ_NULLDEV "nul"
+
 #endif
 
 LQ_EXTERN_C_BEGIN
@@ -52,11 +68,9 @@ LQ_EXTERN_C_BEGIN
 #define LQ_F_DEV                4
 
 
-#define LQ_P_STD_IN_NON_BLOCK   0x0008
-#define LQ_P_STD_OUT_NON_BLOCK  0x0010
-#define LQ_P_STD_ERR_NON_BLOCK  0x0020
-#define LQ_P_STD_ERR_OUT        0x0040
-
+#define LQ_STDERR STDERR_FILENO
+#define LQ_STDOUT STDOUT_FILENO
+#define LQ_STDIN  STDIN_FILENO
 
 enum
 {
@@ -89,16 +103,6 @@ struct LqFileStat
     short               Uid;
 };
 
-
-struct LqFileStio
-{
-    int StdIn;
-    int StdOut;
-    int StdErr;
-    uint32_t Flags;
-};
-
-
 struct LqFileEnm
 {
     uintptr_t Hndl;
@@ -113,6 +117,7 @@ struct LqFilePathEvnt
 {
     int Fd; /*This event can use in LqEvnt or LqFilePoll*/
 
+	/*Internal data*/
 #if defined(LQPLATFORM_WINDOWS)
     struct
     {
@@ -172,7 +177,6 @@ struct LqFilePathEvntEnm
 #define LQ_O_RD             0x0000
 #define LQ_O_WR             0x0001
 #define LQ_O_RDWR           0x0002
-#define LQ_O_INHERIT        0x0004  /* Child process inherit created descriptor*/
 #define LQ_O_APND           0x0008
 #define LQ_O_RND            0x0010
 #define LQ_O_SEQ            0x0020
@@ -192,6 +196,8 @@ struct LqFilePathEvntEnm
 #define LQ_SEEK_CUR         1
 #define LQ_SEEK_END         2
 #define LQ_SEEK_SET         0
+
+
 
 
 /*------------------------------------------
@@ -279,8 +285,16 @@ LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreateNamed(const char* lqain NameOfPipe, 
 * @IsInherit: LQ_O_NOINHERIT - if handle not transfer to child process
 * @return: New descriptor or -1 when have error
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileDescriptorDup(int Descriptor, int IsInherit);
-LQ_IMPORTEXPORT int LQ_CALL LqFileDescriptorSetNoinherit(int Descriptor);
+LQ_IMPORTEXPORT int LQ_CALL LqFileDescrDup(int Descriptor, int InheritFlag);
+LQ_IMPORTEXPORT int LQ_CALL LqFileDescrSetInherit(int Descriptor, int IsInherit);
+
+/*
+* Set standart descriptors 
+* @Descriptor: new descriptor
+* @StdNo: LQ_STDERR, LQ_STDIN or LQ_STDOUT
+* @return: -1 - on error, 0 - on success
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqFileDescrDupToStd(int Descriptor, int StdNo);
 
 /*------------------------------------------
 * Process
@@ -288,12 +302,25 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileDescriptorSetNoinherit(int Descriptor);
 *  @FileName - Path to executible image
 *  @Argv: Arguments to programm. If set nullptr, then args not sended, otherwise before last arg must have nullptr
 *  @Envp: Enviroment arg. If set nullptr, then used enviroment parent process.
+*  @WorkingDir: Set current dir for new process
+*  @StdIn: -1 - use std in of current process, otherwise use spec. dev or pipe or file. You can use null devices Ex. LqFileOpen(LQ_NULLDEV, LQ_O_RD, 0)
+*  @StdOut: -1 - use std out of current process, otherwise use spec. dev or pipe or file. You can use null devices Ex. LqFileOpen(LQ_NULLDEV, LQ_O_WR, 0)
+*  @StdErr: -1 - use std err of current process, otherwise use spec. dev or pipe or file. You can use null devices Ex. LqFileOpen(LQ_NULLDEV, LQ_O_WR, 0)
 *  @StdDscr: If set, then returned standart in/out pipes to child process. If not set, then uses parent std in/out.
 *  @EventKill: Is set non null, get event of the completion of the process. For correct get event on all platforms use flags
         (LQ_POLLHUP | LQ_POLLIN) for LqFilePoll or (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP) for LqEvnt.
 *  @return: PID to new process, or -1 is have error.
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileProcessCreate(const char* lqain FileName, char* const lqaopt lqain Argv[], char* const lqaopt lqain Envp[], LqFileStio* lqaopt lqaio StdDscr, int* lqaopt lqaout EventKill);
+LQ_IMPORTEXPORT int LQ_CALL LqFileProcessCreate(
+	const char* lqain FileName,
+	char* const lqaopt lqain Argv[],
+	char* const lqaopt lqain Envp[], 
+	const char* lqaopt lqain WorkingDir,
+	int StdIn,
+	int StdOut,
+	int StdErr,
+	int* lqaopt lqaout EventKill
+);
 /*
 * LqFileProcessKill
 *  @Pid: pid to process
@@ -321,6 +348,8 @@ LQ_IMPORTEXPORT void LQ_CALL LqFilePathEvntFreeEnum(LqFilePathEvntEnm** lqaio De
 LQ_IMPORTEXPORT int LQ_CALL LqFilePathEvntDoEnum(LqFilePathEvnt* lqaio Evnt, LqFilePathEvntEnm** lqaio Dest);
 LQ_IMPORTEXPORT int LQ_CALL LqFilePathEvntGetName(LqFilePathEvnt* lqaio Evnt, char* lqaout DestName, size_t DestNameSize);
 LQ_IMPORTEXPORT void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* lqaio Evnt);
+
+
 
 LQ_EXTERN_C_END
 

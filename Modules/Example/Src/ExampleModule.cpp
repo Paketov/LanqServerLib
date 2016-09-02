@@ -82,7 +82,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
         true,
         [](LqHttpConn* c)
         {
-            if(c->ActionState == LQHTTPACT_STATE_HANDLE_PROCESS)
+            if(c->ActionState == LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS)
             {
                 if(std::string(c->Query.Method, c->Query.MethodLen) == "POST")
                 {

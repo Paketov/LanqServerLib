@@ -13,7 +13,7 @@
 #include "LqOs.h"
 
 #if defined(LANQBUILD)
-void LqHttpActSwitchToRcvHdrs(LqHttpConn* c);
+void LqHttpActSwitchToRcv(LqHttpConn* c);
 #endif
 
 LQ_EXTERN_C_BEGIN

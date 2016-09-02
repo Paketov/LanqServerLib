@@ -9,6 +9,8 @@
 
 #include "LqStr.h"
 
+
+
 template<typename TypeNumber>
 int LqStrToInt(TypeNumber * Dest, const char * Str)
 {
@@ -35,6 +37,37 @@ int LqStrToInt(TypeNumber * Dest, const char * Str)
     *Dest = Ret * Negative;
     return CountReaded;
 }
+
+class LqParseInt
+{
+	const char* Str;
+public:
+	inline LqParseInt(const char* Val): Str(Val){}
+	inline LqParseInt(const LqString& Val): Str(Val.c_str()) {}
+
+	template<typename TypeNumber>
+	inline operator TypeNumber() const
+	{
+		TypeNumber Res = 0;
+		LqStrToInt(&Res, Str);
+		return Res;
+	}
+};
+
+class LqParseFloat
+{
+	const char* Str;
+public:
+	inline LqParseFloat(const char* Val): Str(Val) {}
+	inline LqParseFloat(const LqString& Val): Str(Val.c_str()) {}
+
+	template<typename TypeNumber>
+	inline operator TypeNumber() const
+	{
+		return atof(Str);
+	}
+};
+
 LQ_EXTERN_CPP_BEGIN
 
 LQ_IMPORTEXPORT int LQ_CALL LqStrUtf8ToUtf16Stl(const char* lqautf8 SourceStr, LqString16& DestStr);

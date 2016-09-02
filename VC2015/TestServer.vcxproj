@@ -34,7 +34,6 @@
     <ClCompile Include="..\Src\Core\LqWrk.cpp" />
     <ClCompile Include="..\Src\Core\LqWrkBoss.cpp" />
     <ClCompile Include="..\Src\Core\LqWrkList.cpp" />
-    <ClCompile Include="..\Src\Core\LqWrkTask.cpp" />
     <ClCompile Include="..\Src\Protocols\Http\LqHttp.cpp" />
     <ClCompile Include="..\Src\Protocols\Http\LqHttpAct.cpp" />
     <ClCompile Include="..\Src\Protocols\Http\LqHttpAtz.cpp" />
@@ -45,7 +44,6 @@
     <ClCompile Include="..\Src\Protocols\Http\LqHttpPth.cpp" />
     <ClCompile Include="..\Src\Protocols\Http\LqHttpRcv.cpp" />
     <ClCompile Include="..\Src\Protocols\Http\LqHttpRsp.cpp" />
-    <ClCompile Include="..\Src\Tasks\LqZombieKiller.cpp" />
     <ClCompile Include="..\Src\Utils\LqBse64.cpp" />
     <ClCompile Include="..\Src\Utils\LqConn.cpp" />
     <ClCompile Include="..\Src\Utils\LqCp.cpp" />
@@ -71,7 +69,6 @@
     <ClInclude Include="..\Src\Core\LqWrk.hpp" />
     <ClInclude Include="..\Src\Core\LqWrkBoss.hpp" />
     <ClInclude Include="..\Src\Core\LqWrkList.hpp" />
-    <ClInclude Include="..\Src\Core\LqWrkTask.hpp" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttp.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttp.hpp" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpAct.h" />
@@ -85,7 +82,6 @@
     <ClInclude Include="..\Src\Protocols\Http\LqHttpPth.hpp" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpRcv.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpRsp.h" />
-    <ClInclude Include="..\Src\Tasks\LqZombieKiller.hpp" />
     <ClInclude Include="..\Src\Utils\LqAlloc.hpp" />
     <ClInclude Include="..\Src\Utils\LqAtm.hpp" />
     <ClInclude Include="..\Src\Utils\LqBse64.h" />

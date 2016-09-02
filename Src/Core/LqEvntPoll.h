@@ -38,12 +38,12 @@ bool LqEvntInit(LqEvnt* Dest)
     if(Dest->ClientArr == nullptr)
         return false;
     Dest->ClientArr[0] = nullptr;
-	if((((pollfd*)Dest->EventArr)[0].fd = LqFileEventCreate(LQ_O_NOINHERIT)) == -1)
-	{
-		free(Dest->ClientArr);
-		return false;
-	}
-	Dest->SignalFd = ((pollfd*)Dest->EventArr)[0].fd;
+    if((((pollfd*)Dest->EventArr)[0].fd = LqFileEventCreate(LQ_O_NOINHERIT)) == -1)
+    {
+        free(Dest->ClientArr);
+        return false;
+    }
+    Dest->SignalFd = ((pollfd*)Dest->EventArr)[0].fd;
     ((pollfd*)Dest->EventArr)[0].events = POLLIN;
     ((pollfd*)Dest->EventArr)[0].revents = 0;
     Dest->AllocCount = Dest->Count = 1;
@@ -70,11 +70,11 @@ bool LqEvntAddHdr(LqEvnt* Dest, LqEvntHdr* Client)
         size_t NewSize = (size_t)((decltype(LQEVNT_INCREASE_COEFFICIENT))Dest->Count * LQEVNT_INCREASE_COEFFICIENT) + 1;
         auto NewEventArr = (pollfd*)realloc(Dest->EventArr, sizeof(pollfd) * NewSize);
         auto ClientArr = (LqEvntHdr**)realloc(Dest->ClientArr, sizeof(LqEvntHdr*) * NewSize);
-        if(NewEventArr == nullptr) 
-			return false;
+        if(NewEventArr == nullptr)
+            return false;
         Dest->EventArr = NewEventArr;
-        if(ClientArr == nullptr) 
-			return false;
+        if(ClientArr == nullptr)
+            return false;
         Dest->ClientArr = ClientArr;
         Dest->AllocCount = NewSize;
     }
@@ -105,11 +105,11 @@ LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
             if(e & POLLIN)
             {
                 int res = -1;
-				if(
-					(Events->ClientArr[i]->Flag & LQEVNT_FLAG_RDHUP) &&
-					(ioctl(Events->ClientArr[i]->Fd, FIONREAD, &res) >= 0) &&
-					(res <= 0)
-					)
+                if(
+                    (Events->ClientArr[i]->Flag & LQEVNT_FLAG_RDHUP) &&
+                    (ioctl(Events->ClientArr[i]->Fd, FIONREAD, &res) >= 0) &&
+                    (res <= 0)
+                    )
                     r |= LQEVNT_FLAG_RDHUP;
                 r |= LQEVNT_FLAG_RD;
             }
@@ -117,8 +117,8 @@ LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
                 r |= LQEVNT_FLAG_WR;
             if(e & POLLHUP)
                 r |= LQEVNT_FLAG_HUP;
-			if(e & POLLERR)
-				r |= LQEVNT_FLAG_ERR;
+            if(e & POLLERR)
+                r |= LQEVNT_FLAG_ERR;
             if(Events->ClientArr[i]->Flag & LQEVNT_FLAG_END)
                 r |= LQEVNT_FLAG_END;
             return r;
@@ -150,27 +150,27 @@ LqEvntHdr* LqEvntGetHdrByCurrent(LqEvnt* Events)
 
 bool LqEvntSetMaskByCurrent(LqEvnt* Events)
 {
-	auto c = Events->ClientArr[Events->EventEnumIndex];
-	if(c->Flag & LQEVNT_FLAG_END)
-		LqEvntSignalSet(Events);
-	((pollfd*)Events->EventArr)[Events->EventEnumIndex].events = LqEvntSystemEventByConnEvents(c);
-	c->Flag &= ~_LQEVNT_FLAG_SYNC;
-	return true;
+    auto c = Events->ClientArr[Events->EventEnumIndex];
+    if(c->Flag & LQEVNT_FLAG_END)
+        LqEvntSignalSet(Events);
+    ((pollfd*)Events->EventArr)[Events->EventEnumIndex].events = LqEvntSystemEventByConnEvents(c);
+    c->Flag &= ~_LQEVNT_FLAG_SYNC;
+    return true;
 }
 
 bool LqEvntSetMaskByHdr(LqEvnt* Events, LqEvntHdr* Conn)
 {
-	for(size_t i = 1; i < Events->Count; i++)
-		if(Events->ClientArr[i] == Conn)
-		{
-			if(Conn->Flag & LQEVNT_FLAG_END)
-				LqEvntSignalSet(Events);
+    for(size_t i = 1; i < Events->Count; i++)
+        if(Events->ClientArr[i] == Conn)
+        {
+            if(Conn->Flag & LQEVNT_FLAG_END)
+                LqEvntSignalSet(Events);
 
-			((pollfd*)Events->EventArr)[i].events = LqEvntSystemEventByConnEvents(Conn);
-			Conn->Flag &= ~_LQEVNT_FLAG_SYNC;
-			return true;
-		}
-	return false;
+            ((pollfd*)Events->EventArr)[i].events = LqEvntSystemEventByConnEvents(Conn);
+            Conn->Flag &= ~_LQEVNT_FLAG_SYNC;
+            return true;
+        }
+    return false;
 }
 
 bool LqEvntEnumBegin(LqEvnt* Events, LqEvntInterator* Interator)
@@ -205,12 +205,12 @@ LqEvntHdr* LqEvntGetHdrByInterator(LqEvnt* Events, LqEvntInterator* Interator)
 
 bool LqEvntSignalCheckAndReset(LqEvnt* Events)
 {
-	return LqFileEventReset(Events->SignalFd) > 0;
+    return LqFileEventReset(Events->SignalFd) > 0;
 }
 
 void LqEvntSignalSet(LqEvnt* Events)
 {
-	LqFileEventSet(Events->SignalFd);
+    LqFileEventSet(Events->SignalFd);
 }
 
 int LqEvntCheck(LqEvnt* Events, LqTimeMillisec WaitTime)

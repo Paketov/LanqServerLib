@@ -13,6 +13,7 @@
 #include "Lanq.h"
 #include "LqTime.h"
 #include "LqStr.h"
+#include "LqFile.h"
 
 #include <fcntl.h>
 #include <string>
@@ -68,12 +69,21 @@ LqWrkBoss::LqWrkBoss():
     TransportProtoFamily(AF_UNSPEC),
     ErrBind(0),
     IsRebind(false),
+	ZombieKillerIsSyncCheck(false),
+	ZombieKillerTimeLiveConnMillisec(40 * 1000),
     LqThreadBase(([&] { Id = GenId(); LqString Str = "Boss #" + LqToString(Id); return Str; })().c_str())
 {
+	int TimerFd = LqFileTimerCreate(LQ_O_NOINHERIT);
+	if(TimerFd == -1)
+		LQ_ERR("LqWrkBoss::LqWrkBoss(): not create ZombieKiller timer for %s\n", this->Name);
+
+	LqEvntFdInit(&ZombieKiller, TimerFd, this, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
+	ZombieKiller.Handler = ZombieKillerHandler;
+	ZombieKiller.CloseHandler = ZombieKillerHandlerClose;
+
     Sock.Fd = -1;
     Sock.Proto = nullptr;
     LqEvntInit(&EventChecker);
-    Tasks.Add(LqZombieKillerTask::Task::GetPtr());
 }
 
 LqWrkBoss::LqWrkBoss(LqProto* ProtocolRegistration):
@@ -85,19 +95,41 @@ LqWrkBoss::LqWrkBoss(LqProto* ProtocolRegistration):
     ErrBind(0),
     IsRebind(false),
     TransportProtoFamily(AF_UNSPEC),
+	ZombieKillerIsSyncCheck(false),
+	ZombieKillerTimeLiveConnMillisec(40 * 1000),
     LqThreadBase(([&] { Id = GenId(); LqString Str = "Boss #" + LqToString(Id); return Str; })().c_str())
 {
+	int TimerFd = LqFileTimerCreate(LQ_O_NOINHERIT);
+	if(TimerFd == -1)
+		LQ_ERR("LqWrkBoss::LqWrkBoss(): not create ZombieKiller timer for %s\n", this->Name);
+	LqEvntFdInit(&ZombieKiller, TimerFd, this, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
+	ZombieKiller.Handler = ZombieKillerHandler;
+	ZombieKiller.CloseHandler = ZombieKillerHandlerClose;
+	ZombieKiller.UserData = 0;
+
+
     Sock.Fd = -1;
     Sock.Proto = nullptr;
     LqEvntInit(&EventChecker);
     ProtoReg->Boss = this;
-    Tasks.Add(LqZombieKillerTask::Task::GetPtr());
 }
 
 LqWrkBoss::~LqWrkBoss()
-{
-    KickAllWorkers();
-    EndWorkSync();
+{ 
+	EndWorkSync();
+	if(ZombieKiller.Fd != -1)
+	{
+		LqEvntSetClose(&ZombieKiller);
+		volatile uintptr_t* UsrData = &ZombieKiller.UserData;
+		while(*UsrData != 0)
+			LqThreadYield();
+		LqFileClose(ZombieKiller.Fd);
+	}
+	for(size_t i = 0; i < WorkersCount; i++)
+		Workers[i].~LqWorkerPtr();
+	if(Workers != nullptr)
+		free(Workers);
+	WorkersCount = 0;
     if(ProtoReg != nullptr)
         ProtoReg->FreeProtoNotifyProc(ProtoReg);
     LqEvntUninit(&EventChecker);
@@ -157,6 +189,21 @@ void LqWrkBoss::Rebind()
         NotifyThread();
 }
 
+bool LqWrkBoss::SetTimeLifeConn(LqTimeMillisec TimeLife)
+{
+	ZombieKillerTimeLiveConnMillisec = TimeLife;
+	if(ZombieKiller.Fd != -1)
+	{
+		return LqFileTimerSet(ZombieKiller.Fd, ZombieKillerTimeLiveConnMillisec / 2) == 0;
+	}
+	return -1;
+}
+
+LqTimeMillisec LqWrkBoss::GetTimeLifeConn() const
+{
+	return ZombieKillerTimeLiveConnMillisec;
+}
+
 
 ullong LqWrkBoss::GetId() const
 {
@@ -200,6 +247,7 @@ bool LqWrkBoss::Bind()
     {
         if((s = socket(i->ai_family, i->ai_socktype, i->ai_protocol)) == -1)
             continue;
+		LqFileDescrSetInherit(s, 0);
         if(setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char*)&True, sizeof(True)) == -1)
         {
             ErrBind = lq_errno;
@@ -424,6 +472,29 @@ void LqWrkBoss::ParseInputCommands()
     }
 }
 
+void LQ_CALL LqWrkBoss::ZombieKillerHandler(LqEvntFd* Fd, LqEvntFlag RetFlags)
+{
+	auto Ob = (LqWrkBoss*)((char*)Fd - (uintptr_t)&((LqWrkBoss*)0)->ZombieKiller);
+	if(RetFlags & LQEVNT_FLAG_RD)
+	{
+		Ob->WorkerListLocker.LockReadYield();
+		for(size_t i = 0, m = Ob->WorkersCount; i < m; i++)
+		{
+			if(Ob->ZombieKillerIsSyncCheck)
+				Ob->Workers[i]->RemoveConnOnTimeOutSync(Ob->ZombieKillerTimeLiveConnMillisec);
+			else
+				Ob->Workers[i]->RemoveConnOnTimeOutAsync(Ob->ZombieKillerTimeLiveConnMillisec);
+		}
+		Ob->WorkerListLocker.UnlockRead();
+		LqFileTimerSet(Fd->Fd, Ob->ZombieKillerTimeLiveConnMillisec / 2);
+	}
+}
+
+void LQ_CALL LqWrkBoss::ZombieKillerHandlerClose(LqEvntFd* Fd, LqEvntFlag RetFlags)
+{
+	Fd->UserData = 0;
+}
+
 bool LqWrkBoss::DistributeListConnections(const LqListEvnt& List)
 {
     bool r = false;
@@ -485,6 +556,12 @@ bool LqWrkBoss::AddWorker(const LqWorkerPtr& Wrk)
         return false;
     }
     new(&(Workers = NewWorkers)[WorkersCount++]) LqWorkerPtr(Wrk);
+	if(ZombieKiller.UserData == 0)
+	{
+		LqFileTimerSet(ZombieKiller.Fd, this->ZombieKillerTimeLiveConnMillisec / 2);
+		ZombieKiller.UserData = (uintptr_t)Wrk.Get();
+		Wrk->AddEvntAsync((LqEvntHdr*)&ZombieKiller);
+	}
     WorkerListLocker.UnlockWrite();
     return true;
 }

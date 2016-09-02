@@ -112,7 +112,7 @@ LQ_EXTERN_C_END
     ((LqEvntFd*)(Evnt))->Fd = (NewFd);                                  \
     ((LqEvntFd*)(Evnt))->Flag = _LQEVNT_FLAG_NOW_EXEC ;                 \
     LqEvntSetFlags((LqEvntFd*)(Evnt), NewFlags);                        \
-    ((LqEvntFd*)(Evnt))->Flag &= ~_LQEVNT_FLAG_NOW_EXEC;                \
+    ((LqEvntFd*)(Evnt))->Flag &= ~_LQEVNT_FLAG_NOW_EXEC;
 
 
 #define LqEvntBossByHdr(EvntHdr)										\

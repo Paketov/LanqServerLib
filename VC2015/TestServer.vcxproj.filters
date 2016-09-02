@@ -10,9 +10,6 @@
     <Filter Include="Protocols\HTTP">
       <UniqueIdentifier>{272730cf-13d1-4538-b180-12804273ad7b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Tasks">
-      <UniqueIdentifier>{fba4ca93-37ec-4026-bfe9-0e9e0c7427a4}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Utils">
       <UniqueIdentifier>{81342e6e-0a96-4165-bdad-17931fa0f238}</UniqueIdentifier>
     </Filter>
@@ -34,9 +31,6 @@
       <Filter>Core</Filter>
     </ClCompile>
     <ClCompile Include="..\Src\Core\LqWrkList.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Src\Core\LqWrkTask.cpp">
       <Filter>Core</Filter>
     </ClCompile>
     <ClCompile Include="..\Src\Core\LqEvnt.cpp">
@@ -102,9 +96,6 @@
     <ClCompile Include="..\Src\Utils\LqSbuf.cpp">
       <Filter>Utils</Filter>
     </ClCompile>
-    <ClCompile Include="..\Src\Tasks\LqZombieKiller.cpp">
-      <Filter>Tasks</Filter>
-    </ClCompile>
     <ClCompile Include="..\Src\Utils\LqMd5.cpp">
       <Filter>Utils</Filter>
     </ClCompile>
@@ -129,9 +120,6 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Core\LqWrkList.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Core\LqWrkTask.hpp">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Core\Lanq.h">
@@ -250,9 +238,6 @@
     </ClInclude>
     <ClInclude Include="..\Src\Utils\LqOs.h">
       <Filter>Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Tasks\LqZombieKiller.hpp">
-      <Filter>Tasks</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Utils\LqErr.h">
       <Filter>Utils</Filter>

@@ -41,7 +41,7 @@ struct LqEvnt
     HANDLE*             EventArr;
     LqEvntHdr**         ClientArr;
     int                 EventEnumIndex;
-	int                 SignalFd;
+    int                 SignalFd;
 #elif defined(LQEVNT_KEVENT)
 #elif defined(LQEVNT_EPOLL)
     int                 EpollFd;
@@ -60,7 +60,7 @@ struct LqEvnt
     int                 Count;
     int                 AllocCount;
     int                 EventEnumIndex;
-	int                 SignalFd;
+    int                 SignalFd;
 #endif
 };
 

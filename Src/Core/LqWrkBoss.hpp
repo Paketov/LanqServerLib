@@ -11,7 +11,7 @@
 *                    /      \               ^
 *                   /        \              |
 *                  /         LqConn --------+
-*                 /             \
+*                 /            \
 *             +-----+        +-----+
 *             |LqWrk|        |LqWrk|
 *             +-----+        +-----+
@@ -26,8 +26,6 @@ class LqWrk;
 
 #include "LqWrkList.hpp"
 
-#include "LqWrkTask.hpp"
-#include "LqZombieKiller.hpp"
 #include "LqThreadBase.hpp"
 
 #include "Lanq.h"
@@ -44,7 +42,6 @@ typedef LqSharedPtr<LqWrk, LqFastAlloc::Delete> LqWorkerPtr;
 
 class LQ_IMPORTEXPORT LqWrkBoss:
     virtual private LqWrkList,
-    virtual protected LqZombieKillerTask,
     public LqThreadBase
 {
     friend LqWrk;
@@ -63,10 +60,14 @@ class LQ_IMPORTEXPORT LqWrkBoss:
     size_t                  MaxConnections;
 public:
     volatile int            ErrBind;
-    LqWrkTask               Tasks;
 private:
     LqProto*                ProtoReg;
+	LqEvntFd				ZombieKiller;
+	LqTimeMillisec          ZombieKillerTimeLiveConnMillisec;
+	bool                    ZombieKillerIsSyncCheck;
 
+	static void LQ_CALL ZombieKillerHandler(LqEvntFd* Fd, LqEvntFlag RetFlags);
+	static void LQ_CALL ZombieKillerHandlerClose(LqEvntFd* Fd, LqEvntFlag RetFlags);
 
     bool        DistributeListConnections(const LqListEvnt& List);
     size_t      MinBusyWithoutLock(size_t* MinCount = LqDfltPtr());
@@ -91,6 +92,8 @@ public:
     int         GetMaxConn();
     void        Rebind();
 
+	bool		SetTimeLifeConn(LqTimeMillisec TimeLife);
+	LqTimeMillisec GetTimeLifeConn() const;
 
     ullong      GetId() const;
 

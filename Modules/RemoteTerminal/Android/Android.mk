@@ -20,7 +20,7 @@ endif
 LOCAL_CFLAGS		:= $(OPTIM_CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive
 LOCAL_MODULE		:= remoteterm
 LOCAL_SHARED_LIBRARIES := lanq_lib
-LOCAL_LDFLAGS		:= $(OPTIM_CFLAGS) -shared -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive
+LOCAL_LDFLAGS		:= $(OPTIM_CFLAGS) -shared -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive 
 
 
 rwildcard 		= $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))

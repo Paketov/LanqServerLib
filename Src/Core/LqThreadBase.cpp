@@ -210,7 +210,7 @@ void LqThreadBase::WaitEnd()
 void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
 {
     while(!This->joinable())
-        std::this_thread::yield();
+        LqThreadYield();
 
 #if defined(LQPLATFORM_LINUX) || defined(LQPLATFORM_WINDOWS) || defined(LQPLATFORM_ANDROID)
     pthread_setname_np(This->ThreadId(), This->Name);

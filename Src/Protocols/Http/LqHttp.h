@@ -96,6 +96,10 @@ enum LqHttpActResultEnm
 
     LQHTTPACT_RES_INVALID_TYPE_PATH,
 
+	LQHTTPACT_RES_SSL_FAILED_HANDSHAKE,
+
+	LQHTTPACT_RES_INVALID_ACT_CHAIN,
+
     LQHTTPACT_RES_CLOSE_CONN //For event proc
 };
 
@@ -111,22 +115,25 @@ enum LqHttpActClassEnm
 enum LqHttpActEnm
 {
     LQHTTPACT_STATE_GET_HDRS =                  LQHTTPACT_CLASS_QER | 1,
-    LQHTTPACT_STATE_RCV_HANDLE_PROCESS =        LQHTTPACT_CLASS_QER | 2,
+    LQHTTPACT_STATE_RCV_INIT_HANDLE =           LQHTTPACT_CLASS_QER | 2,
     LQHTTPACT_STATE_RCV_FILE =                  LQHTTPACT_CLASS_QER | 3,                //Get file from user
     LQHTTPACT_STATE_RCV_STREAM =                LQHTTPACT_CLASS_QER | 4,                //Get file from user
     LQHTTPACT_STATE_MULTIPART_SKIP_TO_HDRS =    LQHTTPACT_CLASS_QER | 5,
-    LQHTTPACT_STATE_MULTIPART_SKIP_AND_GET_HDRS = LQHTTPACT_CLASS_QER | 6,
+    LQHTTPACT_STATE_MULTIPART_SKIP_AND_GET_HDRS=LQHTTPACT_CLASS_QER | 6,
     LQHTTPACT_STATE_MULTIPART_RCV_HDRS =        LQHTTPACT_CLASS_QER | 7,
     LQHTTPACT_STATE_MULTIPART_RCV_FILE =        LQHTTPACT_CLASS_QER | 8,
     LQHTTPACT_STATE_MULTIPART_RCV_STREAM =      LQHTTPACT_CLASS_QER | 9,
-    LQHTTPACT_STATE_HANDLE_PROCESS =            LQHTTPACT_CLASS_QER | 10,
-    LQHTTPACT_STATE_RSP_HANDLE_PROCESS =        LQHTTPACT_CLASS_RSP | 11,
-    LQHTTPACT_STATE_SKIP_QUERY_BODY =           LQHTTPACT_CLASS_QER | 12,
-    LQHTTPACT_STATE_RSP =                       LQHTTPACT_CLASS_RSP | 13,
-    LQHTTPACT_STATE_RSP_CACHE =                 LQHTTPACT_CLASS_RSP | 14,
-    LQHTTPACT_STATE_RSP_FD =                    LQHTTPACT_CLASS_RSP | 15,
-    LQHTTPACT_STATE_RSP_STREAM =                LQHTTPACT_CLASS_RSP | 16,
-    LQHTTPACT_STATE_CLS_CONNECTION =            LQHTTPACT_CLASS_CLS | 17
+    LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS =   LQHTTPACT_CLASS_QER | 10,
+	LQHTTPACT_STATE_QUERY_HANDLE_PROCESS =      LQHTTPACT_CLASS_RSP | 11,
+	LQHTTPACT_STATE_QUERY_SSL_HANDSHAKE =       LQHTTPACT_CLASS_QER | 12,
+	LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE =    LQHTTPACT_CLASS_RSP | 13,
+    LQHTTPACT_STATE_RSP_INIT_HANDLE =           LQHTTPACT_CLASS_RSP | 14,
+    LQHTTPACT_STATE_SKIP_QUERY_BODY =           LQHTTPACT_CLASS_QER | 15,
+    LQHTTPACT_STATE_RSP =                       LQHTTPACT_CLASS_RSP | 16,
+    LQHTTPACT_STATE_RSP_CACHE =                 LQHTTPACT_CLASS_RSP | 17,
+    LQHTTPACT_STATE_RSP_FD =                    LQHTTPACT_CLASS_RSP | 18,
+    LQHTTPACT_STATE_RSP_STREAM =                LQHTTPACT_CLASS_RSP | 19,
+    LQHTTPACT_STATE_CLS_CONNECTION =            LQHTTPACT_CLASS_CLS | 20
 };
 
 enum LqHttpPthResultEnm
@@ -186,7 +193,8 @@ enum LqHttpAuthorizPermissionEnm
 enum LqHttpQurRspFlagsEnm
 {
     LQHTTPCONN_FLAG_CLOSE = 1,
-    LQHTTPCONN_FLAG_NO_BODY = 2
+    LQHTTPCONN_FLAG_NO_BODY = 2,
+	LQHTTPCONN_FLAG_CLIENT = 4 /*Have a query to another server*/
 };
 
 #pragma pack(push)
@@ -267,13 +275,13 @@ struct LqHttpConn
 {
     LqConn                      CommonConn;
     LqTimeMillisec              TimeStartMillisec;
-    LqTimeMillisec              TimeLastRecivedMillisec;
+    LqTimeMillisec              TimeLastExchangeMillisec;
     char*                       Buf;
     size_t                      BufSize;
     uintptr_t                   ModuleData;
     uintptr_t                   _Reserved;
-    LqHttpEvntHandlerFn		EventAct;	 /* Change action event*/
-    LqHttpEvntHandlerFn		EventClose;	 /* Unexpected closing*/
+    LqHttpEvntHandlerFn         EventAct;	 /* Change action event*/
+    LqHttpEvntHandlerFn         EventClose;	 /* Unexpected closing*/
     LqHttpPth                   *Pth;
     LqHttpActState              ActionState;	 /* HTTP_ACTION_... */
     LqHttpActResult             ActionResult;
@@ -443,6 +451,7 @@ struct LqHttpProtoBase
 #if defined(HAVE_OPENSSL) && defined(LANQBUILD)
     SSL_CTX*                    ssl_ctx;
     uintptr_t                   sslLocker;
+	SSL_CTX*                    client_ssl_ctx;
 #else
     void*                       _InternalUsed;
     uintptr_t                   _InternalUsed2;
@@ -484,17 +493,16 @@ struct LqHttpAtz
 */
 LQ_IMPORTEXPORT LqHttpProtoBase* LQ_CALL LqHttpProtoCreate();
 
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpProtoCreateSSL
+LQ_EXTERN_C bool LQ_CALL LqHttpProtoCreateSSL
 (
-    LqHttpProtoBase*lqain Reg,
-    const void*lqain MethodSSL, /* Example SSLv23_method()*/
-    const char*lqain CertFile, /* Example: "server.pem"*/
-    const char*lqain KeyFile, /*Example: "server.key"*/
-    int TypeCertFile,      /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
-    const char*lqain lqaopt CAFile,
-    const char*lqain lqaopt CAPath,
-    int ModeVerify,
-    int VerifyDepth
+	LqHttpProtoBase*lqaio Reg,
+	const void*lqain MethodSSL, /* Example SSLv23_method()*/
+	const char*lqain CertFile, /* Example: "server.pem"*/
+	const char*lqain KeyFile, /*Example: "server.key"*/
+	const char*lqain lqaopt CipherList,
+	int TypeCertFile, /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
+	const char*lqain lqaopt CAFile,
+	const char*lqain lqaopt DhpFile
 );
 
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpProtoSetSSL

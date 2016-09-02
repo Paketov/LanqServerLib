@@ -199,14 +199,11 @@ void LqWrk::RewindToEndForketCommandQueue(LqQueueCmd<uchar>::Interator& Command)
 void LqWrk::CloseAllEvnt()
 {
 	LqEvntInterator Interator;
-	if(LqEvntEnumBegin(&EventChecker, &Interator))
+	for(auto r = LqEvntEnumBegin(&EventChecker, &Interator); r; r = LqEvntEnumNext(&EventChecker, &Interator))
 	{
-		do
-		{
-			auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &Interator);
-			LqEvntHdrClose(Evnt);
-			LqEvntRemoveByInterator(&EventChecker, &Interator);
-		} while(LqEvntEnumNext(&EventChecker, &Interator));
+		auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &Interator);
+		LqEvntRemoveByInterator(&EventChecker, &Interator);
+		LqEvntHdrClose(Evnt);
 	}
 }
 
@@ -232,18 +229,15 @@ void LqWrk::ClearQueueCommands()
 void LqWrk::RemoveEvntInList(LqListEvnt& Dest)
 {
 	LqEvntInterator Interator;
-	if(LqEvntEnumBegin(&EventChecker, &Interator))
+	for(auto r = LqEvntEnumBegin(&EventChecker, &Interator); r; r = LqEvntEnumNext(&EventChecker, &Interator))
 	{
-		do
+		auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &Interator);
+		if(!Dest.Add(Evnt))
 		{
-			auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &Interator);
-			if(!Dest.Add(Evnt))
-			{
-				LqEvntHdrClose(Evnt);
-				LQ_ERR("Not remove connection in list from #%llu worker", Id);
-			}
-			LqEvntRemoveByInterator(&EventChecker, &Interator);
-		} while(LqEvntEnumNext(&EventChecker, &Interator));
+			LqEvntHdrClose(Evnt);
+			LQ_ERR("Not remove connection in list from #%llu worker", Id);
+		}
+		LqEvntRemoveByInterator(&EventChecker, &Interator);
 	}
 }
 
@@ -569,8 +563,8 @@ void LqWrk::EnumEvnt(void* UserData, void(*Proc)(void *UserData, LqEvntHdr* Conn
 	LqEvntInterator Interator;
 	for(auto r = LqEvntEnumBegin(&EventChecker, &Interator); r; r = LqEvntEnumNext(&EventChecker, &Interator))
 	{
-		auto Connection = LqEvntGetHdrByInterator(&EventChecker, &Interator);
-		Proc(UserData, Connection);
+		auto Hdr = LqEvntGetHdrByInterator(&EventChecker, &Interator);
+		Proc(UserData, Hdr);
 	}
 	UnlockWrite();
 }

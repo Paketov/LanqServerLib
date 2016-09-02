@@ -28,7 +28,6 @@ protected:
     size_t                                      WorkersCount;
 
     LqWrkList();
-    ~LqWrkList();
 };
 
 #pragma pack(pop)

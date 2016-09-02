@@ -22,7 +22,7 @@ LqListEvnt::~LqListEvnt()
         {
             if(Conn[i] != nullptr)
             {
-				LqEvntHdrClose(Conn[i]);
+                LqEvntHdrClose(Conn[i]);
             }
         }
         free(Conn);

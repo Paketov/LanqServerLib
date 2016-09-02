@@ -15,14 +15,3 @@
 
 LqWrkList::LqWrkList(): WorkersCount(0), Workers(nullptr)
 {}
-
-LqWrkList::~LqWrkList()
-{
-    WorkerListLocker.LockWrite();
-    for(size_t i = 0, m = WorkersCount; i < m; i++)
-        Workers[i].~LqWorkerPtr();
-    if(Workers != nullptr)
-        free(Workers);
-    WorkerListLocker.UnlockWrite();
-}
-

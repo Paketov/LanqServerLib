@@ -423,14 +423,14 @@ public:
 							inline bool Remove() { return LqHttpRspHdrRemove(Conn, Name); }
 					};
 				public: DISABLE_COPY_CONSTRUCT(_Hdr)
-					inline operator HdrsType() const
-				{
-					HdrsType Res;
-					char* HeaderNameResult = nullptr, *HeaderNameResultEnd = nullptr, *HeaderValResult = nullptr, *HeaderValEnd = nullptr;
-					while(LqHttpRspHdrEnum(Conn, &HeaderNameResult, &HeaderNameResultEnd, &HeaderValResult, &HeaderValEnd) >= 0)
-						Res.push_back(std::pair<LqString, LqString>(LqString(HeaderNameResult, HeaderNameResultEnd - HeaderNameResult), LqString(HeaderValResult, HeaderValEnd - HeaderValResult)));
-					return Res;
-				}
+					     inline operator HdrsType() const
+						{
+							HdrsType Res;
+							char* HeaderNameResult = nullptr, *HeaderNameResultEnd = nullptr, *HeaderValResult = nullptr, *HeaderValEnd = nullptr;
+							while(LqHttpRspHdrEnum(Conn, &HeaderNameResult, &HeaderNameResultEnd, &HeaderValResult, &HeaderValEnd) >= 0)
+								Res.push_back(std::pair<LqString, LqString>(LqString(HeaderNameResult, HeaderNameResultEnd - HeaderNameResult), LqString(HeaderValResult, HeaderValEnd - HeaderValResult)));
+							return Res;
+						}
 						inline operator LqString()
 						{
 							return LqString(Conn->Buf + Conn->Response.HeadersStart, Conn->Response.HeadersEnd - Conn->Response.HeadersStart);
