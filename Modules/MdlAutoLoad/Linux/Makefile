@@ -6,12 +6,8 @@
 #
 
 CURRENT_DIR         := $(shell pwd)
-ifndef CC
 CC                  := g++
-endif
-ifndef LD
 LD                  := g++
-endif
 rwildcard           = $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
 
 ifdef DEBUG
@@ -48,18 +44,15 @@ OBJECTS             := $(OBJECTS:%.cpp=%.o)
 OBJECTS             := $(OBJECTS:%.c=%.o)
 
 
-
 all : $(PROGRAM)
 
 $(PROGRAM) : obj_dirs $(OBJECTS)
 	@echo " Link module" $(PROGRAM)
-    @$(LD) -o $@ $(OBJECTS) $(LDFLAGS) $(LDLIBS)
-
+	@$(LD) -o $@ $(OBJECTS) $(LDFLAGS) $(LDLIBS)
     
 obj_dirs :
 	@echo " Create object subdirs"
 	@mkdir -p $(OBJECTS_SUBDIRS)
-
 
 $(OBJECT_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 	@echo " Compile " $<

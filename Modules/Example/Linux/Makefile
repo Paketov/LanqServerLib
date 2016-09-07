@@ -5,11 +5,9 @@
 # 
 #
 
-CURRENT_DIR		    := $(shell pwd)
-ifndef CC
-CC				    := g++
-endif
-rwildcard		    = $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
+CURRENT_DIR         := $(shell pwd)
+CC                  := g++
+rwildcard           = $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
 
 ifdef DEBUG
 CFLAGS              := -O0 -g
@@ -17,26 +15,26 @@ else
 CFLAGS              := -O3
 endif
 
-CFLAGS			    := $(CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden
-LDFLAGS			    := -shared  -L../../../Linux -fvisibility=hidden -fvisibility-inlines-hidden
-LDLIBS			    := -llanq
+CFLAGS              := $(CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden
+LDFLAGS             := -shared  -L../../../Linux -fvisibility=hidden -fvisibility-inlines-hidden
+LDLIBS              := -llanq
 
-PROGRAM			    := libexample.so
-SOURCE_DIR		    := ../Src
-INCLUDE_DIRS	    := ../Src ../../../Src
-OBJECT_DIR		    := Obj
-
-
+PROGRAM             := libexample.so
+SOURCE_DIR          := ../Src
+INCLUDE_DIRS        := ../Src ../../../Src
+OBJECT_DIR          := Obj
 
 
-SOURCE_SUBDIRS 		:= $(sort $(dir $(call rwildcard,$(SOURCE_DIR)/,*.c) $(call rwildcard,$(SOURCE_DIR)/,*.cpp)))
-INCLUDE_SUBDIRS 	:= $(sort $(dir $(call rwildcard,$(INCLUDE_DIRS)/,*) ))
 
-SOURCES 		    := $(sort $(call rwildcard,$(SOURCE_DIR)/,*.c) $(call rwildcard,$(SOURCE_DIR)/,*.cpp))
 
-OBJECTS_SUBDIRS		:= $(sort $(dir $(SOURCES)))
-OBJECTS_SUBDIRS		:= $(OBJECTS_SUBDIRS:$(SOURCE_DIR)%=%)
-OBJECTS_SUBDIRS		:= $(addprefix $(OBJECT_DIR),$(OBJECTS_SUBDIRS))
+SOURCE_SUBDIRS      := $(sort $(dir $(call rwildcard,$(SOURCE_DIR)/,*.c) $(call rwildcard,$(SOURCE_DIR)/,*.cpp)))
+INCLUDE_SUBDIRS     := $(sort $(dir $(call rwildcard,$(INCLUDE_DIRS)/,*) ))
+
+SOURCES             := $(sort $(call rwildcard,$(SOURCE_DIR)/,*.c) $(call rwildcard,$(SOURCE_DIR)/,*.cpp))
+
+OBJECTS_SUBDIRS     := $(sort $(dir $(SOURCES)))
+OBJECTS_SUBDIRS     := $(OBJECTS_SUBDIRS:$(SOURCE_DIR)%=%)
+OBJECTS_SUBDIRS     := $(addprefix $(OBJECT_DIR),$(OBJECTS_SUBDIRS))
 
 OBJECTS             := $(SOURCES:$(SOURCE_DIR)%=%)
 OBJECTS             := $(addprefix $(OBJECT_DIR),$(OBJECTS))
