@@ -1829,7 +1829,8 @@ LQ_EXTERN_C int LQ_CALL LqFileDescrSetInherit(int Descriptor, int IsInherit)
 
 LQ_EXTERN_C int LQ_CALL LqFileDescrDupToStd(int Descriptor, int StdNo)
 {
-    return lq_min(dup2(Descriptor, StdNo), 0);
+    auto Res = dup2(Descriptor, StdNo);
+    return lq_min(Res, 0);
 }
 
 /*------------------------------------------
@@ -2129,7 +2130,7 @@ LQ_EXTERN_C void LQ_CALL LqFileEnmBreak(LqFileEnm* Enm)
 #  define SYS_shmctl 308
 
 # else
-#  error "no eventfd"
+#  error "no shared mem"
 # endif
 #endif
 
@@ -2315,7 +2316,7 @@ LQ_EXTERN_C int LQ_CALL LqFileEventReset(int FileEvent)
 LQ_EXTERN_C int LQ_CALL LqFileEventSet(int FileEvent)
 {
     eventfd_t r = 1;
-    return lq_min(write(FileEvent, &r, sizeof(r)), 0);
+    return (write(FileEvent, &r, sizeof(r)) > 0)? 0: -1;
 }
 
 
