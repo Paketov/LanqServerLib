@@ -1792,6 +1792,8 @@ LQ_EXTERN_C int LQ_CALL LqFileWrite(int Fd, const void* SourceBuf, unsigned int 
     return write(Fd, SourceBuf, SizeBuf);
 }
 
+
+#ifndef LQ_ASYNC_IO_NOT_HAVE
 #define IO_SIGNAL SIGUSR1
 
 static void __LqAioSigHandler(int sig, siginfo_t *si, void *ucontext)
@@ -1804,6 +1806,8 @@ static void __LqAioSigHandler(int sig, siginfo_t *si, void *ucontext)
         LqFileEventSet(Target->EvFd);
     }
 }
+
+#endif
 
 static int InitSignal()
 {
