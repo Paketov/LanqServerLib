@@ -19,7 +19,7 @@
 # ifdef LQ_ASYNC_IO_NOT_HAVE
 struct LqAsync
 {
-	char __empty;
+    char __empty;
 };
 # else
 
@@ -27,7 +27,9 @@ struct LqAsync
 
 struct LqAsync
 {
-	aiocb cb;
+    LqBool IsNonBlock;
+    int EvFd;
+    aiocb cb;
 };
 # endif
 
@@ -166,7 +168,7 @@ struct LqFilePathEvnt
         } IoStatusBlock;    /*O_STATUS_BLOCK for read/write check in windows*/
 
     } _Data;
-#else 
+#else
     struct Subdir
     {
         int                     Pwd;
@@ -365,7 +367,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileTimerSet(int TimerFd, LqTimeMillisec Time);
 
 /*------------------------------------------
 * Pipes
-* 
+*
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreate(int* lqaout lpReadPipe, int* lqaout lpWritePipe, uint32_t FlagsRead, uint32_t FlagsWrite);
 LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreateRw(int* lqaout Pipe1, int* lqaout Pipe2, uint32_t Flags1, uint32_t Flags2);
@@ -381,7 +383,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileDescrDup(int Descriptor, int InheritFlag);
 LQ_IMPORTEXPORT int LQ_CALL LqFileDescrSetInherit(int Descriptor, int IsInherit);
 
 /*
-* Set standart descriptors 
+* Set standart descriptors
 * @Descriptor: new descriptor
 * @StdNo: LQ_STDERR, LQ_STDIN or LQ_STDOUT
 * @return: -1 - on error, 0 - on success
@@ -406,7 +408,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileDescrDupToStd(int Descriptor, int StdNo);
 LQ_IMPORTEXPORT int LQ_CALL LqFileProcessCreate(
     const char* lqain FileName,
     char* const lqaopt lqain Argv[],
-    char* const lqaopt lqain Envp[], 
+    char* const lqaopt lqain Envp[],
     const char* lqaopt lqain WorkingDir,
     int StdIn,
     int StdOut,
@@ -454,7 +456,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileTermPairCreate(int* lqaout MasterFd, int* lqao
 
 /*------------------------------------------
 * Shared memory
-*  
+*
 */
 
 LQ_IMPORTEXPORT int LQ_CALL LqFileSharedCreate(int key, size_t Size, int DscrFlags, int UserAccess);

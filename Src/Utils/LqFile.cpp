@@ -1053,7 +1053,7 @@ LQ_EXTERN_C void LQ_CALL LqFileEnmBreak(LqFileEnm* Enm)
 
 #pragma comment(lib, "ntdll.lib")
 
-//#define  IsUseDynamicEvnt 
+//#define  IsUseDynamicEvnt
 
 /*
 * Version of unix poll for Windows.
@@ -1274,7 +1274,7 @@ lblErr2:
                 default:
                     if(CountEvnt <= 0)
                         LqFastAlloc::Delete(Ovlp);
-                    Fds[i].revents |= LQ_POLLERR; //Only follow POLLIN or POLLOUT 
+                    Fds[i].revents |= LQ_POLLERR; //Only follow POLLIN or POLLOUT
                     HasEvnt = 1;
             }
         }
@@ -1610,12 +1610,13 @@ LQ_EXTERN_C void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* Evnt)
 #include <dirent.h>
 #include <sys/ioctl.h>
 
-#include <sys/wait.h> 
+#include <sys/wait.h>
 
 #include <sys/eventfd.h>
 #include <sys/inotify.h>
 
 #include <vector>
+#include "LqAtm.hpp"
 
 
 #ifndef O_SHORT_LIVED
@@ -1795,85 +1796,117 @@ LQ_EXTERN_C int LQ_CALL LqFileWrite(int Fd, const void* SourceBuf, unsigned int 
 
 static void __LqAioSigHandler(int sig, siginfo_t *si, void *ucontext)
 {
-	if(si->si_code == SI_ASYNCIO)
-	{
-		LqFileEventSet(si->si_value.sival_int);
-	}
+    if(si->si_code == SI_ASYNCIO)
+    {
+        LqAsync* Target = (LqAsync*)si->si_value.sival_ptr;
+        if(Target->IsNonBlock)
+            fcntl(Target->cb.aio_fildes, F_SETFL, fcntl(Target->cb.aio_fildes, F_GETFL, 0) | O_NONBLOCK);
+        LqFileEventSet(Target->EvFd);
+    }
 }
 
 static int InitSignal()
 {
 #ifdef LQ_ASYNC_IO_NOT_HAVE
-	return ENOSYS;
+    return ENOSYS;
 #else
-	static int _LqAioInit = 0;
-	int t = 0;
-	if(LqAtmCmpXchg(_LqAioInit, &t, 1))
-	{
-		struct sigaction Act = {0};
-		Act.sa_sigaction = __LqAioSigHandler;
-		Act.sa_flags = SA_RESTART | SA_SIGINFO;
-		sigaction(IO_SIGNAL, &Act, nullptr);
-		return 0;
-	}
-	return -1;
+    static int _LqAioInit = 0;
+    int t = 0;
+    if(LqAtmCmpXchg(_LqAioInit, t, 1))
+    {
+        struct sigaction Act = {0};
+        Act.sa_sigaction = __LqAioSigHandler;
+        Act.sa_flags = SA_RESTART | SA_SIGINFO;
+        sigaction(IO_SIGNAL, &Act, nullptr);
+        return 0;
+    }
+    return -1;
 #endif
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
 {
 #ifdef LQ_ASYNC_IO_NOT_HAVE
-	return ENOSYS;
+    return ENOSYS;
 #else
-	InitSignal();
-	Target->cb.aio_fildes = Fd;
-	Target->cb.aio_offset = Offset;
-	Target->cb.aio_buf = DestBuf;
-	Target->cb.aio_nbytes = SizeBuf;
-	Target->cb.aio_reqprio = 0;
-	Target->cb.aio_lio_opcode = LIO_READ;
-	Target->cb.aio_sigevent.sigev_notify = SIGEV_SIGNAL;
-	Target->cb.aio_sigevent.sigev_signo = IO_SIGNAL;
-	Target->cb.aio_sigevent.sigev_value.sival_int = EventFd;
-	return aio_read(&Target->cb);
+    InitSignal();
+    Target->EvFd = EventFd;
+    Target->cb.aio_fildes = Fd;
+    Target->cb.aio_offset = Offset;
+    Target->cb.aio_buf = DestBuf;
+    Target->cb.aio_nbytes = SizeBuf;
+    Target->cb.aio_reqprio = 0;
+    Target->cb.aio_lio_opcode = LIO_READ;
+    Target->cb.aio_sigevent.sigev_notify = SIGEV_SIGNAL;
+    Target->cb.aio_sigevent.sigev_signo = IO_SIGNAL;
+    Target->cb.aio_sigevent.sigev_value.sival_ptr = Target;
+    auto Flags = fcntl(Fd, F_GETFL, 0);
+    if(Flags & O_NONBLOCK)
+    {
+        Target->IsNonBlock = 1;
+        fcntl(Fd, F_SETFL, Flags & ~O_NONBLOCK);
+    } else
+    {
+        Target->IsNonBlock = 0;
+    }
+    auto Ret = aio_read(&Target->cb);
+    if((Ret == -1) && (Target->IsNonBlock))
+        fcntl(Fd, F_SETFL, Flags | O_NONBLOCK);
+    return Ret;
 #endif
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileWriteAsync(int Fd, const void* DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
 {
 #ifdef LQ_ASYNC_IO_NOT_HAVE
-	return ENOSYS;
+    return ENOSYS;
 #else
-	InitSignal();
-	Target->cb.aio_fildes = Fd;
-	Target->cb.aio_offset = Offset;
-	Target->cb.aio_buf = (void*)DestBuf;
-	Target->cb.aio_nbytes = SizeBuf;
-	Target->cb.aio_reqprio = 0;
-	Target->cb.aio_lio_opcode = LIO_WRITE;
-	Target->cb.aio_sigevent.sigev_notify = SIGEV_SIGNAL;
-	Target->cb.aio_sigevent.sigev_signo = IO_SIGNAL;
-	Target->cb.aio_sigevent.sigev_value.sival_int = EventFd;
-	return aio_write(&Target->cb);
+    InitSignal();
+
+    Target->EvFd = EventFd;
+    Target->cb.aio_fildes = Fd;
+    Target->cb.aio_offset = Offset;
+    Target->cb.aio_buf = (void*)DestBuf;
+    Target->cb.aio_nbytes = SizeBuf;
+    Target->cb.aio_reqprio = 0;
+    Target->cb.aio_lio_opcode = LIO_WRITE;
+    Target->cb.aio_sigevent.sigev_notify = SIGEV_SIGNAL;
+    Target->cb.aio_sigevent.sigev_signo = IO_SIGNAL;
+    Target->cb.aio_sigevent.sigev_value.sival_ptr = Target;
+    auto Flags = fcntl(Fd, F_GETFL, 0);
+    if(Flags & O_NONBLOCK)
+    {
+        Target->IsNonBlock = 1;
+        fcntl(Fd, F_SETFL, Flags & ~O_NONBLOCK);
+    } else
+    {
+        Target->IsNonBlock = 0;
+    }
+    auto Ret = aio_write(&Target->cb);
+    if((Ret == -1) && (Target->IsNonBlock))
+        fcntl(Fd, F_SETFL, Flags | O_NONBLOCK);
+    return Ret;
 #endif
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileAsyncCancel(int Fd, LqAsync* Target)
 {
 #ifdef LQ_ASYNC_IO_NOT_HAVE
-	return ENOSYS;
+    return ENOSYS;
 #else
-	switch(aio_cancel(Fd, &Target->cb))
-	{
-		case AIO_CANCELED:
-		case AIO_ALLDONE:
-			return 0;
-		case AIO_NOTCANCELED:
-			return -1;
-		case -1:
-		default:
-			return -1;
-	}
+    switch(aio_cancel(Fd, &Target->cb))
+    {
+        case AIO_CANCELED:
+        case AIO_ALLDONE:
+            if(Target->IsNonBlock)
+                fcntl(Target->cb.aio_fildes, F_SETFL, fcntl(Target->cb.aio_fildes, F_GETFL, 0) | O_NONBLOCK);
+            return 0;
+        case AIO_NOTCANCELED:
+            return -1;
+        case -1:
+        default:
+            return -1;
+    }
 #endif
 }
 
@@ -1881,17 +1914,17 @@ LQ_EXTERN_C int LQ_CALL LqFileAsyncCancel(int Fd, LqAsync* Target)
 LQ_EXTERN_C int LQ_CALL LqFileAsyncStat(LqAsync* Target, unsigned int* LenWritten)
 {
 #ifdef LQ_ASYNC_IO_NOT_HAVE
-	return ENOSYS;
+    return ENOSYS;
 #else
-	switch(auto Stat = aio_error(&Target->cb))
-	{
-		case 0:
-			*LenWritten = aio_return(&Target->cb);
-			return 0;
-		default:
-			lq_errno_set(Stat);
-			return Stat;
-	}
+    switch(auto Stat = aio_error(&Target->cb))
+    {
+        case 0:
+            *LenWritten = aio_return(&Target->cb);
+            return 0;
+        default:
+            lq_errno_set(Stat);
+            return Stat;
+    }
 #endif
 }
 
@@ -1939,12 +1972,12 @@ LQ_EXTERN_C int LQ_CALL LqFilePipeCreate(int* lpReadPipe, int* lpWritePipe, uint
     if(pipe(PipeFd) == -1)
         return -1;
     if(FlagsRead & LQ_O_NONBLOCK)
-        fcntl(PipeFd[0], F_SETFL, O_NONBLOCK, int(1));
+        fcntl(PipeFd[0], F_SETFL, fcntl(PipeFd[0], F_GETFL, 0) | O_NONBLOCK);
     if(FlagsRead & LQ_O_NOINHERIT)
         fcntl(PipeFd[0], F_SETFD, fcntl(PipeFd[0], F_GETFD) | FD_CLOEXEC);
 
     if(FlagsWrite & LQ_O_NONBLOCK)
-        fcntl(PipeFd[1], F_SETFL, O_NONBLOCK, int(1));
+        fcntl(PipeFd[1], F_SETFL, fcntl(PipeFd[1], F_GETFL, 0) | O_NONBLOCK);
     if(FlagsWrite & LQ_O_NOINHERIT)
         fcntl(PipeFd[1], F_SETFD, fcntl(PipeFd[1], F_GETFD) | FD_CLOEXEC);
     *lpReadPipe = PipeFd[0];
@@ -2000,7 +2033,7 @@ LQ_EXTERN_C int LQ_CALL LqFileDescrDupToStd(int Descriptor, int StdNo)
 LQ_EXTERN_C int LQ_CALL LqFileProcessCreate
 (
     const char* FileName,
-    char* const Argv[], 
+    char* const Argv[],
     char* const Envp[],
     const char* WorkingDir,
     int StdIn,
@@ -2247,10 +2280,10 @@ LQ_EXTERN_C void LQ_CALL LqFileEnmBreak(LqFileEnm* Enm)
 #  define SYS_timerfd_create 283
 #  define SYS_timerfd_settime 286
 # elif defined(__arm__)
-#  define SYS_timerfd_create 350 
+#  define SYS_timerfd_create 350
 #  define SYS_timerfd_settime 353
 # elif defined(__aarch64__) //arm64
-#  define SYS_timerfd_create 85 
+#  define SYS_timerfd_create 85
 #  define SYS_timerfd_settime 86
 # else
 #  error "no timerfd"
@@ -2303,7 +2336,7 @@ LQ_EXTERN_C int LQ_CALL LqFileEventCreate(int InheritFlag)
     int Res = syscall(SYS_eventfd, (unsigned int)0, (int)0);
     if(Res == -1)
         return -1;
-    fcntl(Res, F_SETFL, O_NONBLOCK, (int)1);
+    fcntl(Res, F_SETFL, fcntl(Res, F_GETFL, 0) | O_NONBLOCK);
     if(InheritFlag & LQ_O_NOINHERIT)
         fcntl(Res, F_SETFD, fcntl(Res, F_GETFD) | FD_CLOEXEC);
     return Res;
@@ -2318,7 +2351,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTimerCreate(int InheritFlags)
     int Res = syscall(SYS_timerfd_create, (int)CLOCK_MONOTONIC, (int)0);
     if(Res == -1)
         return -1;
-    fcntl(Res, F_SETFL, O_NONBLOCK, (int)1);
+    fcntl(Res, F_SETFL, fcntl(Res, F_GETFL, 0) | O_NONBLOCK);
     if(InheritFlags & LQ_O_NOINHERIT)
         fcntl(Res, F_SETFD, fcntl(Res, F_GETFD) | FD_CLOEXEC);
     return Res;
@@ -2380,8 +2413,8 @@ LQ_EXTERN_C int LQ_CALL LqFileSharedClose(int shmid)
 
 #else
 #include <sys/timerfd.h>
-#include <sys/ipc.h> 
-#include <sys/shm.h> 
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
 /*------------------------------------------
 * Event
@@ -2392,7 +2425,7 @@ LQ_EXTERN_C int LQ_CALL LqFileEventCreate(int InheritFlag)
     int Res = eventfd(0, 0);
     if(Res == -1)
         return -1;
-    fcntl(Res, F_SETFL, O_NONBLOCK, (int)1);
+    fcntl(Res, F_SETFL, fcntl(Res, F_GETFL, 0) | O_NONBLOCK);
     if(InheritFlags & LQ_O_NOINHERIT)
         fcntl(Res, F_SETFD, fcntl(Res, F_GETFD) | FD_CLOEXEC);
     return Res;
@@ -2406,7 +2439,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTimerCreate(int InheritFlags)
     int Res = timerfd_create(CLOCK_MONOTONIC, 0);
     if(Res == -1)
         return -1;
-    fcntl(Res, F_SETFL, O_NONBLOCK, (int)1);
+    fcntl(Res, F_SETFL, fcntl(Res, F_GETFL, 0) | O_NONBLOCK);
     if(InheritFlags & LQ_O_NOINHERIT)
         fcntl(Res, F_SETFD, fcntl(Res, F_GETFD) | FD_CLOEXEC);
     return Res;
@@ -2625,7 +2658,7 @@ LQ_EXTERN_C int LQ_CALL LqFilePathEvntCreate(LqFilePathEvnt* Evnt, const char* D
     int Ifd = inotify_init();
     if(Ifd == -1)
         return -1;
-    fcntl(Ifd, F_SETFL, O_NONBLOCK, (int)1);
+    fcntl(Ifd, F_SETFL, fcntl(Ifd, F_GETFL, 0) | O_NONBLOCK);
     int Wd = inotify_add_watch(Ifd, DirOrFile, NotifyFilter | ((FollowFlag & LQDIREVNT_SUBTREE) ? IN_CREATE | IN_MOVED_FROM : 0));
     if(Wd == -1)
     {
@@ -2756,7 +2789,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTermPairCreate(int* MasterFd, int* SlaveFd, int Ma
     tty = ptsname(ptm);
     if(
         (grantpt(ptm) == -1) ||
-        (unlockpt(ptm) == -1) || 
+        (unlockpt(ptm) == -1) ||
         ((pts = LqFileOpen(tty, LQ_O_RDWR | (SlaveFlags & (LQ_O_NONBLOCK | LQ_O_NOINHERIT)), 0)) == -1)
     )
     {

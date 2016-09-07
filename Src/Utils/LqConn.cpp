@@ -66,8 +66,8 @@ LQ_EXTERN_C int LQ_CALL LqConnBind(const char* Host, const char* Port, int Trans
     int res;
     if((res = getaddrinfo(((Host != nullptr) && (*Host != '\0')) ? Host : (const char*)nullptr, Port, &HostInfo, &Addrs)) != 0)
     {
-        LQ_ERR("LqConnBind() getaddrinfo(%s, %s, *, *) failed \"%s\" \n", 
-            ((Host != nullptr) && (*Host != '\0')) ? Host : "NULL", 
+        LQ_ERR("LqConnBind() getaddrinfo(%s, %s, *, *) failed \"%s\" \n",
+            ((Host != nullptr) && (*Host != '\0')) ? Host : "NULL",
             Port,
             gai_strerror(res));
         return -1;
@@ -132,7 +132,7 @@ LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, voi
     hi.ai_socktype = SOCK_STREAM;
     hi.ai_family = IPPROTO_TCP;
     hi.ai_protocol = AF_UNSPEC;
-    hi.ai_flags = 0;                   //AI_PASSIVE 
+    hi.ai_flags = 0;                   //AI_PASSIVE
 
     int res;
     if((res = getaddrinfo(((Address != nullptr) && (*Address != '\0')) ? Address : (const char*)nullptr, Port, &hi, &ah)) != 0)
@@ -751,8 +751,8 @@ int LqConnSwitchNonBlock(int Fd, int IsNonBlock)
     if(ioctlsocket(Fd, FIONBIO, &nonBlocking) == -1)
         return -1;
 #else
-    int nonBlocking = IsNonBlock;
-    if(fcntl(Fd, F_SETFL, O_NONBLOCK, nonBlocking) == -1)
+    auto Flags = fcntl(Fd, F_GETFL, 0);
+    if(fcntl(Fd, F_SETFL, (IsNonBlock)? (Flags | O_NONBLOCK): (Flags & ~O_NONBLOCK)) == -1)
         return -1;
 #endif
     return 0;
