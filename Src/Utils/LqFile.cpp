@@ -1552,7 +1552,6 @@ LQ_EXTERN_C void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* Evnt)
 #include <stdlib.h>
 #include <signal.h>
 #include <dirent.h>
-#include <util.h>
 #include <sys/ioctl.h>
 
 #include <sys/wait.h> 

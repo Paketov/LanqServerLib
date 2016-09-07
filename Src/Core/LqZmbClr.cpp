@@ -4,6 +4,7 @@
 #include "LqWrkBoss.hpp"
 #include "LqLog.h"
 
+#include <string.h>
 
 #define __METHOD_DECLS__
 #include "LqAlloc.hpp"

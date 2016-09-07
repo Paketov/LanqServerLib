@@ -24,7 +24,7 @@ struct LqHttpQuery;
 #include "LqHttpConn.h"
 #include "LqDfltRef.hpp"
 
-
+#include <stdarg.h>
 #include <vector>
 
 #define LqHttpGetReg(ConnectionPointer) ((LqHttpProto*)((LqConn*)ConnectionPointer)->Proto)
