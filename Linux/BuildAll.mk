@@ -1,7 +1,7 @@
 
 
-MODULE_DIRS 		:= $(sort $(dir $(wildcard ../Modules/*/Linux/)))
-IS_CLEAR 		:=
+MODULE_DIRS     := $(sort $(dir $(wildcard ../Modules/*/Linux/)))
+IS_CLEAR        :=
 
 
 

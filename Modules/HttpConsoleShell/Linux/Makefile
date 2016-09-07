@@ -6,13 +6,15 @@
 #
 
 CURRENT_DIR		        := $(shell pwd)
+ifndef CC
 CC			            := g++
+endif
 rwildcard		        = $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
 
 ifdef DEBUG
-CFLAGS := -O0 -g
+CFLAGS                  := -O0 -g
 else
-CFLAGS := -O3
+CFLAGS                  := -O3
 endif
 
 CFLAGS			        := $(CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive

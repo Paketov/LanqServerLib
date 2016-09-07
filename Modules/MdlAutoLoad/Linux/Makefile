@@ -6,14 +6,18 @@
 #
 
 CURRENT_DIR         := $(shell pwd)
+ifndef CC
 CC                  := g++
+endif
+ifndef LD
 LD                  := g++
+endif
 rwildcard           = $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
 
 ifdef DEBUG
-CFLAGS := -O0 -g
+CFLAGS              := -O0 -g
 else
-CFLAGS := -O3
+CFLAGS              := -O3
 endif
 
 CFLAGS              := $(CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive
@@ -48,26 +52,26 @@ OBJECTS             := $(OBJECTS:%.c=%.o)
 all : $(PROGRAM)
 
 $(PROGRAM) : obj_dirs $(OBJECTS)
-    @echo " Link module" $(PROGRAM)
+	@echo " Link module" $(PROGRAM)
     @$(LD) -o $@ $(OBJECTS) $(LDFLAGS) $(LDLIBS)
 
     
 obj_dirs :
-    @echo " Create object subdirs"
-    @mkdir -p $(OBJECTS_SUBDIRS)
+	@echo " Create object subdirs"
+	@mkdir -p $(OBJECTS_SUBDIRS)
 
 
 $(OBJECT_DIR)/%.o: $(SOURCE_DIR)/%.cpp
-    @echo " Compile " $<
-    @$(CC) -o $@ -c $< $(CFLAGS) $(addprefix -I, $(INCLUDE_SUBDIRS))
+	@echo " Compile " $<
+	@$(CC) -o $@ -c $< $(CFLAGS) $(addprefix -I, $(INCLUDE_SUBDIRS))
 
 $(OBJECT_DIR)/%.o: $(SOURCE_DIR)/%.c
-    @echo " Compile " $<
-    @$(CC) -o $@ -c $< $(CFLAGS) $(addprefix -I, $(INCLUDE_SUBDIRS))
+	@echo " Compile " $<
+	@$(CC) -o $@ -c $< $(CFLAGS) $(addprefix -I, $(INCLUDE_SUBDIRS))
 
 clean :
-    @echo " Remove object subdirs" $(OBJECTS_SUBDIRS) " remove module" $(PROGRAM)
-    @rm -rf $(OBJECTS_SUBDIRS) $(PROGRAM)
+	@echo " Remove object subdirs" $(OBJECTS_SUBDIRS) " remove module" $(PROGRAM)
+	@rm -rf $(OBJECTS_SUBDIRS) $(PROGRAM)
 
 include $(wildcard $(addsuffix /*.d, $(OBJECTS_SUBDIRS)))
 
