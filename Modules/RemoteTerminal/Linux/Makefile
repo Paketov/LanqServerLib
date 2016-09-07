@@ -5,10 +5,10 @@
 # 
 #
 
-CURRENT_DIR		    := $(shell pwd)
-CC			        := g++
+CURRENT_DIR         := $(shell pwd)
+CC                  := g++
 LD                  := g++
-rwildcard		    = $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
+rwildcard           = $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
 
 ifdef DEBUG
 CFLAGS := -O0 -g
@@ -16,26 +16,26 @@ else
 CFLAGS := -O3
 endif
 
-CFLAGS			    := $(CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive
-LDFLAGS			    := -shared -L../../../Linux -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive
-LDLIBS			    := -llanq
+CFLAGS              := $(CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive
+LDFLAGS             := -shared -L../../../Linux -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive
+LDLIBS              := -llanq
 
-PROGRAM			    := libmdlautoload.so
-SOURCE_DIR		    := ../Src
-INCLUDE_DIRS	    := ../Src ../../../Src
-OBJECT_DIR		    := Obj
-
-
+PROGRAM             := libremoteterm.so
+SOURCE_DIR          := ../Src
+INCLUDE_DIRS        := ../Src ../../../Src
+OBJECT_DIR          := Obj
 
 
-SOURCE_SUBDIRS 		:= $(sort $(dir $(call rwildcard,$(SOURCE_DIR)/,*.c) $(call rwildcard,$(SOURCE_DIR)/,*.cpp)))
-INCLUDE_SUBDIRS 	:= $(sort $(dir $(call rwildcard,$(INCLUDE_DIRS)/,*) ))
 
-SOURCES 		    := $(sort $(call rwildcard,$(SOURCE_DIR)/,*.c) $(call rwildcard,$(SOURCE_DIR)/,*.cpp))
 
-OBJECTS_SUBDIRS		:= $(sort $(dir $(SOURCES)))
-OBJECTS_SUBDIRS		:= $(OBJECTS_SUBDIRS:$(SOURCE_DIR)%=%)
-OBJECTS_SUBDIRS		:= $(addprefix $(OBJECT_DIR),$(OBJECTS_SUBDIRS))
+SOURCE_SUBDIRS      := $(sort $(dir $(call rwildcard,$(SOURCE_DIR)/,*.c) $(call rwildcard,$(SOURCE_DIR)/,*.cpp)))
+INCLUDE_SUBDIRS     := $(sort $(dir $(call rwildcard,$(INCLUDE_DIRS)/,*) ))
+
+SOURCES             := $(sort $(call rwildcard,$(SOURCE_DIR)/,*.c) $(call rwildcard,$(SOURCE_DIR)/,*.cpp))
+
+OBJECTS_SUBDIRS     := $(sort $(dir $(SOURCES)))
+OBJECTS_SUBDIRS     := $(OBJECTS_SUBDIRS:$(SOURCE_DIR)%=%)
+OBJECTS_SUBDIRS     := $(addprefix $(OBJECT_DIR),$(OBJECTS_SUBDIRS))
 
 OBJECTS             := $(SOURCES:$(SOURCE_DIR)%=%)
 OBJECTS             := $(addprefix $(OBJECT_DIR),$(OBJECTS))
@@ -48,26 +48,26 @@ OBJECTS             := $(OBJECTS:%.c=%.o)
 all : $(PROGRAM)
 
 $(PROGRAM) : obj_dirs $(OBJECTS)
-	@echo " Link module" $(PROGRAM)
-	@$(LD) -o $@ $(OBJECTS) $(LDFLAGS) $(LDLIBS)
+    @echo " Link module" $(PROGRAM)
+    @$(LD) -o $@ $(OBJECTS) $(LDFLAGS) $(LDLIBS)
 
-	
+    
 obj_dirs :
-	@echo " Create object subdirs"
-	@mkdir -p $(OBJECTS_SUBDIRS)
+    @echo " Create object subdirs"
+    @mkdir -p $(OBJECTS_SUBDIRS)
 
 
 $(OBJECT_DIR)/%.o: $(SOURCE_DIR)/%.cpp
-	@echo " Compile " $<
-	@$(CC) -o $@ -c $< $(CFLAGS) $(addprefix -I, $(INCLUDE_SUBDIRS))
+    @echo " Compile " $<
+    @$(CC) -o $@ -c $< $(CFLAGS) $(addprefix -I, $(INCLUDE_SUBDIRS))
 
 $(OBJECT_DIR)/%.o: $(SOURCE_DIR)/%.c
-	@echo " Compile " $<
-	@$(CC) -o $@ -c $< $(CFLAGS) $(addprefix -I, $(INCLUDE_SUBDIRS))
+    @echo " Compile " $<
+    @$(CC) -o $@ -c $< $(CFLAGS) $(addprefix -I, $(INCLUDE_SUBDIRS))
 
 clean :
-	@echo " Remove object subdirs" $(OBJECTS_SUBDIRS) " remove module" $(PROGRAM)
-	@rm -rf $(OBJECTS_SUBDIRS) $(PROGRAM)
+    @echo " Remove object subdirs" $(OBJECTS_SUBDIRS) " remove module" $(PROGRAM)
+    @rm -rf $(OBJECTS_SUBDIRS) $(PROGRAM)
 
 include $(wildcard $(addsuffix /*.d, $(OBJECTS_SUBDIRS)))
 
