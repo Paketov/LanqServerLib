@@ -612,7 +612,7 @@ size_t LqWrk::RemoveConnOnTimeOutSync(const LqProto * Proto, LqTimeMillisec Time
 
 bool LqWrk::AddEvntAsync(LqEvntHdr* Connection)
 {
-    if(LqThreadBase::thread::get_id() == std::this_thread::get_id())
+    if(IsThisThread())
         return AddEvnt(Connection);
     if(!CommandQueue.Push(LQWRK_CMD_ADD_CONN, Connection))
         return false;
@@ -631,7 +631,7 @@ bool LqWrk::AddEvntSync(LqEvntHdr* Connection)
 
 bool LqWrk::SyncEvntFlagAsync(LqEvntHdr* Connection)
 {
-    if((LqThreadBase::thread::get_id() == std::this_thread::get_id()) && !(Connection->Flag & LQEVNT_FLAG_END))
+    if(IsThisThread() && !(Connection->Flag & LQEVNT_FLAG_END))
         return LqEvntSetMaskByHdr(&EventChecker, Connection);
     if(!CommandQueue.PushBegin<LqEvntHdr*>(LQWRK_CMD_SYNC_FLAG, Connection))
         return false;
@@ -657,7 +657,7 @@ bool LqWrk::SyncEvntFlagSync(LqEvntHdr* Connection)
 
 bool LqWrk::CloseEvntAsync(LqEvntHdr * Connection)
 {
-    if(LqThreadBase::thread::get_id() == std::this_thread::get_id())
+    if(IsThisThread())
     {
         CloseEvnt(Connection);
         return true;
@@ -678,7 +678,7 @@ int LqWrk::CloseEvntSync(LqEvntHdr * Connection)
 
 bool LqWrk::WaitEvent(void(*NewEventProc)(void* Data), void* NewUserData)
 {
-    if(LqThreadBase::thread::get_id() == std::this_thread::get_id())
+    if(IsThisThread())
     {
         NewEventProc(NewUserData);
         return true;
@@ -691,7 +691,7 @@ bool LqWrk::WaitEvent(void(*NewEventProc)(void* Data), void* NewUserData)
 
 int LqWrk::CloseAllEvntAsync()
 {
-    if(LqThreadBase::thread::get_id() == std::this_thread::get_id())
+    if(IsThisThread())
         return CloseAllEvnt();
     if(!CommandQueue.PushBegin(LQWRK_CMD_CLOSE_ALL_CONN))
         return -1;
@@ -742,7 +742,7 @@ size_t LqWrk::CloseConnByIpSync(const sockaddr* Addr)
 
 bool LqWrk::CloseConnByIpAsync(const sockaddr* Addr)
 {
-    if(LqThreadBase::thread::get_id() == std::this_thread::get_id())
+    if(IsThisThread())
     {
         RemoveConnByIp(Addr);
         return true;
@@ -781,7 +781,7 @@ bool LqWrk::CloseConnByIpAsync(const sockaddr* Addr)
 
 bool LqWrk::CloseConnByProtoAsync(const LqProto * Addr)
 {
-    if(LqThreadBase::thread::get_id() == std::this_thread::get_id())
+    if(IsThisThread())
     {
         CloseConnByProto(Addr);
         return true;
@@ -903,7 +903,7 @@ size_t LqWrk::GetAssessmentBusy() const { return CountConnectionsInQueue + LqEvn
 
 int LqWrk::LockWrite()
 {
-    if(LqThreadBase::thread::get_id() == std::this_thread::get_id())
+    if(IsThisThread())
     {
         SafeReg.EnterSafeRegionAndSwitchToWriteMode();
         return 1;
@@ -921,7 +921,7 @@ int LqWrk::LockWrite()
 
 int LqWrk::LockRead()
 {
-    if(LqThreadBase::thread::get_id() == std::this_thread::get_id())
+    if(IsThisThread())
     {
         SafeReg.EnterSafeRegionAndSwitchToReadMode();
         return 1;
