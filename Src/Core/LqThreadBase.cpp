@@ -236,10 +236,12 @@ void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
     while(!This->joinable())
         LqThreadYield();
 
-#if defined(LQPLATFORM_LINUX) || defined(LQPLATFORM_WINDOWS) || defined(LQPLATFORM_ANDROID)
-    pthread_setname_np(This->ThreadId(), This->Name);
+#if defined(LQPLATFORM_WINDOWS)
+	pthread_setname_np(This->ThreadId(), This->Name);
+#elif defined(LQPLATFORM_LINUX) || defined(LQPLATFORM_ANDROID)
+    pthread_setname_np(pthread_self(), This->Name);
 #elif defined(LQPLATFORM_FREEBSD)
-    pthread_setname_np(This->ThreadId(), This->Name, nullptr);
+    pthread_setname_np(pthread_self(), This->Name, nullptr);
 #elif defined(LQPLATFORM_APPLE)
     pthread_setname_np(This->Name);
 #endif
