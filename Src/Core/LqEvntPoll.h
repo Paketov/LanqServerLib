@@ -157,7 +157,7 @@ void LqEvntRestructAfterRemoves(LqEvnt* Events)
 			AllEvents[i] = AllEvents[Events->Count];
 		} else
 		{
-			i++
+			i++;
 		}
 	}
 	if((size_t)((decltype(LQEVNT_DECREASE_COEFFICIENT))Events->Count * LQEVNT_DECREASE_COEFFICIENT) < Events->AllocCount)
@@ -218,7 +218,6 @@ bool LqEvntEnumNext(LqEvnt* Events, LqEvntInterator* Interator)
 	}
 	return false;
 }
-
 
 void LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator)
 {

@@ -117,7 +117,7 @@ struct LqFilePathEvnt
 {
     int Fd; /*This event can use in LqEvnt or LqFilePoll*/
 
-	/*Internal data*/
+    /*Internal data*/
 #if defined(LQPLATFORM_WINDOWS)
     struct
     {
@@ -162,8 +162,8 @@ struct LqFilePathEvnt
 struct LqFilePathEvntEnm
 {
     LqFilePathEvntEnm*  Next;
-    uint8_t	        Flag;
-    char	        Name[1];
+    uint8_t         Flag;
+    char            Name[1];
 };
 
 #pragma pack(pop)
@@ -192,10 +192,17 @@ struct LqFilePathEvntEnm
 #define LQ_O_BIN            0x8000
 
 
-
+#define LQ_SEEK_SET         0
 #define LQ_SEEK_CUR         1
 #define LQ_SEEK_END         2
-#define LQ_SEEK_SET         0
+
+/*
+* For lock file
+*/
+#define LQ_FLOCK_WR         1
+#define LQ_FLOCK_RD         2
+#define LQ_FLOCK_WAIT       4
+#define LQ_FLOCK_UNLOCK     8
 
 
 
@@ -208,9 +215,23 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileOpen(const char* lqautf8 lqain FileName, uint3
 
 /*
 * On windows or linux you can read/write in non block mode (LQ_O_NONBLOCK)
+*  @Fd: Open file descriptor or LQ_STDIN
+*  @return: -1 - on error (check lq_errno), 0 - success
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFileRead(int Fd, void* lqaout DestBuf, unsigned int SizeBuf);
+/*
+* LQ_STDERR, LQ_STDOUT
+*/
 LQ_IMPORTEXPORT int LQ_CALL LqFileWrite(int Fd, const void* lqain SourceBuf, unsigned int SizeBuf);
+
+/*
+* @Fd: Opened file
+* @StartOffset: Start of region
+* @Len: Len of region
+* @LockFlags: Lock flags: LQ_FLOCK_WR - Lock write, LQ_FLOCK_RD - Lock read, LQ_FLOCK_WAIT - Wait until set new locking, LQ_FLOCK_UNLOCK - Remove locking.
+* @return: -1 - On error (check lq_errno), 0 - success
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqFileSetLock(int Fd, LqFileSz StartOffset, LqFileSz Len, int LockFlags);
 
 LQ_IMPORTEXPORT int LQ_CALL LqFileClose(int Fd);
 LQ_IMPORTEXPORT LqFileSz LQ_CALL LqFileTell(int Fd);
@@ -232,6 +253,8 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileMakeSubdirs(const char* lqautf8 lqain NewSubdi
 LQ_IMPORTEXPORT int LQ_CALL LqFileRemoveDir(const char* lqautf8 lqain NewDirName);
 
 LQ_IMPORTEXPORT int LQ_CALL LqFileRealPath(const char* lqain Source, char* lqaout Dest, size_t DestLen);
+
+LQ_IMPORTEXPORT int LQ_CALL LqFileFlush(int Fd);
 
 /*
 * Version of unix poll for Windows.
@@ -277,6 +300,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileTimerSet(int TimerFd, LqTimeMillisec Time);
 * 
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreate(int* lqaout lpReadPipe, int* lqaout lpWritePipe, uint32_t FlagsRead, uint32_t FlagsWrite);
+LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreateRw(int* lqaout Pipe1, int* lqaout Pipe2, uint32_t Flags1, uint32_t Flags2);
 LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreateNamed(const char* lqain NameOfPipe, uint32_t Flags);
 
 /*------------------------------------------
@@ -307,19 +331,19 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileDescrDupToStd(int Descriptor, int StdNo);
 *  @StdOut: -1 - use std out of current process, otherwise use spec. dev or pipe or file. You can use null devices Ex. LqFileOpen(LQ_NULLDEV, LQ_O_WR, 0)
 *  @StdErr: -1 - use std err of current process, otherwise use spec. dev or pipe or file. You can use null devices Ex. LqFileOpen(LQ_NULLDEV, LQ_O_WR, 0)
 *  @StdDscr: If set, then returned standart in/out pipes to child process. If not set, then uses parent std in/out.
-*  @EventKill: Is set non null, get event of the completion of the process. For correct get event on all platforms use flags
+*  @EventKill: Is set non null, get event completion for process. For correct get event on all platforms use flags
         (LQ_POLLHUP | LQ_POLLIN) for LqFilePoll or (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP) for LqEvnt.
 *  @return: PID to new process, or -1 is have error.
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFileProcessCreate(
-	const char* lqain FileName,
-	char* const lqaopt lqain Argv[],
-	char* const lqaopt lqain Envp[], 
-	const char* lqaopt lqain WorkingDir,
-	int StdIn,
-	int StdOut,
-	int StdErr,
-	int* lqaopt lqaout EventKill
+    const char* lqain FileName,
+    char* const lqaopt lqain Argv[],
+    char* const lqaopt lqain Envp[], 
+    const char* lqaopt lqain WorkingDir,
+    int StdIn,
+    int StdOut,
+    int StdErr,
+    int* lqaopt lqaout EventKill
 );
 /*
 * LqFileProcessKill
@@ -350,6 +374,26 @@ LQ_IMPORTEXPORT int LQ_CALL LqFilePathEvntGetName(LqFilePathEvnt* lqaio Evnt, ch
 LQ_IMPORTEXPORT void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* lqaio Evnt);
 
 
+/*
+* Craete terminal pair(usually use for create child process)
+*  @MasterFd: Use in parrent process
+*  @SlaveFd: Use in child proccess
+*  @MasterFlags: Flags for master descriptor(LQ_O_NOINHERIT, LQ_O_NONBLOCK)
+*  @SlaveFlags: Flags for slafe descriptor(LQ_O_NOINHERIT, LQ_O_NONBLOCK)
+*  @return: 0 - on success, -1 - on error
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqFileTermPairCreate(int* lqaout MasterFd, int* lqaout SlaveFd, int MasterFlags, int SlaveFlags);
+
+/*------------------------------------------
+* Shared memory
+*  
+*/
+
+LQ_IMPORTEXPORT int LQ_CALL LqFileSharedCreate(int key, size_t Size, int DscrFlags, int UserAccess);
+LQ_IMPORTEXPORT int LQ_CALL LqFileSharedOpen(int key, size_t Size, int DscrFlags, int UserAccess);
+LQ_IMPORTEXPORT void* LQ_CALL LqFileSharedAt(int shmid, void* lqain lqaopt BaseAddress);
+LQ_IMPORTEXPORT int LQ_CALL LqFileSharedUnmap(void* lqain addr);
+LQ_IMPORTEXPORT int LQ_CALL LqFileSharedClose(int shmid);
 
 LQ_EXTERN_C_END
 

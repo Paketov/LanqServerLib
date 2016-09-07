@@ -3,7 +3,7 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-* LqListEvnt - List of connections. Use for transfer connections between workers.
+* LqListEvnt - List of connections. Use for manual transfer connections between workers.
 */
 
 #include "LqAlloc.hpp"

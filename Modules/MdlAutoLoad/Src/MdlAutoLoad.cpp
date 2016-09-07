@@ -245,7 +245,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                 if(DirEvent == nullptr)
                 {
                     if(OutBuffer)
-                        fprintf(OutBuffer, " MdlAutoLoad: Path not added (Not mem alloc)");
+                        fprintf(OutBuffer, " [MdlAutoLoad] Error: path not added (not mem alloc)\n");
                     break;
                 }
                 auto r = LqFilePathEvntCreate
@@ -257,7 +257,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                 if(r == -1)
                 {
                     if(OutBuffer)
-                        fprintf(OutBuffer, " MdlAutoLoad: Path not added");
+                        fprintf(OutBuffer, " [MdlAutoLoad] Error: path not added\n");
                     break;
                 }
 
@@ -276,7 +276,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                 if(Params.find_first_of('l') != LqString::npos)
                     LoadAllModulesFromDir(Path.c_str(), Params.find_first_of('r') != LqString::npos);
                 if(OutBuffer)
-                    fprintf(OutBuffer, " MdlAutoLoad: Path added");
+                    fprintf(OutBuffer, " [MdlAutoLoad] OK\n");
             }
             break;
             LQSTR_CASE("rmdir")
@@ -307,11 +307,11 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                     if(Params.find_first_of('u') != LqString::npos)
                         UnloadAllModules(Path.c_str());
                     if(OutBuffer)
-                        fprintf(OutBuffer, " MdlAutoLoad: Path removed (%i count)", CountDeleted);
+                        fprintf(OutBuffer, " [MdlAutoLoad] OK (removed %i count)\n", CountDeleted);
                 } else
                 {
                     if(OutBuffer)
-                        fprintf(OutBuffer, " MdlAutoLoad: Not found path");
+                        fprintf(OutBuffer, " [MdlAutoLoad] Error: not found path\n");
                 }
             }
             break;
@@ -319,16 +319,17 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
             {
                 UnloadAllModules();
                 if(OutBuffer)
-                    fprintf(OutBuffer, " MdlAutoLoad: All modules removed");
+                    fprintf(OutBuffer, " [MdlAutoLoad] OK\n");
             }
             break;
             LQSTR_CASE("?")
-                LQSTR_CASE("help")
+            LQSTR_CASE("help")
             {
                 if(OutBuffer)
                     fprintf
                     (
                     OutBuffer,
+					" [MdlAutoLoad]\n"
                     " Module: MdlAutoLoad\n"
                     " hotSAN 2016\n"
                     "  ? | help  - Show this help.\n"
@@ -340,7 +341,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
             break;
             LQSTR_SWITCH_DEFAULT
                 if(OutBuffer)
-                    fprintf(OutBuffer, "MdlAutoLoad: Unknown command");
+                    fprintf(OutBuffer, " [MdlAutoLoad] Error: unknown command");
         }
     };
 

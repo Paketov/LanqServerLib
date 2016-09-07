@@ -172,29 +172,29 @@ public:
                 public:  DISABLE_COPY_CONSTRUCT(_Arg)
 
                     inline operator ArgsType()
-						{
-							ArgsType Res;
-							char* c = Conn->Query.Arg, *m = c + Conn->Query.ArgLen;
-							while(c < m)
-							{
-								char* a = c, *ea, *sv, *ev;
-								for(; (*c != '&') && (*c != '=') && (c < m); c++);
-								ea = c;
-								if((*c == '=') && (c < m))
-								{
-									c++;
-									sv = c;
-									for(; (*c != '&') && (c < m); c++);
-									ev = c;
-								} else
-								{
-									sv = ev = c;
-								}
-								c++;
-								Res.push_back(std::pair<LqString, LqString>(LqString(a, ea - a), LqString(sv, ev - sv)));
-							}
-							return Res;
-						}
+                {
+                    ArgsType Res;
+                    char* c = Conn->Query.Arg, *m = c + Conn->Query.ArgLen;
+                    while(c < m)
+                    {
+                        char* a = c, *ea, *sv, *ev;
+                        for(; (*c != '&') && (*c != '=') && (c < m); c++);
+                        ea = c;
+                        if((*c == '=') && (c < m))
+                        {
+                            c++;
+                            sv = c;
+                            for(; (*c != '&') && (c < m); c++);
+                            ev = c;
+                        } else
+                        {
+                            sv = ev = c;
+                        }
+                        c++;
+                        Res.push_back(std::pair<LqString, LqString>(LqString(a, ea - a), LqString(sv, ev - sv)));
+                    }
+                    return Res;
+                }
 
                          inline LqString operator[](const char* Index) const { return Inter(Index); }
                          inline LqString operator[](const LqString& Index) const { return operator[](Index.c_str()); }
@@ -373,24 +373,24 @@ public:
 
                 };
 
-                        inline operator bool()
-                        {
-                            return (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_RCV_FILE) ||
-                                (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_RCV_HDRS) ||
-                                (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_RCV_STREAM) ||
-                                (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_SKIP_AND_GET_HDRS) ||
-                                (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_SKIP_TO_HDRS);
-                        }
+                inline operator bool()
+                {
+                    return (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_RCV_FILE) ||
+                        (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_RCV_HDRS) ||
+                        (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_RCV_STREAM) ||
+                        (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_SKIP_AND_GET_HDRS) ||
+                        (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_SKIP_TO_HDRS);
+                }
 
-                        inline LqHttpRcvFileResultEnm RcvHdrs() { return LqHttpRcvMultipartHdrRecive(Deep.Conn); }
-                        inline LqHttpRcvFileResultEnm SkipContent() { return LqHttpRcvMultipartSkip(Deep.Conn); }
-                        inline LqHttpRcvFileResultEnm HdrRemoveLast() { return LqHttpRcvMultipartHdrRemoveLast(Deep.Conn); }
-                        inline LqHttpRcvFileResultEnm HdrRemoveAll() { return LqHttpRcvMultipartHdrRemoveAll(Deep.Conn); }
-                        inline LqHttpRcvFileResultEnm SevePartInFile(const char* Path, bool IsCreateSubdir = true, bool IsReplace = true, int Access = 0666)
-                        {
-                            return LqHttpRcvMultipartInFile(Deep.Conn, Path, Access, IsCreateSubdir, IsReplace);
-                        }
-                        LqHttpRcvFileResultEnm SavePartInStream(LqFileSz ReadLen = LQ_MAX_CONTENT_LEN) { return LqHttpRcvMultipartInStream(Deep.Conn, ReadLen); }
+                inline LqHttpRcvFileResultEnm RcvHdrs() { return LqHttpRcvMultipartHdrRecive(Deep.Conn); }
+                inline LqHttpRcvFileResultEnm SkipContent() { return LqHttpRcvMultipartSkip(Deep.Conn); }
+                inline LqHttpRcvFileResultEnm HdrRemoveLast() { return LqHttpRcvMultipartHdrRemoveLast(Deep.Conn); }
+                inline LqHttpRcvFileResultEnm HdrRemoveAll() { return LqHttpRcvMultipartHdrRemoveAll(Deep.Conn); }
+                inline LqHttpRcvFileResultEnm SevePartInFile(const char* Path, bool IsCreateSubdir = true, bool IsReplace = true, int Access = 0666)
+                {
+                    return LqHttpRcvMultipartInFile(Deep.Conn, Path, Access, IsCreateSubdir, IsReplace);
+                }
+                LqHttpRcvFileResultEnm SavePartInStream(LqFileSz ReadLen = LQ_MAX_CONTENT_LEN) { return LqHttpRcvMultipartInStream(Deep.Conn, ReadLen); }
                 } Multipart;
 
             };
@@ -428,14 +428,14 @@ public:
                             inline bool Remove() { return LqHttpRspHdrRemove(Conn, Name); }
                     };
                 public: DISABLE_COPY_CONSTRUCT(_Hdr)
-                         inline operator HdrsType() const
-                        {
-                            HdrsType Res;
-                            char* HeaderNameResult = nullptr, *HeaderNameResultEnd = nullptr, *HeaderValResult = nullptr, *HeaderValEnd = nullptr;
-                            while(LqHttpRspHdrEnum(Conn, &HeaderNameResult, &HeaderNameResultEnd, &HeaderValResult, &HeaderValEnd) >= 0)
-                                Res.push_back(std::pair<LqString, LqString>(LqString(HeaderNameResult, HeaderNameResultEnd - HeaderNameResult), LqString(HeaderValResult, HeaderValEnd - HeaderValResult)));
-                            return Res;
-                        }
+                    inline operator HdrsType() const
+                {
+                    HdrsType Res;
+                    char* HeaderNameResult = nullptr, *HeaderNameResultEnd = nullptr, *HeaderValResult = nullptr, *HeaderValEnd = nullptr;
+                    while(LqHttpRspHdrEnum(Conn, &HeaderNameResult, &HeaderNameResultEnd, &HeaderValResult, &HeaderValEnd) >= 0)
+                        Res.push_back(std::pair<LqString, LqString>(LqString(HeaderNameResult, HeaderNameResultEnd - HeaderNameResult), LqString(HeaderValResult, HeaderValEnd - HeaderValResult)));
+                    return Res;
+                }
                         inline operator LqString()
                         {
                             return LqString(Conn->Buf + Conn->Response.HeadersStart, Conn->Response.HeadersEnd - Conn->Response.HeadersStart);
@@ -456,7 +456,7 @@ public:
                         inline operator intptr_t() const { return Conn->Response.Stream.Len; }
                     } Size;
                     DISABLE_COPY_CONSTRUCT(_Stream)
-                        inline operator bool() const { return Size.Conn->ActionState == LQHTTPACT_STATE_RSP_STREAM; }
+                    inline operator bool() const { return Size.Conn->ActionState == LQHTTPACT_STATE_RSP_STREAM; }
                     inline LqString& operator<<(LqString& Str) { LqHttpRspContentWrite(Size.Conn, Str.c_str(), Str.length()); return Str; }
                     inline const char* operator<<(const char* Str) { LqHttpRspContentWrite(Size.Conn, Str, LqStrLen(Str)); return Str; }
                     inline intptr_t Write(void* Buf, size_t Len) { return LqHttpRspContentWrite(Size.Conn, Buf, Len); }
@@ -534,9 +534,11 @@ public:
         {
             LqHttpConn* Conn;
         public:DISABLE_COPY_CONSTRUCT(_EvntFlag)
-               inline operator LqEvntFlag() { return Conn->Flags & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_WR | LQEVNT_FLAG_RD); }
+            inline operator LqEvntFlag() { return Conn->Flags & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_WR | LQEVNT_FLAG_RD); }
                inline LqEvntFlag operator =(LqEvntFlag NewFlag) { LqEvntSetFlags(Conn, NewFlag); return NewFlag; }
-               inline void SetClose() { LqEvntSetClose(Conn); }
+               inline int SetCloseAsync() { return LqEvntSetClose(Conn); }
+			   inline int SetCloseSync(LqTimeMillisec WaitTime) { return LqEvntSetClose2(Conn, WaitTime); }
+			   inline int SetCloseSyncForce() { return LqEvntSetClose3(Conn); }
                inline bool IsClose() { return LqConnIsClose(Conn); }
                /*Set default flags for current action*/
                inline int ReturnToDefault() { return LqHttpEvntSetFlagByAct(Conn); }

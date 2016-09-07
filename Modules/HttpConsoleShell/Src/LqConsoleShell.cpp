@@ -98,9 +98,6 @@ bool IsLoop = true;
 
 int main(int argc, char* argv[])
 {
-	int Fd = LqFileOpen("nul", LQ_O_RD, 0);
-
-
     FILE* OutFile = stdout;
     FILE* InFile = stdin;
 #if !defined(LQPLATFORM_WINDOWS)
@@ -121,10 +118,6 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-
- //   Boss.SetProtocolFamily(AF_INET);
-	//Boss.SetTimeLifeConn(30 * 1000);
- //   Boss.SetMaxConn(32768);
     char CommandBuf[128];
     int CommandLen;
 
@@ -1076,23 +1069,17 @@ lblAgain:
             break;
             LQSTR_CASE("connlist")
             {
-				LqWrkBossEnumDelEvnt(OutFile,
+				LqWrkBossEnumDelEvntByProto(&Reg->Proto, OutFile,
                  [](void* OutFile, LqEvntHdr* Conn) -> LqBool
                 {
-                    union Addr
-                    {
-                        sockaddr adr;
-                        sockaddr_in in;
-                        sockaddr_in6 in6;
-                    };
                     if(Conn->Flag & _LQEVNT_FLAG_CONN)
                     {
-                        socklen_t PeerName = sizeof(Addr);
-                        Addr adr;
-                        getpeername(Conn->Fd, &adr.adr, &PeerName);
+                        socklen_t PeerName = sizeof(LqConnInetAddress);
+						LqConnInetAddress adr;
+                        getpeername(Conn->Fd, &adr.Addr, &PeerName);
                         char Host[1024];
                         char Service[1024];
-                        getnameinfo(&adr.adr, PeerName, Host, sizeof(Host) - 1, Service, sizeof(Service) - 1, NI_NUMERICSERV | NI_NUMERICHOST);
+                        getnameinfo(&adr.Addr, PeerName, Host, sizeof(Host) - 1, Service, sizeof(Service) - 1, NI_NUMERICSERV | NI_NUMERICHOST);
                         fprintf((FILE*)OutFile, " Host: %s, Port: %s\n", Host, Service);
                     }
 					return false;

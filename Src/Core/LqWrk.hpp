@@ -5,8 +5,8 @@
 * Solodov A. N. (hotSAN)
 * 2016
 * LqWrk - Worker class.
-* Recive and handle command from LqWrkBoss.
-* Work with connections, call protocol procedures.
+*  Recive and handle command from LqWrkBoss.
+*  Work with connections, call protocol procedures.
 */
 
 class LqWrk;
@@ -32,11 +32,25 @@ typedef LqShdPtr<LqWrk, LqWrkDelete, true> LqWrkPtr;
 class LQ_IMPORTEXPORT LqWrk:
     public LqThreadBase
 {
+	enum
+	{
+		LQWRK_CMD_ADD_CONN,                     /*Add connection to work*/
+		LQWRK_CMD_RM_CONN_ON_TIME_OUT,      /*Signal for close all time out connections*/
+		LQWRK_CMD_RM_CONN_ON_TIME_OUT_PROTO,
+		LQWRK_CMD_WAIT_EVENT,
+		LQWRK_CMD_CLOSE_ALL_CONN,
+		LQWRK_CMD_TAKE_ALL_CONN,
+		LQWRK_CMD_RM_CONN_BY_IP,
+		LQWRK_CMD_CLOSE_CONN_BY_PROTO,
+		LQWRK_CMD_SYNC_FLAG,
+		LQWRK_CMD_CLOSE_CONN
+	};
+
     friend LqWrkBoss;
     friend LqConn;
     friend LqWrkPtr;
     friend LqFastAlloc;
-	friend void LqWrkDelete(LqWrk* This);
+    friend void LqWrkDelete(LqWrk* This);
 
     /*GetCount external reference, used in SharedPtr*/
     size_t                                              CountPointers;
@@ -47,9 +61,9 @@ class LQ_IMPORTEXPORT LqWrk:
     LqQueueCmd<uchar>                                   CommandQueue;
     LqEvnt                                              EventChecker;
     mutable LqSafeRegion<uintptr_t>                     SafeReg;
-	ullong                                              Id;
+    ullong                                              Id;
     LqTimeMillisec                                      TimeStart;
-	bool                                                IsDelete;
+    bool                                                IsDelete;
 
     void ParseInputCommands();
     virtual void BeginThread();
@@ -79,17 +93,17 @@ class LQ_IMPORTEXPORT LqWrk:
     size_t AddEvnt(LqListEvnt& ConnectionList);
     size_t RemoveConnByIp(const sockaddr* Addr);
 
-	int CloseEvnt(LqEvntHdr* Connection);
+    int CloseEvnt(LqEvntHdr* Connection);
 
-	static void ExitHandlerFn(void* Data);
+    static void ExitHandlerFn(void* Data);
 
     LqWrk(bool IsStart);
-	~LqWrk();
+    ~LqWrk();
 public:
 
     static LqWrkPtr New(bool IsStart = true);
 
-	ullong GetId() const;
+    ullong GetId() const;
 
     /*Получить загруженность потока-обработчика*/
     size_t GetAssessmentBusy() const;
@@ -106,8 +120,8 @@ public:
     bool SyncEvntFlagAsync(LqEvntHdr* Connection);
     bool SyncEvntFlagSync(LqEvntHdr* Connection);
 
-	bool CloseEvntAsync(LqEvntHdr* Connection);
-	int CloseEvntSync(LqEvntHdr* Connection);
+    bool CloseEvntAsync(LqEvntHdr* Connection);
+    int CloseEvntSync(LqEvntHdr* Connection);
 
     size_t AddEvntListAsync(LqListEvnt& ConnectionList);
     size_t AddEvntListSync(LqListEvnt& ConnectionList);
@@ -134,7 +148,7 @@ public:
     size_t EnumDelEvntByProto(const LqProto* Proto, void* UserData, LqBool(*Proc)(void* UserData, LqEvntHdr* Conn));
 
     LqString DebugInfo() const;
-	LqString AllDebugInfo();
+    LqString AllDebugInfo();
 };
 
 

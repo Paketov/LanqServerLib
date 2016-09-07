@@ -12,6 +12,7 @@
 
 
 #include <string.h>
+#include <signal.h>
 
 #if defined(_MSC_VER)
 
@@ -113,6 +114,28 @@ extern "C" __kernel_entry NTSTATUS NTAPI NtSetEvent(
 extern "C" __kernel_entry NTSTATUS NTAPI NtResetEvent(
     IN HANDLE               EventHandle,
     OUT PLONG               PreviousState OPTIONAL
+);
+
+
+extern "C" __kernel_entry NTSTATUS NTAPI NtLockFile(
+    _In_     HANDLE           FileHandle,
+    _In_opt_ HANDLE           Event,
+    _In_opt_ PIO_APC_ROUTINE  ApcRoutine,
+    _In_opt_ PVOID            ApcContext,
+    _Out_    PIO_STATUS_BLOCK IoStatusBlock,
+    _In_     PLARGE_INTEGER   ByteOffset,
+    _In_     PLARGE_INTEGER   Length,
+    _In_     ULONG            Key,
+    _In_     BOOLEAN          FailImmediately,
+    _In_     BOOLEAN          ExclusiveLock
+);
+
+extern "C" __kernel_entry NTSTATUS NTAPI NtUnlockFile(
+    _In_  HANDLE           FileHandle,
+    _Out_ PIO_STATUS_BLOCK IoStatusBlock,
+    _In_  PLARGE_INTEGER   ByteOffset,
+    _In_  PLARGE_INTEGER   Length,
+    _In_  ULONG            Key
 );
 
 extern "C" __kernel_entry NTSTATUS NTAPI NtClearEvent(IN HANDLE EventHandle);
@@ -352,28 +375,33 @@ LQ_EXTERN_C LqFileSz LQ_CALL LqFileSeek(int Fd, LqFileSz Offset, int Flag)
     return NewOffset;
 }
 
+LQ_EXTERN_C int LQ_CALL LqFileFlush(int Fd)
+{
+    return (FlushFileBuffers((HANDLE)Fd) == TRUE) ? 0 : -1;
+}
+
 LQ_EXTERN_C int LQ_CALL __LqStdErrFileNo()
 {
-	auto h = GetStdHandle(STD_ERROR_HANDLE);
-	if(h == INVALID_HANDLE_VALUE)
-		return -1;
-	return (int)h;
+    auto h = GetStdHandle(STD_ERROR_HANDLE);
+    if(h == INVALID_HANDLE_VALUE)
+        return -1;
+    return (int)h;
 }
 
 LQ_EXTERN_C int LQ_CALL __LqStdOutFileNo()
 {
-	auto h = GetStdHandle(STD_OUTPUT_HANDLE);
-	if(h == INVALID_HANDLE_VALUE)
-		return -1;
-	return (int)h;
+    auto h = GetStdHandle(STD_OUTPUT_HANDLE);
+    if(h == INVALID_HANDLE_VALUE)
+        return -1;
+    return (int)h;
 }
 
 LQ_EXTERN_C int LQ_CALL __LqStdInFileNo()
 {
-	auto h = GetStdHandle(STD_INPUT_HANDLE);
-	if(h == INVALID_HANDLE_VALUE)
-		return -1;
-	return (int)h;
+    auto h = GetStdHandle(STD_INPUT_HANDLE);
+    if(h == INVALID_HANDLE_VALUE)
+        return -1;
+    return (int)h;
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileClose(int Fd)
@@ -442,6 +470,64 @@ lblAgain:
     return -1;
 }
 
+LQ_EXTERN_C int LQ_CALL LqFileSetLock(int Fd, LqFileSz StartOffset, LqFileSz Len, int LockFlags)
+{
+    IO_STATUS_BLOCK iosb;
+    LARGE_INTEGER LocStart, LocLen;
+    LocStart.QuadPart = StartOffset;
+    LocLen.QuadPart = Len;
+    if(LockFlags & LQ_FLOCK_UNLOCK)
+    {
+        switch(auto Stat = NtUnlockFile((HANDLE)Fd, &iosb, &LocStart, &LocLen, NULL))
+        {
+            case STATUS_PENDING:
+                if(LockFlags & LQ_FLOCK_WAIT)
+                {
+                    NtWaitForSingleObject((HANDLE)Fd, FALSE, NULL);
+                    return 0;
+                } else
+                {
+                    NtCancelIoFile((HANDLE)Fd, &iosb);
+                    SetLastError(ERROR_IO_PENDING);
+                }
+                break;
+            case STATUS_SUCCESS: return 0;
+            default: SetLastError(RtlNtStatusToDosError(Stat));
+        }
+    } else
+    {
+        switch(auto Stat = NtLockFile(
+            (HANDLE)Fd,
+            NULL,
+            NULL,
+            NULL,
+            &iosb,
+            &LocStart,
+            &LocLen,
+            NULL,
+            (LockFlags & LQ_FLOCK_WAIT) ? TRUE : FALSE,
+            ((LockFlags & LQ_FLOCK_WR) ? TRUE : FALSE))
+            )
+        {
+            case STATUS_PENDING:
+                if(LockFlags & LQ_FLOCK_WAIT)
+                {
+                    NtWaitForSingleObject((HANDLE)Fd, FALSE, NULL);
+                    return 0;
+                } else
+                {
+                    NtCancelIoFile((HANDLE)Fd, &iosb);
+                    SetLastError(ERROR_IO_PENDING);
+                }
+                break;
+            case STATUS_SUCCESS: return 0;
+            default: SetLastError(RtlNtStatusToDosError(Stat));
+        }
+    }
+
+    return -1;
+}
+
 LQ_EXTERN_C int LQ_CALL LqFileMakeDir(const char* NewDirName, int Access)
 {
     wchar_t Name[LQ_MAX_PATH];
@@ -482,6 +568,36 @@ LQ_EXTERN_C int LQ_CALL LqFileRealPath(const char* Source, char* Dest, size_t De
     return (Ret == 0) ? -1 : Ret;
 }
 
+
+LQ_EXTERN_C int LQ_CALL LqFileTermPairCreate(int* MasterFd, int* SlaveFd, int MasterFlags, int SlaveFlags)
+{
+    static uint64_t TermSerialNumber = 0;
+    char PipeNameBuffer[MAX_PATH];
+    auto Proc = (uint64_t)GetCurrentProcessId();
+    uint64_t CurSerNum, t;
+    do
+    {
+        t = TermSerialNumber;
+        CurSerNum = TermSerialNumber + 1;
+    } while(!LqAtmCmpXchg(TermSerialNumber, t, CurSerNum));
+
+    sprintf(PipeNameBuffer, "\\\\.\\Pipe\\TermPair_%u%u_%u%u", (uint)(Proc >> 32), (uint)(Proc & 0xffffffff), (uint)(CurSerNum >> 32), (uint)(CurSerNum & 0xffffffff));
+    int Mfd = LqFilePipeCreateNamed(PipeNameBuffer, (MasterFlags & (LQ_O_NONBLOCK | LQ_O_NOINHERIT)) | LQ_O_BIN | LQ_O_RDWR);
+    if(Mfd == -1)
+        return -1;
+    int Sfd = LqFileOpen(PipeNameBuffer, (SlaveFlags & (LQ_O_NONBLOCK | LQ_O_NOINHERIT)) | LQ_O_RDWR | LQ_O_EXCL, 0);
+    if(Sfd == -1)
+    {
+        DWORD dwError = GetLastError();
+        LqFileClose(Mfd);
+        SetLastError(dwError);
+        return -1;
+    }
+    *MasterFd = Mfd;
+    *SlaveFd = Sfd;
+    return 0;
+}
+
 LQ_EXTERN_C int LQ_CALL LqFilePipeCreate(int* lpReadPipe, int* lpWritePipe, uint32_t FlagsRead, uint32_t FlagsWrite)
 {
     static uint64_t PipeSerialNumber = 0;
@@ -512,12 +628,41 @@ LQ_EXTERN_C int LQ_CALL LqFilePipeCreate(int* lpReadPipe, int* lpWritePipe, uint
     return 0;
 }
 
+LQ_EXTERN_C int LQ_CALL LqFilePipeCreateRw(int* Pipe1, int* Pipe2, uint32_t Flags1, uint32_t Flags2)
+{
+    static uint64_t PipeSerialNumber = 0;
+
+    char PipeNameBuffer[MAX_PATH];
+    auto Proc = (uint64_t)GetCurrentProcessId();
+    uint64_t CurSerNum, t;
+    do
+    {
+        t = PipeSerialNumber;
+        CurSerNum = PipeSerialNumber + 1;
+    } while(!LqAtmCmpXchg(PipeSerialNumber, t, CurSerNum));
+    sprintf(PipeNameBuffer, "\\\\.\\Pipe\\AnonPipeRw_%u%u_%u%u", (uint)(Proc >> 32), (uint)(Proc & 0xffffffff), (uint)(CurSerNum >> 32), (uint)(CurSerNum & 0xffffffff));
+    int p1 = LqFilePipeCreateNamed(PipeNameBuffer, (Flags1 & (LQ_O_NONBLOCK | LQ_O_BIN | LQ_O_TXT | LQ_O_NOINHERIT)) | LQ_O_RDWR);
+    if(p1 == -1)
+        return -1;
+    int p2 = LqFileOpen(PipeNameBuffer, (Flags2 & (LQ_O_NONBLOCK | LQ_O_BIN | LQ_O_TXT | LQ_O_NOINHERIT)) | LQ_O_RDWR | LQ_O_EXCL, 0);
+    if(p2 == -1)
+    {
+        DWORD dwError = GetLastError();
+        LqFileClose(p1);
+        SetLastError(dwError);
+        return -1;
+    }
+    *Pipe1 = p1;
+    *Pipe2 = p2;
+    return 0;
+}
+
 LQ_EXTERN_C int LQ_CALL LqFilePipeCreateNamed(const char* NameOfPipe, uint32_t Flags)
 {
     static const size_t nSize = 4096;
     wchar_t PipeNameBuffer[LQ_MAX_PATH];
     LqCpConvertToWcs(NameOfPipe, PipeNameBuffer, MAX_PATH);
-    SECURITY_ATTRIBUTES InheritAttr = {sizeof(SECURITY_ATTRIBUTES), NULL, (Flags & LQ_O_NOINHERIT)?FALSE: TRUE};
+    SECURITY_ATTRIBUTES InheritAttr = {sizeof(SECURITY_ATTRIBUTES), NULL, (Flags & LQ_O_NOINHERIT) ? FALSE : TRUE};
     HANDLE PipeHandle = CreateNamedPipeW
     (
         PipeNameBuffer,
@@ -538,10 +683,17 @@ LQ_EXTERN_C int LQ_CALL LqFilePipeCreateNamed(const char* NameOfPipe, uint32_t F
     return (int)PipeHandle;
 }
 
+
+/*------------------------------------------
+* File descriptors
+*/
+
+
 LQ_EXTERN_C int LQ_CALL LqFileDescrDup(int Descriptor, int InheritFlag)
 {
     HANDLE h;
-    if(DuplicateHandle(GetCurrentProcess(), (HANDLE)Descriptor, GetCurrentProcess(), &h, 0, (InheritFlag & LQ_O_NOINHERIT) ? FALSE : TRUE, DUPLICATE_SAME_ACCESS) == FALSE)
+    auto PrHandle = GetCurrentProcess();
+    if(DuplicateHandle(PrHandle, (HANDLE)Descriptor, PrHandle, &h, 0, (InheritFlag & LQ_O_NOINHERIT) ? FALSE : TRUE, DUPLICATE_SAME_ACCESS) == FALSE)
         return -1;
     return (int)h;
 }
@@ -553,29 +705,73 @@ LQ_EXTERN_C int LQ_CALL LqFileDescrSetInherit(int Descriptor, int IsInherit)
 
 LQ_EXTERN_C int LQ_CALL LqFileDescrDupToStd(int Descriptor, int StdNo)
 {
-	static LqLocker<uintptr_t> Locker;
-	int Ret = 0;
-	Locker.LockWriteYield();
-	if(StdNo == STDIN_FILENO)
-	{
-		if(SetStdHandle(STD_INPUT_HANDLE, (HANDLE)Descriptor) == 0)
-			Ret = -1;
-	} else if(StdNo == STDOUT_FILENO)
-	{
-		if(SetStdHandle(STD_OUTPUT_HANDLE, (HANDLE)Descriptor) == 0)
-			Ret = -1;
-	} else if(StdNo == STDERR_FILENO)
-	{
-		if(SetStdHandle(STD_ERROR_HANDLE, (HANDLE)Descriptor) == 0)
-			Ret = -1;
-	} else
-	{
-		lq_errno_set(EINVAL);
-		Ret = -1;
-	}
-	Locker.UnlockWrite();
-	return Ret;
+    static LqLocker<uintptr_t> Locker;
+    int Ret = 0;
+    Locker.LockWriteYield();
+    if(StdNo == STDIN_FILENO)
+    {
+        if(SetStdHandle(STD_INPUT_HANDLE, (HANDLE)Descriptor) == 0)
+            Ret = -1;
+    } else if(StdNo == STDOUT_FILENO)
+    {
+        if(SetStdHandle(STD_OUTPUT_HANDLE, (HANDLE)Descriptor) == 0)
+            Ret = -1;
+    } else if(StdNo == STDERR_FILENO)
+    {
+        if(SetStdHandle(STD_ERROR_HANDLE, (HANDLE)Descriptor) == 0)
+            Ret = -1;
+    } else
+    {
+        lq_errno_set(EINVAL);
+        Ret = -1;
+    }
+    Locker.UnlockWrite();
+    return Ret;
 }
+
+/*------------------------------------------
+* Shared Memory
+*/
+
+LQ_EXTERN_C int LQ_CALL LqFileSharedCreate(int key, size_t Size, int DscrFlags, int UserAccess)
+{
+    HANDLE hMap;
+    wchar_t fname[15];
+    SECURITY_ATTRIBUTES InheritAttr = {sizeof(SECURITY_ATTRIBUTES), NULL, (DscrFlags & LQ_O_NOINHERIT) ? FALSE : TRUE};
+    wsprintf(fname, L"SharedM%05X", key);
+    hMap = CreateFileMappingW(INVALID_HANDLE_VALUE,
+                              &InheritAttr,
+                              PAGE_READWRITE,
+                              0,
+                              Size,
+                              fname);
+    return (hMap == 0) ? -1 : (int)hMap;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileSharedOpen(int key, size_t Size, int DscrFlags, int UserAccess)
+{
+    HANDLE hMap;
+    wchar_t fname[15];
+    wsprintf(fname, L"SharedM%05X", key);
+    hMap = OpenFileMappingW(FILE_MAP_ALL_ACCESS, (DscrFlags & LQ_O_NOINHERIT) ? FALSE : TRUE, fname);
+    return (hMap == 0) ? -1 : (int)hMap;
+}
+
+LQ_EXTERN_C void* LQ_CALL LqFileSharedAt(int shmid, void* BaseAddress)
+{
+    return MapViewOfFileEx((HANDLE)shmid, FILE_MAP_ALL_ACCESS, 0, 0, 0, BaseAddress);
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileSharedUnmap(void *addr)
+{
+    return (UnmapViewOfFile(addr) == 0) ? -1 : 0;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileSharedClose(int shmid)
+{
+    return LqFileClose(shmid);
+}
+
 
 /*------------------------------------------
 * Process
@@ -583,83 +779,81 @@ LQ_EXTERN_C int LQ_CALL LqFileDescrDupToStd(int Descriptor, int StdNo)
 
 LQ_EXTERN_C int LQ_CALL LqFileProcessCreate
 (
-	const char* FileName, 
-	char* const Argv[], 
-	char* const Envp[], 
-	const char* WorkingDir, 
-	int StdIn,
-	int StdOut,
-	int StdErr,
-	int* EventKill
+    const char* FileName,
+    char* const Argv[],
+    char* const Envp[],
+    const char* WorkingDir,
+    int StdIn,
+    int StdOut,
+    int StdErr,
+    int* EventKill
 )
 {
     STARTUPINFOW siStartInfo = {sizeof(STARTUPINFOW), 0};
     PROCESS_INFORMATION processInfo = {0};
+    LqString16 CommandLine, Environ;
+    wchar_t Buf[LQ_MAX_PATH];
 
-	siStartInfo.hStdInput = (HANDLE)((StdIn == -1) ? LQ_STDIN : StdIn);
-	siStartInfo.hStdError = (HANDLE)((StdErr == -1)? LQ_STDERR: StdErr);
-	siStartInfo.hStdOutput = (HANDLE)((StdOut == -1) ? LQ_STDOUT : StdOut);
-	siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+    siStartInfo.hStdInput = (HANDLE)((StdIn == -1) ? LQ_STDIN : StdIn);
+    siStartInfo.hStdError = (HANDLE)((StdErr == -1) ? LQ_STDERR : StdErr);
+    siStartInfo.hStdOutput = (HANDLE)((StdOut == -1) ? LQ_STDOUT : StdOut);
+    siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
 
-    {
-        LqString16 CommandLine;
-        LqString16 Environ;
-        wchar_t Buf[LQ_MAX_PATH];
-        LqCpConvertToWcs(FileName, Buf, LQ_MAX_PATH);
+    LqCpConvertToWcs(FileName, Buf, LQ_MAX_PATH);
 
-        if(Buf[0] != L'"')
-            CommandLine = L"\"";
-        CommandLine.append(Buf);
-        if(Buf[0] != L'"')
-            CommandLine.append(L"\"");
-        if(Argv != nullptr)
-            for(size_t i = 0; Argv[i] != nullptr; i++)
-            {
-                CommandLine.append(1, L' ');
-                LqCpConvertToWcs(Argv[i], Buf, LQ_MAX_PATH);
-                CommandLine.append(Buf);
-            }
-
-        if(Envp != nullptr)
-            for(size_t i = 0; Envp[i] != nullptr; i++)
-            {
-                LqCpConvertToWcs(Envp[i], Buf, LQ_MAX_PATH);
-                Environ.append(Buf);
-                Environ.append(1, L'\0');
-            }
-        Environ.append(2, L'\0\0');
-
-		if(WorkingDir != nullptr)
-		{
-			LqCpConvertToWcs(WorkingDir, Buf, LQ_MAX_PATH);
-		}
-
-        if(CreateProcessW
-            (
-               NULL,
-               (LPWSTR)CommandLine.c_str(),
-               NULL,
-               NULL,
-               TRUE,
-               CREATE_UNICODE_ENVIRONMENT,
-               (Envp != nullptr) ? (LPVOID)Environ.c_str() : NULL,
-		       (WorkingDir != nullptr)? Buf: NULL,
-               &siStartInfo,
-               &processInfo
-            ) == FALSE
-        )
+    if(Buf[0] != L'"')
+        CommandLine = L"\"";
+    CommandLine.append(Buf);
+    if(Buf[0] != L'"')
+        CommandLine.append(L"\"");
+    if(Argv != nullptr)
+        for(size_t i = 0; Argv[i] != nullptr; i++)
         {
-            return -1;
+            CommandLine.append(1, L' ');
+            LqCpConvertToWcs(Argv[i], Buf, LQ_MAX_PATH);
+            CommandLine.append(Buf);
         }
+
+    if(Envp != nullptr)
+        for(size_t i = 0; Envp[i] != nullptr; i++)
+        {
+            LqCpConvertToWcs(Envp[i], Buf, LQ_MAX_PATH);
+            Environ.append(Buf);
+            Environ.append(1, L'\0');
+        }
+    Environ.append(2, L'\0\0');
+
+    if(WorkingDir != nullptr)
+    {
+        LqCpConvertToWcs(WorkingDir, Buf, LQ_MAX_PATH);
     }
-	if(EventKill == nullptr)
-	{
-		NtClose(processInfo.hProcess);
-	} else
-	{
-		LqFileDescrSetInherit((int)processInfo.hProcess, 1);
-		*EventKill = (int)processInfo.hProcess;
-	}
+
+    if(CreateProcessW
+    (
+       NULL,
+       (LPWSTR)CommandLine.c_str(),
+       NULL,
+       NULL,
+       TRUE,
+       CREATE_UNICODE_ENVIRONMENT,
+       (Envp != nullptr) ? (LPVOID)Environ.c_str() : NULL,
+       (WorkingDir != nullptr) ? Buf : NULL,
+       &siStartInfo,
+       &processInfo
+       ) == FALSE
+    )
+    {
+        return -1;
+    }
+
+    if(EventKill == nullptr)
+    {
+        NtClose(processInfo.hProcess);
+    } else
+    {
+        LqFileDescrSetInherit((int)processInfo.hProcess, 1);
+        *EventKill = (int)processInfo.hProcess;
+    }
     NtClose(processInfo.hThread);
     return processInfo.dwProcessId;
 }
@@ -1035,7 +1229,7 @@ lblErr2:
             (Fds[i].revents == 0)
             )
         {
-            /* I dont know how follow only disconnect of file or pipe:(*/
+            /* I dont know how follow only disconnect of file or pipe:( */
             Fds[i].revents |= (LQ_POLLERR | LQ_POLLNVAL);
             HasEvnt = 1;
         }
@@ -1212,8 +1406,8 @@ LQ_EXTERN_C int LQ_CALL LqFilePathEvntCreate(LqFilePathEvnt* Evnt, const char* D
             return 0;
     }
     Evnt->_Data.IoStatusBlock.Status = Stat;
-    CloseHandle(EventHandle);
-    CloseHandle(DirHandle);
+    NtClose(EventHandle);
+    NtClose(DirHandle);
     free(Evnt->_Data.Buffer);
     return -1;
 }
@@ -1324,7 +1518,7 @@ LQ_EXTERN_C int LQ_CALL LqFilePathEvntDoEnum(LqFilePathEvnt* Evnt, LqFilePathEvn
     return -1;
 }
 
-LQ_IMPORTEXPORT int LQ_CALL LqFilePathEvntGetName(LqFilePathEvnt* Evnt, char* DestName, size_t DestNameSize)
+LQ_EXTERN_C int LQ_CALL LqFilePathEvntGetName(LqFilePathEvnt* Evnt, char* DestName, size_t DestNameSize)
 {
     return LqStrCopyMax(DestName, Evnt->_Data.DirName, DestNameSize);
 }
@@ -1333,8 +1527,8 @@ LQ_EXTERN_C void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* Evnt)
 {
     if(Evnt->Fd != -1)
     {
-        CloseHandle((HANDLE)Evnt->Fd);
-        CloseHandle((HANDLE)Evnt->_Data.DirFd);
+        NtClose((HANDLE)Evnt->Fd);
+        NtClose((HANDLE)Evnt->_Data.DirFd);
         if(Evnt->_Data.DirName != nullptr)
             free(Evnt->_Data.DirName);
         if(Evnt->_Data.Buffer != nullptr)
@@ -1348,6 +1542,7 @@ LQ_EXTERN_C void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* Evnt)
 
 #else
 
+
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -1357,6 +1552,8 @@ LQ_EXTERN_C void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* Evnt)
 #include <stdlib.h>
 #include <signal.h>
 #include <dirent.h>
+#include <util.h>
+#include <sys/ioctl.h>
 
 #include <sys/wait.h> 
 
@@ -1539,6 +1736,18 @@ LQ_EXTERN_C int LQ_CALL LqFileWrite(int Fd, const void* SourceBuf, unsigned int 
     return write(Fd, SourceBuf, SizeBuf);
 }
 
+
+LQ_EXTERN_C int LQ_CALL LqFileSetLock(int Fd, LqFileSz StartOffset, LqFileSz Len, int LockFlags)
+{
+    struct flock lck = {0};
+    lck.l_whence = SEEK_SET;
+    lck.l_start = StartOffset;
+    lck.l_len = Len;
+    lck.l_pid = getpid();
+    lck.l_type = (LockFlags & LQ_FLOCK_UNLOCK)? F_UNLCK: ((LockFlags & LQ_FLOCK_WR) ? F_WRLCK : F_RDLCK);
+    return fcntl(Fd, (LockFlags & LQ_FLOCK_WAIT) ? F_SETLKW : F_SETLK, &lck);
+}
+
 LQ_EXTERN_C int LQ_CALL LqFileRealPath(const char* Source, char* Dest, size_t DestLen)
 {
     auto Ret = realpath(Source, nullptr);
@@ -1548,6 +1757,12 @@ LQ_EXTERN_C int LQ_CALL LqFileRealPath(const char* Source, char* Dest, size_t De
     free(Ret);
     return Len;
 }
+
+LQ_EXTERN_C int LQ_CALL LqFileFlush(int Fd)
+{
+    return fsync(Fd);
+}
+
 /*
 * In unix all as standart poll
 */
@@ -1586,6 +1801,11 @@ LQ_EXTERN_C int LQ_CALL LqFilePipeCreateNamed(const char* NameOfPipe, uint32_t F
     return LqFileOpen(NameOfPipe, (Flags & (~LQ_O_CREATE)) | LQ_O_TMP, 0);
 }
 
+LQ_EXTERN_C int LQ_CALL LqFilePipeCreateRw(int* Pipe1, int* Pipe2, uint32_t Flags1, uint32_t Flags2)
+{
+    return LqFilePipeCreate(Pipe1, Pipe2, Flags1, Flags2);
+}
+
 /*------------------------------------------
 * Descriptors
 */
@@ -1602,15 +1822,15 @@ LQ_EXTERN_C int LQ_CALL LqFileDescrDup(int Descriptor, int InheritFlag)
 
 LQ_EXTERN_C int LQ_CALL LqFileDescrSetInherit(int Descriptor, int IsInherit)
 {
-	auto Val = fcntl(Descriptor, F_GETFD);
-	if(Val < 0)
-		return -1;
-	return fcntl(Descriptor, F_SETFD, (IsInherit) ? (Val & ~(FD_CLOEXEC)) :(Val | FD_CLOEXEC));
+    auto Val = fcntl(Descriptor, F_GETFD);
+    if(Val < 0)
+        return -1;
+    return fcntl(Descriptor, F_SETFD, (IsInherit) ? (Val & ~(FD_CLOEXEC)) :(Val | FD_CLOEXEC));
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileDescrDupToStd(int Descriptor, int StdNo)
 {
-	return lq_min(dup2(Descriptor, StdNo), 0);
+    return lq_min(dup2(Descriptor, StdNo), 0);
 }
 
 /*------------------------------------------
@@ -1620,17 +1840,17 @@ LQ_EXTERN_C int LQ_CALL LqFileDescrDupToStd(int Descriptor, int StdNo)
 
 LQ_EXTERN_C int LQ_CALL LqFileProcessCreate
 (
-	const char* FileName,
-	char* const Argv[], 
-	char* const Envp[],
-	const char* WorkingDir,
-	int StdIn,
-	int StdOut,
-	int StdErr,
-	int* EventKill
+    const char* FileName,
+    char* const Argv[], 
+    char* const Envp[],
+    const char* WorkingDir,
+    int StdIn,
+    int StdOut,
+    int StdErr,
+    int* EventKill
 )
 {
-	int EventParent = -1, EventChild = -1;
+    int EventParent = -1, EventChild = -1;
     pid_t Pid;
     int TestPipe[2];
     int64_t Err = 0;
@@ -1663,34 +1883,34 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessCreate
     {
         close(TestPipe[0]);
         lq_errno_set(0);
-		setsid();
-		if(StdIn != -1)
-		{
-			if(LqFileDescrDupToStd(StdIn, STDIN_FILENO) == -1)
-			{
-				Err = lq_errno;
-				write(TestPipe[1], &Err, sizeof(Err));
-				return -1;
-			}
-		}
-		if(StdOut != -1)
-		{
-			if(LqFileDescrDupToStd(StdOut, STDOUT_FILENO) == -1)
-			{
-				Err = lq_errno;
-				write(TestPipe[1], &Err, sizeof(Err));
-				return -1;
-			}
-		}
-		if(StdErr != -1)
-		{
-			if(LqFileDescrDupToStd(StdErr, STDERR_FILENO) == -1)
-			{
-				Err = lq_errno;
-				write(TestPipe[1], &Err, sizeof(Err));
-				return -1;
-			}
-		}
+        setsid();
+        if(StdIn != -1)
+        {
+            if(LqFileDescrDupToStd(StdIn, STDIN_FILENO) == -1)
+            {
+                Err = lq_errno;
+                write(TestPipe[1], &Err, sizeof(Err));
+                return -1;
+            }
+        }
+        if(StdOut != -1)
+        {
+            if(LqFileDescrDupToStd(StdOut, STDOUT_FILENO) == -1)
+            {
+                Err = lq_errno;
+                write(TestPipe[1], &Err, sizeof(Err));
+                return -1;
+            }
+        }
+        if(StdErr != -1)
+        {
+            if(LqFileDescrDupToStd(StdErr, STDERR_FILENO) == -1)
+            {
+                Err = lq_errno;
+                write(TestPipe[1], &Err, sizeof(Err));
+                return -1;
+            }
+        }
         if(EventParent != -1)
             LqFileClose(EventParent);
 
@@ -1727,15 +1947,15 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessCreate
         close(TestPipe[1]);
 lblErr2:
         close(TestPipe[0]);
-		if(EventParent != -1)
-		{
-			LqFileClose(EventParent);
-			LqFileClose(EventChild);
-		}
+        if(EventParent != -1)
+        {
+            LqFileClose(EventParent);
+            LqFileClose(EventChild);
+        }
 lblErr:
-		if(Err != 0)
-			lq_errno_set(Err);
-		return -1;
+        if(Err != 0)
+            lq_errno_set(Err);
+        return -1;
     }
     return Pid;
 }
@@ -1890,6 +2110,30 @@ LQ_EXTERN_C void LQ_CALL LqFileEnmBreak(LqFileEnm* Enm)
 # endif
 #endif
 
+#if !defined(SYS_shmget) || !defined(SYS_shmdt) || !defined(SYS_shmat) || !defined(SYS_shmctl)
+# if defined(__i386__)
+#  define SYS_shmget 29
+#  define SYS_shmdt 67
+#  define SYS_shmat 30
+#  define SYS_shmctl 31
+
+# elif defined(__x86_64__)
+#  define SYS_shmget 29
+#  define SYS_shmdt 67
+#  define SYS_shmat 30
+#  define SYS_shmctl 31
+
+# elif defined(__arm__)
+#  define SYS_shmget 307
+#  define SYS_shmdt 306
+#  define SYS_shmat 305
+#  define SYS_shmctl 308
+
+# else
+#  error "no eventfd"
+# endif
+#endif
+
 
 /*------------------------------------------
 * Event
@@ -1934,8 +2178,51 @@ LQ_EXTERN_C int LQ_CALL LqFileTimerSet(int TimerFd, LqTimeMillisec Time)
     return syscall(SYS_timerfd_settime, TimerFd, (int)0, &Ts, (itimerspec*)nullptr);
 }
 
+/*------------------------------------------
+* Shared Memory
+*/
+#define IPC_RMID 0
+#define IPC_CREAT 00001000
+
+LQ_EXTERN_C int LQ_CALL LqFileSharedCreate(int key, size_t Size, int DscrFlags, int UserAccess)
+{
+    int Res = syscall(SYS_shmget, key, (int)Size, (int)(UserAccess | IPC_CREAT));
+    if(Res == -1)
+        return -1;
+    if(DscrFlags & LQ_O_NOINHERIT)
+        LqFileDescrSetInherit(Res, 0);
+    return Res;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileSharedOpen(int key, size_t Size, int DscrFlags, int UserAccess)
+{
+    int Res = syscall(SYS_shmget, key, (int)Size, (int)UserAccess);
+    if(Res == -1)
+        return -1;
+    if(DscrFlags & LQ_O_NOINHERIT)
+        LqFileDescrSetInherit(Res, 0);
+    return Res;
+}
+
+LQ_EXTERN_C void* LQ_CALL LqFileSharedAt(int shmid, void* BaseAddress)
+{
+    return syscall(SYS_shmat, shmid, (char*)BaseAddress, (int)0);
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileSharedUnmap(void *addr)
+{
+    return syscall(SYS_shmdt, addr);
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileSharedClose(int shmid)
+{
+    return syscall(SYS_shmctl, shmid, (int)IPC_RMID, (void*)nullptr);
+}
+
 #else
 #include <sys/timerfd.h>
+#include <sys/ipc.h> 
+#include <sys/shm.h> 
 
 /*------------------------------------------
 * Event
@@ -1977,6 +2264,45 @@ LQ_EXTERN_C int LQ_CALL LqFileTimerSet(int TimerFd, LqTimeMillisec Time)
     Ts.it_value.tv_sec = Ts.it_interval.tv_sec = (time_t)(Time / 1000);
     Ts.it_value.tv_nsec = Ts.it_interval.tv_nsec = (long int)((Time % 1000) * 1000 * 1000);
     return timerfd_settime(TimerFd, 0, &Ts, nullptr);
+}
+
+/*------------------------------------------
+* Shared Memory
+*/
+
+LQ_EXTERN_C int LQ_CALL LqFileSharedCreate(int key, size_t Size, int DscrFlags, int UserAccess)
+{
+    int Res = shmget(key, Size, UserAccess | IPC_CREAT);
+    if(Res == -1)
+        return -1;
+    if(DscrFlags & LQ_O_NOINHERIT)
+        LqFileDescrSetInherit(Res, 0);
+    return Res;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileSharedOpen(int key, size_t Size, int DscrFlags, int UserAccess)
+{
+    int Res = shmget(key, Size, UserAccess);
+    if(Res == -1)
+        return -1;
+    if(DscrFlags & LQ_O_NOINHERIT)
+        LqFileDescrSetInherit(Res, 0);
+    return Res;
+}
+
+LQ_EXTERN_C void* LQ_CALL LqFileSharedAt(int shmid, void* BaseAddress)
+{
+    return shmat(shmid, BaseAddress, 0);
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileSharedUnmap(void *addr)
+{
+    return shmdt(addr);
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileSharedClose(int shmid)
+{
+    return shmctl(shmid, IPC_RMID, nullptr);
 }
 
 #endif
@@ -2261,6 +2587,30 @@ LQ_EXTERN_C void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* Evnt)
             close(Evnt->Fd);
     }
 }
+
+LQ_EXTERN_C int LQ_CALL LqFileTermPairCreate(int* MasterFd, int* SlaveFd, int MasterFlags, int SlaveFlags)
+{
+    int   ptm = -1, pts = -1;
+    char *tty = 0;
+    if((ptm = LqFileOpen("/dev/ptmx", LQ_O_RDWR | (MasterFlags & (LQ_O_NONBLOCK | LQ_O_NOINHERIT)), 0)) == -1)
+        return -1;
+    tty = ptsname(ptm);
+    if(
+        (grantpt(ptm) == -1) ||
+        (unlockpt(ptm) == -1) || 
+        ((pts = LqFileOpen(tty, LQ_O_RDWR | (SlaveFlags & (LQ_O_NONBLOCK | LQ_O_NOINHERIT)), 0)) == -1)
+    )
+    {
+        close(ptm);
+        return -1;
+    }
+
+    *MasterFd = ptm;
+    *SlaveFd = pts;
+    return 0;
+}
+
+
 
 
 #endif

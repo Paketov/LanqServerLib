@@ -2,7 +2,7 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-*   MdlAutoLoad... - Auto load/unload modules from spec. dir.
+*   RemoteTerminal - Create terminal sessions.
 */
 
 #include "LqConn.h"
@@ -20,15 +20,14 @@
 #include "LqHttpRcv.h"
 #include "LqHttp.hpp"
 #include "LqHttpAtz.h"
-#include "LqLib.h"
 #include "LqShdPtr.hpp"
 
-#include <vector>
-#include <sstream>
-#include <thread>
+#define __METHOD_DECLS__
+#include "LqAlloc.hpp"
 
 
-LqString ModuleName;
+#include "RemoteTerminal.h"
+
 
 static LqString ReadPath(LqString& Source)
 {
@@ -82,166 +81,96 @@ static void Response(LqHttpConn* c, int Code, const char* Content)
     Conn.Rsp.Hdrs.AppendSmallContent(Content, l);
     Conn.EvntHandler.Ignore();
 }
-struct CmdSession;
 
 
 LqHttpMdl Mod;
+LqHttpProtoBase* Proto;
 LqTimeMillisec SessionTimeLife = 12000;
 size_t MaxCountSessions = 50;
 
 
-class _Sessions
+
+CmdSession::CmdSession(int NewStdIn, int NewPid, LqString& NewKey):
+	MasterFd(NewStdIn),
+	Pid(NewPid),
+	Key(NewKey),
+	CountPointers(0),
+	Conn(nullptr)
 {
-    std::vector<CmdSession*> Data;
-    int LastEmpty;
-    mutable LqLocker<uintptr_t> Lk;
+	LastAct = LqTimeGetLocMillisec();
+	auto Event = LqFileTimerCreate(LQ_O_NOINHERIT);
+	LqFileTimerSet(Event, SessionTimeLife);
 
-public:
+	LqEvntFdInit(&TimerFd, Event, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
+	TimerFd.Handler = TimerHandler;
+	TimerFd.CloseHandler = TimerHandlerClose;
+	TimerFd.UserData = (uintptr_t)&TimerFd - (uintptr_t)this;
+	LqObReference(this);
+	LqEvntFdAdd(&TimerFd);
+	Sessions.Add(this);
+}
 
-    _Sessions()
-    {
-        LastEmpty = -1;
-    }
-
-    ~_Sessions()
-    {
-        LastEmpty = -1;
-    }
-
-    size_t Add(CmdSession* Session);
-
-    void Remove(CmdSession* Session);
-
-    CmdSession* Get(size_t Index, LqString Key) const;
-
-    size_t Count() const
-    {
-        return Data.size();
-    }
-
-} Sessions;
-
-struct CmdSession
+CmdSession::~CmdSession()
 {
-    LqEvntFd                                                    TimerFd;
-    LqEvntFd                                                    ReadFd;
+	Sessions.Remove(this);
+	if(Pid != -1)
+		LqFileProcessKill(Pid);
+	if(MasterFd != -1)
+		LqFileClose(MasterFd);
+}
 
-    size_t                                                      CountPointers;
-    LqLocker<intptr_t>                                          Locker;
-    int                                                         InFd;
-    int                                                         OutFd;
-    int                                                         Pid;
-    LqString                                                    Key;
-    int                                                         Index;
-
-    LqHttpConn*                                                 Conn;
-    LqTimeMillisec                                              LastAct;
-
-    inline void LockRead()
-    {
-        Locker.LockReadYield();
-    }
-
-    inline void LockWrite()
-    {
-        Locker.LockWriteYield();
-    }
-
-    inline void Unlock()
-    {
-        Locker.Unlock();
-    }
-
-    CmdSession(int NewStdIn, int NewStdOut, int NewPid, LqString& NewKey):
-        InFd(NewStdIn),
-        OutFd(NewStdOut),
-        Pid(NewPid),
-        Key(NewKey),
-        CountPointers(0),
-        Conn(nullptr)
-    {
-        LastAct = LqTimeGetLocMillisec();
-        auto Event = LqFileTimerCreate(LQ_O_NOINHERIT);
-        LqFileTimerSet(Event, SessionTimeLife);
-
-        LqEvntFdInit(&TimerFd, Event, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
-        TimerFd.Handler = TimerHandler;
-        TimerFd.CloseHandler = TimerHandlerClose;
-        TimerFd.UserData = (uintptr_t)&TimerFd - (uintptr_t)this;
-        LqObReference(this);
-        LqEvntFdAdd(&TimerFd);
-        Sessions.Add(this);
-    }
-
-    ~CmdSession()
-    {
-        Sessions.Remove(this);
-        if(Pid != -1)
-            LqFileProcessKill(Pid);
-        if(InFd != -1)
-            LqFileClose(InFd);
-        if(OutFd != -1)
-            LqFileClose(OutFd);
-    }
+void LQ_CALL CmdSession::TimerHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags)
+{
+	auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
+	Ob->LockWrite();
+	LqFileClose(Ob->TimerFd.Fd);
+	Ob->TimerFd.Fd = -1;
+	Ob->Unlock();
+	LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
+}
 
 
-    static void LQ_CALL TimerHandler(LqEvntFd* Instance, LqEvntFlag Flags);
+bool CmdSession::StartRead(LqHttpConn* c)
+{
+	bool Res = false;
+	if(Conn == nullptr)
+	{
+		Conn = c;
+		LqEvntFdInit(&ReadFd, MasterFd, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
+		ReadFd.Handler = ReadHandler;
+		ReadFd.CloseHandler = ReadHandlerClose;
+		ReadFd.UserData = (uintptr_t)&ReadFd - (uintptr_t)this;
 
-    static void LQ_CALL TimerHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags)
-    {
-        auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
-        Ob->LockWrite();
-        LqFileClose(Ob->TimerFd.Fd);
-        Ob->TimerFd.Fd = -1;
-        Ob->Unlock();
-        LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
-    }
+		LqEvntFdAdd(&ReadFd);
+		LqObReference(this);
+		LqObReference(this);
+		c->ModuleData = (uintptr_t)this;
+		LastAct = LqTimeGetLocMillisec();
+		Res = true;
+	}
+	return Res;
+}
 
+void CmdSession::EndRead(LqHttpConn* c)
+{
+	auto Ob = (CmdSession*)(c->ModuleData);
+	Ob->LockWrite();
 
-    bool StartRead(LqHttpConn* c)
-    {
-        bool Res = false;
-        if(Conn == nullptr)
-        {
-            Conn = c;
-            LqEvntFdInit(&ReadFd, OutFd, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
-            ReadFd.Handler = ReadHandler;
-            ReadFd.CloseHandler = ReadHandlerClose;
-            ReadFd.UserData = (uintptr_t)&ReadFd - (uintptr_t)this;
+	Ob->LastAct = LqTimeGetLocMillisec();
+	if(Ob->Conn != nullptr)
+	{
+		Ob->Conn = nullptr;
+		LqEvntSetClose(&Ob->ReadFd);
+	}
+	Ob->Unlock();
+	LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
+}
 
-            LqEvntFdAdd(&ReadFd);
-            LqObReference(this);
-            LqObReference(this);
-            c->ModuleData = (uintptr_t)this;
-            LastAct = LqTimeGetLocMillisec();
-            Res = true;
-        }
-        return Res;
-    }
-
-	static void EndRead(LqHttpConn* c)
-    {
-        auto Ob = (CmdSession*)(c->ModuleData);
-        Ob->LockWrite();
-
-        Ob->LastAct = LqTimeGetLocMillisec();
-        if(Ob->Conn != nullptr)
-        {
-            Ob->Conn = nullptr;
-            LqEvntSetClose(&Ob->ReadFd);
-        }
-        Ob->Unlock();
-        LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
-    }
-
-    static void LQ_CALL ReadHandler(LqEvntFd* Instance, LqEvntFlag Flags);
-
-    static void LQ_CALL ReadHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags)
-    {
-        auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
-        LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
-    }
-};
+void LQ_CALL CmdSession::ReadHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags)
+{
+	auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
+	LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
+}
 
 size_t _Sessions::Add(CmdSession* Session)
 {
@@ -304,157 +233,144 @@ CmdSession* _Sessions::Get(size_t Index, LqString Key) const
     return Ret;
 }
 
-struct ConnHandlers
+
+void LQ_CALL ConnHandlers::NewTerminal(LqHttpConn* c)
 {
-    static void LQ_CALL NewTerminal(LqHttpConn* c)
+    if(Sessions.Count() > MaxCountSessions)
     {
-        if(Sessions.Count() > MaxCountSessions)
-        {
-            Response(c, 500, "Overflow limit of sessions");
-            return;
-        }
+        Response(c, 500, "Overflow limit of sessions");
+        return;
+    }
 
-        int StdInRd = -1, StdInWr = -1, StdOutRd = -1, StdOutWr = -1, StdErrRd = -1, StdErrWr = -1;
-        //Create out pipe
-        if(LqFilePipeCreate(&StdOutRd, &StdOutWr, LQ_O_NONBLOCK | LQ_O_BIN | LQ_O_NOINHERIT, 0) == -1)
-        {
-            Response(c, 500, "Internal server error");
-            return;
-        }
-        //Create in pipe
-        if(LqFilePipeCreate(&StdInRd, &StdInWr, LQ_O_BIN, LQ_O_NONBLOCK | LQ_O_NOINHERIT) == -1)
-        {
-            Response(c, 500, "Internal server error");
-            LqFileClose(StdOutRd);
-            LqFileClose(StdOutWr);
-            return;
-        }
+    int SlaveFd = -1, MasterFd = -1;
+    //Create terminal fd
+    if(LqFileTermPairCreate(&MasterFd, &SlaveFd, LQ_O_NONBLOCK | LQ_O_NOINHERIT, 0) == -1)
+    {
+        Response(c, 500, (LqString("Not create terminal session. ") + strerror(lq_errno)).c_str());
+        return;
+    }
 #if defined(LQPLATFORM_WINDOWS)
-        const char* TerminalShell = "cmd";
-        char ** Arg = nullptr;
+    const char* TerminalShell = "cmd";
+    char ** Arg = nullptr;
 #else
-        const char* TerminalShell = "sh";
-        char * Arg[] = {"-", nullptr}; 
-        //TODO: Create tty in here
+    const char* TerminalShell = "sh";
+    char * Arg[] = {"-", nullptr};
 #endif
-        int Pid = LqFileProcessCreate(TerminalShell, Arg, nullptr, nullptr, StdInRd, StdOutWr, StdOutWr, nullptr);  
-        LqFileClose(StdInRd);
-        LqFileClose(StdOutWr);
-        if(Pid == -1)
-        {
-            LqFileClose(StdInWr);
-            LqFileClose(StdOutRd);
-            Response(c, 500, (LqString("Not create terminal session. ") + strerror(lq_errno)).c_str());
-            return;
-        }
-
-        int Key[5];
-        char KeyBuffer[50] = {0};
-        for(int i = 0; i < 4; i++)
-            Key[i] = rand() + clock() * 10000;
-        LqStrToHex(KeyBuffer, Key, sizeof(Key) - sizeof(int));
-
-        auto Ses = LqFastAlloc::New<CmdSession>(StdInWr, StdOutRd, Pid, LqString(KeyBuffer));
-        LqString LqResponse;
-        LqResponse = "{\"Key\": \"" + LqString(KeyBuffer) + "\", \"SessionIndex\": " + LqToString(Ses->Index) + "}";
-        Response(c, 200, LqResponse.c_str());
-    }
-
-    static void LQ_CALL CloseTerminal(LqHttpConn* c)
+    int Pid = LqFileProcessCreate(TerminalShell, Arg, nullptr, nullptr, SlaveFd, SlaveFd, SlaveFd, nullptr);
+    LqFileClose(SlaveFd);
+    if(Pid == -1)
     {
-        LqHttpConnInterface Conn(c);
-        int Index = LqParseInt(Conn.Quer.Args["SessionIndex"]);
-
-
-        auto Ses = Sessions.Get(Index, Conn.Quer.Args["Key"]);
-        if(Ses == nullptr)
-        {
-            Response(c, 500, "Invalid key or index of session.");
-            return;
-        }
-
-        Sessions.Remove(Ses); 
-        Response(c, 200, "OK");
-		LqEvntSetClose(&Ses->TimerFd);
-        Ses->Unlock();
+        LqFileClose(MasterFd);
+        Response(c, 500, (LqString("Not create terminal session.") + strerror(lq_errno)).c_str());
+        return;
     }
 
-    static void LQ_CALL Write(LqHttpConn* c)
+    int Key[5];
+    char KeyBuffer[50] = {0};
+    for(int i = 0; i < 4; i++)
+        Key[i] = rand() + clock() * 10000;
+    LqStrToHex(KeyBuffer, Key, sizeof(Key) - sizeof(int));
+
+    auto Ses = LqFastAlloc::New<CmdSession>(MasterFd, Pid, LqString(KeyBuffer));
+    LqString LqResponse;
+    LqResponse = "{\"Key\": \"" + LqString(KeyBuffer) + "\", \"SessionIndex\": " + LqToString(Ses->Index) + "}";
+    Response(c, 200, LqResponse.c_str());
+}
+
+void LQ_CALL ConnHandlers::CloseTerminal(LqHttpConn* c)
+{
+    LqHttpConnInterface Conn(c);
+    int Index = LqParseInt(Conn.Quer.Args["SessionIndex"]);
+
+
+    auto Ses = Sessions.Get(Index, Conn.Quer.Args["Key"]);
+    if(Ses == nullptr)
     {
-        LqHttpConnInterface Conn(c);
-        if(Conn.Quer.ContentLen > 4096)
-        {
-            Response(c, 500, "Limit overflow.");
-            return;
-        }
-        Conn.Quer.Stream.Set();
-        Conn.EvntHandler = Write2;
+        Response(c, 500, "Invalid key or index of session.");
+        return;
     }
 
-    static void LQ_CALL Write2(LqHttpConn* c)
+    Sessions.Remove(Ses);
+    Response(c, 200, "OK");
+    LqEvntSetClose(&Ses->TimerFd);
+    Ses->Unlock();
+}
+
+void LQ_CALL ConnHandlers::Write(LqHttpConn* c)
+{
+    LqHttpConnInterface Conn(c);
+    if(Conn.Quer.ContentLen > 4096)
     {
-        LqHttpConnInterface Conn(c);
-        int Index = LqParseInt(Conn.Quer.Args["SessionIndex"]);
-
-        auto Ses = Sessions.Get(Index, Conn.Quer.Args["Key"]);
-        if(Ses == nullptr)
-        {
-            Response(c, 500, "Invalid key or index of session.");
-            return;
-        }
-        char Buf[4096];
-        auto Readed = Conn.Quer.Stream.Read(Buf, sizeof(Buf));
-
-        auto Written = LqFileWrite(Ses->InFd, Buf, Readed);
-        Ses->Unlock();
-
-        if((Written > -1) || LQERR_IS_WOULD_BLOCK)
-        {
-            Response(c, 200, (LqString("Written: ") + LqToString(Written)).c_str());
-        } else
-        {
-            Response(c, 500, (LqString("Terminal error. ") + strerror(lq_errno)).c_str());
-        }
-
+        Response(c, 500, "Limit overflow.");
+        return;
     }
+    Conn.Quer.Stream.Set();
+    Conn.EvntHandler = Write2;
+}
 
+void LQ_CALL ConnHandlers::Write2(LqHttpConn* c)
+{
+    LqHttpConnInterface Conn(c);
+    int Index = LqParseInt(Conn.Quer.Args["SessionIndex"]);
 
-    static void LQ_CALL Read(LqHttpConn* c)
+    auto Ses = Sessions.Get(Index, Conn.Quer.Args["Key"]);
+    if(Ses == nullptr)
     {
-        LqHttpConnInterface Conn(c);
-        int Index = LqParseInt(Conn.Quer.Args["SessionIndex"]);
-
-        auto Ses = Sessions.Get(Index, Conn.Quer.Args["Key"]);
-        if(Ses == nullptr)
-        {
-            Response(c, 500, "Invalid key or index of session.");
-            return;
-        }
-
-
-        if(!Ses->StartRead(c))
-        {
-            Response(c, 500, "Not read from termminal.");
-        } else
-        {
-            Conn.EvntFlag = LQEVNT_FLAG_HUP;
-            Conn.CloseHandler = ReadClose;
-        }
-        Ses->Unlock();
+        Response(c, 500, "Invalid key or index of session.");
+        return;
     }
+    char Buf[4096];
+    auto Readed = Conn.Quer.Stream.Read(Buf, sizeof(Buf));
 
-    static void LQ_CALL ReadClose(LqHttpConn* c)
+    auto Written = LqFileWrite(Ses->MasterFd, Buf, Readed);
+    Ses->Unlock();
+
+    if((Written > -1) || LQERR_IS_WOULD_BLOCK)
     {
-        LqHttpConnInterface Conn(c);
-        CmdSession::EndRead(c);
-        Conn.EvntHandler.Ignore();
-        Conn.CloseHandler.Ignore();
+        Response(c, 200, (LqString("Written: ") + LqToString(Written)).c_str());
+    } else
+    {
+        Response(c, 500, (LqString("Terminal error. ") + strerror(lq_errno)).c_str());
     }
 
-};
+}
 
 
-void CmdSession::TimerHandler(LqEvntFd* Instance, LqEvntFlag Flags)
+void LQ_CALL ConnHandlers::Read(LqHttpConn* c)
+{
+    LqHttpConnInterface Conn(c);
+    int Index = LqParseInt(Conn.Quer.Args["SessionIndex"]);
+
+    auto Ses = Sessions.Get(Index, Conn.Quer.Args["Key"]);
+    if(Ses == nullptr)
+    {
+        Response(c, 500, "Invalid key or index of session.");
+        return;
+    }
+
+
+    if(!Ses->StartRead(c))
+    {
+        Response(c, 500, "Not read from termminal.");
+    } else
+    {
+        Conn.EvntFlag = LQEVNT_FLAG_HUP;
+        Conn.CloseHandler = ReadClose;
+    }
+    Ses->Unlock();
+}
+
+void LQ_CALL ConnHandlers::ReadClose(LqHttpConn* c)
+{
+    LqHttpConnInterface Conn(c);
+    CmdSession::EndRead(c);
+    Conn.EvntHandler.Ignore();
+    Conn.CloseHandler.Ignore();
+}
+
+
+
+void LQ_CALL CmdSession::TimerHandler(LqEvntFd* Instance, LqEvntFlag Flags)
 {
     auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
     auto CurTime = LqTimeGetLocMillisec();
@@ -485,7 +401,7 @@ void CmdSession::TimerHandler(LqEvntFd* Instance, LqEvntFlag Flags)
     }
 }
 
-void CmdSession::ReadHandler(LqEvntFd* Instance, LqEvntFlag Flags)
+void LQ_CALL CmdSession::ReadHandler(LqEvntFd* Instance, LqEvntFlag Flags)
 {
     auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
 
@@ -511,6 +427,7 @@ void CmdSession::ReadHandler(LqEvntFd* Instance, LqEvntFlag Flags)
             Conn.Rsp.Hdrs["Content-Length"] = LqToString(Readed);
             Conn.Rsp.Hdrs["Cache-Control"] = "no-cache";
             Conn.Rsp.Hdrs["Content-Type"] = "text/plain";
+
             Conn.EvntHandler = ConnHandlers::ReadClose;
             Conn.EvntFlag.ReturnToDefault();
         }
@@ -522,40 +439,123 @@ void CmdSession::ReadHandler(LqEvntFd* Instance, LqEvntFlag Flags)
 
 LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHttpProtoBase* Reg, uintptr_t ModuleHandle, const char* LibPath, void* UserData)
 {
-    uintptr_t Handle = LqLibGetHandleByAddr(LqHttpMdlRegistrator);
-    printf("%llx\n", (unsigned long long)Handle);
-    char Path[LQ_MAX_PATH] = {0};
-    if(LqLibGetPathByHandle(Handle, Path, LQ_MAX_PATH) == -1)
-    {
-        printf("LqLibGetPathByHandle() err\n", (unsigned long long)Handle);
-    }
-
-    ModuleName = Path;
-    printf("%s", ModuleName.c_str());
-
+	Proto = Reg;
     LqHttpMdlInit(Reg, &Mod, "RemoteTerminal", ModuleHandle);
 
     Mod.ReciveCommandProc =
-        [](LqHttpMdl* Mdl, const char* Command, void* Data)
+    [](LqHttpMdl* Mdl, const char* Command, void* Data)
     {
+		FILE* OutBuffer = nullptr;
+		LqString FullCommand;
+		if(Command[0] == '?')
+		{
+			FullCommand = Command + 1;
+			OutBuffer = (FILE*)Data;
+		} else
+		{
+			FullCommand = Command;
+		}
+		LqString Cmd;
+		while((FullCommand[0] != ' ') && (FullCommand[0] != '\0') && (FullCommand[0] != '\t'))
+		{
+			Cmd.append(1, FullCommand[0]);
+			FullCommand.erase(0, 1);
+		}
+		while((FullCommand[0] == ' ') || (FullCommand[0] == '\t'))
+			FullCommand.erase(0, 1);
+
+
+		LQSTR_SWITCH(Cmd.c_str())
+		{
+			LQSTR_CASE("start")
+			{
+				/*start <Path to html> <Type of auth -d - Digest, -b - basic> <User> <Password>*/
+				LqString Path = ReadPath(FullCommand);
+				LqString AuthType = ReadPath(FullCommand);
+				LqString User = ReadPath(FullCommand);
+				LqString Password = ReadPath(FullCommand);
+				if(
+					(Path[0] == '\0') || 
+					(AuthType[0] != '-') || ((AuthType[1] != 'b') && (AuthType[1] != 'd')) ||
+					(User[0] == '\0') ||
+					(Password[0] == '\0')
+				)
+				{
+					if(OutBuffer != nullptr)
+						fprintf(OutBuffer, " [RemoteTerminal] Error: invalid syntax of command\n");
+					return;
+				}
+
+				auto c = LqHttpAtzCreate(LQHTTPATZ_TYPE_BASIC, "Lanq Remote Terminal");
+				LqHttpAtzAdd(c,
+							 LQHTTPATZ_PERM_CHECK | 
+							 LQHTTPATZ_PERM_CREATE | 
+							 LQHTTPATZ_PERM_CREATE_SUBDIR |
+							 LQHTTPATZ_PERM_READ |
+							 LQHTTPATZ_PERM_WRITE |
+							 LQHTTPATZ_PERM_MODIFY,
+							 User.c_str(),
+							 Password.c_str());
+
+				if(LqHttpPthRegisterFile
+				(
+				   Proto,
+				   &Mod,
+				   "*",
+				   "/RemoteTerminal",
+				   Path.c_str()
+				   , LQHTTPATZ_PERM_READ | LQHTTPATZ_PERM_CHECK,
+				   nullptr,
+				   0
+				   ) != LQHTTPPTH_RES_OK)
+				{
+					if(OutBuffer != nullptr)
+						fprintf(OutBuffer, " [RemoteTerminal] Error: not create path entry for html page\n");
+					return;
+				}
+
+
+				if(LqHttpPthRegisterExecFile
+				(
+				   Proto,
+				   &Mod,
+				   "*",
+				   "/RemoteTerminal/New",
+				   ConnHandlers::NewTerminal,
+				   0,
+				   c,
+				   0
+				   ) != LQHTTPPTH_RES_OK)
+				{
+					if(OutBuffer != nullptr)
+						fprintf(OutBuffer, " [RemoteTerminal] Error: not create path entry for creating shell\n");
+					return;
+				}
+				if(OutBuffer != nullptr)
+					fprintf(OutBuffer, " [RemoteTerminal] OK\n");
+			}
+			break;
+			LQSTR_CASE("?")
+			LQSTR_CASE("help")
+			{
+				if(OutBuffer)
+					fprintf
+					(
+					OutBuffer,
+					" [RemoteTerminal]\n"
+					" Module: RemoteTerminal\n"
+					" hotSAN 2016\n"
+					"  ? | help  - Show this help.\n"
+					"  start <Path to html page> <Type of auth -d - Digest, -b - basic> <User> <Password> - Start hosting sessions\n"
+					);
+			}
+			break;
+			LQSTR_SWITCH_DEFAULT
+				if(OutBuffer != nullptr)
+					fprintf(OutBuffer, " [RemoteTerminal] Error: invalid command\n");
+		}
+
     };
-
-    auto Atz = LqHttpAtzCreate(LQHTTPATZ_TYPE_DIGEST, "main");
-    LqHttpAtzAdd(Atz,
-                 LQHTTPATZ_PERM_CHECK | LQHTTPATZ_PERM_CREATE | LQHTTPATZ_PERM_CREATE_SUBDIR | LQHTTPATZ_PERM_DELETE | LQHTTPATZ_PERM_WRITE | LQHTTPATZ_PERM_READ | LQHTTPATZ_PERM_MODIFY,
-                 "Admin", "Password");
-
-    LqHttpPthRegisterExecFile
-    (
-        Reg,
-        &Mod,
-        "*",
-        "/RemoteTerminal/New",
-        ConnHandlers::NewTerminal,
-        0,
-        Atz,
-        0
-    );
 
     LqHttpPthRegisterExecFile
     (
@@ -594,47 +594,11 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     );
 
 
-
-#if defined(LQPLATFORM_WINDOWS)
-    LqHttpPthRegisterFile
-    (
-        Reg,
-        &Mod,
-        "*",
-        "/RemoteTerminal",
-        "C:\\users\\andr\\desktop\\HtmlConsole.html",
-        LQHTTPATZ_PERM_READ | LQHTTPATZ_PERM_CHECK,
-        nullptr,
-        0
-    );
-#else 
-    LqHttpPthRegisterFile
-    (
-        Reg,
-        &Mod,
-        "*",
-        "/RemoteTerminal",
-        "/sdcard/serv/HtmlConsole.html",
-        LQHTTPATZ_PERM_READ | LQHTTPATZ_PERM_CHECK,
-        nullptr,
-        0
-    );
-#endif
-
     Mod.FreeNotifyProc =
         [](LqHttpMdl* This) -> uintptr_t
     {
-        printf("Unload RemoteTerminal module\n");
         return This->Handle;
     };
     //Add task to worker boss
     return LQHTTPMDL_REG_OK;
 }
-
-
-
-
-
-#define __METHOD_DECLS__
-#include "LqAlloc.hpp"
-

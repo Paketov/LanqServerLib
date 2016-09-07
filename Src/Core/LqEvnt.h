@@ -57,7 +57,7 @@ struct LqEvnt
     void*               EventArr;
     int                 Count;
     int                 AllocCount;
-    int                 EventEnumIndex
+	int                 EventEnumIndex;
 #endif
 };
 

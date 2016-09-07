@@ -53,6 +53,9 @@ struct LqEvntHdr
     LQ_CONN_COMMON_EVNT_HDR;
 };
 
+/*
+* Use this structure basically with sockets
+*/
 struct LqConn
 {
     LQ_CONN_COMMON_EVNT_HDR;
@@ -62,7 +65,9 @@ struct LqConn
 typedef void (LQ_CALL *LqEvntFdHandlerFn)(LqEvntFd* Fd, LqEvntFlag RetFlags);
 
 
-
+/*
+* Use this structure for different type of handles
+*/
 struct LqEvntFd
 {
     LQ_CONN_COMMON_EVNT_HDR;

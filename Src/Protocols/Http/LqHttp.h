@@ -360,7 +360,7 @@ struct LqHttpMdl
     void (LQ_CALL* BeforeFreeNotifyProc)(LqHttpMdl* This);
     uintptr_t (LQ_CALL* FreeNotifyProc)(LqHttpMdl* This);  //ret != 0, then unload module. If ret == 0, then the module remains in the memory
 
-    //Create and delete path proc
+    /* Create and delete path proc */
     void (LQ_CALL* DeletePathProc)(LqHttpPth* lqaio Pth);
     void (LQ_CALL* CreatePathProc)(LqHttpPth* lqaio Pth);
 
@@ -395,8 +395,9 @@ struct LqHttpMdl
 
         LqFileStat const* lqain lqaopt Stat /*(Something sends for optimizing)*/
     );
-
+	/* Use for response error to client*/
     int (LQ_CALL* RspErrorProc)(LqHttpConn* lqain c, int lqain Code);
+	/* Use for set status in start line*/
     int (LQ_CALL* RspStatusProc)(LqHttpConn* lqain c, int lqain Code);
 
     /*If NameBuf == "", then ignore name server*/
@@ -436,8 +437,6 @@ struct LqHttpProtoBase
 	LqConn                      Conn;
 	LqEvntFd                    ZmbClr;
 
-
-
 	size_t						BindLocker;
     size_t                      CountConnections;
 	size_t                      MaxConnections;
@@ -458,7 +457,6 @@ struct LqHttpProtoBase
     char                        HTTPProtoVer[16];
 	LqBool                      UseDefaultDmn;
 
-
     LqHttpMdl                   StartModule;
     size_t                      CountModules;
 
@@ -467,7 +465,6 @@ struct LqHttpProtoBase
 #if defined(HAVE_OPENSSL) && defined(LANQBUILD)
     SSL_CTX*                    ssl_ctx;
     uintptr_t                   sslLocker;
-	SSL_CTX*                    client_ssl_ctx;
 #else
     void*                       _InternalUsed;
     uintptr_t                   _InternalUsed2;

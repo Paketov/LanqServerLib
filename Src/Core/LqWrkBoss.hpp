@@ -45,43 +45,43 @@ typedef LqShdPtr<LqWrk, LqWrkDelete, true> LqWrkPtr;
 
 class LQ_IMPORTEXPORT LqWrkBoss
 {
-	friend LqWrk;
-	struct WorkerArray;
-	friend void LqWrkDelete(LqWrk* This);
-	
-	typedef LqShdPtr<LqWrkBoss::WorkerArray, LqFastAlloc::Delete, true> LqWrkArrPtr;
-	
+    friend LqWrk;
+    struct WorkerArray;
+    friend void LqWrkDelete(LqWrk* This);
+    
+    typedef LqShdPtr<LqWrkBoss::WorkerArray, LqFastAlloc::Delete, true> LqWrkArrPtr;
+    
 
 
-	struct WorkerArray
-	{
-		size_t        CountPointers;
-		size_t        Count;
-		LqWrkPtr*     Ptrs;
+    struct WorkerArray
+    {
+        size_t        CountPointers;
+        size_t        Count;
+        LqWrkPtr*     Ptrs;
 
-		WorkerArray(const LqWrkArrPtr Another, const LqWrkPtr NewWorker, bool IsAdd);
-		WorkerArray(const LqWrkArrPtr Another, ullong Id);
-		WorkerArray(const LqWrkArrPtr Another, bool, size_t RemoveCount, size_t MinCount);
+        WorkerArray(const LqWrkArrPtr Another, const LqWrkPtr NewWorker, bool IsAdd);
+        WorkerArray(const LqWrkArrPtr Another, ullong Id);
+        WorkerArray(const LqWrkArrPtr Another, bool, size_t RemoveCount, size_t MinCount);
 
-		WorkerArray();
-		~WorkerArray();
-		LqWrk* operator[](size_t Index) const;
-		LqWrk* At(size_t Index) const;
-	};
+        WorkerArray();
+        ~WorkerArray();
+        LqWrk* operator[](size_t Index) const;
+        LqWrk* At(size_t Index) const;
+    };
 
-	LqWrkArrPtr   Wrks;
+    LqWrkArrPtr   Wrks;
     intptr_t      MinCount;
 
 
-	static size_t MinBusy(const LqWrkArrPtr& AllWrks, size_t* MinCount = LqDfltPtr());
-	static size_t MaxBusy(const LqWrkArrPtr& AllWrks, size_t* MaxCount = LqDfltPtr());
+    static size_t MinBusy(const LqWrkArrPtr& AllWrks, size_t* MinCount = LqDfltPtr());
+    static size_t MaxBusy(const LqWrkArrPtr& AllWrks, size_t* MaxCount = LqDfltPtr());
     size_t      MinBusy(size_t* MinCount = LqDfltPtr());
 
     size_t      TransferAllEvnt(LqWrk* Source) const;
 public:
 
-	LqWrkBoss();
-	LqWrkBoss(size_t CountWorkers);
+    LqWrkBoss();
+    LqWrkBoss(size_t CountWorkers);
     ~LqWrkBoss();
 
 
@@ -96,7 +96,7 @@ public:
 
     size_t      CountWorkers() const;
     /* Get worker by id*/
-	LqWrkPtr    operator[](size_t Index) const;
+    LqWrkPtr    operator[](size_t Index) const;
 
     size_t      StartAllWorkersSync() const;
     size_t      StartAllWorkersAsync() const;
@@ -125,7 +125,6 @@ public:
     bool        SyncEvntFlagAsync(LqEvntHdr* Conn) const;
     bool        SyncEvntFlagSync(LqEvntHdr* Conn) const;
 
-    /* !!! In @Proc you must not call in workers or Boss ..Sync methods. In this case block inevitable. !!!*/
     size_t      EnumDelEvnt(void* UserData, LqBool(*Proc)(void* UserData, LqEvntHdr* Conn)) const; //Enum all events
     size_t      EnumDelEvntByProto(const LqProto* Proto, void* UserData, LqBool(*Proc)(void* UserData, LqEvntHdr* Conn)) const; //Enum event by proto
 

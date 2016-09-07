@@ -43,7 +43,8 @@ template<typename T>
 static inline T StringHash(const char * Str)
 {
     T h = 0;
-    for(const char* k = Str; *k != '\0'; k++) h = 31 * h + *k;
+    for(const char* k = Str; *k != '\0'; k++)
+        h = 31 * h + *k;
     return h;
 }
 

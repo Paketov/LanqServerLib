@@ -102,9 +102,6 @@ public:
     inline bool operator !=(decltype(nullptr) n) const { return fld.p != nullptr; }
 };
 
-
-
-
 template<typename _t>
 void LqObReference(_t* Ob)
 {

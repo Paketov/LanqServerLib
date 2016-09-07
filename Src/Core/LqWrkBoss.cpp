@@ -24,148 +24,148 @@
 
 #define __METHOD_DECLS__
 #include "LqAlloc.hpp"
+#include "LqQueueCmd.hpp"
 
 #undef max
 
 static LqWrkBoss Boss;
 
 
-LqWrkBoss::LqWrkBoss(): MinCount(0) 
+LqWrkBoss::LqWrkBoss(): MinCount(0)
 {
-	Wrks = LqFastAlloc::New<WorkerArray>();
+    Wrks = LqFastAlloc::New<WorkerArray>();
 }
 LqWrkBoss::LqWrkBoss(size_t CountWorkers) : MinCount(0)
 {
-	Wrks = LqFastAlloc::New<WorkerArray>();
-	AddWorkers(CountWorkers);
+    Wrks = LqFastAlloc::New<WorkerArray>();
+    AddWorkers(CountWorkers);
 }
 
 LqWrkBoss::WorkerArray::WorkerArray(const LqWrkArrPtr Another, const LqWrkPtr NewWorker, bool IsAdd): CountPointers(0)
 {
-	if(IsAdd)
-	{
-		intptr_t NewCount = Another->Count + 1;
-		auto NewArr = (LqWrkPtr*)malloc(NewCount * sizeof(LqWrkPtr));
-		if(NewArr == nullptr)
-		{
-			LQ_ERR("LqWrkBoss::WorkerArray::WorkerArray() not alloc memory\n");
-			throw "Not alloc";
-		}
-		for(intptr_t i = 0; i < Another->Count; i++)
-			new(NewArr + i) LqWrkPtr(Another->Ptrs[i]);
-		new(NewArr + Another->Count) LqWrkPtr(NewWorker);
-		Count = NewCount;
-		Ptrs = NewArr;
-	} else
-	{
-		auto NewArr = (LqWrkPtr*)malloc(Another->Count * sizeof(LqWrkPtr));
-		if(NewArr == nullptr)
-		{
-			LQ_ERR("LqWrkBoss::WorkerArray::WorkerArray() not alloc memory\n");
-			throw "Not alloc";
-		}
-		int NewCount = 0;
-		for(intptr_t i = 0, j = 0; i < Another->Count;)
-		{
-			if(NewWorker == Another->Ptrs[i])
-			{
-				i++;
-				continue;
-			}
-			new(NewArr + j) LqWrkPtr(Another->Ptrs[i]);
-			j++;
-			i++;
-			NewCount++;
-		}
-		Count = NewCount;
-		Ptrs = NewArr;
-	}
+    if(IsAdd)
+    {
+        intptr_t NewCount = Another->Count + 1;
+        auto NewArr = (LqWrkPtr*)malloc(NewCount * sizeof(LqWrkPtr));
+        if(NewArr == nullptr)
+        {
+            LQ_ERR("LqWrkBoss::WorkerArray::WorkerArray() not alloc memory\n");
+            throw "Not alloc";
+        }
+        for(intptr_t i = 0; i < Another->Count; i++)
+            new(NewArr + i) LqWrkPtr(Another->Ptrs[i]);
+        new(NewArr + Another->Count) LqWrkPtr(NewWorker);
+        Count = NewCount;
+        Ptrs = NewArr;
+    } else
+    {
+        auto NewArr = (LqWrkPtr*)malloc(Another->Count * sizeof(LqWrkPtr));
+        if(NewArr == nullptr)
+        {
+            LQ_ERR("LqWrkBoss::WorkerArray::WorkerArray() not alloc memory\n");
+            throw "Not alloc";
+        }
+        int NewCount = 0;
+        for(intptr_t i = 0, j = 0; i < Another->Count;)
+        {
+            if(NewWorker == Another->Ptrs[i])
+            {
+                i++;
+                continue;
+            }
+            new(NewArr + j) LqWrkPtr(Another->Ptrs[i]);
+            j++;
+            i++;
+            NewCount++;
+        }
+        Count = NewCount;
+        Ptrs = NewArr;
+    }
 }
 
 LqWrkBoss::WorkerArray::WorkerArray(const LqWrkArrPtr Another, ullong Id): CountPointers(0)
 {
-	auto NewArr = (LqWrkPtr*)malloc(Another->Count * sizeof(LqWrkPtr));
-	if(NewArr == nullptr)
-	{
-		LQ_ERR("LqWrkBoss::WorkerArray::WorkerArray() not alloc memory\n");
-		throw "Not alloc";
-	}
-	int NewCount = 0;
-	for(intptr_t i = 0, j = 0; i < Another->Count;)
-	{
-		if(Id == Another->Ptrs[i]->Id)
-		{
-			i++;
-			continue;
-		}
-		new(NewArr + j) LqWrkPtr(Another->Ptrs[i]);
-		j++;
-		i++;
-		NewCount++;
-	}
-	Count = NewCount;
-	Ptrs = NewArr;
+    auto NewArr = (LqWrkPtr*)malloc(Another->Count * sizeof(LqWrkPtr));
+    if(NewArr == nullptr)
+    {
+        LQ_ERR("LqWrkBoss::WorkerArray::WorkerArray() not alloc memory\n");
+        throw "Not alloc";
+    }
+    int NewCount = 0;
+    for(intptr_t i = 0, j = 0; i < Another->Count;)
+    {
+        if(Id == Another->Ptrs[i]->Id)
+        {
+            i++;
+            continue;
+        }
+        new(NewArr + j) LqWrkPtr(Another->Ptrs[i]);
+        j++;
+        i++;
+        NewCount++;
+    }
+    Count = NewCount;
+    Ptrs = NewArr;
 }
 
 LqWrkBoss::WorkerArray::WorkerArray(const LqWrkArrPtr Another, bool, size_t RemoveCount, size_t MinCount): CountPointers(0)
 {
-	intptr_t NewCount = Another->Count - RemoveCount;
-	if(NewCount < MinCount)
-	{
-		if(Another->Count <= MinCount)
-			NewCount = Another->Count;
-		else
-			NewCount = MinCount;
-	}
-	if(NewCount <= 0)
-	{
-		Count = 0;
-		Ptrs = nullptr;
-		return;
-	}
+    intptr_t NewCount = Another->Count - RemoveCount;
+    if(NewCount < MinCount)
+    {
+        if(Another->Count <= MinCount)
+            NewCount = Another->Count;
+        else
+            NewCount = MinCount;
+    }
+    if(NewCount <= 0)
+    {
+        Count = 0;
+        Ptrs = nullptr;
+        return;
+    }
 
-	auto NewArr = (LqWrkPtr*)malloc(NewCount * sizeof(LqWrkPtr));
-	if(NewArr == nullptr)
-	{
-		LQ_ERR("LqWrkBoss::WorkerArray::WorkerArray() not alloc memory\n");
-		throw "Not alloc";
-	}
-	for(intptr_t i = 0; i < NewCount; i++)
-		new(NewArr + i) LqWrkPtr(Another->Ptrs[i]);
-	Count = NewCount;
-	Ptrs = NewArr;
+    auto NewArr = (LqWrkPtr*)malloc(NewCount * sizeof(LqWrkPtr));
+    if(NewArr == nullptr)
+    {
+        LQ_ERR("LqWrkBoss::WorkerArray::WorkerArray() not alloc memory\n");
+        throw "Not alloc";
+    }
+    for(intptr_t i = 0; i < NewCount; i++)
+        new(NewArr + i) LqWrkPtr(Another->Ptrs[i]);
+    Count = NewCount;
+    Ptrs = NewArr;
 }
 
 LqWrkBoss::WorkerArray::WorkerArray(): CountPointers(0), Count(0), Ptrs(nullptr) {}
 
 LqWrkBoss::WorkerArray::~WorkerArray()
 {
-	for(intptr_t i = 0; i < Count; i++)
-		Ptrs[i].~LqWrkPtr();
-	if(Ptrs != nullptr)
-		free(Ptrs);
+    for(intptr_t i = 0; i < Count; i++)
+        Ptrs[i].~LqWrkPtr();
+    if(Ptrs != nullptr)
+        free(Ptrs);
 }
 
 LqWrk* LqWrkBoss::WorkerArray::operator[](size_t Index) const
 {
-	return Ptrs[Index].Get();
+    return Ptrs[Index].Get();
 }
 
 LqWrk* LqWrkBoss::WorkerArray::At(size_t Index) const
 {
-	return Ptrs[Index].Get();
+    return Ptrs[Index].Get();
 }
 
 LqWrkBoss::~LqWrkBoss()
-{
-}
+{}
 
 size_t LqWrkBoss::TransferAllEvnt(LqWrk* Source) const
 {
     size_t Res = 0;
     Source->LockWrite();
-	const LqWrkArrPtr LocalWrks = Wrks;
-	lqevnt_enum_do(Source->EventChecker, i)
+    const LqWrkArrPtr LocalWrks = Wrks;
+    lqevnt_enum_do(Source->EventChecker, i)
     {
         auto Hdr = LqEvntGetHdrByInterator(&Source->EventChecker, &i);
 
@@ -178,10 +178,8 @@ size_t LqWrkBoss::TransferAllEvnt(LqWrk* Source) const
             if(l < Min)
                 Min = l, Index = i;
         }
-        if(Index == -1)
-            break;
         LqEvntRemoveByInterator(&Source->EventChecker, &i);
-        if(LocalWrks->At(Index)->AddEvntAsync(Hdr))
+        if((Index != -1) && LocalWrks->At(Index)->AddEvntAsync(Hdr))
         {
             Res++;
         } else
@@ -189,17 +187,55 @@ size_t LqWrkBoss::TransferAllEvnt(LqWrk* Source) const
             LqEvntHdrClose(Hdr);
             LQ_ERR("LqWrkBoss::TransferAllEvnt() not adding event to list\n");
         }
-	}lqevnt_enum_while(Source->EventChecker);
+    }lqevnt_enum_while(Source->EventChecker);
+
+    for(auto Command = Source->CommandQueue.SeparateBegin(); !Source->CommandQueue.SeparateIsEnd(Command);)
+    {
+        switch(Command.Type)
+        {
+			case LqWrk::LQWRK_CMD_ADD_CONN:
+            {
+                auto Hdr = Command.Val<LqEvntHdr*>();
+				Command.Pop<LqEvntHdr*>();
+                Source->CountConnectionsInQueue--;
+
+                intptr_t Min = std::numeric_limits<intptr_t>::max(), Index = -1;
+                for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+                {
+                    if(LocalWrks->At(i) == Source)
+                        continue;
+                    size_t l = LocalWrks->At(i)->GetAssessmentBusy();
+                    if(l < Min)
+                        Min = l, Index = i;
+                }
+               
+                if((Index != -1) && LocalWrks->At(Index)->AddEvntAsync(Hdr))
+                {
+                    Res++;
+                } else
+                {
+                    LqEvntHdrClose(Hdr);
+                    LQ_ERR("LqWrkBoss::TransferAllEvnt() not adding event to list\n");
+                }
+                
+            }
+            break;
+            default:
+                /* Otherwise return current command in list*/
+                Source->CommandQueue.SeparatePush(Command);
+        }
+    }
+
     Source->UnlockWrite();
     return Res;
 }
 
 int LqWrkBoss::AddWorkers(size_t Count, bool IsStart)
 {
-	if(Count <= 0)
-		return 0;
+    if(Count <= 0)
+        return 0;
     int Res = 0;
-	LqWrkArrPtr LocalWrks = Wrks;
+    LqWrkArrPtr LocalWrks = Wrks;
     for(size_t i = 0; i < Count; i++)
     {
         auto NewWorker = LqWrk::New(IsStart);
@@ -208,70 +244,70 @@ int LqWrkBoss::AddWorkers(size_t Count, bool IsStart)
             LQ_ERR("LqWrkBoss::AddWorkers() not alloc new worker\n");
             continue;
         }
-		LocalWrks = LqFastAlloc::New<WorkerArray>(LocalWrks, NewWorker, true);
+        LocalWrks = LqFastAlloc::New<WorkerArray>(LocalWrks, NewWorker, true);
         Res++;
     }
-	Wrks = LocalWrks;
+    Wrks = LocalWrks;
     return Res;
 }
 
 bool LqWrkBoss::AddWorker(const LqWrkPtr& Wrk)
 {
-	Wrks = LqFastAlloc::New<WorkerArray>(Wrks, Wrk, true);
+    Wrks = LqFastAlloc::New<WorkerArray>(Wrks, Wrk, true);
     return true;
 }
 
 bool LqWrkBoss::AddEvntAsync(LqEvntHdr* Evnt)
 {
-	bool Res = true;
-	LqWrkArrPtr LocalWrks = Wrks;
-	if(LocalWrks->Count <= 0)
-	{
-		if(!AddWorkers(1, true))
-		{
-			return false;
-		} else
-		{
-			LocalWrks = Wrks;
-			if(LocalWrks->Count <= 0)
-				return false;
-		}
-	}
-	auto IndexMinUsed = MinBusy(LocalWrks);
-	return LocalWrks->At(IndexMinUsed)->AddEvntAsync(Evnt);
+    bool Res = true;
+    LqWrkArrPtr LocalWrks = Wrks;
+    if(LocalWrks->Count <= 0)
+    {
+        if(!AddWorkers(1, true))
+        {
+            return false;
+        } else
+        {
+            LocalWrks = Wrks;
+            if(LocalWrks->Count <= 0)
+                return false;
+        }
+    }
+    auto IndexMinUsed = MinBusy(LocalWrks);
+    return LocalWrks->At(IndexMinUsed)->AddEvntAsync(Evnt);
 }
 
 bool LqWrkBoss::AddEvntSync(LqEvntHdr* Evnt)
 {
-	bool Res = true;
-	LqWrkArrPtr LocalWrks = Wrks;
+    bool Res = true;
+    LqWrkArrPtr LocalWrks = Wrks;
 
-	if(LocalWrks->Count <= 0)
-	{
-		if(!AddWorkers(1, true))
-		{
-			return false;
-		} else
-		{
-			LocalWrks = Wrks;
-			if(LocalWrks->Count <= 0)
-				return false;
-		}
-	}
-	auto IndexMinUsed = MinBusy(LocalWrks);
-	return LocalWrks->At(IndexMinUsed)->AddEvntSync(Evnt);
+    if(LocalWrks->Count <= 0)
+    {
+        if(!AddWorkers(1, true))
+        {
+            return false;
+        } else
+        {
+            LocalWrks = Wrks;
+            if(LocalWrks->Count <= 0)
+                return false;
+        }
+    }
+    auto IndexMinUsed = MinBusy(LocalWrks);
+    return LocalWrks->At(IndexMinUsed)->AddEvntSync(Evnt);
 }
 
 bool LqWrkBoss::TransferEvnt(const LqListEvnt & ConnectionsList) const
 {
     bool Res = false;
-	LqWrkArrPtr LocalWrks = Wrks;
+    LqWrkArrPtr LocalWrks = Wrks;
     if(LocalWrks->Count > 0)
     {
         for(size_t i = 0; i < ConnectionsList.GetCount(); i++)
         {
             auto IndexWorker = MinBusy(LocalWrks);
-			LocalWrks->At(IndexWorker)->AddEvntAsync(ConnectionsList[i]);
+            LocalWrks->At(IndexWorker)->AddEvntAsync(ConnectionsList[i]);
         }
         Res = true;
     }
@@ -280,7 +316,7 @@ bool LqWrkBoss::TransferEvnt(const LqListEvnt & ConnectionsList) const
 
 size_t LqWrkBoss::CountWorkers() const
 {
-	LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtr LocalWrks = Wrks;
     return LocalWrks->Count;
 }
 
@@ -302,7 +338,7 @@ size_t LqWrkBoss::MaxBusy(const LqWrkArrPtr& AllWrks, size_t* MaxCount)
     size_t Max = std::numeric_limits<size_t>::max(), Index = 0;
     for(size_t i = 0, m = AllWrks->Count; i < m; i++)
     {
-		size_t l = AllWrks->At(i)->GetAssessmentBusy();
+        size_t l = AllWrks->At(i)->GetAssessmentBusy();
         if(l > Max)
             Max = l, Index = i;
     }
@@ -312,189 +348,189 @@ size_t LqWrkBoss::MaxBusy(const LqWrkArrPtr& AllWrks, size_t* MaxCount)
 
 LqWrkPtr LqWrkBoss::operator[](size_t Index) const
 {
-	LqWrkArrPtr LocalWrks = Wrks;
-	return LocalWrks->At(Index);
+    LqWrkArrPtr LocalWrks = Wrks;
+    return LocalWrks->At(Index);
 }
 
 size_t LqWrkBoss::MinBusy(size_t* MinCount)
 {
-	const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtr LocalWrks = Wrks;
     return MinBusy(LocalWrks, MinCount);
 }
 
 size_t LqWrkBoss::StartAllWorkersSync() const
 {
     size_t Res = 0;
-	const LqWrkArrPtr LocalWrks = Wrks;
-	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res += (LocalWrks->At(i)->StartSync() ? 1 : 0);
+    const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+        Res += (LocalWrks->At(i)->StartSync() ? 1 : 0);
     return Res;
 }
 
 size_t LqWrkBoss::StartAllWorkersAsync() const
 {
     size_t Ret = 0;
-	const LqWrkArrPtr LocalWrks = Wrks;//Local ptr for thread safe
-	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Ret += (LocalWrks->At(i)->StartAsync() ? 1 : 0);
+    const LqWrkArrPtr LocalWrks = Wrks;//Local ptr for thread safe
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+        Ret += (LocalWrks->At(i)->StartAsync() ? 1 : 0);
     return Ret;
 }
 
 bool LqWrkBoss::KickWorker(ullong IdWorker)
 {
     /*Lock operation remove from array*/
-	Wrks = LqFastAlloc::New<WorkerArray>(Wrks, IdWorker);
+    Wrks = LqFastAlloc::New<WorkerArray>(Wrks, IdWorker);
     return false;
 }
 
 size_t LqWrkBoss::KickWorkers(uintptr_t Count)
 {
-	Wrks = LqFastAlloc::New<WorkerArray>(Wrks, false, Count, MinCount);
+    Wrks = LqFastAlloc::New<WorkerArray>(Wrks, false, Count, MinCount);
     return Wrks->Count;
 }
 
 bool LqWrkBoss::CloseAllEvntAsync() const
 {
     bool Res = true;
-	const LqWrkArrPtr LocalWrks = Wrks;
-	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res &= LocalWrks->At(i)->CloseAllEvntAsync();
+    const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+        Res &= LocalWrks->At(i)->CloseAllEvntAsync();
     return Res;
 }
 
 size_t LqWrkBoss::CloseAllEvntSync() const
 {
     size_t Res = 0;
-	const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtr LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res += LocalWrks->At(i)->CloseAllEvntSync();
+        Res += LocalWrks->At(i)->CloseAllEvntSync();
     return Res;
 }
 
 size_t LqWrkBoss::CloseEventAsync(LqEvntHdr* Event) const
 {
-	bool Res = true;
-	const LqWrkArrPtr LocalWrks = Wrks;
-	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res &= LocalWrks->At(i)->CloseEvntAsync(Event);
-	return Res;
+    bool Res = true;
+    const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+        Res &= LocalWrks->At(i)->CloseEvntAsync(Event);
+    return Res;
 }
 
 bool LqWrkBoss::CloseEventSync(LqEvntHdr* Event) const
 {
-	size_t Res = 0;
-	const LqWrkArrPtr LocalWrks = Wrks;
-	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res += LocalWrks->At(i)->CloseEvntSync(Event);
-	return Res;
+    size_t Res = 0;
+    const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+        Res += LocalWrks->At(i)->CloseEvntSync(Event);
+    return Res;
 }
 
 size_t LqWrkBoss::CloseEventByTimeoutSync(LqTimeMillisec LiveTime) const
 {
     size_t Res = 0;
-	const LqWrkArrPtr LocalWrks = Wrks;
-	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res += LocalWrks->At(i)->RemoveConnOnTimeOutSync(LiveTime);
+    const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+        Res += LocalWrks->At(i)->RemoveConnOnTimeOutSync(LiveTime);
     return Res;
 }
 
 bool LqWrkBoss::CloseEventByTimeoutAsync(LqTimeMillisec LiveTime) const
 {
     bool Res = true;
-	const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtr LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res &= LocalWrks->At(i)->RemoveConnOnTimeOutAsync(LiveTime);
+        Res &= LocalWrks->At(i)->RemoveConnOnTimeOutAsync(LiveTime);
     return Res;
 }
 
 size_t LqWrkBoss::CloseEventByTimeoutSync(const LqProto * Proto, LqTimeMillisec LiveTime) const
 {
     size_t Res = 0;
-	const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtr LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res += LocalWrks->At(i)->RemoveConnOnTimeOutSync(Proto, LiveTime);
+        Res += LocalWrks->At(i)->RemoveConnOnTimeOutSync(Proto, LiveTime);
     return Res;
 }
 
 bool LqWrkBoss::CloseEventByTimeoutAsync(const LqProto * Proto, LqTimeMillisec LiveTime) const
 {
     bool Res = true;
-	const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtr LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res &= LocalWrks->At(i)->RemoveConnOnTimeOutAsync(Proto, LiveTime);
+        Res &= LocalWrks->At(i)->RemoveConnOnTimeOutAsync(Proto, LiveTime);
     return Res;
 }
 
 bool LqWrkBoss::CloseConnByIpAsync(const sockaddr* Addr) const
 {
     bool Res = true;
-	const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtr LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res &= LocalWrks->At(i)->CloseConnByIpAsync(Addr);
+        Res &= LocalWrks->At(i)->CloseConnByIpAsync(Addr);
     return Res;
 }
 
 size_t LqWrkBoss::CloseConnByIpSync(const sockaddr* Addr) const
 {
     size_t Res = 0;
-	const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtr LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res += LocalWrks->At(i)->CloseConnByIpSync(Addr);
+        Res += LocalWrks->At(i)->CloseConnByIpSync(Addr);
     return Res;
 }
 
 bool LqWrkBoss::CloseConnByProtoAsync(const LqProto* Proto) const
 {
-	bool Res = true;
-	const LqWrkArrPtr LocalWrks = Wrks;
-	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res &= LocalWrks->At(i)->CloseConnByProtoAsync(Proto);
-	return Res;
+    bool Res = true;
+    const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+        Res &= LocalWrks->At(i)->CloseConnByProtoAsync(Proto);
+    return Res;
 }
 
 size_t LqWrkBoss::CloseConnByProtoSync(const LqProto* Proto) const
 {
     size_t Res = 0;
-	const LqWrkArrPtr LocalWrks = Wrks;
-	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res += LocalWrks->At(i)->CloseConnByProtoSync(Proto);
+    const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+        Res += LocalWrks->At(i)->CloseConnByProtoSync(Proto);
     return Res;
 }
 
 size_t LqWrkBoss::EnumDelEvnt(void * UserData, LqBool(*Proc)(void *UserData, LqEvntHdr* Conn)) const
 {
     size_t Res = 0;
-	const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtr LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res += LocalWrks->At(i)->EnumDelEvnt(UserData, Proc);
+        Res += LocalWrks->At(i)->EnumDelEvnt(UserData, Proc);
     return Res;
 }
 
 size_t LqWrkBoss::EnumDelEvntByProto(const LqProto* Proto, void * UserData, LqBool(*Proc)(void *UserData, LqEvntHdr *Conn)) const
 {
     size_t Res = 0;
-	const LqWrkArrPtr LocalWrks = Wrks;
-	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res += LocalWrks->At(i)->EnumDelEvntByProto(Proto, UserData, Proc);
+    const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+        Res += LocalWrks->At(i)->EnumDelEvntByProto(Proto, UserData, Proc);
     return Res;
 }
 
 bool LqWrkBoss::SyncEvntFlagAsync(LqEvntHdr* Conn) const
 {
     bool Res = true;
-	const LqWrkArrPtr LocalWrks = Wrks;
-	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res &= LocalWrks->At(i)->SyncEvntFlagAsync(Conn);
+    const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+        Res &= LocalWrks->At(i)->SyncEvntFlagAsync(Conn);
     return Res;
 }
 
 bool LqWrkBoss::SyncEvntFlagSync(LqEvntHdr * Conn) const
 {
-	bool Res = true;
-	const LqWrkArrPtr LocalWrks = Wrks;
-	for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
-		Res &= LocalWrks->At(i)->SyncEvntFlagSync(Conn);
-	return Res;
+    bool Res = true;
+    const LqWrkArrPtr LocalWrks = Wrks;
+    for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
+        Res &= LocalWrks->At(i)->SyncEvntFlagSync(Conn);
+    return Res;
 }
 
 size_t LqWrkBoss::KickAllWorkers()
@@ -504,7 +540,7 @@ size_t LqWrkBoss::KickAllWorkers()
 
 size_t LqWrkBoss::SetWrkMinCount(size_t NewVal)
 {
-	return MinCount = NewVal;
+    return MinCount = NewVal;
 }
 
 /*
@@ -569,12 +605,12 @@ LQ_EXTERN_C int LQ_CALL LqWrkBossAddEvntSync(LqEvntHdr * Conn)
 
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseEvntAsync(LqEvntHdr * Conn)
 {
-	return Boss.CloseEventAsync(Conn);
+    return Boss.CloseEventAsync(Conn);
 }
 
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseEvntSync(LqEvntHdr * Conn)
 {
-	return Boss.CloseEventSync(Conn) ? 0 : -1;
+    return Boss.CloseEventSync(Conn) ? 0 : -1;
 }
 
 LQ_EXTERN_C int LQ_CALL LqWrkBossSyncEvntFlagAsync(LqEvntHdr * Conn)
@@ -584,7 +620,7 @@ LQ_EXTERN_C int LQ_CALL LqWrkBossSyncEvntFlagAsync(LqEvntHdr * Conn)
 
 LQ_EXTERN_C int LQ_CALL LqWrkBossSyncEvntFlagSync(LqEvntHdr * Conn)
 {
-	return Boss.SyncEvntFlagSync(Conn) ? 0 : -1;
+    return Boss.SyncEvntFlagSync(Conn) ? 0 : -1;
 }
 
 LQ_EXTERN_C int LQ_CALL LqWrkBossCloseConnByIpAsync(const sockaddr* Addr)
@@ -639,7 +675,7 @@ LQ_EXTERN_C int LQ_CALL LqWrkBossEnumDelEvnt(void * UserData, LqBool(*Proc)(void
 
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossSetMinWrkCount(size_t NewCount)
 {
-	return Boss.SetWrkMinCount(NewCount);
+    return Boss.SetWrkMinCount(NewCount);
 }
 
 LQ_EXTERN_C int LQ_CALL LqWrkBossStartAllWrkSync()

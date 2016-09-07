@@ -2,6 +2,7 @@
 #include "LqZmbClr.h"
 #include "LqFile.h"
 #include "LqWrkBoss.hpp"
+#include "LqLog.h"
 
 
 #define __METHOD_DECLS__
@@ -47,6 +48,7 @@ LQ_EXTERN_C int LQ_CALL LqZmbClrInit(LqEvntFd* Dest, const LqProto* Proto, LqTim
     int TimerFd = LqFileTimerCreate(LQ_O_NOINHERIT);
     if(TimerFd == -1)
     {
+		LQ_ERR("LqZmbClrInit() LqFileTimerCreate(LQ_O_NOINHERIT) not create timer \"%s\"\n", strerror(lq_errno));
         LqFastAlloc::Delete(AddInfo);
         return -1;
     }
@@ -78,6 +80,6 @@ LQ_EXTERN_C int LQ_CALL LqZmbClrSetTimeLive(LqEvntFd* Dest, LqTimeMillisec TimeL
 
 LQ_EXTERN_C int LQ_CALL LqZmbClrUninit(LqEvntFd* Dest)
 {
-    LqEvntSetClose(Dest);
+	LqEvntSetClose3(Dest);
     return 0;
 }

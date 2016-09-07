@@ -50,6 +50,7 @@
 
 #define LqHttpConnGetRmtAddr(ConnectionPointer) ((sockaddr*)((LqHttpConn*)ConnectionPointer + 1))
 
+
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
@@ -126,134 +127,34 @@ void LqCachedFileHdr::GetMD5(const void* CacheInterator, LqMd5* Dest)
 
 LQ_EXTERN_C int LQ_CALL LqHttpProtoCreateSSL
 (
-    LqHttpProtoBase* Reg,
-    const void* MethodSSL, /* Example SSLv23_method()*/
-    const char* CertFile, /* Example: "server.pem"*/
-    const char* KeyFile, /*Example: "server.key"*/
-    const char* CipherList,
-    int TypeCertFile, /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
-    const char* CAFile,
-    const char* DhpFile
+	LqHttpProtoBase* Reg,
+	const void* MethodSSL, /* Example SSLv23_method()*/
+	const char* CertFile, /* Example: "server.pem"*/
+	const char* KeyFile, /*Example: "server.key"*/
+	const char* CipherList,
+	int TypeCertFile, /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
+	const char* CAFile,
+	const char* DhpFile
 )
 {
 #ifdef HAVE_OPENSSL
 
-    static const unsigned char dh1024_p[] = {
-        0xB1,0x0B,0x8F,0x96,0xA0,0x80,0xE0,0x1D,0xDE,0x92,0xDE,0x5E,
-        0xAE,0x5D,0x54,0xEC,0x52,0xC9,0x9F,0xBC,0xFB,0x06,0xA3,0xC6,
-        0x9A,0x6A,0x9D,0xCA,0x52,0xD2,0x3B,0x61,0x60,0x73,0xE2,0x86,
-        0x75,0xA2,0x3D,0x18,0x98,0x38,0xEF,0x1E,0x2E,0xE6,0x52,0xC0,
-        0x13,0xEC,0xB4,0xAE,0xA9,0x06,0x11,0x23,0x24,0x97,0x5C,0x3C,
-        0xD4,0x9B,0x83,0xBF,0xAC,0xCB,0xDD,0x7D,0x90,0xC4,0xBD,0x70,
-        0x98,0x48,0x8E,0x9C,0x21,0x9A,0x73,0x72,0x4E,0xFF,0xD6,0xFA,
-        0xE5,0x64,0x47,0x38,0xFA,0xA3,0x1A,0x4F,0xF5,0x5B,0xCC,0xC0,
-        0xA1,0x51,0xAF,0x5F,0x0D,0xC8,0xB4,0xBD,0x45,0xBF,0x37,0xDF,
-        0x36,0x5C,0x1A,0x65,0xE6,0x8C,0xFD,0xA7,0x6D,0x4D,0xA7,0x08,
-        0xDF,0x1F,0xB2,0xBC,0x2E,0x4A,0x43,0x71,
-    };
+	LqAtmLkWr(Reg->sslLocker);
+	SSL_CTX* NewCtx = (SSL_CTX*)LqConnSslCreate(MethodSSL, MethodSSL, CertFile, KeyFile, CipherList, TypeCertFile, CAFile, DhpFile);
+	if(NewCtx == nullptr)
+	{
+		LqAtmUlkWr(Reg->sslLocker);
+		return -1;
+	}
 
-    static const unsigned char dh1024_g[] = {
-        0xA4,0xD1,0xCB,0xD5,0xC3,0xFD,0x34,0x12,0x67,0x65,0xA4,0x42,
-        0xEF,0xB9,0x99,0x05,0xF8,0x10,0x4D,0xD2,0x58,0xAC,0x50,0x7F,
-        0xD6,0x40,0x6C,0xFF,0x14,0x26,0x6D,0x31,0x26,0x6F,0xEA,0x1E,
-        0x5C,0x41,0x56,0x4B,0x77,0x7E,0x69,0x0F,0x55,0x04,0xF2,0x13,
-        0x16,0x02,0x17,0xB4,0xB0,0x1B,0x88,0x6A,0x5E,0x91,0x54,0x7F,
-        0x9E,0x27,0x49,0xF4,0xD7,0xFB,0xD7,0xD3,0xB9,0xA9,0x2E,0xE1,
-        0x90,0x9D,0x0D,0x22,0x63,0xF8,0x0A,0x76,0xA6,0xA2,0x4C,0x08,
-        0x7A,0x09,0x1F,0x53,0x1D,0xBF,0x0A,0x01,0x69,0xB6,0xA2,0x8A,
-        0xD6,0x62,0xA4,0xD1,0x8E,0x73,0xAF,0xA3,0x2D,0x77,0x9D,0x59,
-        0x18,0xD0,0x8B,0xC8,0x85,0x8F,0x4D,0xCE,0xF9,0x7C,0x2A,0x24,
-        0x85,0x5E,0x6E,0xEB,0x22,0xB3,0xB2,0xE5,
-    };
+	if(Reg->ssl_ctx != nullptr)
+		SSL_CTX_free(Reg->ssl_ctx);
+	Reg->ssl_ctx = NewCtx;
 
-
-
-    bool r = false;
-    static bool IsLoaded = false;
-    LqAtmLkWr(Reg->sslLocker);
-    LQ_BREAK_BLOCK_BEGIN
-    if(!IsLoaded)
-    {
-        IsLoaded = true;
-        SSL_library_init();
-        SSL_load_error_strings();
-    }
-
-    if((Reg->ssl_ctx = SSL_CTX_new((const SSL_METHOD*)MethodSSL)) == nullptr)
-        break;
-
-    SSL_CTX_set_verify(Reg->ssl_ctx, SSL_VERIFY_NONE, nullptr);
-
-    if(CipherList != nullptr)
-    {
-        if(SSL_CTX_set_cipher_list(Reg->ssl_ctx, CipherList) == 1)
-            SSL_CTX_set_options(Reg->ssl_ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
-    }
-        
-    if(CAFile != nullptr)
-    {
-        if(!SSL_CTX_load_verify_locations(Reg->ssl_ctx, CAFile, NULL))
-        {
-            SSL_CTX_free(Reg->ssl_ctx);
-            Reg->ssl_ctx = nullptr;
-            break;
-        }
-        
-    }
-    if((SSL_CTX_use_certificate_file(Reg->ssl_ctx, CertFile, TypeCertFile) <= 0) ||
-        (SSL_CTX_use_PrivateKey_file(Reg->ssl_ctx, KeyFile, TypeCertFile) <= 0))
-    {
-        SSL_CTX_free(Reg->ssl_ctx);
-        Reg->ssl_ctx = nullptr;
-        break;
-    }
-
-    if(SSL_CTX_check_private_key(Reg->ssl_ctx) != 1)
-    {
-        SSL_CTX_free(Reg->ssl_ctx);
-        Reg->ssl_ctx = nullptr;
-        break;
-    }
-
-    if(DhpFile != nullptr)
-    {
-        BIO *bio = BIO_new_file(DhpFile, "r");
-        if(bio)
-        {
-            DH *dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
-            BIO_free(bio);
-            if(dh)
-            {
-                SSL_CTX_set_tmp_dh(Reg->ssl_ctx, dh);
-                SSL_CTX_set_options(Reg->ssl_ctx, SSL_OP_SINGLE_DH_USE);
-                DH_free(dh);
-            }
-        }
-    } else
-    {
-        DH *dh = DH_new();
-        if(dh)
-        {
-            dh->p = BN_bin2bn(dh1024_p, sizeof(dh1024_p), NULL);
-            dh->g = BN_bin2bn(dh1024_g, sizeof(dh1024_g), NULL);
-            dh->length = 160;
-            if(dh->p && dh->g)
-            {
-                SSL_CTX_set_tmp_dh(Reg->ssl_ctx, dh);
-                SSL_CTX_set_options(Reg->ssl_ctx, SSL_OP_SINGLE_DH_USE);
-            }
-            DH_free(dh);
-        }
-    }
-
-
-    r = true;
-    LQ_BREAK_BLOCK_END
-        
-    LqAtmUlkWr(Reg->sslLocker);
-    return r;
+	LqAtmUlkWr(Reg->sslLocker);
+	return 0;
 #else
-    return false;
+	return false;
 #endif
 }
 
@@ -306,7 +207,7 @@ LQ_EXTERN_C LqHttpProtoBase* LQ_CALL LqHttpProtoCreate()
 	r->Base.BindProto.WriteProc = [](LqConn*) {};
 	r->Base.BindProto.ErrorProc = LqHttpCoreBindErrorProc;
 	r->Base.BindProto.CmpAddressProc = [](LqConn*, const void*) { return false; };
-	r->Base.BindProto.KickByTimeOutProc = [](LqConn* Connection, LqTimeMillisec CurrentTimeMillisec, LqTimeMillisec EstimatedLiveTime) { return false; };
+	r->Base.BindProto.KickByTimeOutProc = [](LqConn*, LqTimeMillisec, LqTimeMillisec) { return false; };
 	r->Base.BindProto.DebugInfoProc = [](LqConn*) { return (char*)nullptr; };
 
 	r->Base.ZmbClr.Fd = -1;
@@ -336,7 +237,7 @@ LQ_EXTERN_C LqHttpProtoBase* LQ_CALL LqHttpProtoCreate()
 
     r->Base.PeriodChangeDigestNonce = 5; //5 Sec
 
-	r->Port = "http";
+	r->Port = "80";
 	r->Host = "";
 	r->Base.MaxConnections = 65000;
 	r->Base.TransportProtoFamily = AF_INET;
@@ -358,7 +259,6 @@ LQ_EXTERN_C LqHttpProtoBase* LQ_CALL LqHttpProtoCreate()
     return &r->Base;
 }
 
-
 LQ_EXTERN_C int LQ_CALL LqHttpProtoDelete(LqHttpProtoBase* Proto)
 {
 	LqAtmLkWr(Proto->BindLocker);
@@ -368,7 +268,10 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoDelete(LqHttpProtoBase* Proto)
 
 	LqWrkBossCloseConnByProtoSync(&Proto->Proto);
 	LqWrkBossCloseConnByProtoSync(&Proto->BindProto);
-
+#ifdef HAVE_OPENSSL
+	if(Proto.ssl_ctx != nullptr)
+	    LqAtmLkInit(r->Base.sslLocker);
+#endif
 	LqObDereference<LqHttpProto, LqFastAlloc::Delete>((LqHttpProto*)Proto);
 	return 0;
 }
@@ -411,15 +314,16 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoBind(LqHttpProtoBase* Reg)
 		LqAtmUlkWr(Reg->BindLocker);
 		return -1;
 	}
-	Reg->Conn.Fd = BindedSock;
 
-	LqObReference(Proto); //Reference by bineded soc
+	LqConnInit(&Reg->Conn, BindedSock, &Reg->BindProto, LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD);
+
+	LqObReference(Proto); //Reference by bineded sock
+
 	LqWrkBossAddEvntSync((LqEvntHdr*)&Reg->Conn);
 	
 	LqAtmUlkWr(Reg->BindLocker);
 	return 0;
 }
-
 
 LQ_EXTERN_C int LQ_CALL LqHttpProtoUnbind(LqHttpProtoBase* Reg)
 {
@@ -428,7 +332,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoUnbind(LqHttpProtoBase* Reg)
 	int r = -1;
 	if(Reg->Conn.Fd != -1)
 	{
-		LqEvntSetClose(&Reg->Conn);
+		LqEvntSetClose3(&Reg->Conn);
 		volatile int* Test = &Reg->Conn.Fd;
 		while(*Test != -1);
 		r = 0;
@@ -446,9 +350,9 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoGetInfo(LqHttpProtoBase* Reg, char* Host, siz
 	LqHttpProto* Proto = (LqHttpProto*)Reg;
 	LqAtmLkWr(Reg->BindLocker);
 	if(Port != nullptr)
-		Proto->Port.copy(Port, PortBufSize);
+		LqStrCopyMax(Port, Proto->Port.c_str(), PortBufSize);
 	if(Host != nullptr)
-		Proto->Host.copy(Host, HostBufSize);
+		LqStrCopyMax(Port, Proto->Host.c_str(), PortBufSize);
 	if(TransportProtoFamily != nullptr)
 		*TransportProtoFamily = Proto->Base.TransportProtoFamily;
 	if(MaxConnections != nullptr)
@@ -606,113 +510,6 @@ LQ_EXTERN_C void LQ_CALL LqHttpCheSetMaxCountOfPrepared(LqHttpProtoBase* Reg, si
 }
 
 
-
-//static LqConn* LQ_CALL LqHttpCreateNewRequest(LqProto* Proto, const char* Address, const char* Port, bool IsUseSsl)
-//{
-//	int NewSockDscr = -1;
-//	addrinfo hi = {0}, *ah = nullptr, *i;
-//	hi.ai_socktype = Socktype;
-//	hi.ai_family = Family;
-//	hi.ai_protocol = Protocol;
-//	hi.ai_flags = Flags;                   //AI_PASSIVE 
-//
-//
-//	if(getaddrinfo(Address, Port, &hi, &ah) != 0)
-//		return false;
-//
-//
-//	for(i = ah; i != nullptr; i = i->ai_next)
-//	{
-//		if((NewSockDscr = socket(i->ai_family, i->ai_socktype, i->ai_protocol)) == -1)
-//			continue;
-//		if(connect(NewSockDscr, i->ai_addr, i->ai_addrlen) != -1)
-//			break;
-//		closesocket(NewSockDscr);
-//	}
-//	if(i == nullptr)
-//	{
-//		if(ah != nullptr)
-//			freeaddrinfo(ah);
-//		return nullptr;
-//	}
-//	
-//	LqHttpConn* c;
-//	switch(i->ai_family)
-//	{
-//		case AF_INET:
-//		{
-//			auto r = LqFastAlloc::New<HttpConnIp4>();
-//			if(r == nullptr)
-//			{
-//				closesocket(NewSockDscr);
-//				return nullptr;
-//			}
-//			r->Ip4Addr = *(sockaddr_in*)Address;
-//			c = (LqHttpConn*)r;
-//		}
-//		break;
-//		case AF_INET6:
-//		{
-//			auto r = LqFastAlloc::New<HttpConnIp6>();
-//			if(r == nullptr)
-//			{
-//				closesocket(NewSockDscr);
-//				return nullptr;
-//			}
-//			r->Ip6Addr = *(sockaddr_in6*)Address;
-//			c = (LqHttpConn*)r;
-//		}
-//		break;
-//		default:
-//			closesocket(NewSockDscr);
-//			return nullptr;
-//	}
-//	LqConnInit(c, NewSockDscr, Proto, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD);
-//
-//	c->Buf = nullptr;
-//	c->BufSize = 0;
-//	c->_Reserved = 0;
-//
-//	c->TimeStartMillisec = c->TimeLastExchangeMillisec = LqTimeGetLocMillisec();
-//	c->Pth = nullptr;
-//	LqHttpProto* r = (LqHttpProto*)Proto;
-//	LqAtmIntrlkInc(r->Base.CountConnections);
-//	LqHttpActSwitchToRcv(c);
-//
-//
-//
-//#ifdef HAVE_OPENSSL
-//	c->ssl = nullptr;
-//	LqAtmLkRd(r->Base.sslLocker);
-//	if(r->Base.ssl_ctx != nullptr)
-//	{
-//		if((c->ssl = SSL_new(r->Base.ssl_ctx)) == nullptr)
-//		{
-//			LqAtmLkUlkRd(r->Base.sslLocker);
-//			LqHttpCoreDisconnectProc(&c->CommonConn);
-//			return nullptr;
-//		}
-//		LqAtmLkUlkRd(r->Base.sslLocker);
-//		if(SSL_set_fd(c->ssl, c->CommonConn.Fd) == 0)
-//		{
-//			SSL_free(c->ssl);
-//			c->ssl = nullptr;
-//			LqHttpCoreDisconnectProc(&c->CommonConn);
-//			return nullptr;
-//		}
-//		if(SSL_accept(c->ssl) <= 0)
-//		{
-//			LqHttpCoreDisconnectProc(&c->CommonConn);
-//			return nullptr;
-//		}
-//	} else
-//	{
-//		LqAtmLkUlkRd(r->Base.sslLocker);
-//	}
-//#endif
-//	return &c->CommonConn;
-//}
-
 static void LQ_CALL LqHttpCoreDisconnectProc(LqConn* Connection)
 {
     LqHttpConn* c = (LqHttpConn*)Connection;
@@ -731,7 +528,7 @@ static void LQ_CALL LqHttpCoreDisconnectProc(LqConn* Connection)
     {
         SSL_shutdown(c->ssl);
         SSL_free(c->ssl);
-}
+    }
 #endif
     //shutdown(Connection->Fd, SHUT_RD | SHUT_WR | SHUT_RDWR);
     closesocket(Connection->Fd);
@@ -752,7 +549,7 @@ static void LQ_CALL LqHttpCoreDisconnectProc(LqConn* Connection)
 static void LQ_CALL LqHttpCoreErrorProc(LqConn* Connection)
 {
 	LqEvntSetClose(Connection);
-	LQHTTPLOG_ERR("LqHttpCoreErrorProc: Have error on socket\n");
+	LQHTTPLOG_ERR("LqHttpCoreErrorProc: have error when wait event on socket\n");
 }
 
 static void LQ_CALL LqHttpCoreWriteProc(LqConn* Connection)
@@ -868,7 +665,7 @@ lblSwitch:
     if((OldAct == c->ActionState) && (c->ActionResult != LQHTTPACT_RES_BEGIN))
     {
         //If EventAct don`t change state
-        LQHTTPLOG_ERR("module \"%s\" dont change action state", LqHttpMdlGetByConn(c)->Name);
+        LQHTTPLOG_ERR("module \"%s\" don`t change action state\n", LqHttpMdlGetByConn(c)->Name);
         if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER)
         {
             static const char ErrCode[] =
@@ -1074,14 +871,12 @@ lblResponseResult:
 * Binded conn working
 */
 
+/*
+* Create new connection to client
+*/
 static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
-{	union
-	{
-		sockaddr			Addr;
-		sockaddr_in			AddrInet;
-		sockaddr_in6		AddrInet6;
-		sockaddr_storage	AddrStorage;
-	} ClientAddr;
+{	
+	LqConnInetAddress ClientAddr;
 	auto Proto = (LqHttpProto*)Connection->Proto->UserData;
 	socklen_t ClientAddrLen = sizeof(ClientAddr);
 	int ClientFd;
@@ -1089,7 +884,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
 
 	if((ClientFd = accept(Connection->Fd, &ClientAddr.Addr, &ClientAddrLen)) == -1)
 	{
-		LQHTTPLOG_ERR("LqHttp: Client not accepted\n");
+		LQHTTPLOG_ERR("LqHttpCoreBindReadProc() client not accepted\n");
 		return;
 	}
 
@@ -1101,7 +896,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
 			if(r == nullptr)
 			{
 				closesocket(ClientFd);
-				LQHTTPLOG_ERR("LqHttp: Not alloc memory for connection\n");
+				LQHTTPLOG_ERR("LqHttpCoreBindReadProc() not alloc memory for connection\n");
 				return;
 			}
 			r->Ip4Addr = ClientAddr.AddrInet;
@@ -1114,7 +909,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
 			if(r == nullptr)
 			{
 				closesocket(ClientFd);
-				LQHTTPLOG_ERR("LqHttp: Not alloc memory for connection\n");
+				LQHTTPLOG_ERR("LqHttpCoreBindReadProc() not alloc memory for connection\n");
 				return;
 			}
 			r->Ip6Addr = ClientAddr.AddrInet6;
@@ -1122,7 +917,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
 		}
 		break;
 		default:
-			LQHTTPLOG_ERR("LqHttp: Unicknown accepted protocol\n");
+			LQHTTPLOG_ERR("LqHttpCoreBindReadProc() unicknown connection protocol\n");
 			closesocket(ClientFd);
 			return;
 	}
@@ -1134,7 +929,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
 
 	c->TimeStartMillisec = c->TimeLastExchangeMillisec = LqTimeGetLocMillisec();
 	c->Pth = nullptr;
-	LqAtmIntrlkInc(Proto->Base.CountConnections);
+	
 	LqHttpActSwitchToRcv(c);
 
 #ifdef HAVE_OPENSSL
@@ -1146,7 +941,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
 		{
 			LqAtmLkUlkRd(Proto->Base.sslLocker);
 			LqHttpCoreDisconnectProc(&c->CommonConn);
-			return nullptr;
+			return;
 		}
 		LqAtmLkUlkRd(Proto->Base.sslLocker);
 		if(SSL_set_fd(c->ssl, c->CommonConn.Fd) == 0)
@@ -1154,7 +949,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
 			SSL_free(c->ssl);
 			c->ssl = nullptr;
 			LqHttpCoreDisconnectProc(&c->CommonConn);
-			return nullptr;
+			return;
 		}
 		auto SslAcptErr = SSL_accept(c->ssl);
 		if(SslAcptErr < 0)
@@ -1166,26 +961,22 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
 			} else
 			{
 				LqHttpCoreDisconnectProc(&c->CommonConn);
-				return nullptr;
+				return;
 			}
-		}
-		if(SSL_accept(c->ssl) <= 0)
-		{
-			LqHttpCoreDisconnectProc(&c->CommonConn);
-			return nullptr;
 		}
 	} else
 	{
 		LqAtmLkUlkRd(Proto->Base.sslLocker);
 	}
 #endif
+    LqAtmIntrlkInc(Proto->Base.CountConnections);
 	LqWrkBossAddEvntAsync((LqEvntHdr*)c);
 }
 
 static void LQ_CALL LqHttpCoreBindErrorProc(LqConn* Connection)
 {
 	LqEvntSetClose(Connection);
-	LQHTTPLOG_ERR("LqHttpCoreErrorProc: Have error on binded socket\n");
+	LQHTTPLOG_ERR("LqHttpCoreBindErrorProc() have error on binded socket\n");
 }
 
 static void LQ_CALL LqHttpCoreBindDisconnectProc(LqConn* Connection)
@@ -1194,9 +985,8 @@ static void LQ_CALL LqHttpCoreBindDisconnectProc(LqConn* Connection)
 	LqHttpConn* c = (LqHttpConn*)Connection;
 	if(Connection->Fd != -1)
 		closesocket(Connection->Fd);
-	LqAtmIntrlkDec(Proto->Base.CountConnections);
 	Connection->Fd = -1;
-	LQHTTPLOG_DEBUG("LqHttpCoreBindDisconnectProc: disconnected\n");
+	LQHTTPLOG_DEBUG("LqHttpCoreBindDisconnectProc() disconnected\n");
 	LqObDereference<LqHttpProto, LqFastAlloc::Delete>(Proto);
 }
 
@@ -1230,7 +1020,8 @@ LQ_EXTERN_C int LQ_CALL LqHttpEvntSetFlagByAct(LqHttpConn* Conn)
 
 static bool LQ_CALL LqHttpCoreCmpIpAddress(LqConn* c, const void* Address)
 {
-    if(LqHttpConnGetRmtAddr(c)->sa_family != ((sockaddr*)Address)->sa_family) return false;
+    if(LqHttpConnGetRmtAddr(c)->sa_family != ((sockaddr*)Address)->sa_family)
+		return false;
     switch(LqHttpConnGetRmtAddr(c)->sa_family)
     {
         case AF_INET: return memcmp(&((sockaddr_in*)LqHttpConnGetRmtAddr(c))->sin_addr, &((sockaddr_in*)Address)->sin_addr, sizeof(((sockaddr_in*)Address)->sin_addr)) == 0;

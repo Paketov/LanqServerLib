@@ -32,8 +32,8 @@
 
 
 
-#define SHUT_RD SD_RECEIVE
-#define SHUT_WR SD_SEND
+#define SHUT_RD    SD_RECEIVE
+#define SHUT_WR    SD_SEND
 #define SHUT_RDWR  SD_BOTH
 
 #else
@@ -61,6 +61,14 @@
 #include "Lanq.h"
 
 
+union LqConnInetAddress
+{
+	sockaddr			Addr;
+	sockaddr_in			AddrInet;
+	sockaddr_in6		AddrInet6;
+	sockaddr_storage	AddrStorage;
+};
+
 int LqConnCountPendingData(LqConn* c);
 /* Return -1 is err. */
 int LqConnSwitchNonBlock(int Fd, int IsNonBlock);
@@ -83,23 +91,47 @@ LQ_EXTERN_C_BEGIN
 LQ_IMPORTEXPORT int LQ_CALL LqEvntSetFlags(void* Conn, LqEvntFlag Flag, LqTimeMillisec WaitTime = 0 /* Wait while worker set new events value*/);
 
 /*
-* Set close connection. (Not call close handler in worker owner)
+* Set close connection. (In async mode)
+*  @Conn: LqConn or LqEvntFd
 */
-LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose(void* Conn);
+LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose(void* lqain Conn);
 
 /*
 * Set close immediately(call close handler in worker owner)
+*  @Conn: LqConn or LqEvntFd
 */
-LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose2(void* Conn, LqTimeMillisec WaitTime);
+LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose2(void* lqain Conn, LqTimeMillisec WaitTime);
 
-LQ_IMPORTEXPORT int LQ_CALL LqConnBind(const char* Host, const char* Port, int TransportProtoFamily, int MaxConnections);
+/*
+* Set close force immediately(call close handler in worker owner)
+*  @Conn: LqConn or LqEvntFd
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose3(void* lqain Conn);
+
+LQ_IMPORTEXPORT int LQ_CALL LqConnBind(const char* lqain lqaopt Host, const char* lqain Port, int TransportProtoFamily, int MaxConnections);
+
+LQ_IMPORTEXPORT int LQ_CALL LqConnConnect(const char* lqain Address, const char* lqain Port, void* lqaout lqaopt IpPrtAddress, socklen_t* lqaio lqaopt IpPrtAddressLen);
 
 LQ_IMPORTEXPORT void LQ_CALL __LqEvntFdDfltHandler(LqEvntFd* Instance, LqEvntFlag Flags);
 
 /*
 * Add new file descriptor to follow
 */
-LQ_IMPORTEXPORT bool LQ_CALL LqEvntFdAdd(LqEvntFd* Evnt);
+LQ_IMPORTEXPORT bool LQ_CALL LqEvntFdAdd(LqEvntFd* lqain Evnt);
+
+/*
+* @return: SSL_CTX
+*/
+LQ_IMPORTEXPORT void* LQ_CALL LqConnSslCreate
+(
+	const void* lqain MethodSSL, /* Example SSLv23_method()*/
+	const char* lqain CertFile, /* Example: "server.pem"*/
+	const char* lqain KeyFile, /*Example: "server.key"*/
+	const char*lqain lqaopt CipherList,
+	int TypeCertFile, /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
+	const char* lqain lqaopt CAFile,
+	const char* lqain lqaopt DhpFile
+);
 
 LQ_EXTERN_C_END
 
@@ -108,7 +140,7 @@ LQ_EXTERN_C_END
     ((LqConn*)(Conn))->Proto = NewProto;                                \
     ((LqConn*)(Conn))->Flag = _LQEVNT_FLAG_NOW_EXEC | _LQEVNT_FLAG_CONN;\
     LqEvntSetFlags(Conn, NewFlags);                                     \
-    ((LqConn*)(Conn))->Flag &= ~_LQEVNT_FLAG_NOW_EXEC;                  \
+    ((LqConn*)(Conn))->Flag &= ~_LQEVNT_FLAG_NOW_EXEC;
 
 #define LqEvntHdrClose(Event)                                           \
     (((LqEvntHdr*)(Event))->Flag |= _LQEVNT_FLAG_NOW_EXEC,              \

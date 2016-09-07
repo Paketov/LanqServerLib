@@ -220,9 +220,9 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCommit(int Fd)
     DestPath.erase(SepPos + 1, sizeof(LQ_RECIVE_PARTIAL_MASK) - 1);
     int Res = 0;
     LqFileClose(Fd);
-    WIN32_FILE_ATTRIBUTE_DATA   info;
+    WIN32_FILE_ATTRIBUTE_DATA info;
     if(GetFileAttributesExW(DestPath.c_str(), GetFileExInfoStandard, &info) == TRUE)
-        Res = 1;
+       Res = 1;
     if(MoveFileExW(Path.c_str(), DestPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED) == FALSE)
     {
         if(GetLastError() == ERROR_ACCESS_DENIED)
