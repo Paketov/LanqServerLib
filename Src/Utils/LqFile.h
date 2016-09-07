@@ -14,7 +14,22 @@
 #include <stdint.h>
 
 #ifdef LQPLATFORM_POSIX
-#include <poll.h>
+# include <poll.h>
+
+# ifdef LQ_ASYNC_IO_NOT_HAVE
+struct LqAsync
+{
+	char __empty;
+};
+# else
+
+#  include <aio.h>
+
+struct LqAsync
+{
+	aiocb cb;
+};
+# endif
 
 typedef struct pollfd LqFilePoll;
 
@@ -25,6 +40,8 @@ typedef struct pollfd LqFilePoll;
 #define LQ_POLLERR  POLLERR
 /*Use in LqFileOpen*/
 #define LQ_NULLDEV "/dev/null"
+
+
 
 #else
 
@@ -48,6 +65,16 @@ struct LqFilePoll
     short revents;    /* returned events */
 };
 #pragma pack(pop)
+
+struct LqAsync
+{
+	union
+	{
+		long        Status;
+		void*       Pointer;
+	};
+	uintptr_t       Information;
+};
 
 #define LQ_POLLIN    1
 #define LQ_POLLOUT   2
@@ -223,6 +250,47 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileRead(int Fd, void* lqaout DestBuf, unsigned in
 * LQ_STDERR, LQ_STDOUT
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFileWrite(int Fd, const void* lqain SourceBuf, unsigned int SizeBuf);
+
+/*-------------------------------------------
+* Async read/write
+*/
+/*
+* Async read from file
+*  @Fd: File descriptor for read. Must be created with LQ_O_NONBLOCK flag
+*  @DestBuf: Output buffer
+*  @SizeBuf: Size buffer
+*  @Offset: Offset in file
+*  @EventFd: Event created by LqFileEventCreate(). Before call must be set to zero.
+*  @Target: Target LqAsync structure
+*  @return: -1 - on error(chaeck lq_errno), 0 - on success
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqFileReadAsync(int Fd, void* lqaout DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* lqaout Target);
+/*
+* Async write in file
+*  @Fd: File descriptor for write. Must be created with LQ_O_NONBLOCK flag
+*  @DestBuf: Output buffer
+*  @SizeBuf: Size buffer
+*  @Offset: Offset in file
+*  @EventFd: Event created by LqFileEventCreate(). Before call must be set to zero.
+*  @Target: Target LqAsync structure
+*  @return: -1 - on error(chaeck lq_errno), 0 - on success
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqFileWriteAsync(int Fd, const void* lqain DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* lqaout Target);
+
+/*
+* Cancel async read/write operation
+*  @Fd: File descriptor
+*  @Target: Target LqAsync structure
+*  @return: -1 - on error(chaeck lq_errno), 0 - on success
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqFileAsyncCancel(int Fd, LqAsync* lqain Target);
+/*
+* Get info about async operation
+*  @Target: Target LqAsync structure
+*  @LenWritten: When return 0, then value have number count written/readed bytes.
+*  @return: 0 - on success (check @LenWritten), another val is error or EINPROGRESS
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqFileAsyncStat(LqAsync* lqain Target, unsigned int* lqaout LenWritten);
 
 /*
 * @Fd: Opened file

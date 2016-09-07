@@ -27,6 +27,7 @@
 # define LQPLATFORM_POSIX
 # ifdef __ANDROID__
 #  define LQPLATFORM_ANDROID
+#  define LQ_ASYNC_IO_NOT_HAVE
 # endif
 
 # if defined(__linux__)

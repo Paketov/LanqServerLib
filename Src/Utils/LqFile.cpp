@@ -470,6 +470,62 @@ lblAgain:
     return -1;
 }
 
+
+LQ_EXTERN_C int LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
+{
+	LARGE_INTEGER pl;
+	pl.QuadPart = Offset;
+	Target->Status = STATUS_PENDING;
+	switch(auto Stat = NtReadFile((HANDLE)Fd, (HANDLE)EventFd, NULL, NULL, (PIO_STATUS_BLOCK)Target, (PVOID)DestBuf, SizeBuf, &pl, NULL))
+	{
+		case STATUS_PENDING:
+			SetLastError(ERROR_IO_PENDING);
+		case STATUS_SUCCESS:
+			return 0;
+		default: SetLastError(RtlNtStatusToDosError(Stat));
+	}
+	return -1;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileWriteAsync(int Fd, const void* DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
+{
+	LARGE_INTEGER pl;
+	pl.QuadPart = Offset;
+	Target->Status = STATUS_PENDING;
+	switch(auto Stat = NtWriteFile((HANDLE)Fd, (HANDLE)EventFd, NULL, NULL, (PIO_STATUS_BLOCK)Target, (PVOID)DestBuf, SizeBuf, &pl, NULL))
+	{
+		case STATUS_PENDING:
+			SetLastError(ERROR_IO_PENDING);
+		case STATUS_SUCCESS:
+			return 0;
+		default: SetLastError(RtlNtStatusToDosError(Stat));
+	}
+	return -1;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileAsyncCancel(int Fd, LqAsync* Target)
+{
+	NTSTATUS Stat;
+	if((Stat = NtCancelIoFile((HANDLE)Fd, (PIO_STATUS_BLOCK)Target)) == STATUS_SUCCESS)
+		return 0;
+	SetLastError(RtlNtStatusToDosError(Stat));
+	return -1;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileAsyncStat(LqAsync* Target, unsigned int* LenWritten)
+{
+	switch(Target->Status)
+	{
+		case STATUS_SUCCESS:
+			*LenWritten = Target->Information;
+			return 0;
+      case STATUS_PENDING:
+          return EINPROGRESS;
+	}
+	SetLastError(RtlNtStatusToDosError(Target->Status));
+	return lq_errno;
+}
+
 LQ_EXTERN_C int LQ_CALL LqFileSetLock(int Fd, LqFileSz StartOffset, LqFileSz Len, int LockFlags)
 {
     IO_STATUS_BLOCK iosb;
@@ -1735,6 +1791,109 @@ LQ_EXTERN_C int LQ_CALL LqFileWrite(int Fd, const void* SourceBuf, unsigned int 
     return write(Fd, SourceBuf, SizeBuf);
 }
 
+#define IO_SIGNAL SIGUSR1
+
+static void __LqAioSigHandler(int sig, siginfo_t *si, void *ucontext)
+{
+	if(si->si_code == SI_ASYNCIO)
+	{
+		LqFileEventSet(si->si_value.sival_int);
+	}
+}
+
+static int InitSignal()
+{
+#ifdef LQ_ASYNC_IO_NOT_HAVE
+	return ENOSYS;
+#else
+	static int _LqAioInit = 0;
+	int t = 0;
+	if(LqAtmCmpXchg(_LqAioInit, &t, 1))
+	{
+		struct sigaction Act = {0};
+		Act.sa_sigaction = __LqAioSigHandler;
+		Act.sa_flags = SA_RESTART | SA_SIGINFO;
+		sigaction(IO_SIGNAL, &Act, nullptr);
+		return 0;
+	}
+	return -1;
+#endif
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
+{
+#ifdef LQ_ASYNC_IO_NOT_HAVE
+	return ENOSYS;
+#else
+	InitSignal();
+	Target->cb.aio_fildes = Fd;
+	Target->cb.aio_offset = Offset;
+	Target->cb.aio_buf = DestBuf;
+	Target->cb.aio_nbytes = SizeBuf;
+	Target->cb.aio_reqprio = 0;
+	Target->cb.aio_lio_opcode = LIO_READ;
+	Target->cb.aio_sigevent.sigev_notify = SIGEV_SIGNAL;
+	Target->cb.aio_sigevent.sigev_signo = IO_SIGNAL;
+	Target->cb.aio_sigevent.sigev_value.sival_int = EventFd;
+	return aio_read(&Target->cb);
+#endif
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileWriteAsync(int Fd, const void* DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
+{
+#ifdef LQ_ASYNC_IO_NOT_HAVE
+	return ENOSYS;
+#else
+	InitSignal();
+	Target->cb.aio_fildes = Fd;
+	Target->cb.aio_offset = Offset;
+	Target->cb.aio_buf = (void*)DestBuf;
+	Target->cb.aio_nbytes = SizeBuf;
+	Target->cb.aio_reqprio = 0;
+	Target->cb.aio_lio_opcode = LIO_WRITE;
+	Target->cb.aio_sigevent.sigev_notify = SIGEV_SIGNAL;
+	Target->cb.aio_sigevent.sigev_signo = IO_SIGNAL;
+	Target->cb.aio_sigevent.sigev_value.sival_int = EventFd;
+	return aio_write(&Target->cb);
+#endif
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileAsyncCancel(int Fd, LqAsync* Target)
+{
+#ifdef LQ_ASYNC_IO_NOT_HAVE
+	return ENOSYS;
+#else
+	switch(aio_cancel(Fd, &Target->cb))
+	{
+		case AIO_CANCELED:
+		case AIO_ALLDONE:
+			return 0;
+		case AIO_NOTCANCELED:
+			return -1;
+		case -1:
+		default:
+			return -1;
+	}
+#endif
+}
+
+
+LQ_EXTERN_C int LQ_CALL LqFileAsyncStat(LqAsync* Target, unsigned int* LenWritten)
+{
+#ifdef LQ_ASYNC_IO_NOT_HAVE
+	return ENOSYS;
+#else
+	switch(auto Stat = aio_error(&Target->cb))
+	{
+		case 0:
+			*LenWritten = aio_return(&Target->cb);
+			return 0;
+		default:
+			lq_errno_set(Stat);
+			return Stat;
+	}
+#endif
+}
 
 LQ_EXTERN_C int LQ_CALL LqFileSetLock(int Fd, LqFileSz StartOffset, LqFileSz Len, int LockFlags)
 {
