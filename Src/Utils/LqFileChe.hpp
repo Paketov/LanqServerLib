@@ -183,7 +183,7 @@ public:
                 return StatEnm::NOT_ALLOC_MEM;
             if(SizeFile > 0)
             {
-                int Readed = LqFileRead(File->Descriptor, Buf, SizeFile);
+                auto Readed = LqFileRead(File->Descriptor, Buf, SizeFile);
                 if(Readed < SizeFile)
                     return StatEnm::NOT_FULL_READ_FROM_FILE;
             }
@@ -199,7 +199,7 @@ public:
             Buf = NewPlace;
             if(SizeFile > 0)
             {
-                int Readed = LqFileRead(File->Descriptor, Buf, SizeFile);
+                auto Readed = LqFileRead(File->Descriptor, Buf, SizeFile);
                 if(Readed < SizeFile)
                     return StatEnm::NOT_FULL_READ_FROM_FILE;
             }

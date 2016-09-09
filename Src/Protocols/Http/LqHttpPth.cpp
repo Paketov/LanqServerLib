@@ -1179,7 +1179,7 @@ static void CalcFileMD5(int FileDescriptor, LqMd5* HashDest)
     LqMd5Ctx md5;
     LqMd5Init(&md5);
     char Buf[1024];
-    int Readed;
+	intptr_t Readed;
     while((Readed = LqFileRead(FileDescriptor, Buf, sizeof(Buf))) > 0)
         LqMd5Update(&md5, Buf, Readed);
     LqMd5Update(&md5, Buf, Readed);

@@ -121,7 +121,7 @@ static intptr_t LqSbufAddPagesFromFile(LqSbuf* StreamBuf, int FileDescriptor, in
         if(DestPage == nullptr) 
 			break;
         intptr_t SizeWrite = lq_min(Size, DestPage->SizePage);
-        int ReadedSize = LqFileRead(FileDescriptor, DestPage + 1, SizeWrite);
+        auto ReadedSize = LqFileRead(FileDescriptor, DestPage + 1, SizeWrite);
         if(ReadedSize < 0)
         {
             LqSbufRemoveLastPage(StreamBuf);
@@ -230,7 +230,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqSbufReadInFile(LqSbuf * StreamBuf, int fd, intptr
         PageHeader* Hdr = (PageHeader*)StreamBuf->Page0;
         intptr_t PageDataSize = Hdr->EndOffset - Hdr->StartOffset;
         intptr_t ReadSize = lq_min(PageDataSize, Size);
-        int Written = LqFileWrite(fd, (char*)(Hdr + 1) + Hdr->StartOffset, ReadSize);
+        auto Written = LqFileWrite(fd, (char*)(Hdr + 1) + Hdr->StartOffset, ReadSize);
         if(Written < 0) break;
         CommonWrittenSize += Written;
         Size -= Written;
@@ -259,7 +259,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqSbufWriteFromFile(LqSbuf* StreamBuf, int FileDesc
     {
         PageHeader* Hdr = (PageHeader*)StreamBuf->PageN;
         auto LenReadInCurPage = lq_min(Hdr->SizePage - Hdr->EndOffset, (size_t)Size);
-        int ReadedSize = LqFileRead(FileDescriptor, (char*)(Hdr + 1) + Hdr->EndOffset, LenReadInCurPage);
+        auto ReadedSize = LqFileRead(FileDescriptor, (char*)(Hdr + 1) + Hdr->EndOffset, LenReadInCurPage);
         if(ReadedSize < 0)
             return CommonReaded;
         Size -= ReadedSize;

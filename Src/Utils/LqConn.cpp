@@ -336,7 +336,7 @@ LqFileSz LqConnSendFromFile(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz
 {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     LqFileSz Sended = 0;
-    int r, wr;
+    intptr_t r, wr;
     if(LqFileSeek(InFd, OffsetInFile, LQ_SEEK_SET) < 0)
         return -1;
     const auto MaxSendSize = c->Proto->MaxSendInSingleTime;
@@ -593,7 +593,7 @@ LqFileSz LqConnSendFromFileSSL(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFil
 {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     LqFileSz Sended = 0;
-    int r, wr;
+	intptr_t r, wr;
     if(LqFileSeek(InFd, OffsetInFile, LQ_SEEK_SET) < 0)
         return -1;
     const auto MaxSendSize = c->Proto->MaxSendInSingleTime;

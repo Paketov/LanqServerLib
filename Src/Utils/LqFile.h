@@ -247,11 +247,11 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileOpen(const char* lqautf8 lqain FileName, uint3
 *  @Fd: Open file descriptor or LQ_STDIN
 *  @return: -1 - on error (check lq_errno), 0 - success
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileRead(int Fd, void* lqaout DestBuf, unsigned int SizeBuf);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileRead(int Fd, void* lqaout DestBuf, intptr_t SizeBuf);
 /*
 * LQ_STDERR, LQ_STDOUT
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileWrite(int Fd, const void* lqain SourceBuf, unsigned int SizeBuf);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileWrite(int Fd, const void* lqain SourceBuf, intptr_t SizeBuf);
 
 /*-------------------------------------------
 * Async read/write
@@ -266,7 +266,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileWrite(int Fd, const void* lqain SourceBuf, uns
 *  @Target: Target LqAsync structure
 *  @return: -1 - on error(chaeck lq_errno), 0 - on success
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileReadAsync(int Fd, void* lqaout DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* lqaout Target);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileReadAsync(int Fd, void* lqaout DestBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* lqaout Target);
 /*
 * Async write in file
 *  @Fd: File descriptor for write. Must be created with LQ_O_NONBLOCK flag
@@ -277,7 +277,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileReadAsync(int Fd, void* lqaout DestBuf, unsign
 *  @Target: Target LqAsync structure
 *  @return: -1 - on error(chaeck lq_errno), 0 - on success
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileWriteAsync(int Fd, const void* lqain DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* lqaout Target);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileWriteAsync(int Fd, const void* lqain DestBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* lqaout Target);
 
 /*
 * Cancel async read/write operation
@@ -292,7 +292,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileAsyncCancel(int Fd, LqAsync* lqain Target);
 *  @LenWritten: When return 0, then value have number count written/readed bytes.
 *  @return: 0 - on success (check @LenWritten), another val is error or EINPROGRESS
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileAsyncStat(LqAsync* lqain Target, unsigned int* lqaout LenWritten);
+LQ_IMPORTEXPORT int LQ_CALL LqFileAsyncStat(LqAsync* lqain Target, intptr_t* lqaout LenWritten);
 
 /*
 * @Fd: Opened file
@@ -314,7 +314,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileEof(int Fd); //1 - end of file, 0 - not end, -
 LQ_IMPORTEXPORT int LQ_CALL LqFileGetStat(const char* lqautf8 lqain FileName, LqFileStat* lqaout StatDest);
 LQ_IMPORTEXPORT int LQ_CALL LqFileGetStatByFd(int Fd, LqFileStat* lqaout StatDest);
 /*Get name file by descriptor*/
-LQ_IMPORTEXPORT int LQ_CALL LqFileGetPath(int Fd, char* lqautf8 lqaout DestBuf, unsigned int SizeBuf);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileGetPath(int Fd, char* lqautf8 lqaout DestBuf, intptr_t SizeBuf);
 
 LQ_IMPORTEXPORT int LQ_CALL LqFileRemove(const char* lqautf8 lqain FileName);
 LQ_IMPORTEXPORT int LQ_CALL LqFileMove(const char* lqautf8 lqain OldName, const char* lqautf8 lqain NewName);
@@ -322,7 +322,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileMakeDir(const char* lqautf8 lqain NewDirName, 
 LQ_IMPORTEXPORT int LQ_CALL LqFileMakeSubdirs(const char* lqautf8 lqain NewSubdirsDirName, int Access);
 LQ_IMPORTEXPORT int LQ_CALL LqFileRemoveDir(const char* lqautf8 lqain NewDirName);
 
-LQ_IMPORTEXPORT int LQ_CALL LqFileRealPath(const char* lqain Source, char* lqaout Dest, size_t DestLen);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileRealPath(const char* lqain Source, char* lqaout Dest, intptr_t DestLen);
 
 LQ_IMPORTEXPORT int LQ_CALL LqFileFlush(int Fd);
 
@@ -423,6 +423,8 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileProcessCreate(
 LQ_IMPORTEXPORT int LQ_CALL LqFileProcessKill(int Pid);
 
 LQ_IMPORTEXPORT int LQ_CALL LqFileProcessId();
+
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileProcessName(int Pid, char* DestBuf, intptr_t SizeBuf);
 
 /*------------------------------------------
 * Start enumerate path

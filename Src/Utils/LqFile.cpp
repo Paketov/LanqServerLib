@@ -18,6 +18,7 @@
 
 #include <Windows.h>
 #include <Winternl.h> //For LqFilePollCheck
+#include <Psapi.h>
 #include <ntstatus.h>
 #include <vector>
 #include "LqCp.h"
@@ -234,7 +235,7 @@ LQ_EXTERN_C int LQ_CALL LqFileOpen(const char *FileName, uint32_t Flags, int Acc
 }
 
 
-LQ_EXTERN_C int LQ_CALL LqFileGetPath(int Fd, char* DestBuf, unsigned int SizeBuf)
+LQ_EXTERN_C intptr_t LQ_CALL LqFileGetPath(int Fd, char* DestBuf, intptr_t SizeBuf)
 {
     wchar_t Name[LQ_MAX_PATH];
     if(GetFinalPathNameByHandleW((HANDLE)Fd, Name, LQ_MAX_PATH, 0) == 0)
@@ -417,7 +418,7 @@ LQ_EXTERN_C int LQ_CALL LqFileEof(int Fd)
     return LqFileTell(Fd) >= li.QuadPart;
 }
 
-LQ_EXTERN_C int LQ_CALL LqFileRead(int Fd, void* DestBuf, unsigned int SizeBuf)
+LQ_EXTERN_C intptr_t LQ_CALL LqFileRead(int Fd, void* DestBuf, intptr_t SizeBuf)
 {
     /*
     * Use NtReadFile in this because, native function more faster and more flexible
@@ -445,7 +446,7 @@ lblAgain:
     return -1;
 }
 
-LQ_EXTERN_C int LQ_CALL LqFileWrite(int Fd, const void* SourceBuf, unsigned int SizeBuf)
+LQ_EXTERN_C intptr_t LQ_CALL LqFileWrite(int Fd, const void* SourceBuf, intptr_t SizeBuf)
 {
     IO_STATUS_BLOCK iosb;
     LARGE_INTEGER pl, *ppl = nullptr;
@@ -471,7 +472,7 @@ lblAgain:
 }
 
 
-LQ_EXTERN_C int LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
+LQ_EXTERN_C intptr_t LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
 {
 	LARGE_INTEGER pl;
 	pl.QuadPart = Offset;
@@ -487,7 +488,7 @@ LQ_EXTERN_C int LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, unsigned int Size
 	return -1;
 }
 
-LQ_EXTERN_C int LQ_CALL LqFileWriteAsync(int Fd, const void* DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
+LQ_EXTERN_C intptr_t LQ_CALL LqFileWriteAsync(int Fd, const void* DestBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
 {
 	LARGE_INTEGER pl;
 	pl.QuadPart = Offset;
@@ -512,7 +513,7 @@ LQ_EXTERN_C int LQ_CALL LqFileAsyncCancel(int Fd, LqAsync* Target)
 	return -1;
 }
 
-LQ_EXTERN_C int LQ_CALL LqFileAsyncStat(LqAsync* Target, unsigned int* LenWritten)
+LQ_EXTERN_C int LQ_CALL LqFileAsyncStat(LqAsync* Target, intptr_t* LenWritten)
 {
 	switch(Target->Status)
 	{
@@ -614,7 +615,7 @@ LQ_EXTERN_C int LQ_CALL LqFileRemove(const char* FileName)
     return (DeleteFileW(Name) == TRUE) ? 0 : -1;
 }
 
-LQ_EXTERN_C int LQ_CALL LqFileRealPath(const char* Source, char* Dest, size_t DestLen)
+LQ_EXTERN_C intptr_t LQ_CALL LqFileRealPath(const char* Source, char* Dest, intptr_t DestLen)
 {
     wchar_t Name[LQ_MAX_PATH];
     wchar_t New[LQ_MAX_PATH];
@@ -931,6 +932,20 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessId()
     return GetCurrentProcessId();
 }
 
+
+LQ_EXTERN_C intptr_t LQ_CALL LqFileProcessName(int Pid, char* DestBuf, intptr_t SizeBuf)
+{
+	HANDLE Handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, Pid);
+	if(Handle == NULL)
+		return -1;
+
+	wchar_t Name[LQ_MAX_PATH];
+	auto Ret = GetModuleFileNameExW(Handle, NULL, Name, LQ_MAX_PATH - 1);
+	NtClose(Handle);
+	if(Ret <= 0)
+		return -1;
+	return LqCpConvertFromWcs(Name, DestBuf, SizeBuf);
+}
 
 /*------------------------------------------
 * Event
@@ -1659,13 +1674,12 @@ LQ_EXTERN_C void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* Evnt)
 #define O_NONBLOCK 0
 #endif
 
-LQ_EXTERN_C int LQ_CALL LqFileGetPath(int Fd, char* DestBuf, unsigned int SizeBuf)
+LQ_EXTERN_C intptr_t LQ_CALL LqFileGetPath(int Fd, char* DestBuf, intptr_t SizeBuf)
 {
     char PathToFd[64];
-    sprintf(PathToFd, "/proc/%i/fd/%i", (int)getpid(), Fd);
+    sprintf(PathToFd, "/proc/self/fd/%i", Fd);
     return readlink(PathToFd, DestBuf, SizeBuf);
 }
-
 
 LQ_EXTERN_C int LQ_CALL LqFileOpen(const char *FileName, uint32_t Flags, int Access)
 {
@@ -1782,12 +1796,12 @@ LQ_EXTERN_C int LQ_CALL LqFileEof(int Fd)
     return LqFileTell(Fd) >= Fs.Size;
 }
 
-LQ_EXTERN_C int LQ_CALL LqFileRead(int Fd, void* DestBuf, unsigned int SizeBuf)
+LQ_EXTERN_C intptr_t LQ_CALL LqFileRead(int Fd, void* DestBuf, intptr_t SizeBuf)
 {
     return read(Fd, DestBuf, SizeBuf);
 }
 
-LQ_EXTERN_C int LQ_CALL LqFileWrite(int Fd, const void* SourceBuf, unsigned int SizeBuf)
+LQ_EXTERN_C intptr_t LQ_CALL LqFileWrite(int Fd, const void* SourceBuf, intptr_t SizeBuf)
 {
     return write(Fd, SourceBuf, SizeBuf);
 }
@@ -1828,7 +1842,7 @@ static int InitSignal()
 #endif
 }
 
-LQ_EXTERN_C int LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
+LQ_EXTERN_C intptr_t LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
 {
 #ifdef LQ_ASYNC_IO_NOT_HAVE
     return ENOSYS;
@@ -1860,7 +1874,7 @@ LQ_EXTERN_C int LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, unsigned int Size
 #endif
 }
 
-LQ_EXTERN_C int LQ_CALL LqFileWriteAsync(int Fd, const void* DestBuf, unsigned int SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
+LQ_EXTERN_C intptr_t LQ_CALL LqFileWriteAsync(int Fd, const void* DestBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
 {
 #ifdef LQ_ASYNC_IO_NOT_HAVE
     return ENOSYS;
@@ -1915,7 +1929,7 @@ LQ_EXTERN_C int LQ_CALL LqFileAsyncCancel(int Fd, LqAsync* Target)
 }
 
 
-LQ_EXTERN_C int LQ_CALL LqFileAsyncStat(LqAsync* Target, unsigned int* LenWritten)
+LQ_EXTERN_C int LQ_CALL LqFileAsyncStat(LqAsync* Target, intptr_t* LenWritten)
 {
 #ifdef LQ_ASYNC_IO_NOT_HAVE
     return ENOSYS;
@@ -1943,7 +1957,7 @@ LQ_EXTERN_C int LQ_CALL LqFileSetLock(int Fd, LqFileSz StartOffset, LqFileSz Len
     return fcntl(Fd, (LockFlags & LQ_FLOCK_WAIT) ? F_SETLKW : F_SETLK, &lck);
 }
 
-LQ_EXTERN_C int LQ_CALL LqFileRealPath(const char* Source, char* Dest, size_t DestLen)
+LQ_EXTERN_C intptr_t LQ_CALL LqFileRealPath(const char* Source, char* Dest, intptr_t DestLen)
 {
     auto Ret = realpath(Source, nullptr);
     if(Ret == nullptr)
@@ -2165,6 +2179,13 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessKill(int Pid)
 LQ_EXTERN_C int LQ_CALL LqFileProcessId()
 {
     return getpid();
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqFileProcessName(int Pid, char* DestBuf, intptr_t SizeBuf)
+{
+	char Buf[64];
+	sprintf(Buf, "/proc/%i/exe", Pid);
+	return readlink(Buf, DestBuf, SizeBuf);
 }
 
 
