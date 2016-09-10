@@ -41,7 +41,7 @@ struct LqSbufPtr
 LQ_IMPORTEXPORT void LQ_CALL LqSbufInit(LqSbuf* StreamBuf);
 LQ_IMPORTEXPORT void LQ_CALL LqSbufUninit(LqSbuf* StreamBuf);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufWrite(LqSbuf* StreamBuf, const void* DataSource, intptr_t DataSourceSize);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufWrite(LqSbuf* StreamBuf, const void* lqain DataSource, intptr_t DataSourceSize);
 /*
 * @StreamBuf - Pointer on stream buf structure.
 * @DataDest - If eq. nullptr, then only skipped DataDestSize, otherwise put data in buffer.
@@ -73,8 +73,8 @@ LQ_IMPORTEXPORT void LQ_CALL LqSbufPtrSet(const LqSbuf* StreamBuf, LqSbufPtr* St
 * @DataDestSize - Size read from stream.
 * @return - count readed data.
 */
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufReadByPtr(const LqSbuf* StreamBuf, LqSbufPtr* StreamPointer, void* DataDest, intptr_t DataDestSize);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufPeekByPtr(const LqSbuf* StreamBuf, LqSbufPtr* StreamPointer, void* DataDest, intptr_t DataDestSize);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufReadByPtr(const LqSbuf* StreamBuf, LqSbufPtr* StreamPointer, void* lqaout DataDest, intptr_t DataDestSize);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufPeekByPtr(const LqSbuf* StreamBuf, LqSbufPtr* StreamPointer, void* lqaout DataDest, intptr_t DataDestSize);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufTransferByPtr(const LqSbuf* StreamBufSource, LqSbufPtr* StreamPointer, LqSbuf* StreamBufDest, intptr_t Size);
 
 LQ_EXTERN_C_END

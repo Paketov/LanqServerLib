@@ -69,7 +69,7 @@ LQ_EXTERN_C uint32_t LQ_CALL LqStrCharUtf16ToUpper(uint32_t r)
 }
 
 
-LQ_EXTERN_C bool LQ_CALL LqStrCharUtf16IsAlpha(uint32_t r)
+LQ_EXTERN_C LqBool LQ_CALL LqStrCharUtf16IsAlpha(uint32_t r)
 {
 #if defined(_MSC_VER)
     return IsCharAlphaW(r) == TRUE;
@@ -150,10 +150,10 @@ LQ_EXTERN_C int LQ_CALL LqStrUtf16Count(wchar_t ch)
     return ((uint32_t)ch >= 0xd800 && (uint32_t)ch <= 0xdbff) ? 2 : 1;
 }
 
-LQ_EXTERN_C int LQ_CALL LqStrUtf16StringCount(const wchar_t* Utf8String)
+LQ_EXTERN_C int LQ_CALL LqStrUtf16StringCount(const wchar_t* Utf16String)
 {
     int r = 0;
-    for(auto c = Utf8String; ;)
+    for(auto c = Utf16String; ;)
     {
         if(((uint32_t)*c >= 0xd800) && ((uint32_t)*c <= 0xdbff))
         {

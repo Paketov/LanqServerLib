@@ -40,7 +40,7 @@ static const uchar DecodeSeqURL[] = {
 LQ_EXTERN_C size_t LQ_CALL LqBase64Code(char *Dest, const void *Src, size_t SrcLen) { return _CodeBase64<true>((uchar*)Dest, (const uchar*)Src, SrcLen, CodeChain); }
 LQ_EXTERN_C size_t LQ_CALL LqBase64UrlCode(char *Dest, const void *Src, size_t SrcLen) { return _CodeBase64<false>((uchar*)Dest, (const uchar*)Src, SrcLen, CodeChainURL); }
 
-LQ_IMPORTEXPORT LqString LQ_CALL LqBase64CodeToStlStr(const void *Src, size_t SrcLen)
+LQ_EXTERN_CPP LqString LQ_CALL LqBase64CodeToStlStr(const void *Src, size_t SrcLen)
 {
     LqString r("", ((float)SrcLen * 1.4f) + 2);
     size_t l = _CodeBase64<true>((uchar*)r.data(), (const uchar*)Src, SrcLen, CodeChain);
@@ -48,7 +48,7 @@ LQ_IMPORTEXPORT LqString LQ_CALL LqBase64CodeToStlStr(const void *Src, size_t Sr
     return r;
 }
 
-LQ_IMPORTEXPORT LqString LQ_CALL LqBase64UrlCodeToStlStr(const void *Src, size_t SrcLen)
+LQ_EXTERN_CPP LqString LQ_CALL LqBase64UrlCodeToStlStr(const void *Src, size_t SrcLen)
 {
     LqString r("", ((float)SrcLen * 1.4f) + 2);
     size_t l = _CodeBase64<false>((uchar*)r.data(), (const uchar*)Src, SrcLen, CodeChainURL);

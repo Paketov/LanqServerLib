@@ -125,7 +125,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCreate(const char* FileName, uint32_t Flags, in
 LQ_EXTERN_C int LQ_CALL LqFileTrdCommitToPlace(int Fd, const char* DestPath)
 {
     char Name[LQ_MAX_PATH];
-    if(LqFileGetPath(Fd, Name, sizeof(Name)) == -1)
+    if(LqFileGetPath(Fd, Name, LQ_MAX_PATH - 1) == -1)
     {
         LqFileClose(Fd);
         return -1;
@@ -177,7 +177,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdGetNameTemp(int Fd, char* DestBuf, size_t DestB
 LQ_EXTERN_C int LQ_CALL LqFileTrdGetNameTarget(int Fd, char* DestBuf, size_t DestBufLen)
 {
     char Name[LQ_MAX_PATH];
-    if(LqFileGetPath(Fd, Name, sizeof(Name)) == -1)
+    if(LqFileGetPath(Fd, Name, LQ_MAX_PATH - 1) == -1)
         return -1;
     LqString DestPath = Name;
     auto SepPos = DestPath.find_last_of(LQ_PATH_SEPARATOR);

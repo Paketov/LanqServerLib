@@ -18,13 +18,13 @@
 
 LQ_EXTERN_C_BEGIN
 
-LQ_IMPORTEXPORT int LQ_CALL LqFileTrdCreate(const char* lqain NameFinnalyDest, uint32_t Flags, int Access);
+LQ_IMPORTEXPORT int LQ_CALL LqFileTrdCreate(const char* lqain lqacp NameFinnalyDest, uint32_t Flags, int Access);
 LQ_IMPORTEXPORT int LQ_CALL LqFileTrdCancel(int Fd);
 LQ_IMPORTEXPORT int LQ_CALL LqFileTrdCommit(int Fd);
 LQ_IMPORTEXPORT int LQ_CALL LqFileTrdIsTransacted(int Fd);
-LQ_IMPORTEXPORT int LQ_CALL LqFileTrdCommitToPlace(int Fd, const char* lqain DestPath);
-LQ_IMPORTEXPORT int LQ_CALL LqFileTrdGetNameTemp(int Fd, char* lqaout DestBuf, size_t DestBufLen);
-LQ_IMPORTEXPORT int LQ_CALL LqFileTrdGetNameTarget(int Fd, char* lqaout DestBuf, size_t DestBufLen);
+LQ_IMPORTEXPORT int LQ_CALL LqFileTrdCommitToPlace(int Fd, const char* lqain lqacp DestPath);
+LQ_IMPORTEXPORT int LQ_CALL LqFileTrdGetNameTemp(int Fd, char* lqaout lqacp DestBuf, size_t DestBufLen);
+LQ_IMPORTEXPORT int LQ_CALL LqFileTrdGetNameTarget(int Fd, char* lqaout lqacp DestBuf, size_t DestBufLen);
 
 LQ_EXTERN_C_END
 #endif

@@ -126,6 +126,7 @@
 #define lqamrelease             //LanQ Argument Must release before use
 #define lqautf8                 //LanQ Argument UTF-8 string
 #define lqautf16                //LanQ Argument UTF-16 string
+#define lqacp                   /*LanQ Argument defined in LqCp ... code page */
 
 #define LQ_GOLDEN_RATIO         1.61803398874989484820 
 

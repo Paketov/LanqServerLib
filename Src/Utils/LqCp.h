@@ -31,8 +31,8 @@ LQ_IMPORTEXPORT int LQ_CALL LqCpSet(int NewCodePage);
 LQ_IMPORTEXPORT int LQ_CALL LqCpGet();
 
 
-LQ_IMPORTEXPORT int LQ_CALL LqCpConvertToWcs(const char* Source, wchar_t* Dest, size_t DestCount);
-LQ_IMPORTEXPORT int LQ_CALL LqCpConvertFromWcs(const wchar_t* Source, char* Dest, size_t DestCount);
+LQ_IMPORTEXPORT int LQ_CALL LqCpConvertToWcs(const char* lqain lqacp Source, wchar_t* lqaout lqautf16 Dest, size_t DestCount);
+LQ_IMPORTEXPORT int LQ_CALL LqCpConvertFromWcs(const wchar_t* lqain lqautf16 Source, char* lqaout lqacp Dest, size_t DestCount);
 
 LQ_EXTERN_C_END
 

@@ -12,11 +12,11 @@
 
 LQ_EXTERN_C_BEGIN
 
-LQ_IMPORTEXPORT int LQ_CALL LqBase64Decode(void *Dst, const char *Src, size_t SrcLen);
-LQ_IMPORTEXPORT int LQ_CALL LqBase64UrlDecode(void *Dst, const char *Src, size_t SrcLen);
+LQ_IMPORTEXPORT int LQ_CALL LqBase64Decode(void* lqaout Dst, const char* lqain lqacp Src, size_t SrcLen);
+LQ_IMPORTEXPORT int LQ_CALL LqBase64UrlDecode(void* lqaout Dst, const char* lqain lqacp Src, size_t SrcLen);
 
-LQ_IMPORTEXPORT size_t LQ_CALL LqBase64Code(char *Dest, const void* Src, size_t SrcLen);
-LQ_IMPORTEXPORT size_t LQ_CALL LqBase64UrlCode(char *Dest, const void* Src, size_t SrcLen);
+LQ_IMPORTEXPORT size_t LQ_CALL LqBase64Code(char* lqaout lqacp Dest, const void* lqain Src, size_t SrcLen);
+LQ_IMPORTEXPORT size_t LQ_CALL LqBase64UrlCode(char* lqaout lqacp Dest, const void* lqain Src, size_t SrcLen);
 
 LQ_EXTERN_C_END
 

@@ -81,7 +81,7 @@ LqWrkPtr LqWrk::New(bool IsStart)
 
 void LqWrkDelete(LqWrk* This)
 {
-    if(This->LqThreadBase::thread::get_id() == std::this_thread::get_id())
+    if(This->IsThisThread())
     {
         ((LqWrkBoss*)LqWrkBossGet())->TransferAllEvnt(This);
         This->ClearQueueCommands();

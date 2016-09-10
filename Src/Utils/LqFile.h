@@ -240,7 +240,7 @@ struct LqFilePathEvntEnm
 * Files
 * On windows or linux you can open device/file/pipe and other kernel objects.
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileOpen(const char* lqautf8 lqain FileName, uint32_t Flags, int Access);
+LQ_IMPORTEXPORT int LQ_CALL LqFileOpen(const char* lqacp lqain FileName, uint32_t Flags, int Access);
 
 /*
 * On windows or linux you can read/write in non block mode (LQ_O_NONBLOCK)
@@ -311,18 +311,18 @@ LQ_IMPORTEXPORT LqFileSz LQ_CALL LqFileTell(int Fd);
 LQ_IMPORTEXPORT LqFileSz LQ_CALL LqFileSeek(int Fd, LqFileSz Offset, int Flag);
 LQ_IMPORTEXPORT int LQ_CALL LqFileEof(int Fd); //1 - end of file, 0 - not end, -1 - error
 
-LQ_IMPORTEXPORT int LQ_CALL LqFileGetStat(const char* lqautf8 lqain FileName, LqFileStat* lqaout StatDest);
+LQ_IMPORTEXPORT int LQ_CALL LqFileGetStat(const char* lqacp lqain FileName, LqFileStat* lqaout StatDest);
 LQ_IMPORTEXPORT int LQ_CALL LqFileGetStatByFd(int Fd, LqFileStat* lqaout StatDest);
 /*Get name file by descriptor*/
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileGetPath(int Fd, char* lqautf8 lqaout DestBuf, intptr_t SizeBuf);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileGetPath(int Fd, char* lqacp lqaout DestBuf, intptr_t SizeBuf);
 
-LQ_IMPORTEXPORT int LQ_CALL LqFileRemove(const char* lqautf8 lqain FileName);
-LQ_IMPORTEXPORT int LQ_CALL LqFileMove(const char* lqautf8 lqain OldName, const char* lqautf8 lqain NewName);
-LQ_IMPORTEXPORT int LQ_CALL LqFileMakeDir(const char* lqautf8 lqain NewDirName, int Access);
-LQ_IMPORTEXPORT int LQ_CALL LqFileMakeSubdirs(const char* lqautf8 lqain NewSubdirsDirName, int Access);
-LQ_IMPORTEXPORT int LQ_CALL LqFileRemoveDir(const char* lqautf8 lqain NewDirName);
+LQ_IMPORTEXPORT int LQ_CALL LqFileRemove(const char* lqacp lqain FileName);
+LQ_IMPORTEXPORT int LQ_CALL LqFileMove(const char* lqacp lqain OldName, const char* lqacp lqain NewName);
+LQ_IMPORTEXPORT int LQ_CALL LqFileMakeDir(const char* lqacp lqain NewDirName, int Access);
+LQ_IMPORTEXPORT int LQ_CALL LqFileMakeSubdirs(const char* lqacp lqain NewSubdirsDirName, int Access);
+LQ_IMPORTEXPORT int LQ_CALL LqFileRemoveDir(const char* lqacp lqain NewDirName);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileRealPath(const char* lqain Source, char* lqaout Dest, intptr_t DestLen);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileRealPath(const char* lqain lqacp Source, char* lqaout lqacp Dest, intptr_t DestLen);
 
 LQ_IMPORTEXPORT int LQ_CALL LqFileFlush(int Fd);
 
@@ -371,7 +371,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileTimerSet(int TimerFd, LqTimeMillisec Time);
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreate(int* lqaout lpReadPipe, int* lqaout lpWritePipe, uint32_t FlagsRead, uint32_t FlagsWrite);
 LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreateRw(int* lqaout Pipe1, int* lqaout Pipe2, uint32_t Flags1, uint32_t Flags2);
-LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreateNamed(const char* lqain NameOfPipe, uint32_t Flags);
+LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreateNamed(const char* lqacp lqain NameOfPipe, uint32_t Flags);
 
 /*------------------------------------------
 * Descriptor parameters
@@ -406,10 +406,10 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileDescrDupToStd(int Descriptor, int StdNo);
 *  @return: PID to new process, or -1 is have error.
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFileProcessCreate(
-    const char* lqain FileName,
+    const char* lqain lqacp FileName,
     char* const lqaopt lqain Argv[],
     char* const lqaopt lqain Envp[],
-    const char* lqaopt lqain WorkingDir,
+    const char* lqaopt lqain lqacp WorkingDir,
     int StdIn,
     int StdOut,
     int StdErr,
@@ -424,14 +424,14 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileProcessKill(int Pid);
 
 LQ_IMPORTEXPORT int LQ_CALL LqFileProcessId();
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileProcessName(int Pid, char* DestBuf, intptr_t SizeBuf);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileProcessName(int Pid, char* lqacp lqaout DestBuf, intptr_t SizeBuf);
 
 /*------------------------------------------
 * Start enumerate path
 *  @retur: -1 is end enum, 0 - is have path
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileEnmStart(LqFileEnm* lqaio Enm, const char* lqain Dir, char* lqaout DestName, size_t NameLen, uint8_t* lqaout lqaopt Type);
-LQ_IMPORTEXPORT int LQ_CALL LqFileEnmNext(LqFileEnm* lqaio Enm, char* lqaout DestName, size_t NameLen, uint8_t* lqaout lqaopt Type);
+LQ_IMPORTEXPORT int LQ_CALL LqFileEnmStart(LqFileEnm* lqaio Enm, const char* lqacp lqain Dir, char* lqaout lqacp DestName, size_t NameLen, uint8_t* lqaout lqaopt Type);
+LQ_IMPORTEXPORT int LQ_CALL LqFileEnmNext(LqFileEnm* lqaio Enm, char* lqaout lqacp DestName, size_t NameLen, uint8_t* lqaout lqaopt Type);
 LQ_IMPORTEXPORT void LQ_CALL LqFileEnmBreak(LqFileEnm* lqaio Enm);
 
 /*------------------------------------------
@@ -439,10 +439,10 @@ LQ_IMPORTEXPORT void LQ_CALL LqFileEnmBreak(LqFileEnm* lqaio Enm);
 *  Event directory changes
 */
 
-LQ_IMPORTEXPORT int LQ_CALL LqFilePathEvntCreate(LqFilePathEvnt* lqaio Evnt, const char* lqain DirOrFile, uint8_t FollowFlag);
+LQ_IMPORTEXPORT int LQ_CALL LqFilePathEvntCreate(LqFilePathEvnt* lqaio Evnt, const char* lqain lqacp DirOrFile, uint8_t FollowFlag);
 LQ_IMPORTEXPORT void LQ_CALL LqFilePathEvntFreeEnum(LqFilePathEvntEnm** lqaio Dest);
 LQ_IMPORTEXPORT int LQ_CALL LqFilePathEvntDoEnum(LqFilePathEvnt* lqaio Evnt, LqFilePathEvntEnm** lqaio Dest);
-LQ_IMPORTEXPORT int LQ_CALL LqFilePathEvntGetName(LqFilePathEvnt* lqaio Evnt, char* lqaout DestName, size_t DestNameSize);
+LQ_IMPORTEXPORT int LQ_CALL LqFilePathEvntGetName(LqFilePathEvnt* lqaio Evnt, char* lqaout lqacp DestName, size_t DestNameSize);
 LQ_IMPORTEXPORT void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* lqaio Evnt);
 
 

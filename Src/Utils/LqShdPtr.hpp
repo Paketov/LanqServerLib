@@ -120,7 +120,6 @@ bool LqObDereference(_t* Ob)
 	} while(!LqAtmCmpXchg(Ob->CountPointers, Expected, Expected - 1));
 	if(IsDelete)
 	{
-	
 		DeleteProc(Ob);
 		return true;
 	} else

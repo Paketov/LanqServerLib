@@ -39,16 +39,16 @@ typedef struct
 
 #pragma pack(pop)
 
-LQ_IMPORTEXPORT void LQ_CALL LqMd5Init(LqMd5Ctx* Ctx);
-LQ_IMPORTEXPORT void LQ_CALL LqMd5Update(LqMd5Ctx* Ctx, const void* Data, size_t Len);
-LQ_IMPORTEXPORT void LQ_CALL LqMd5Final(unsigned char* Result, LqMd5Ctx* Ctx);
+LQ_IMPORTEXPORT void LQ_CALL LqMd5Init(LqMd5Ctx* lqaout Ctx);
+LQ_IMPORTEXPORT void LQ_CALL LqMd5Update(LqMd5Ctx* lqaio Ctx, const void* lqain Data, size_t Len);
+LQ_IMPORTEXPORT void LQ_CALL LqMd5Final(unsigned char* lqaout Result, LqMd5Ctx* lqaio Ctx);
 
 
-LQ_IMPORTEXPORT int LQ_CALL LqMd5Compare(const LqMd5* Hash1, const LqMd5* Hash2);
-LQ_IMPORTEXPORT void LQ_CALL LqMd5ToString(char* DestStr, const LqMd5* Hash);
-LQ_IMPORTEXPORT bool LQ_CALL LqMd5FromString(LqMd5* Hash, const char* SourceStr);
-LQ_IMPORTEXPORT void LQ_CALL LqMd5Gen(LqMd5* Hash, const void* Buf, size_t BufLen);
-LQ_IMPORTEXPORT void LQ_CALL LqMd5GenToString(char* Dest, const void* Buf, size_t BufLen);
+LQ_IMPORTEXPORT int LQ_CALL LqMd5Compare(const LqMd5* lqain Hash1, const LqMd5* lqain Hash2);
+LQ_IMPORTEXPORT void LQ_CALL LqMd5ToString(char* lqaout lqacp DestStr, const LqMd5* lqain Hash);
+LQ_IMPORTEXPORT bool LQ_CALL LqMd5FromString(LqMd5* lqaout Hash, const char* lqain lqacp SourceStr);
+LQ_IMPORTEXPORT void LQ_CALL LqMd5Gen(LqMd5* lqaout Hash, const void* lqain Buf, size_t BufLen);
+LQ_IMPORTEXPORT void LQ_CALL LqMd5GenToString(char* lqaout lqacp Dest, const void* lqain Buf, size_t BufLen);
 
 LQ_EXTERN_C_END
 
