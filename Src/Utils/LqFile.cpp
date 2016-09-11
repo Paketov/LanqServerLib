@@ -932,6 +932,14 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessId()
     return GetCurrentProcessId();
 }
 
+LQ_EXTERN_C int LQ_CALL LqFileProcessParentId()
+{
+	PROCESS_BASIC_INFORMATION BasicInfo;
+	ULONG ulSize = 0;
+	if(NtQueryInformationProcess(GetCurrentProcess(), ProcessBasicInformation, &BasicInfo, sizeof(BasicInfo), &ulSize) != STATUS_SUCCESS)
+		return -1;
+	return (int)BasicInfo.Reserved3;
+}
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileProcessName(int Pid, char* DestBuf, intptr_t SizeBuf)
 {
@@ -2179,6 +2187,11 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessKill(int Pid)
 LQ_EXTERN_C int LQ_CALL LqFileProcessId()
 {
     return getpid();
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileProcessParentId()
+{
+	return getppid();
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileProcessName(int Pid, char* DestBuf, intptr_t SizeBuf)

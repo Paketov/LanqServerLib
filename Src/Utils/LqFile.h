@@ -424,6 +424,8 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileProcessKill(int Pid);
 
 LQ_IMPORTEXPORT int LQ_CALL LqFileProcessId();
 
+LQ_IMPORTEXPORT int LQ_CALL LqFileProcessParentId();
+
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileProcessName(int Pid, char* lqacp lqaout DestBuf, intptr_t SizeBuf);
 
 /*------------------------------------------

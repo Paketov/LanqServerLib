@@ -98,6 +98,8 @@ bool IsLoop = true;
 
 int main(int argc, char* argv[])
 {
+	int yy = LqFileProcessParentId();
+
     FILE* OutFile = stdout;
     FILE* InFile = stdin;
 #if !defined(LQPLATFORM_WINDOWS)
