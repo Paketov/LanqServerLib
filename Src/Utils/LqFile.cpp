@@ -474,57 +474,57 @@ lblAgain:
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
 {
-	LARGE_INTEGER pl;
-	pl.QuadPart = Offset;
-	Target->Status = STATUS_PENDING;
-	switch(auto Stat = NtReadFile((HANDLE)Fd, (HANDLE)EventFd, NULL, NULL, (PIO_STATUS_BLOCK)Target, (PVOID)DestBuf, SizeBuf, &pl, NULL))
-	{
-		case STATUS_PENDING:
-			SetLastError(ERROR_IO_PENDING);
-		case STATUS_SUCCESS:
-			return 0;
-		default: SetLastError(RtlNtStatusToDosError(Stat));
-	}
-	return -1;
+    LARGE_INTEGER pl;
+    pl.QuadPart = Offset;
+    Target->Status = STATUS_PENDING;
+    switch(auto Stat = NtReadFile((HANDLE)Fd, (HANDLE)EventFd, NULL, NULL, (PIO_STATUS_BLOCK)Target, (PVOID)DestBuf, SizeBuf, &pl, NULL))
+    {
+        case STATUS_PENDING:
+            SetLastError(ERROR_IO_PENDING);
+        case STATUS_SUCCESS:
+            return 0;
+        default: SetLastError(RtlNtStatusToDosError(Stat));
+    }
+    return -1;
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileWriteAsync(int Fd, const void* DestBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target)
 {
-	LARGE_INTEGER pl;
-	pl.QuadPart = Offset;
-	Target->Status = STATUS_PENDING;
-	switch(auto Stat = NtWriteFile((HANDLE)Fd, (HANDLE)EventFd, NULL, NULL, (PIO_STATUS_BLOCK)Target, (PVOID)DestBuf, SizeBuf, &pl, NULL))
-	{
-		case STATUS_PENDING:
-			SetLastError(ERROR_IO_PENDING);
-		case STATUS_SUCCESS:
-			return 0;
-		default: SetLastError(RtlNtStatusToDosError(Stat));
-	}
-	return -1;
+    LARGE_INTEGER pl;
+    pl.QuadPart = Offset;
+    Target->Status = STATUS_PENDING;
+    switch(auto Stat = NtWriteFile((HANDLE)Fd, (HANDLE)EventFd, NULL, NULL, (PIO_STATUS_BLOCK)Target, (PVOID)DestBuf, SizeBuf, &pl, NULL))
+    {
+        case STATUS_PENDING:
+            SetLastError(ERROR_IO_PENDING);
+        case STATUS_SUCCESS:
+            return 0;
+        default: SetLastError(RtlNtStatusToDosError(Stat));
+    }
+    return -1;
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileAsyncCancel(int Fd, LqAsync* Target)
 {
-	NTSTATUS Stat;
-	if((Stat = NtCancelIoFile((HANDLE)Fd, (PIO_STATUS_BLOCK)Target)) == STATUS_SUCCESS)
-		return 0;
-	SetLastError(RtlNtStatusToDosError(Stat));
-	return -1;
+    NTSTATUS Stat;
+    if((Stat = NtCancelIoFile((HANDLE)Fd, (PIO_STATUS_BLOCK)Target)) == STATUS_SUCCESS)
+        return 0;
+    SetLastError(RtlNtStatusToDosError(Stat));
+    return -1;
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileAsyncStat(LqAsync* Target, intptr_t* LenWritten)
 {
-	switch(Target->Status)
-	{
-		case STATUS_SUCCESS:
-			*LenWritten = Target->Information;
-			return 0;
+    switch(Target->Status)
+    {
+        case STATUS_SUCCESS:
+            *LenWritten = Target->Information;
+            return 0;
       case STATUS_PENDING:
           return EINPROGRESS;
-	}
-	SetLastError(RtlNtStatusToDosError(Target->Status));
-	return lq_errno;
+    }
+    SetLastError(RtlNtStatusToDosError(Target->Status));
+    return lq_errno;
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileSetLock(int Fd, LqFileSz StartOffset, LqFileSz Len, int LockFlags)
@@ -934,25 +934,25 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessId()
 
 LQ_EXTERN_C int LQ_CALL LqFileProcessParentId()
 {
-	PROCESS_BASIC_INFORMATION BasicInfo;
-	ULONG ulSize = 0;
-	if(NtQueryInformationProcess(GetCurrentProcess(), ProcessBasicInformation, &BasicInfo, sizeof(BasicInfo), &ulSize) != STATUS_SUCCESS)
-		return -1;
-	return (int)BasicInfo.Reserved3;
+    PROCESS_BASIC_INFORMATION BasicInfo;
+    ULONG ulSize = 0;
+    if(NtQueryInformationProcess(GetCurrentProcess(), ProcessBasicInformation, &BasicInfo, sizeof(BasicInfo), &ulSize) != STATUS_SUCCESS)
+        return -1;
+    return (int)BasicInfo.Reserved3;
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileProcessName(int Pid, char* DestBuf, intptr_t SizeBuf)
 {
-	HANDLE Handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, Pid);
-	if(Handle == NULL)
-		return -1;
+    HANDLE Handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, Pid);
+    if(Handle == NULL)
+        return -1;
 
-	wchar_t Name[LQ_MAX_PATH];
-	auto Ret = GetModuleFileNameExW(Handle, NULL, Name, LQ_MAX_PATH - 1);
-	NtClose(Handle);
-	if(Ret <= 0)
-		return -1;
-	return LqCpConvertFromWcs(Name, DestBuf, SizeBuf);
+    wchar_t Name[LQ_MAX_PATH];
+    auto Ret = GetModuleFileNameExW(Handle, NULL, Name, LQ_MAX_PATH - 1);
+    NtClose(Handle);
+    if(Ret <= 0)
+        return -1;
+    return LqCpConvertFromWcs(Name, DestBuf, SizeBuf);
 }
 
 /*------------------------------------------
@@ -2191,14 +2191,14 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessId()
 
 LQ_EXTERN_C int LQ_CALL LqFileProcessParentId()
 {
-	return getppid();
+    return getppid();
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileProcessName(int Pid, char* DestBuf, intptr_t SizeBuf)
 {
-	char Buf[64];
-	sprintf(Buf, "/proc/%i/exe", Pid);
-	return readlink(Buf, DestBuf, SizeBuf);
+    char Buf[64];
+    sprintf(Buf, "/proc/%i/exe", Pid);
+    return readlink(Buf, DestBuf, SizeBuf);
 }
 
 
@@ -2822,13 +2822,13 @@ LQ_EXTERN_C int LQ_CALL LqFileTermPairCreate(int* MasterFd, int* SlaveFd, int Ma
 {
     int   ptm = -1, pts = -1;
     char *tty = 0;
-    if((ptm = LqFileOpen("/dev/ptmx", LQ_O_RDWR | (MasterFlags & (LQ_O_NONBLOCK | LQ_O_NOINHERIT)), 0)) == -1)
+    if((ptm = open("/dev/ptmx", (O_RDWR | O_NOCTTY) | ((MasterFlags & LQ_O_NONBLOCK)? O_NONBLOCK: 0) | ((MasterFlags & LQ_O_NOINHERIT) ? O_CLOEXEC : 0))) == -1)
         return -1;
     tty = ptsname(ptm);
     if(
         (grantpt(ptm) == -1) ||
         (unlockpt(ptm) == -1) ||
-        ((pts = LqFileOpen(tty, LQ_O_RDWR | (SlaveFlags & (LQ_O_NONBLOCK | LQ_O_NOINHERIT)), 0)) == -1)
+        ((pts = open(tty, (O_RDWR | O_NOCTTY) | ((SlaveFlags & LQ_O_NONBLOCK) ? O_NONBLOCK : 0) | ((SlaveFlags & LQ_O_NOINHERIT) ? O_CLOEXEC : 0))) == -1)
     )
     {
         close(ptm);
@@ -2839,9 +2839,6 @@ LQ_EXTERN_C int LQ_CALL LqFileTermPairCreate(int* MasterFd, int* SlaveFd, int Ma
     *SlaveFd = pts;
     return 0;
 }
-
-
-
 
 #endif
 
