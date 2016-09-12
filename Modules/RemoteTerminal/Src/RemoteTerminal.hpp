@@ -90,36 +90,36 @@ struct CmdSession
         Locker.Unlock();
     }
 
-	CmdSession(int NewStdIn, int NewPid, LqString& NewKey);
+    CmdSession(int NewStdIn, int NewPid, LqString& NewKey);
 
-	~CmdSession();
+    ~CmdSession();
 
     static void LQ_CALL TimerHandler(LqEvntFd* Instance, LqEvntFlag Flags);
 
-	static void LQ_CALL TimerHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags);
+    static void LQ_CALL TimerHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags);
 
-	bool StartRead(LqHttpConn* c);
+    bool StartRead(LqHttpConn* c);
 
-	static void EndRead(LqHttpConn* c);
+    static void EndRead(LqHttpConn* c);
 
     static void LQ_CALL ReadHandler(LqEvntFd* Instance, LqEvntFlag Flags);
 
-	static void LQ_CALL ReadHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags);
+    static void LQ_CALL ReadHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags);
 };
 
 struct ConnHandlers
 {
-	static void LQ_CALL NewTerminal(LqHttpConn* c);
+    static void LQ_CALL NewTerminal(LqHttpConn* c);
 
-	static void LQ_CALL CloseTerminal(LqHttpConn* c);
+    static void LQ_CALL CloseTerminal(LqHttpConn* c);
 
-	static void LQ_CALL Write(LqHttpConn* c);
+    static void LQ_CALL Write(LqHttpConn* c);
 
-	static void LQ_CALL Write2(LqHttpConn* c);
+    static void LQ_CALL Write2(LqHttpConn* c);
 
-	static void LQ_CALL Read(LqHttpConn* c);
+    static void LQ_CALL Read(LqHttpConn* c);
 
-	static void LQ_CALL ReadClose(LqHttpConn* c);
+    static void LQ_CALL ReadClose(LqHttpConn* c);
 };
 
 

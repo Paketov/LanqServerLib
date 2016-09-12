@@ -26,7 +26,7 @@
 #include "LqAlloc.hpp"
 
 
-#include "RemoteTerminal.h"
+#include "RemoteTerminal.hpp"
 
 
 static LqString ReadPath(LqString& Source)
@@ -91,85 +91,85 @@ size_t MaxCountSessions = 50;
 
 
 CmdSession::CmdSession(int NewStdIn, int NewPid, LqString& NewKey):
-	MasterFd(NewStdIn),
-	Pid(NewPid),
-	Key(NewKey),
-	CountPointers(0),
-	Conn(nullptr)
+    MasterFd(NewStdIn),
+    Pid(NewPid),
+    Key(NewKey),
+    CountPointers(0),
+    Conn(nullptr)
 {
-	LastAct = LqTimeGetLocMillisec();
-	auto Event = LqFileTimerCreate(LQ_O_NOINHERIT);
-	LqFileTimerSet(Event, SessionTimeLife);
+    LastAct = LqTimeGetLocMillisec();
+    auto Event = LqFileTimerCreate(LQ_O_NOINHERIT);
+    LqFileTimerSet(Event, SessionTimeLife);
 
-	LqEvntFdInit(&TimerFd, Event, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
-	TimerFd.Handler = TimerHandler;
-	TimerFd.CloseHandler = TimerHandlerClose;
-	TimerFd.UserData = (uintptr_t)&TimerFd - (uintptr_t)this;
-	LqObReference(this);
-	LqEvntFdAdd(&TimerFd);
-	Sessions.Add(this);
+    LqEvntFdInit(&TimerFd, Event, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
+    TimerFd.Handler = TimerHandler;
+    TimerFd.CloseHandler = TimerHandlerClose;
+    TimerFd.UserData = (uintptr_t)&TimerFd - (uintptr_t)this;
+    LqObReference(this);
+    LqEvntFdAdd(&TimerFd);
+    Sessions.Add(this);
 }
 
 CmdSession::~CmdSession()
 {
-	Sessions.Remove(this);
-	if(Pid != -1)
-		LqFileProcessKill(Pid);
-	if(MasterFd != -1)
-		LqFileClose(MasterFd);
+    Sessions.Remove(this);
+    if(Pid != -1)
+        LqFileProcessKill(Pid);
+    if(MasterFd != -1)
+        LqFileClose(MasterFd);
 }
 
 void LQ_CALL CmdSession::TimerHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags)
 {
-	auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
-	Ob->LockWrite();
-	LqFileClose(Ob->TimerFd.Fd);
-	Ob->TimerFd.Fd = -1;
-	Ob->Unlock();
-	LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
+    auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
+    Ob->LockWrite();
+    LqFileClose(Ob->TimerFd.Fd);
+    Ob->TimerFd.Fd = -1;
+    Ob->Unlock();
+    LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
 }
 
 
 bool CmdSession::StartRead(LqHttpConn* c)
 {
-	bool Res = false;
-	if(Conn == nullptr)
-	{
-		Conn = c;
-		LqEvntFdInit(&ReadFd, MasterFd, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
-		ReadFd.Handler = ReadHandler;
-		ReadFd.CloseHandler = ReadHandlerClose;
-		ReadFd.UserData = (uintptr_t)&ReadFd - (uintptr_t)this;
+    bool Res = false;
+    if(Conn == nullptr)
+    {
+        Conn = c;
+        LqEvntFdInit(&ReadFd, MasterFd, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
+        ReadFd.Handler = ReadHandler;
+        ReadFd.CloseHandler = ReadHandlerClose;
+        ReadFd.UserData = (uintptr_t)&ReadFd - (uintptr_t)this;
 
-		LqEvntFdAdd(&ReadFd);
-		LqObReference(this);
-		LqObReference(this);
-		c->ModuleData = (uintptr_t)this;
-		LastAct = LqTimeGetLocMillisec();
-		Res = true;
-	}
-	return Res;
+        LqEvntFdAdd(&ReadFd);
+        LqObReference(this);
+        LqObReference(this);
+        c->ModuleData = (uintptr_t)this;
+        LastAct = LqTimeGetLocMillisec();
+        Res = true;
+    }
+    return Res;
 }
 
 void CmdSession::EndRead(LqHttpConn* c)
 {
-	auto Ob = (CmdSession*)(c->ModuleData);
-	Ob->LockWrite();
+    auto Ob = (CmdSession*)(c->ModuleData);
+    Ob->LockWrite();
 
-	Ob->LastAct = LqTimeGetLocMillisec();
-	if(Ob->Conn != nullptr)
-	{
-		Ob->Conn = nullptr;
-		LqEvntSetClose(&Ob->ReadFd);
-	}
-	Ob->Unlock();
-	LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
+    Ob->LastAct = LqTimeGetLocMillisec();
+    if(Ob->Conn != nullptr)
+    {
+        Ob->Conn = nullptr;
+        LqEvntSetClose(&Ob->ReadFd);
+    }
+    Ob->Unlock();
+    LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
 }
 
 void LQ_CALL CmdSession::ReadHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags)
 {
-	auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
-	LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
+    auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
+    LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
 }
 
 size_t _Sessions::Add(CmdSession* Session)
@@ -439,121 +439,121 @@ void LQ_CALL CmdSession::ReadHandler(LqEvntFd* Instance, LqEvntFlag Flags)
 
 LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHttpProtoBase* Reg, uintptr_t ModuleHandle, const char* LibPath, void* UserData)
 {
-	Proto = Reg;
+    Proto = Reg;
     LqHttpMdlInit(Reg, &Mod, "RemoteTerminal", ModuleHandle);
 
     Mod.ReciveCommandProc =
     [](LqHttpMdl* Mdl, const char* Command, void* Data)
     {
-		FILE* OutBuffer = nullptr;
-		LqString FullCommand;
-		if(Command[0] == '?')
-		{
-			FullCommand = Command + 1;
-			OutBuffer = (FILE*)Data;
-		} else
-		{
-			FullCommand = Command;
-		}
-		LqString Cmd;
-		while((FullCommand[0] != ' ') && (FullCommand[0] != '\0') && (FullCommand[0] != '\t'))
-		{
-			Cmd.append(1, FullCommand[0]);
-			FullCommand.erase(0, 1);
-		}
-		while((FullCommand[0] == ' ') || (FullCommand[0] == '\t'))
-			FullCommand.erase(0, 1);
+        FILE* OutBuffer = nullptr;
+        LqString FullCommand;
+        if(Command[0] == '?')
+        {
+            FullCommand = Command + 1;
+            OutBuffer = (FILE*)Data;
+        } else
+        {
+            FullCommand = Command;
+        }
+        LqString Cmd;
+        while((FullCommand[0] != ' ') && (FullCommand[0] != '\0') && (FullCommand[0] != '\t'))
+        {
+            Cmd.append(1, FullCommand[0]);
+            FullCommand.erase(0, 1);
+        }
+        while((FullCommand[0] == ' ') || (FullCommand[0] == '\t'))
+            FullCommand.erase(0, 1);
 
 
-		LQSTR_SWITCH(Cmd.c_str())
-		{
-			LQSTR_CASE("start")
-			{
-				/*start <Path to html> <Type of auth -d - Digest, -b - basic> <User> <Password>*/
-				LqString Path = ReadPath(FullCommand);
-				LqString AuthType = ReadPath(FullCommand);
-				LqString User = ReadPath(FullCommand);
-				LqString Password = ReadPath(FullCommand);
-				if(
-					(Path[0] == '\0') || 
-					(AuthType[0] != '-') || ((AuthType[1] != 'b') && (AuthType[1] != 'd')) ||
-					(User[0] == '\0') ||
-					(Password[0] == '\0')
-				)
-				{
-					if(OutBuffer != nullptr)
-						fprintf(OutBuffer, " [RemoteTerminal] Error: invalid syntax of command\n");
-					return;
-				}
+        LQSTR_SWITCH(Cmd.c_str())
+        {
+            LQSTR_CASE("start")
+            {
+                /*start <Path to html> <Type of auth -d - Digest, -b - basic> <User> <Password>*/
+                LqString Path = ReadPath(FullCommand);
+                LqString AuthType = ReadPath(FullCommand);
+                LqString User = ReadPath(FullCommand);
+                LqString Password = ReadPath(FullCommand);
+                if(
+                    (Path[0] == '\0') || 
+                    (AuthType[0] != '-') || ((AuthType[1] != 'b') && (AuthType[1] != 'd')) ||
+                    (User[0] == '\0') ||
+                    (Password[0] == '\0')
+                )
+                {
+                    if(OutBuffer != nullptr)
+                        fprintf(OutBuffer, " [RemoteTerminal] Error: invalid syntax of command\n");
+                    return;
+                }
 
-				auto c = LqHttpAtzCreate(LQHTTPATZ_TYPE_BASIC, "Lanq Remote Terminal");
-				LqHttpAtzAdd(c,
-							 LQHTTPATZ_PERM_CHECK | 
-							 LQHTTPATZ_PERM_CREATE | 
-							 LQHTTPATZ_PERM_CREATE_SUBDIR |
-							 LQHTTPATZ_PERM_READ |
-							 LQHTTPATZ_PERM_WRITE |
-							 LQHTTPATZ_PERM_MODIFY,
-							 User.c_str(),
-							 Password.c_str());
+                auto c = LqHttpAtzCreate(LQHTTPATZ_TYPE_BASIC, "Lanq Remote Terminal");
+                LqHttpAtzAdd(c,
+                             LQHTTPATZ_PERM_CHECK | 
+                             LQHTTPATZ_PERM_CREATE | 
+                             LQHTTPATZ_PERM_CREATE_SUBDIR |
+                             LQHTTPATZ_PERM_READ |
+                             LQHTTPATZ_PERM_WRITE |
+                             LQHTTPATZ_PERM_MODIFY,
+                             User.c_str(),
+                             Password.c_str());
 
-				if(LqHttpPthRegisterFile
-				(
-				   Proto,
-				   &Mod,
-				   "*",
-				   "/RemoteTerminal",
-				   Path.c_str()
-				   , LQHTTPATZ_PERM_READ | LQHTTPATZ_PERM_CHECK,
-				   nullptr,
-				   0
-				   ) != LQHTTPPTH_RES_OK)
-				{
-					if(OutBuffer != nullptr)
-						fprintf(OutBuffer, " [RemoteTerminal] Error: not create path entry for html page\n");
-					return;
-				}
+                if(LqHttpPthRegisterFile
+                (
+                   Proto,
+                   &Mod,
+                   "*",
+                   "/RemoteTerminal",
+                   Path.c_str()
+                   , LQHTTPATZ_PERM_READ | LQHTTPATZ_PERM_CHECK,
+                   nullptr,
+                   0
+                   ) != LQHTTPPTH_RES_OK)
+                {
+                    if(OutBuffer != nullptr)
+                        fprintf(OutBuffer, " [RemoteTerminal] Error: not create path entry for html page\n");
+                    return;
+                }
 
 
-				if(LqHttpPthRegisterExecFile
-				(
-				   Proto,
-				   &Mod,
-				   "*",
-				   "/RemoteTerminal/New",
-				   ConnHandlers::NewTerminal,
-				   0,
-				   c,
-				   0
-				   ) != LQHTTPPTH_RES_OK)
-				{
-					if(OutBuffer != nullptr)
-						fprintf(OutBuffer, " [RemoteTerminal] Error: not create path entry for creating shell\n");
-					return;
-				}
-				if(OutBuffer != nullptr)
-					fprintf(OutBuffer, " [RemoteTerminal] OK\n");
-			}
-			break;
-			LQSTR_CASE("?")
-			LQSTR_CASE("help")
-			{
-				if(OutBuffer)
-					fprintf
-					(
-					OutBuffer,
-					" [RemoteTerminal]\n"
-					" Module: RemoteTerminal\n"
-					" hotSAN 2016\n"
-					"  ? | help  - Show this help.\n"
-					"  start <Path to html page> <Type of auth -d - Digest, -b - basic> <User> <Password> - Start hosting sessions\n"
-					);
-			}
-			break;
-			LQSTR_SWITCH_DEFAULT
-				if(OutBuffer != nullptr)
-					fprintf(OutBuffer, " [RemoteTerminal] Error: invalid command\n");
-		}
+                if(LqHttpPthRegisterExecFile
+                (
+                   Proto,
+                   &Mod,
+                   "*",
+                   "/RemoteTerminal/New",
+                   ConnHandlers::NewTerminal,
+                   0,
+                   c,
+                   0
+                   ) != LQHTTPPTH_RES_OK)
+                {
+                    if(OutBuffer != nullptr)
+                        fprintf(OutBuffer, " [RemoteTerminal] Error: not create path entry for creating shell\n");
+                    return;
+                }
+                if(OutBuffer != nullptr)
+                    fprintf(OutBuffer, " [RemoteTerminal] OK\n");
+            }
+            break;
+            LQSTR_CASE("?")
+            LQSTR_CASE("help")
+            {
+                if(OutBuffer)
+                    fprintf
+                    (
+                    OutBuffer,
+                    " [RemoteTerminal]\n"
+                    " Module: RemoteTerminal\n"
+                    " hotSAN 2016\n"
+                    "  ? | help  - Show this help.\n"
+                    "  start <Path to html page> <Type of auth -d - Digest, -b - basic> <User> <Password> - Start hosting sessions\n"
+                    );
+            }
+            break;
+            LQSTR_SWITCH_DEFAULT
+                if(OutBuffer != nullptr)
+                    fprintf(OutBuffer, " [RemoteTerminal] Error: invalid command\n");
+        }
 
     };
 

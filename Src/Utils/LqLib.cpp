@@ -55,16 +55,16 @@ LQ_EXTERN_C uintptr_t LQ_CALL LqLibGetHandleByAddr(const void* Address)
 LQ_EXTERN_C int LQ_CALL LqLibGetPathByHandle(uintptr_t Handle, char* DestName, size_t DestSize)
 {
 #if defined(_MSC_VER)
-	wchar_t Name[LQ_MAX_PATH];
-	if(GetModuleFileNameW((HMODULE)Handle, Name, LQ_MAX_PATH) == 0)
-		return -1;
-	
-	return LqCpConvertFromWcs(Name, DestName, DestSize);
+    wchar_t Name[LQ_MAX_PATH];
+    if(GetModuleFileNameW((HMODULE)Handle, Name, LQ_MAX_PATH) == 0)
+        return -1;
+    
+    return LqCpConvertFromWcs(Name, DestName, DestSize);
 #else
-	Dl_info Info = {0};
-	if(dladdr((void*)Handle, &Info) != 0)
-		return -1;
-	return LqStrCopyMax(DestName, Info.dli_fname, DestSize);
+    Dl_info Info = {0};
+    if(dladdr((void*)Handle, &Info) != 0)
+        return -1;
+    return LqStrCopyMax(DestName, Info.dli_fname, DestSize);
 #endif
 }
 

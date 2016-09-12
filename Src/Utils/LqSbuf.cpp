@@ -119,7 +119,7 @@ static intptr_t LqSbufAddPagesFromFile(LqSbuf* StreamBuf, int FileDescriptor, in
     {
         auto DestPage = LqSbufCreatePage(StreamBuf, Size);
         if(DestPage == nullptr) 
-			break;
+            break;
         intptr_t SizeWrite = lq_min(Size, DestPage->SizePage);
         auto ReadedSize = LqFileRead(FileDescriptor, DestPage + 1, SizeWrite);
         if(ReadedSize < 0)
@@ -129,7 +129,7 @@ static intptr_t LqSbufAddPagesFromFile(LqSbuf* StreamBuf, int FileDescriptor, in
         }
         Written += ReadedSize;
         if(ReadedSize < SizeWrite) 
-			break;
+            break;
         Size -= ReadedSize;
     } while(Size > 0);
     StreamBuf->Len += Written;

@@ -23,7 +23,7 @@
 #endif
 
 
-#define LQ_RECIVE_PARTIAL_MASK      ".partial_**************_"
+#define LQ_RECIVE_PARTIAL_MASK           ".partial_**************_"
 #define LQ_RECIVE_PARTIAL_MASK_WCHAR    L".partial_**************_"
 
 #define STR_TYPE(_Type, _Str)       ((std::is_same<_Type, wchar_t>::value)?(_Type*)(L ## _Str):(_Type*)(_Str))

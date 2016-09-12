@@ -66,7 +66,7 @@ static LqString ReadParams(LqString& Source, const char * Params)
 class LqMdlPathFollowTask
 {
 public:
-	LqEvntFd                     TimerFd;
+    LqEvntFd                     TimerFd;
     std::vector<LqFilePathEvnt*> Dirs;
     std::vector<LqFilePoll>      DirsPoll;
     LqLocker<uintptr_t>          PathsLocker;
@@ -84,15 +84,15 @@ public:
 
     static void WorkingMethod(LqEvntFd* Fd, LqEvntFlag RetFlags)
     {
-		LqFileTimerSet(Fd->Fd, 3000);
+        LqFileTimerSet(Fd->Fd, 3000);
 
         LqFilePathEvntEnm* Paths = nullptr;
-		auto Ft = (LqMdlPathFollowTask*)Fd->UserData;
-		Ft->PathsLocker.LockWriteYield();
+        auto Ft = (LqMdlPathFollowTask*)Fd->UserData;
+        Ft->PathsLocker.LockWriteYield();
         int CountEvents = LqFilePollCheck(Ft->DirsPoll.data(), Ft->DirsPoll.size(), 2);
         if(CountEvents <= 0)
         {
-			Ft->PathsLocker.UnlockWrite();
+            Ft->PathsLocker.UnlockWrite();
             return;
         }
 
@@ -108,24 +108,24 @@ public:
                     LoadModule(j->Name);
                 } else if(j->Flag & (LQDIREVNT_RM | LQDIREVNT_MOVE_FROM))
                 {
-					Ft->ModuleLocker.LockWrite();
+                    Ft->ModuleLocker.LockWrite();
                     for(unsigned i = 0; i < Ft->Modules.size(); i++)
                     {
                         if(LqStrSame(Ft->Modules[i].ModuleName.c_str(), j->Name))
                         {
                             if(LqHttpMdlFreeByHandle(Ft->RegDest, Ft->Modules[i].Handle) > -1)
                             {
-								Ft->Modules[i] = Ft->Modules[Ft->Modules.size() - 1];
-								Ft->Modules.pop_back();
+                                Ft->Modules[i] = Ft->Modules[Ft->Modules.size() - 1];
+                                Ft->Modules.pop_back();
                             }
                         }
                     }
-					Ft->ModuleLocker.Unlock();
+                    Ft->ModuleLocker.Unlock();
                 }
             }
             LqFilePathEvntFreeEnum(&Paths);
         }
-		Ft->PathsLocker.Unlock();
+        Ft->PathsLocker.Unlock();
     }
 };
 
@@ -329,7 +329,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                     fprintf
                     (
                     OutBuffer,
-					" [MdlAutoLoad]\n"
+                    " [MdlAutoLoad]\n"
                     " Module: MdlAutoLoad\n"
                     " hotSAN 2016\n"
                     "  ? | help  - Show this help.\n"
@@ -348,10 +348,10 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     Mod.FreeNotifyProc =
     [](LqHttpMdl* This) -> uintptr_t
     {
-		LqEvntSetClose2(&Task.TimerFd, 0);
-		volatile int* Tst = &Task.TimerFd.Fd;
-		while(*Tst != -1);
-		Task.PathsLocker.LockWrite();
+        LqEvntSetClose2(&Task.TimerFd, 0);
+        volatile int* Tst = &Task.TimerFd.Fd;
+        while(*Tst != -1);
+        Task.PathsLocker.LockWrite();
         for(auto& i : Task.Dirs)
         {
             LqFilePathEvntFree(i);
@@ -363,19 +363,19 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     };
     Task.RegDest = Reg;
     //Add task to worker boss
-	auto NewTimer = LqFileTimerCreate(LQ_O_NOINHERIT);
-	LqFileTimerSet(NewTimer, 3000);
+    auto NewTimer = LqFileTimerCreate(LQ_O_NOINHERIT);
+    LqFileTimerSet(NewTimer, 3000);
 
-	LqEvntFdInit(&Task.TimerFd, NewTimer, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
-	Task.TimerFd.UserData = (uintptr_t)&Task;
-	Task.TimerFd.Handler = Task.WorkingMethod;
-	Task.TimerFd.CloseHandler = [](LqEvntFd* Fd, LqEvntFlag RetFlags)
-	{
-		LqFileClose(Fd->Fd);
-		Fd->Fd = -1;
-	};
+    LqEvntFdInit(&Task.TimerFd, NewTimer, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
+    Task.TimerFd.UserData = (uintptr_t)&Task;
+    Task.TimerFd.Handler = Task.WorkingMethod;
+    Task.TimerFd.CloseHandler = [](LqEvntFd* Fd, LqEvntFlag RetFlags)
+    {
+        LqFileClose(Fd->Fd);
+        Fd->Fd = -1;
+    };
 
-	LqEvntFdAdd(&Task.TimerFd);
+    LqEvntFdAdd(&Task.TimerFd);
 
     return LQHTTPMDL_REG_OK;
 }

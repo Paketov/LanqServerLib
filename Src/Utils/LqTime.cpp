@@ -45,9 +45,9 @@ LQ_EXTERN_CPP LqString LQ_CALL LqTimeDiffSecToStlStr(LqTimeSec t1, LqTimeSec t2)
     bool k = false;
     LqString str_r;
     if(Years != 0) 
-	str_r = LqToString(Years) + " years ", k = true;
+    str_r = LqToString(Years) + " years ", k = true;
     if((Days != 0) || k) 
-	str_r += LqToString(Days) + " days ", k = true;
+    str_r += LqToString(Days) + " days ", k = true;
     char Buf[30];
     sprintf(Buf, "%02i:%02i:%02i", (int)Hours, (int)Minutes, (int)Seconds);
     return str_r + Buf;
@@ -88,11 +88,11 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToLocTm(const char* Str, tm* Result)
     int t;
     char MonthBuf[4] = {'\0'}, WeekBuf[4] = {'\0'};
     for(; ((Str[n] >= 'a') && (Str[n] <= 'z') || (Str[n] >= 'A') && (Str[n] <= 'Z')) && (n < 3); n++)
-	WeekBuf[n] = Str[n];
+    WeekBuf[n] = Str[n];
     if(Str[n] != ' ') return -1;
     n++;
     for(int i = 0; ((Str[n] >= 'a') && (Str[n] <= 'z') || (Str[n] >= 'A') && (Str[n] <= 'Z')) && (i < 3); n++, i++)
-	MonthBuf[i] = Str[n];
+    MonthBuf[i] = Str[n];
     if(Str[n] != ' ') return -1;
     n++;
     if((t = LqStrToInt(&OutTm.tm_mday, Str + n)) < 2) return -1;
@@ -116,18 +116,18 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToLocTm(const char* Str, tm* Result)
     OutTm.tm_year -= 1900;
     OutTm.tm_mon = OutTm.tm_wday = -1;
     for(uint i = 0; i < (sizeof(LqTimeWeeks) / sizeof(LqTimeWeeks[0])); i++)
-	if(*(uint32_t*)WeekBuf == *(uint32_t*)(LqTimeWeeks[i]))
-	{
-	    OutTm.tm_wday = i;
-	    break;
-	}
+    if(*(uint32_t*)WeekBuf == *(uint32_t*)(LqTimeWeeks[i]))
+    {
+        OutTm.tm_wday = i;
+        break;
+    }
     if(OutTm.tm_wday == -1) return -1;
     for(uint i = 0; i < (sizeof(LqTimeMonths) / sizeof(LqTimeMonths[0])); i++)
-	if(*(uint32_t*)MonthBuf == *(uint32_t*)(LqTimeMonths[i]))
-	{
-	    OutTm.tm_mon = i;
-	    break;
-	}
+    if(*(uint32_t*)MonthBuf == *(uint32_t*)(LqTimeMonths[i]))
+    {
+        OutTm.tm_mon = i;
+        break;
+    }
     if(OutTm.tm_mon == -1) return -1;
     OutTm.tm_isdst = -1;
     OutTm.tm_yday = -1;
@@ -144,7 +144,7 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToGmtTm(const char * Str, tm* Result)
     char MonthBuf[4] = {'\0'}, WeekBuf[4] = {'\0'};
 
     for(; ((Str[n] >= 'a') && (Str[n] <= 'z') || (Str[n] >= 'A') && (Str[n] <= 'Z')) && (n < 3); n++)
-	WeekBuf[n] = Str[n];
+    WeekBuf[n] = Str[n];
     if(Str[n] != ',') return -1;
     n++;
     if(Str[n] != ' ') return -1;
@@ -154,7 +154,7 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToGmtTm(const char * Str, tm* Result)
     if(Str[n] != ' ') return -1;
     n++;
     for(int i = 0; ((Str[n] >= 'a') && (Str[n] <= 'z') || (Str[n] >= 'A') && (Str[n] <= 'Z')) && (i < 3); n++, i++)
-	MonthBuf[i] = Str[n];
+    MonthBuf[i] = Str[n];
     if(Str[n] != ' ') return -1;
     n++;
     if((t = LqStrToInt(&OutTm.tm_year, Str + n)) < 1) return -1;
@@ -174,23 +174,23 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToGmtTm(const char * Str, tm* Result)
     if(Str[n] != ' ') return -1;
     n++;
     for(int i = 0; i < 3; n++, i++)
-	if(Str[n] != "GMT"[i])
-	    return -1;
+    if(Str[n] != "GMT"[i])
+        return -1;
     OutTm.tm_year -= 1900;
     OutTm.tm_mon = OutTm.tm_wday = -1;
     for(uint i = 0; i < (sizeof(LqTimeWeeks) / sizeof(LqTimeWeeks[0])); i++)
-	if(*(uint32_t*)WeekBuf == *(uint32_t*)(LqTimeWeeks[i]))
-	{
-	    OutTm.tm_wday = i;
-	    break;
-	}
+    if(*(uint32_t*)WeekBuf == *(uint32_t*)(LqTimeWeeks[i]))
+    {
+        OutTm.tm_wday = i;
+        break;
+    }
     if(OutTm.tm_wday == -1) return -1;
     for(uint i = 0; i < (sizeof(LqTimeMonths) / sizeof(LqTimeMonths[0])); i++)
-	if(*(uint32_t*)MonthBuf == *(uint32_t*)(LqTimeMonths[i]))
-	{
-	    OutTm.tm_mon = i;
-	    break;
-	}
+    if(*(uint32_t*)MonthBuf == *(uint32_t*)(LqTimeMonths[i]))
+    {
+        OutTm.tm_mon = i;
+        break;
+    }
     if(OutTm.tm_mon == -1) return -1;
     OutTm.tm_isdst = -1;
     OutTm.tm_yday = -1;
@@ -204,7 +204,7 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToLocSec(const char* Str, LqTimeSec* Result)
     tm Tm;
     int r;
     if((r = LqTimeStrToLocTm(Str, &Tm)) < 0)
-	return -1;
+    return -1;
     *Result = mktime(&Tm);
     return r;
 }
@@ -214,7 +214,7 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToGmtSec(const char* Str, LqTimeSec* Result)
     tm Tm;
     int r;
     if((r = LqTimeStrToGmtTm(Str, &Tm)) < 0)
-	return -1;
+    return -1;
 #if !defined(LQPLATFORM_ANDROID)
     timeb t;
     ftime(&t);

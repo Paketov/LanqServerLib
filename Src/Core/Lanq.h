@@ -83,7 +83,7 @@ struct LqEvntFd
             void*       Pointer;
         };
         uintptr_t       Information;
-    } __Reserved1, __Reserved2;    //IO_STATUS_BLOCK for read/write check in windows
+    } __Reserved1, __Reserved2;    /*IO_STATUS_BLOCK for read/write check in windows*/
 #endif
 };
 

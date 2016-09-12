@@ -117,16 +117,16 @@
 
 #define LQSTRUCT_ALIGN_MEM 1
 
-#define lqaopt                  //LanQ Argument Optional
-#define lqain                   //LanQ Argument Input
-#define lqaio                   //LanQ Argument Input, output
-#define lqaout                  //LanQ Argument Output
-#define lqats                   //LanQ Argument Thread Save
-#define lqatns                  //LanQ Argument Not Thread Save
-#define lqamrelease             //LanQ Argument Must release before use
-#define lqautf8                 //LanQ Argument UTF-8 string
-#define lqautf16                //LanQ Argument UTF-16 string
-#define lqacp                   /*LanQ Argument defined in LqCp ... code page */
+#define lqaopt                  /* LanQ Argument Optional */
+#define lqain                   /* LanQ Argument Input */
+#define lqaio                   /* LanQ Argument Input, output */
+#define lqaout                  /* LanQ Argument Output */
+#define lqats                   /* LanQ Argument Thread Save */
+#define lqatns                  /* LanQ Argument Not Thread Save */
+#define lqamrelease             /* LanQ Argument Must release before use */
+#define lqautf8                 /* LanQ Argument UTF-8 string */
+#define lqautf16                /* LanQ Argument UTF-16 string */
+#define lqacp                   /* LanQ Argument defined in LqCp ... code page */
 
 #define LQ_GOLDEN_RATIO         1.61803398874989484820 
 

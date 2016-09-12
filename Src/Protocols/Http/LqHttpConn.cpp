@@ -163,7 +163,7 @@ LQ_EXTERN_C void LQ_CALL LqHttpConnCallEvntAct(LqHttpConn * Conn)
     auto f = Conn->CommonConn.Flag;
     Conn->EventAct(Conn);
     if(f != Conn->CommonConn.Flag)
-	Conn->CommonConn.Flag |= _LQEVNT_FLAG_USER_SET;
+    Conn->CommonConn.Flag |= _LQEVNT_FLAG_USER_SET;
 }
 
 LQ_EXTERN_C size_t LQ_CALL LqHttpConnSend(LqHttpConn* c, const void* SourceBuf, size_t SizeBuf)

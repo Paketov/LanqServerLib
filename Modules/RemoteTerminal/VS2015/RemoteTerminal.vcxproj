@@ -22,7 +22,7 @@
     <ClCompile Include="..\Src\RemoteTerminal.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Src\RemoteTerminal.h" />
+    <ClInclude Include="..\Src\RemoteTerminal.hpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{57F40A35-93A7-4E2A-A130-60962589ACD6}</ProjectGuid>

@@ -16,7 +16,7 @@ struct LqZmbClrAdditionalInfo
     const LqProto*          Proto;
     volatile LqBool         IsUsed;
     void*                   UserData;
-	LqBool(*RemoveProc)(LqEvntFd* Evnt, void* UserData);
+    LqBool(*RemoveProc)(LqEvntFd* Evnt, void* UserData);
 };
 
 
@@ -31,14 +31,14 @@ static void LQ_CALL LqZmbClrHandler(LqEvntFd* Fd, LqEvntFlag RetFlags)
 
 static void LQ_CALL LqZmbClrHandlerClose(LqEvntFd* Fd, LqEvntFlag RetFlags)
 {
-	auto AddInfo = (LqZmbClrAdditionalInfo*)Fd->UserData;
-	if((AddInfo->RemoveProc == nullptr) || (AddInfo->RemoveProc(Fd, AddInfo->UserData)))
-	{
-		Fd->UserData = 0;
-		LqFastAlloc::Delete(AddInfo);
-		LqFileClose(Fd->Fd);
-		Fd->Fd = -1;
-	}
+    auto AddInfo = (LqZmbClrAdditionalInfo*)Fd->UserData;
+    if((AddInfo->RemoveProc == nullptr) || (AddInfo->RemoveProc(Fd, AddInfo->UserData)))
+    {
+        Fd->UserData = 0;
+        LqFastAlloc::Delete(AddInfo);
+        LqFileClose(Fd->Fd);
+        Fd->Fd = -1;
+    }
 }
 
 LQ_EXTERN_C int LQ_CALL LqZmbClrInit(LqEvntFd* Dest, const LqProto* Proto, LqTimeMillisec TimeLive, LqBool(*RemoveProc)(LqEvntFd* Evnt, void* UserData), void* UserData)
@@ -49,7 +49,7 @@ LQ_EXTERN_C int LQ_CALL LqZmbClrInit(LqEvntFd* Dest, const LqProto* Proto, LqTim
     int TimerFd = LqFileTimerCreate(LQ_O_NOINHERIT);
     if(TimerFd == -1)
     {
-		LQ_ERR("LqZmbClrInit() LqFileTimerCreate(LQ_O_NOINHERIT) not create timer \"%s\"\n", strerror(lq_errno));
+        LQ_ERR("LqZmbClrInit() LqFileTimerCreate(LQ_O_NOINHERIT) not create timer \"%s\"\n", strerror(lq_errno));
         LqFastAlloc::Delete(AddInfo);
         return -1;
     }
@@ -62,8 +62,8 @@ LQ_EXTERN_C int LQ_CALL LqZmbClrInit(LqEvntFd* Dest, const LqProto* Proto, LqTim
     AddInfo->TimeLive = TimeLive;
     AddInfo->IsUsed = 1;
 
-	AddInfo->UserData = UserData;
-	AddInfo->RemoveProc = RemoveProc;
+    AddInfo->UserData = UserData;
+    AddInfo->RemoveProc = RemoveProc;
 
     LqFileTimerSet(Dest->Fd, TimeLive / 2);
     return 0;
@@ -81,6 +81,6 @@ LQ_EXTERN_C int LQ_CALL LqZmbClrSetTimeLive(LqEvntFd* Dest, LqTimeMillisec TimeL
 
 LQ_EXTERN_C int LQ_CALL LqZmbClrUninit(LqEvntFd* Dest)
 {
-	LqEvntSetClose3(Dest);
+    LqEvntSetClose3(Dest);
     return 0;
 }

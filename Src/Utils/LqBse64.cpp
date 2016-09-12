@@ -16,25 +16,25 @@ static const uchar CodeChain[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrst
 static const uchar CodeChainURL[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"; //-_-
 
 static const uchar DecodeChain[] = {
-	77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77,
-	77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77,
-	77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 62, 77, 77, 77, 63,
-	52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 77, 77, 77, 77, 77, 77,
-	77,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
-	15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 77, 77, 77, 77, 77,
-	77, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-	41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
+    77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77,
+    77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77,
+    77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 62, 77, 77, 77, 63,
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 77, 77, 77, 77, 77, 77,
+    77,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 77, 77, 77, 77, 77,
+    77, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
 };
 
 static const uchar DecodeSeqURL[] = {
-	77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77,
-	77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77,
-	77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 62, 77, 77,
-	52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 77, 77, 77, 77, 77, 77,
-	77,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
-	15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 77, 77, 77, 77, 63,
-	77, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-	41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
+    77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77,
+    77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77,
+    77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 62, 77, 77,
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 77, 77, 77, 77, 77, 77,
+    77,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 77, 77, 77, 77, 63,
+    77, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
 };
 
 LQ_EXTERN_C size_t LQ_CALL LqBase64Code(char *Dest, const void *Src, size_t SrcLen) { return _CodeBase64<true>((uchar*)Dest, (const uchar*)Src, SrcLen, CodeChain); }
@@ -64,27 +64,27 @@ static size_t _CodeBase64(uchar *Dst, const uchar *Src, size_t SrcLen, const uch
     size_t l = SrcLen;
     while(l > 2)
     {
-	*d++ = CodeChain[(s[0] >> 2) & 0x3f];
-	*d++ = CodeChain[((s[0] & 3) << 4) | (s[1] >> 4)];
-	*d++ = CodeChain[((s[1] & 0x0f) << 2) | (s[2] >> 6)];
-	*d++ = CodeChain[s[2] & 0x3f];
-	s += 3;
-	l -= 3;
+        *d++ = CodeChain[(s[0] >> 2) & 0x3f];
+        *d++ = CodeChain[((s[0] & 3) << 4) | (s[1] >> 4)];
+        *d++ = CodeChain[((s[1] & 0x0f) << 2) | (s[2] >> 6)];
+        *d++ = CodeChain[s[2] & 0x3f];
+        s += 3;
+        l -= 3;
     }
 
     if(l > 0)
     {
-	*d++ = CodeChain[(s[0] >> 2) & 0x3f];
-	if(l == 1)
-	{
-	    *d++ = CodeChain[(s[0] & 3) << 4];
-	    if(Pad) *d++ = '=';
-	} else
-	{
-	    *d++ = CodeChain[((s[0] & 3) << 4) | (s[1] >> 4)];
-	    *d++ = CodeChain[(s[1] & 0x0f) << 2];
-	}
-	if(Pad) *d++ = '=';
+        *d++ = CodeChain[(s[0] >> 2) & 0x3f];
+        if(l == 1)
+        {
+            *d++ = CodeChain[(s[0] & 3) << 4];
+            if(Pad) *d++ = '=';
+        } else
+        {
+            *d++ = CodeChain[((s[0] & 3) << 4) | (s[1] >> 4)];
+            *d++ = CodeChain[(s[1] & 0x0f) << 2];
+        }
+        if(Pad) *d++ = '=';
     }
     return d - Dst;
 }
@@ -116,8 +116,8 @@ static int _DecodeBase64(uchar *Dst, const uchar* Src, size_t SrcLen, const ucha
     /*Checkin base64 sequence*/
     for(; l < SrcLen; l++)
     {
-	if(Src[l] == '=') break;
-	if((DecodeChain[Src[l]] == 77) || (Src[l] > 122)) return -1;
+        if(Src[l] == '=') break;
+        if((DecodeChain[Src[l]] == 77) || (Src[l] > 122)) return -1;
     }
     if(l % 4 == 1) return -1;
     uchar *d = Dst;
@@ -125,11 +125,11 @@ static int _DecodeBase64(uchar *Dst, const uchar* Src, size_t SrcLen, const ucha
     /*Decode sequence*/
     while(l > 3)
     {
-	*d++ = (uchar)(DecodeChain[s[0]] << 2 | DecodeChain[s[1]] >> 4);
-	*d++ = (uchar)(DecodeChain[s[1]] << 4 | DecodeChain[s[2]] >> 2);
-	*d++ = (uchar)(DecodeChain[s[2]] << 6 | DecodeChain[s[3]]);
-	s += 4;
-	l -= 4;
+        *d++ = (uchar)(DecodeChain[s[0]] << 2 | DecodeChain[s[1]] >> 4);
+        *d++ = (uchar)(DecodeChain[s[1]] << 4 | DecodeChain[s[2]] >> 2);
+        *d++ = (uchar)(DecodeChain[s[2]] << 6 | DecodeChain[s[3]]);
+        s += 4;
+        l -= 4;
     }
 
     if(l > 1) *d++ = (uchar)(DecodeChain[s[0]] << 2 | DecodeChain[s[1]] >> 4);
