@@ -12,7 +12,7 @@
 #include "LqStr.hpp"
 
 
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
 # include <Windows.h>
 
 int _LqFileConvertNameToWcs(const char* Name, wchar_t* DestBuf, size_t DestBufSize);
@@ -24,7 +24,7 @@ int _LqFileConvertNameToWcs(const char* Name, wchar_t* DestBuf, size_t DestBufSi
 
 LQ_EXTERN_C uintptr_t LQ_CALL LqLibLoad(const char* ModuleName)
 {
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
     wchar_t Name[LQ_MAX_PATH];
     _LqFileConvertNameToWcs(ModuleName, Name, LQ_MAX_PATH);
     auto PrevErrVal = SetErrorMode(SEM_FAILCRITICALERRORS);
@@ -38,7 +38,7 @@ LQ_EXTERN_C uintptr_t LQ_CALL LqLibLoad(const char* ModuleName)
 
 LQ_EXTERN_C uintptr_t LQ_CALL LqLibGetHandleByAddr(const void* Address)
 {
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
     HMODULE Handle = 0;
     if(GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (wchar_t*)Address, &Handle) == FALSE)
         return 0;
@@ -54,7 +54,7 @@ LQ_EXTERN_C uintptr_t LQ_CALL LqLibGetHandleByAddr(const void* Address)
 
 LQ_EXTERN_C int LQ_CALL LqLibGetPathByHandle(uintptr_t Handle, char* DestName, size_t DestSize)
 {
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
     wchar_t Name[LQ_MAX_PATH];
     if(GetModuleFileNameW((HMODULE)Handle, Name, LQ_MAX_PATH) == 0)
         return -1;
@@ -70,7 +70,7 @@ LQ_EXTERN_C int LQ_CALL LqLibGetPathByHandle(uintptr_t Handle, char* DestName, s
 
 LQ_EXTERN_C bool LQ_CALL LqLibFree(uintptr_t ModuleHandle)
 {
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
     return FreeLibrary((HMODULE)ModuleHandle) == TRUE;
 #else
     return dlclose((void*)ModuleHandle) == 0;
@@ -80,7 +80,7 @@ LQ_EXTERN_C bool LQ_CALL LqLibFree(uintptr_t ModuleHandle)
 
 LQ_EXTERN_C void* LQ_CALL LqLibGetProc(uintptr_t ModuleHandle, const char* ProcName)
 {
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
     return GetProcAddress((HMODULE)ModuleHandle, ProcName);
 #else
     return dlsym((void*)ModuleHandle, ProcName);

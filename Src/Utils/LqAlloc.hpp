@@ -14,7 +14,7 @@
 #include "LqLock.hpp"
 
 
-#if /*!defined(_DEBUG) &&*/ defined(_MSC_VER)
+#if /*!defined(_DEBUG) &&*/ defined(LQPLATFORM_WINDOWS)
 #include <Windows.h>
 #define ___malloc(size) HeapAlloc(GetProcessHeap(), 0, (size))
 #define ___realloc(pointer, size) (((pointer) == nullptr)? ___malloc(size): HeapReAlloc(GetProcessHeap(), 0, (pointer), (size)))

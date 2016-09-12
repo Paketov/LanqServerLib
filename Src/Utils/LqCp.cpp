@@ -18,7 +18,7 @@
 static int CurrentCP = LQCP_ACP;
 
 
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
 # include <Windows.h>
 
 #define CP_UTF16 ((unsigned)-1)

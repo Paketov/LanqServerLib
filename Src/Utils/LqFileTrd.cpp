@@ -17,7 +17,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
 #include <io.h>
 #include <Windows.h>
 #endif
@@ -188,7 +188,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdGetNameTarget(int Fd, char* DestBuf, size_t Des
 }
 
 
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
 
 LQ_EXTERN_C int LQ_CALL LqFileTrdCancel(int Fd)
 {

@@ -9,7 +9,7 @@
 #define __LQ_OS_H_HAS_INCLUDED__
 
 
-#if defined(_MSC_VER)
+#if defined(_WIN64) || defined(_WIN32)
 
 # define _CRT_SECURE_NO_WARNINGS
 # define LQEVNT_WIN_EVENT
@@ -18,10 +18,10 @@
 # pragma warning(disable : 4996)
 # pragma warning(disable : 4307)
 
-# define LQ_CALL		__cdecl
-# define LQ_EXPORT		__declspec(dllexport)
-# define LQ_IMPORT		__declspec(dllimport)
-# define LQ_PATH_SEPARATOR	'\\'
+# define LQ_CALL        __cdecl
+# define LQ_EXPORT      __declspec(dllexport)
+# define LQ_IMPORT      __declspec(dllimport)
+# define LQ_PATH_SEPARATOR  '\\'
 
 #else
 # define LQPLATFORM_POSIX
@@ -105,6 +105,34 @@
 # endif
 #else
 # error "Not detect platform architecture"
+#endif
+
+
+#if defined(__clang__)
+# define LQCOMPILER_CLANG
+#elif defined(__ICC) || defined(__INTEL_COMPILER)
+# define LQCOMPILER_INTEL
+#elif defined(__GNUC__) || defined(__GNUG__)
+# define LQCOMPILER_GCC_GPP
+#elif defined(__HP_cc) || defined(__HP_aCC)
+# define LQCOMPILER_HP
+#elif defined(__IBMC__) || defined(__IBMCPP__)
+# define LQCOMPILER_IBM
+#elif defined(_MSC_VER)
+# define LQCOMPILER_VC
+#elif defined(__PGI)
+# define LQCOMPILER_PGCC_PGCPP
+#elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+# define LQCOMPILER_ORACLE_SOLARIS_STUDIO
+#endif
+
+
+#if defined(LQCOMPILER_VC)
+#define LQ_NO_INLINE  __declspec(noinline)
+#elif defined(LQCOMPILER_GCC_GPP)
+#define LQ_NO_INLINE __attribute__ ((noinline))
+#else
+#define LQ_NO_INLINE
 #endif
 
 

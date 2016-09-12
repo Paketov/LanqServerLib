@@ -7,6 +7,7 @@
 *     Object must have public integer field "CountPointers".
 */
 
+#include "LqOs.h"
 #include "LqAtm.hpp"
 #include "LqLock.hpp"
 #include <type_traits>
@@ -62,7 +63,7 @@ class LqShdPtr
 public:
 	inline LqShdPtr() { fld.p = nullptr; };
     inline LqShdPtr(_t* Pointer) { if((fld.p = Pointer) != nullptr) LqAtmIntrlkInc(fld.p->CountPointers);  }
-    inline LqShdPtr(const LqShdPtr& a) 
+	LQ_NO_INLINE LqShdPtr(const LqShdPtr& a)
 	{ 
 		a.fld.LockRead();
 		fld.p = a.fld.p;
@@ -70,12 +71,12 @@ public:
 			LqAtmIntrlkInc(fld.p->CountPointers);
 		a.fld.UnlockRead();
 	}
-    inline ~LqShdPtr() 
+	LQ_NO_INLINE ~LqShdPtr()
 	{
 		if(auto Del = Deinit())
 			DeleteProc(Del);
 	}
-    inline LqShdPtr& operator=(const LqShdPtr& a)
+    LQ_NO_INLINE LqShdPtr& operator=(const LqShdPtr& a)
     {
 		fld.LockWrite();
 		a.fld.LockRead();

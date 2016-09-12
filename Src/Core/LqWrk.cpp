@@ -230,7 +230,7 @@ void LqWrk::RewindToEndForketCommandQueue(LqQueueCmd<uchar>::Interator& Command)
                 auto Evnt = Command.Val<LqEvntHdr*>();
                 LqEvntHdrClose(Evnt);
                 Command.Pop<LqEvntHdr*>();
-				CountConnectionsInQueue--;
+                CountConnectionsInQueue--;
             }
             break;
             default:
@@ -264,7 +264,7 @@ void LqWrk::ClearQueueCommands()
                 Command.Pop<LqEvntHdr*>();
                 if(LqWrkBossAddEvntAsync(Evnt) == -1)
                     LqEvntHdrClose(Evnt);
-				CountConnectionsInQueue--;
+                CountConnectionsInQueue--;
             }
             break;
             default:
@@ -303,7 +303,7 @@ void LqWrk::RemoveEvntInListFromCmd(LqListEvnt& Dest)
                     LqEvntHdrClose(Connection);
                 }
                 Command.Pop<LqEvntHdr*>();
-				CountConnectionsInQueue--;
+                CountConnectionsInQueue--;
             }
             break;
             default:
@@ -319,7 +319,7 @@ void LqWrk::RemoveEvntInListFromCmd(LqListEvnt& Dest)
 */
 void LqWrk::BeginThread()
 {
-	LQ_LOG_DEBUG("LqWrk::BeginThread()#llu start worker thread\n", Id);
+    LQ_LOG_DEBUG("LqWrk::BeginThread()#llu start worker thread\n", Id);
 #if !defined(LQPLATFORM_WINDOWS)
     signal(SIGPIPE, SIG_IGN);
 #endif
@@ -330,17 +330,10 @@ void LqWrk::BeginThread()
         {
             SafeReg.EnterSafeRegion();
             if(LqThreadBase::IsShouldEnd)
-                goto lblOut;
+                break;
             ParseInputCommands();
             if(LqThreadBase::IsShouldEnd)
-            {
-lblOut:
-                ((LqWrkBoss*)LqWrkBossGet())->TransferAllEvnt(this);
-                CloseAllEvnt();
-                ClearQueueCommands();
-				LQ_LOG_DEBUG("LqWrk::BeginThread()#llu end worker thread\n", Id);
-                return;
-            }
+                break;
         }
         lqevnt_enum_changes_do(EventChecker, Revent)
         {
@@ -395,15 +388,20 @@ lblOut:
 
         LqEvntCheck(&EventChecker, LqTimeGetMaxMillisec());
     }
+
+    ((LqWrkBoss*)LqWrkBossGet())->TransferAllEvnt(this);
+    CloseAllEvnt();
+    ClearQueueCommands();
+    LQ_LOG_DEBUG("LqWrk::BeginThread()#llu end worker thread\n", Id);
 }
 
 bool LqWrk::AddEvnt(LqEvntHdr* Connection)
 {
-	if(Connection->Flag & LQEVNT_FLAG_END)
-	{
-		LqEvntHdrClose(Connection);
-		return true;
-	}
+    if(Connection->Flag & LQEVNT_FLAG_END)
+    {
+        LqEvntHdrClose(Connection);
+        return true;
+    }
     LQ_LOG_DEBUG("LqWrk::AddEvnt()#llu event {%i, %llx} recived\n", Id, Connection->Fd, (ullong)Connection->Flag);
     return LqEvntAddHdr(&EventChecker, Connection);
 }
@@ -464,7 +462,7 @@ int LqWrk::CloseEvnt(LqEvntHdr* Connection)
                         LqEvntHdrClose(Hdr);
                         Command.Pop<LqEvntHdr*>();
                         Res++;
-						CountConnectionsInQueue--;
+                        CountConnectionsInQueue--;
                     } else
                     {
                         CommandQueue.SeparatePush(Command);
@@ -506,7 +504,7 @@ size_t LqWrk::RemoveConnOnTimeOut(LqTimeMillisec TimeLiveMilliseconds)
         auto c = LqEvntGetHdrByInterator(&EventChecker, &i);
         if(LqEvntIsConn(c) && (((LqConn*)c)->Proto->KickByTimeOutProc((LqConn*)c, CurTime, TimeLiveMilliseconds)))
         {
-			LQ_LOG_USER("LqWrk::RemoveConnOnTimeOut()#llu remove connection by timeout\n", Id);
+            LQ_LOG_USER("LqWrk::RemoveConnOnTimeOut()#llu remove connection by timeout\n", Id);
             LqEvntRemoveByInterator(&EventChecker, &i);
             ((LqConn*)c)->Proto->EndConnProc((LqConn*)c);
             Res++;
@@ -752,7 +750,7 @@ bool LqWrk::CloseConnByIpAsync(const sockaddr* Addr)
     {
         case AF_INET:
         {
-			LqConnInetAddress s;
+            LqConnInetAddress s;
             s.AddrInet = *(sockaddr_in*)Addr;
             if(!CommandQueue.PushBegin<LqConnInetAddress>(LQWRK_CMD_RM_CONN_BY_IP, s))
             {
@@ -763,7 +761,7 @@ bool LqWrk::CloseConnByIpAsync(const sockaddr* Addr)
         break;
         case AF_INET6:
         {
-			LqConnInetAddress s;
+            LqConnInetAddress s;
             s.AddrInet6 = *(sockaddr_in6*)Addr;
             if(!CommandQueue.PushBegin<LqConnInetAddress>(LQWRK_CMD_RM_CONN_BY_IP, s))
             {
@@ -877,23 +875,23 @@ LqString LqWrk::AllDebugInfo()
     LockRead();
 
     ullong CurTime = LqTimeGetLocMillisec();
-	int k = 0;
-	lqevnt_enum_do(EventChecker, i)
-	{
-		auto Conn = LqEvntGetHdrByInterator(&EventChecker, &i);
-		if(LqEvntIsConn(Conn))
-		{
-			r += "Conn #" + LqToString(k) + "\n";
-			char* DbgInf = ((LqConn*)Conn)->Proto->DebugInfoProc((LqConn*)Conn);
-			if(DbgInf != nullptr)
-			{
-				r += DbgInf;
-				r += "\n";
-				free(DbgInf);
-			}
-			k++;
-		}
-	}lqevnt_enum_while(EventChecker);
+    int k = 0;
+    lqevnt_enum_do(EventChecker, i)
+    {
+        auto Conn = LqEvntGetHdrByInterator(&EventChecker, &i);
+        if(LqEvntIsConn(Conn))
+        {
+            r += "Conn #" + LqToString(k) + "\n";
+            char* DbgInf = ((LqConn*)Conn)->Proto->DebugInfoProc((LqConn*)Conn);
+            if(DbgInf != nullptr)
+            {
+                r += DbgInf;
+                r += "\n";
+                free(DbgInf);
+            }
+            k++;
+        }
+    }lqevnt_enum_while(EventChecker);
     UnlockRead();
     r += "---------\n";
     return r;

@@ -14,7 +14,7 @@
 #include <string.h>
 #include <signal.h>
 
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
 
 #include <Windows.h>
 #include <Winternl.h> //For LqFilePollCheck
@@ -320,7 +320,7 @@ LQ_EXTERN_C int LQ_CALL LqFileGetStatByFd(int Fd, LqFileStat* StatDest)
     return 0;
 }
 
-LQ_EXTERN_C LqFileSz LQ_CALL LqFileTell(int Fd)
+LQ_EXTERN_C LQ_NO_INLINE LqFileSz LQ_CALL LqFileTell(int Fd)
 {
     IO_STATUS_BLOCK iosb;
     long long CurPos;
@@ -333,7 +333,7 @@ LQ_EXTERN_C LqFileSz LQ_CALL LqFileTell(int Fd)
     return CurPos;
 }
 
-LQ_EXTERN_C LqFileSz LQ_CALL LqFileSeek(int Fd, LqFileSz Offset, int Flag)
+LQ_EXTERN_C LQ_NO_INLINE LqFileSz LQ_CALL LqFileSeek(int Fd, LqFileSz Offset, int Flag)
 {
     IO_STATUS_BLOCK iosb;
     NTSTATUS Stat;
@@ -410,7 +410,7 @@ LQ_EXTERN_C int LQ_CALL LqFileClose(int Fd)
     return (NtClose((HANDLE)Fd) == TRUE) ? 0 : -1;
 }
 
-LQ_EXTERN_C int LQ_CALL LqFileEof(int Fd)
+LQ_EXTERN_C LQ_NO_INLINE int LQ_CALL LqFileEof(int Fd)
 {
     LARGE_INTEGER li = {0};
     if(GetFileSizeEx((HANDLE)Fd, &li) == FALSE)

@@ -26,7 +26,7 @@
 #elif defined(__APPLE__)
 # include <sys/uio.h>
 # include <fcntl.h>
-#elif defined(_MSC_VER)
+#elif defined(LQPLATFORM_WINDOWS)
 
 # pragma comment(lib, "Ws2_32.lib")
 # pragma comment(lib, "Mswsock.lib")
@@ -732,7 +732,7 @@ size_t LqConnSkipSSL(LqConn* c, size_t Count, SSL* ssl)
 
 int LqConnCountPendingData(LqConn* c)
 {
-#ifdef _MSC_VER
+#ifdef LQPLATFORM_WINDOWS
     u_long res = -1;
     if(ioctlsocket(c->Fd, FIONREAD, &res) == -1)
         return -1;
@@ -746,7 +746,7 @@ int LqConnCountPendingData(LqConn* c)
 
 int LqConnSwitchNonBlock(int Fd, int IsNonBlock)
 {
-#ifdef _MSC_VER
+#ifdef LQPLATFORM_WINDOWS
     u_long nonBlocking = IsNonBlock;
     if(ioctlsocket(Fd, FIONBIO, &nonBlocking) == -1)
         return -1;

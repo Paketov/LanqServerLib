@@ -414,7 +414,7 @@ private:
 
     CachedFile* SearchFile(const char* Name)
     {
-#ifdef _MSC_VER
+#if defined(LQPLATFORM_WINDOWS)
         if((Name[0] == '\\') && (Name[1] == '\\') && (Name[2] == '?') && (Name[3] == '\\'))
             Name += 4;
         size_t l = LqStrLen(Name);
@@ -439,7 +439,7 @@ private:
 
     CachedFile* InsertFile(const char* Name)
     {
-#ifdef _MSC_VER
+#if defined(LQPLATFORM_WINDOWS)
         if((Name[0] == '\\') && (Name[1] == '\\') && (Name[2] == '?') && (Name[3] == '\\'))
             Name += 4;
         size_t l = LqStrLen(Name);

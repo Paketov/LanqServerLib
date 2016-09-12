@@ -193,10 +193,10 @@ size_t LqWrkBoss::TransferAllEvnt(LqWrk* Source) const
     {
         switch(Command.Type)
         {
-			case LqWrk::LQWRK_CMD_ADD_CONN:
+            case LqWrk::LQWRK_CMD_ADD_CONN:
             {
                 auto Hdr = Command.Val<LqEvntHdr*>();
-				Command.Pop<LqEvntHdr*>();
+                Command.Pop<LqEvntHdr*>();
                 Source->CountConnectionsInQueue--;
 
                 intptr_t Min = std::numeric_limits<intptr_t>::max(), Index = -1;

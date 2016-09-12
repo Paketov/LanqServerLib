@@ -414,6 +414,7 @@ bool LqThreadBase::EndWorkSync()
 
 intptr_t LqThreadBase::ThreadId() const
 {
+	get_id();
     std::basic_stringstream<char> r;
     r << get_id();
     intptr_t id = 0;

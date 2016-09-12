@@ -32,19 +32,19 @@ typedef LqShdPtr<LqWrk, LqWrkDelete, true> LqWrkPtr;
 class LQ_IMPORTEXPORT LqWrk:
     public LqThreadBase
 {
-	enum
-	{
-		LQWRK_CMD_ADD_CONN,                     /*Add connection to work*/
-		LQWRK_CMD_RM_CONN_ON_TIME_OUT,      /*Signal for close all time out connections*/
-		LQWRK_CMD_RM_CONN_ON_TIME_OUT_PROTO,
-		LQWRK_CMD_WAIT_EVENT,
-		LQWRK_CMD_CLOSE_ALL_CONN,
-		LQWRK_CMD_TAKE_ALL_CONN,
-		LQWRK_CMD_RM_CONN_BY_IP,
-		LQWRK_CMD_CLOSE_CONN_BY_PROTO,
-		LQWRK_CMD_SYNC_FLAG,
-		LQWRK_CMD_CLOSE_CONN
-	};
+    enum
+    {
+        LQWRK_CMD_ADD_CONN,                     /*Add connection to work*/
+        LQWRK_CMD_RM_CONN_ON_TIME_OUT,      /*Signal for close all time out connections*/
+        LQWRK_CMD_RM_CONN_ON_TIME_OUT_PROTO,
+        LQWRK_CMD_WAIT_EVENT,
+        LQWRK_CMD_CLOSE_ALL_CONN,
+        LQWRK_CMD_TAKE_ALL_CONN,
+        LQWRK_CMD_RM_CONN_BY_IP,
+        LQWRK_CMD_CLOSE_CONN_BY_PROTO,
+        LQWRK_CMD_SYNC_FLAG,
+        LQWRK_CMD_CLOSE_CONN
+    };
 
     friend LqWrkBoss;
     friend LqConn;

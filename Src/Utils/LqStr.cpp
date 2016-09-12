@@ -5,11 +5,11 @@
 *   LqStr... - Typical string implementation (basic for UTF-8 CP).
 */
 
-
+#include "LqOs.h"
 #include "LqStr.hpp"
 #include "LqDfltRef.hpp"
 #include "LqCp.h"
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
 #include "Windows.h"
 #include <io.h>
 #endif
@@ -22,7 +22,7 @@
 
 LQ_EXTERN_C uint32_t LQ_CALL LqStrCharUtf16ToLower(uint32_t r)
 {
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
     wchar_t Buf[3];
     if(r > 0xffff)
     {
@@ -46,7 +46,7 @@ LQ_EXTERN_C uint32_t LQ_CALL LqStrCharUtf16ToLower(uint32_t r)
 
 LQ_EXTERN_C uint32_t LQ_CALL LqStrCharUtf16ToUpper(uint32_t r)
 {
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
     wchar_t Buf[3];
     if(r > 0xffff)
     {
@@ -71,7 +71,7 @@ LQ_EXTERN_C uint32_t LQ_CALL LqStrCharUtf16ToUpper(uint32_t r)
 
 LQ_EXTERN_C LqBool LQ_CALL LqStrCharUtf16IsAlpha(uint32_t r)
 {
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
     return IsCharAlphaW(r) == TRUE;
 #else
     return iswalpha(r);
@@ -80,7 +80,7 @@ LQ_EXTERN_C LqBool LQ_CALL LqStrCharUtf16IsAlpha(uint32_t r)
 
 LQ_EXTERN_C uint32_t LQ_CALL LqStrCharRead(FILE* FileBuf)
 {
-#if defined(_MSC_VER)
+#if defined(LQPLATFORM_WINDOWS)
     uint16_t Buf1[3] = {0};
     fflush(FileBuf);
     HANDLE h = (HANDLE)_get_osfhandle(_fileno(FileBuf));
