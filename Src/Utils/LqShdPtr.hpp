@@ -15,15 +15,15 @@
 template<typename T>
 void SHARED_POINTERDeleteProc(T* p) { delete p; }
 
-/*
-* _t - must have CountPointers field
-*/
-
-
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-template<typename _t, void(*DeleteProc)(_t*) = SHARED_POINTERDeleteProc, bool IsLock = false, typename LockerType = unsigned char>
+template<
+	typename _t,        /* _t - must contain CountPointers field */
+	void(*DeleteProc)(_t*) = SHARED_POINTERDeleteProc, /* Proc called when object have zero references*/
+	bool IsLock = false /* true - is pointer contact with multiple threads*/, 
+	typename LockerType = unsigned char /* For locker*/
+>
 class LqShdPtr
 {
     template<typename _t2, void(*)(_t2*), bool, typename>
