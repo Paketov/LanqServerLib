@@ -50,9 +50,8 @@ class LQ_IMPORTEXPORT LqWrkBoss
     friend void LqWrkDelete(LqWrk* This);
     
     typedef LqShdPtr<LqWrkBoss::WorkerArray, LqFastAlloc::Delete, true> LqWrkArrPtr;
+    typedef LqShdPtr<LqWrkBoss::WorkerArray, LqFastAlloc::Delete, false> LqWrkArrPtrLoc;
     
-
-
     struct WorkerArray
     {
         size_t        CountPointers;

@@ -235,7 +235,7 @@ int LqWrkBoss::AddWorkers(size_t Count, bool IsStart)
     if(Count <= 0)
         return 0;
     int Res = 0;
-    LqWrkArrPtr LocalWrks = Wrks;
+    LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0; i < Count; i++)
     {
         auto NewWorker = LqWrk::New(IsStart);
@@ -260,7 +260,7 @@ bool LqWrkBoss::AddWorker(const LqWrkPtr& Wrk)
 bool LqWrkBoss::AddEvntAsync(LqEvntHdr* Evnt)
 {
     bool Res = true;
-    LqWrkArrPtr LocalWrks = Wrks;
+    LqWrkArrPtrLoc LocalWrks = Wrks;
     if(LocalWrks->Count <= 0)
     {
         if(!AddWorkers(1, true))
@@ -280,7 +280,7 @@ bool LqWrkBoss::AddEvntAsync(LqEvntHdr* Evnt)
 bool LqWrkBoss::AddEvntSync(LqEvntHdr* Evnt)
 {
     bool Res = true;
-    LqWrkArrPtr LocalWrks = Wrks;
+    LqWrkArrPtrLoc LocalWrks = Wrks;
 
     if(LocalWrks->Count <= 0)
     {
@@ -301,7 +301,7 @@ bool LqWrkBoss::AddEvntSync(LqEvntHdr* Evnt)
 bool LqWrkBoss::TransferEvnt(const LqListEvnt & ConnectionsList) const
 {
     bool Res = false;
-    LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     if(LocalWrks->Count > 0)
     {
         for(size_t i = 0; i < ConnectionsList.GetCount(); i++)
@@ -316,7 +316,7 @@ bool LqWrkBoss::TransferEvnt(const LqListEvnt & ConnectionsList) const
 
 size_t LqWrkBoss::CountWorkers() const
 {
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     return LocalWrks->Count;
 }
 
@@ -348,20 +348,20 @@ size_t LqWrkBoss::MaxBusy(const LqWrkArrPtr& AllWrks, size_t* MaxCount)
 
 LqWrkPtr LqWrkBoss::operator[](size_t Index) const
 {
-    LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     return LocalWrks->At(Index);
 }
 
 size_t LqWrkBoss::MinBusy(size_t* MinCount)
 {
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     return MinBusy(LocalWrks, MinCount);
 }
 
 size_t LqWrkBoss::StartAllWorkersSync() const
 {
     size_t Res = 0;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res += (LocalWrks->At(i)->StartSync() ? 1 : 0);
     return Res;
@@ -370,7 +370,7 @@ size_t LqWrkBoss::StartAllWorkersSync() const
 size_t LqWrkBoss::StartAllWorkersAsync() const
 {
     size_t Ret = 0;
-    const LqWrkArrPtr LocalWrks = Wrks;//Local ptr for thread safe
+    const LqWrkArrPtrLoc LocalWrks = Wrks;//Local ptr for thread safe
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Ret += (LocalWrks->At(i)->StartAsync() ? 1 : 0);
     return Ret;
@@ -392,7 +392,7 @@ size_t LqWrkBoss::KickWorkers(uintptr_t Count)
 bool LqWrkBoss::CloseAllEvntAsync() const
 {
     bool Res = true;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res &= LocalWrks->At(i)->CloseAllEvntAsync();
     return Res;
@@ -401,7 +401,7 @@ bool LqWrkBoss::CloseAllEvntAsync() const
 size_t LqWrkBoss::CloseAllEvntSync() const
 {
     size_t Res = 0;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res += LocalWrks->At(i)->CloseAllEvntSync();
     return Res;
@@ -410,7 +410,7 @@ size_t LqWrkBoss::CloseAllEvntSync() const
 size_t LqWrkBoss::CloseEventAsync(LqEvntHdr* Event) const
 {
     bool Res = true;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res &= LocalWrks->At(i)->CloseEvntAsync(Event);
     return Res;
@@ -419,7 +419,7 @@ size_t LqWrkBoss::CloseEventAsync(LqEvntHdr* Event) const
 bool LqWrkBoss::CloseEventSync(LqEvntHdr* Event) const
 {
     size_t Res = 0;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res += LocalWrks->At(i)->CloseEvntSync(Event);
     return Res;
@@ -428,7 +428,7 @@ bool LqWrkBoss::CloseEventSync(LqEvntHdr* Event) const
 size_t LqWrkBoss::CloseEventByTimeoutSync(LqTimeMillisec LiveTime) const
 {
     size_t Res = 0;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res += LocalWrks->At(i)->RemoveConnOnTimeOutSync(LiveTime);
     return Res;
@@ -437,7 +437,7 @@ size_t LqWrkBoss::CloseEventByTimeoutSync(LqTimeMillisec LiveTime) const
 bool LqWrkBoss::CloseEventByTimeoutAsync(LqTimeMillisec LiveTime) const
 {
     bool Res = true;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res &= LocalWrks->At(i)->RemoveConnOnTimeOutAsync(LiveTime);
     return Res;
@@ -446,7 +446,7 @@ bool LqWrkBoss::CloseEventByTimeoutAsync(LqTimeMillisec LiveTime) const
 size_t LqWrkBoss::CloseEventByTimeoutSync(const LqProto * Proto, LqTimeMillisec LiveTime) const
 {
     size_t Res = 0;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res += LocalWrks->At(i)->RemoveConnOnTimeOutSync(Proto, LiveTime);
     return Res;
@@ -455,7 +455,7 @@ size_t LqWrkBoss::CloseEventByTimeoutSync(const LqProto * Proto, LqTimeMillisec 
 bool LqWrkBoss::CloseEventByTimeoutAsync(const LqProto * Proto, LqTimeMillisec LiveTime) const
 {
     bool Res = true;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res &= LocalWrks->At(i)->RemoveConnOnTimeOutAsync(Proto, LiveTime);
     return Res;
@@ -464,7 +464,7 @@ bool LqWrkBoss::CloseEventByTimeoutAsync(const LqProto * Proto, LqTimeMillisec L
 bool LqWrkBoss::CloseConnByIpAsync(const sockaddr* Addr) const
 {
     bool Res = true;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res &= LocalWrks->At(i)->CloseConnByIpAsync(Addr);
     return Res;
@@ -473,7 +473,7 @@ bool LqWrkBoss::CloseConnByIpAsync(const sockaddr* Addr) const
 size_t LqWrkBoss::CloseConnByIpSync(const sockaddr* Addr) const
 {
     size_t Res = 0;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res += LocalWrks->At(i)->CloseConnByIpSync(Addr);
     return Res;
@@ -482,7 +482,7 @@ size_t LqWrkBoss::CloseConnByIpSync(const sockaddr* Addr) const
 bool LqWrkBoss::CloseConnByProtoAsync(const LqProto* Proto) const
 {
     bool Res = true;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res &= LocalWrks->At(i)->CloseConnByProtoAsync(Proto);
     return Res;
@@ -491,7 +491,7 @@ bool LqWrkBoss::CloseConnByProtoAsync(const LqProto* Proto) const
 size_t LqWrkBoss::CloseConnByProtoSync(const LqProto* Proto) const
 {
     size_t Res = 0;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res += LocalWrks->At(i)->CloseConnByProtoSync(Proto);
     return Res;
@@ -500,7 +500,7 @@ size_t LqWrkBoss::CloseConnByProtoSync(const LqProto* Proto) const
 size_t LqWrkBoss::EnumDelEvnt(void * UserData, LqBool(*Proc)(void *UserData, LqEvntHdr* Conn)) const
 {
     size_t Res = 0;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res += LocalWrks->At(i)->EnumDelEvnt(UserData, Proc);
     return Res;
@@ -509,7 +509,7 @@ size_t LqWrkBoss::EnumDelEvnt(void * UserData, LqBool(*Proc)(void *UserData, LqE
 size_t LqWrkBoss::EnumDelEvntByProto(const LqProto* Proto, void * UserData, LqBool(*Proc)(void *UserData, LqEvntHdr *Conn)) const
 {
     size_t Res = 0;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res += LocalWrks->At(i)->EnumDelEvntByProto(Proto, UserData, Proc);
     return Res;
@@ -518,7 +518,7 @@ size_t LqWrkBoss::EnumDelEvntByProto(const LqProto* Proto, void * UserData, LqBo
 bool LqWrkBoss::SyncEvntFlagAsync(LqEvntHdr* Conn) const
 {
     bool Res = true;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res &= LocalWrks->At(i)->SyncEvntFlagAsync(Conn);
     return Res;
@@ -527,7 +527,7 @@ bool LqWrkBoss::SyncEvntFlagAsync(LqEvntHdr* Conn) const
 bool LqWrkBoss::SyncEvntFlagSync(LqEvntHdr * Conn) const
 {
     bool Res = true;
-    const LqWrkArrPtr LocalWrks = Wrks;
+    const LqWrkArrPtrLoc LocalWrks = Wrks;
     for(size_t i = 0, m = LocalWrks->Count; i < m; i++)
         Res &= LocalWrks->At(i)->SyncEvntFlagSync(Conn);
     return Res;

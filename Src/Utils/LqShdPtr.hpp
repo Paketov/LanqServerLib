@@ -26,6 +26,9 @@ void SHARED_POINTERDeleteProc(T* p) { delete p; }
 template<typename _t, void(*DeleteProc)(_t*) = SHARED_POINTERDeleteProc, bool IsLock = false, typename LockerType = unsigned char>
 class LqShdPtr
 {
+    template<typename _t2, void(*)(_t2*), bool, typename>
+    friend class LqShdPtr;
+
     struct _s 
     {
        _t* p;
@@ -60,31 +63,65 @@ class LqShdPtr
         } while(!LqAtmCmpXchg(fld.p->CountPointers, Expected, Expected - 1));
         return IsDelete? fld.p: nullptr;
     }
+
 public:
+    static const auto IsHaveLock = IsLock;
+    typedef LockerType        LockType;
+
     inline LqShdPtr() { fld.p = nullptr; };
     inline LqShdPtr(_t* Pointer) { if((fld.p = Pointer) != nullptr) LqAtmIntrlkInc(fld.p->CountPointers);  }
-    LQ_NO_INLINE LqShdPtr(const LqShdPtr& a)
+    LQ_NO_INLINE LqShdPtr(const LqShdPtr<_t, DeleteProc, false, LockerType>& a)
     { 
+        if((fld.p = a.fld.p) != nullptr)
+            LqAtmIntrlkInc(fld.p->CountPointers);
+    }
+    LQ_NO_INLINE LqShdPtr(const LqShdPtr<_t, DeleteProc, true, LockerType>& a)
+    {
         a.fld.LockRead();
-        fld.p = a.fld.p;
-        if(fld.p != nullptr)
+        if((fld.p = a.fld.p) != nullptr)
             LqAtmIntrlkInc(fld.p->CountPointers);
         a.fld.UnlockRead();
     }
+
     LQ_NO_INLINE ~LqShdPtr()
     {
         if(auto Del = Deinit())
             DeleteProc(Del);
     }
-    LQ_NO_INLINE LqShdPtr& operator=(const LqShdPtr& a)
+	/* Copy from pointer without locking */
+    template<typename ArgLockerType>
+    LQ_NO_INLINE LqShdPtr& operator=(const LqShdPtr<_t, DeleteProc, false, ArgLockerType>& a)
+    {
+        fld.LockWrite();
+        auto Del = Deinit();
+        if((fld.p = a.fld.p) != nullptr)
+            LqAtmIntrlkInc(fld.p->CountPointers);
+        fld.UnlockWrite();
+        if(Del != nullptr)
+            DeleteProc(Del);
+        return *this;
+    }
+	/* Copy from pointer with locking */
+    template<typename ArgLockerType>
+    LQ_NO_INLINE LqShdPtr& operator=(const LqShdPtr<_t, DeleteProc, true, ArgLockerType>& a)
     {
         fld.LockWrite();
         a.fld.LockRead();
         auto Del = Deinit();
-        fld.p = a.fld.p;
-        if(fld.p != nullptr)
+        if((fld.p = a.fld.p) != nullptr)
             LqAtmIntrlkInc(fld.p->CountPointers);
         a.fld.UnlockRead();
+        fld.UnlockWrite();
+        if(Del != nullptr)
+            DeleteProc(Del);
+        return *this;
+    }
+    LqShdPtr& operator=(_t* a)
+    {
+        fld.LockWrite();
+        auto Del = Deinit();
+        if((fld.p = a) != nullptr)
+            LqAtmIntrlkInc(fld.p->CountPointers);
         fld.UnlockWrite();
         if(Del != nullptr)
             DeleteProc(Del);
