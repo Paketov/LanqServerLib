@@ -170,6 +170,21 @@ LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, voi
     return s;
 }
 
+LQ_EXTERN_C int LQ_CALL LqConnStrToRowIp(int TypeIp, const char* SourseStr, LqConnInetAddress* DestAddress)
+{
+    return (inet_pton(DestAddress->Addr.sa_family = ((TypeIp == 6) ? AF_INET6 : AF_INET), SourseStr, (TypeIp == 6) ? (void*)&DestAddress->AddrInet6.sin6_addr : (void*)&DestAddress->AddrInet.sin_addr) == 1)? 0: -1;
+}
+
+
+LQ_EXTERN_C int LQ_CALL LqConnRowIpToStr(LqConnInetAddress* SourceAddress, char* DestStr, size_t DestStrLen)
+{
+    return 
+        (inet_ntop(SourceAddress->Addr.sa_family, 
+        (SourceAddress->Addr.sa_family == AF_INET6) ? (void*)&SourceAddress->AddrInet6.sin6_addr : (void*)&SourceAddress->AddrInet.sin_addr, DestStr, DestStrLen) != nullptr
+        ) ? 0 : -1;
+}
+
+
 LQ_EXTERN_C void* LQ_CALL LqConnSslCreate
 (
     const void* MethodSSL, /* Example SSLv23_method()*/
@@ -528,6 +543,11 @@ LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose3(void * Conn)
 LQ_EXTERN_C int LQ_CALL LqEvntFdAdd(LqEvntFd* Evnt)
 {
     return LqWrkBossAddEvntAsync((LqEvntHdr*)Evnt);
+}
+
+LQ_EXTERN_C int LQ_CALL LqEvntFdAdd2(LqEvntFd* Evnt)
+{
+    return LqWrkBossAddEvntSync((LqEvntHdr*)Evnt);
 }
 
 int LqConnRecive(LqConn* c, void* Buf, int ReadSize, int Flags)

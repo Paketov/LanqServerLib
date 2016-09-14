@@ -497,6 +497,33 @@ public:
             inline void KeepOnlyHeaders() { return LqHttpActKeepOnlyHeaders(Hdrs.Conn); }
         } Rsp;
 
+		class _RemoteIp
+		{
+			LqHttpConn* Conn;
+		public: DISABLE_COPY_CONSTRUCT(_RemoteIp) DEF_CMP_STRING
+			inline operator LqString() const
+			{
+				char Buf[256];
+				Buf[0] = '\0';
+				LqHttpConnGetRemoteIpStr(Conn, Buf, 255);
+				return Buf;
+			}
+				/*@return: For IPv4 - 4, for IPv6 - 6, on error - 0*/
+			inline int GetType() const
+			{
+				char Buf[256];
+				return LqHttpConnGetRemoteIpStr(Conn, Buf, 255);
+			}
+		} RemoteIp;
+
+		class _RemotePort
+		{
+			LqHttpConn* Conn;
+		public: DISABLE_COPY_CONSTRUCT(_RemotePort) DEF_CMP_STRING
+			inline operator int() const { return LqHttpConnGetRemotePort(Conn); }
+			inline operator LqString() const { return LqToString(operator int()); }
+		} RemotePort;
+
         class _Action
         {
             friend LqHttpConnInterface;

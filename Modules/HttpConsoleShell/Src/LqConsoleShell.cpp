@@ -32,13 +32,10 @@
 
 #include <fcntl.h>
 
-
-#ifdef LQPLATFORM_WINDOWS
-# pragma comment(lib, "Ws2_32.lib")
-# pragma comment(lib, "Mswsock.lib")
-#else
+#ifndef LQPLATFORM_WINDOWS
 # include <signal.h>
 #endif
+
 
 LqString Port;
 
@@ -104,7 +101,6 @@ int main(int argc, char* argv[])
 #if !defined(LQPLATFORM_WINDOWS)
     signal(SIGTERM, [](int) -> void { IsLoop = false; });
 #endif
-
     LqCpSet(LQCP_UTF_8);
 
     fprintf(OutFile,
@@ -176,11 +172,11 @@ lblAgain:
                 PortName[0] = '\0';
                 if(sscanf(CommandData.c_str(), "%254[a-zA-Z0-9]", PortName) < 1)
                 {
-					LqHttpProtoGetInfo(Reg, nullptr, 0, PortName, sizeof(PortName) - 1, nullptr, nullptr, nullptr);
+                    LqHttpProtoGetInfo(Reg, nullptr, 0, PortName, sizeof(PortName) - 1, nullptr, nullptr, nullptr);
                     fprintf(OutFile, " %s\n", PortName);
                     break;
                 }
-				LqHttpProtoSetInfo(Reg, nullptr, PortName, nullptr, nullptr, nullptr);
+                LqHttpProtoSetInfo(Reg, nullptr, PortName, nullptr, nullptr, nullptr);
                 fprintf(OutFile, " OK\n");
             }
             break;
@@ -201,20 +197,20 @@ lblAgain:
                 LqString Param = ReadParams(CommandData, "64u");
                 if(Param.find_first_of("6") != LqString::npos)
                 {
-					int v = AF_INET6;
-					LqHttpProtoSetInfo(Reg, nullptr, nullptr, &v, nullptr, nullptr);
+                    int v = AF_INET6;
+                    LqHttpProtoSetInfo(Reg, nullptr, nullptr, &v, nullptr, nullptr);
                 } else if(Param.find_first_of("4") != LqString::npos)
                 {
-					int v = AF_INET;
-					LqHttpProtoSetInfo(Reg, nullptr, nullptr, &v, nullptr, nullptr);
+                    int v = AF_INET;
+                    LqHttpProtoSetInfo(Reg, nullptr, nullptr, &v, nullptr, nullptr);
                 } else if(Param.find_first_of("u") != LqString::npos)
                 {
-					int v = AF_UNSPEC;
-					LqHttpProtoSetInfo(Reg, nullptr, nullptr, &v, nullptr, nullptr);
+                    int v = AF_UNSPEC;
+                    LqHttpProtoSetInfo(Reg, nullptr, nullptr, &v, nullptr, nullptr);
                 } else
                 {
-					int Proto;
-					LqHttpProtoGetInfo(Reg, nullptr, 0, nullptr, 0, &Proto, nullptr, nullptr);
+                    int Proto;
+                    LqHttpProtoGetInfo(Reg, nullptr, 0, nullptr, 0, &Proto, nullptr, nullptr);
                     const char * NameProto = "Unspec";
                     switch(Proto)
                     {
@@ -227,46 +223,46 @@ lblAgain:
                 fprintf(OutFile, " OK\n");
             }
             break;
-			LQSTR_CASE("start")
-			{
-				int Count;
-				if((Count = LqWrkBossStartAllWrkSync()) >= 0)
-				{
-					if(LqHttpProtoBind(Reg) == -1)
-					{
-						fprintf(OutFile, " Not bind (%s)\n", strerror(lq_errno));
-					} else
-					{
-						fprintf(OutFile, " OK\n");
-					}
-				} else
-				{
-					fprintf(OutFile, " Has been started\n");
-				}
-			}
-			break;
-			LQSTR_CASE("stop")
-			{
-				if(LqHttpProtoUnbind(Reg) == 0)
-				{
-					fprintf(OutFile, " OK\n");
-				} else
-				{
-					fprintf(OutFile, " ERROR: Not stopping\n");
-				}
-			}
-			break;
+            LQSTR_CASE("start")
+            {
+                int Count;
+                if((Count = LqWrkBossStartAllWrkSync()) >= 0)
+                {
+                    if(LqHttpProtoBind(Reg) == -1)
+                    {
+                        fprintf(OutFile, " Not bind (%s)\n", strerror(lq_errno));
+                    } else
+                    {
+                        fprintf(OutFile, " OK\n");
+                    }
+                } else
+                {
+                    fprintf(OutFile, " Has been started\n");
+                }
+            }
+            break;
+            LQSTR_CASE("stop")
+            {
+                if(LqHttpProtoUnbind(Reg) == 0)
+                {
+                    fprintf(OutFile, " OK\n");
+                } else
+                {
+                    fprintf(OutFile, " ERROR: Not stopping\n");
+                }
+            }
+            break;
             LQSTR_CASE("maxconn")
             {
                 int MaxConn = 0;
                 if(!ReadNumber(CommandData, &MaxConn))
                 {
-					int Count;
-					LqHttpProtoGetInfo(Reg, nullptr, 0, nullptr, 0, nullptr, &Count, nullptr);
+                    int Count;
+                    LqHttpProtoGetInfo(Reg, nullptr, 0, nullptr, 0, nullptr, &Count, nullptr);
                     fprintf(OutFile, " %llu\n", (ullong)Count);
                     continue;
                 }
-				LqHttpProtoSetInfo(Reg, nullptr, nullptr, nullptr, &MaxConn, nullptr);
+                LqHttpProtoSetInfo(Reg, nullptr, nullptr, nullptr, &MaxConn, nullptr);
                 fprintf(OutFile, " OK\n");
             }
             break;
@@ -277,7 +273,7 @@ lblAgain:
             {
                 int Count = 0;
                 if(sscanf(CommandData.c_str(), "%i", &Count) < 1)
-                {		
+                {       
                     fprintf(OutFile, " %llu\n", (ullong)LqWrkBossCountWrk());
                     break;
                 }
@@ -303,7 +299,7 @@ lblAgain:
                 int CurCount = LqWrkBossCountWrk();
                 if(CurCount > 0)
                     Count = lq_min(CurCount, Count);
-				LqWrkBossKickWrks(Count);
+                LqWrkBossKickWrks(Count);
                 fprintf(OutFile, " OK\n");
             }
             break;
@@ -940,7 +936,7 @@ lblAgain:
                     SSLv23_method(),
                     CertName.c_str(),
                     KeyFileName.c_str(),
-					nullptr,
+                    nullptr,
                     (Param.find_first_of("p") != LqString::npos) ? SSL_FILETYPE_PEM : SSL_FILETYPE_ASN1,
                     nullptr,
                     nullptr
@@ -1036,7 +1032,7 @@ lblAgain:
             break;
             LQSTR_CASE("conncloseall")
             {
-				LqWrkBossCloseConnByProtoAsync(&Reg->Proto);
+                LqWrkBossCloseConnByProtoAsync(&Reg->Proto);
                 fprintf(OutFile, " OK\n");
             }
             break;
@@ -1049,41 +1045,29 @@ lblAgain:
                     fprintf(OutFile, " ERROR: Invalid ip address\n");
                     break;
                 }
-                union Addr
-                {
-                    sockaddr adr;
-                    sockaddr_in in;
-                    sockaddr_in6 in6;
-                };
-                Addr adr;
-                if(inet_pton(adr.adr.sa_family = (Param.find_first_of("6") != LqString::npos) ? AF_INET6 : AF_INET, IpAddress.c_str(),
-                    (Param.find_first_of("6") != LqString::npos)
-                   ? (void*)&adr.in6.sin6_addr : (void*)&adr.in.sin_addr) != 1)
+                LqConnInetAddress adr;
+                if(LqConnStrToRowIp((Param.find_first_of("6") != LqString::npos)?6: 4, IpAddress.c_str(), &adr) == -1)
                 {
                     fprintf(OutFile, " ERROR: Invalid ip address\n");
                     break;
                 }
 
-				LqWrkBossCloseConnByIpSync(&adr.adr);
+                LqWrkBossCloseConnByIpSync(&adr.Addr);
                 fprintf(OutFile, " OK\n");
             }
             break;
             LQSTR_CASE("connlist")
             {
-				LqWrkBossEnumDelEvntByProto(&Reg->Proto, OutFile,
+                LqWrkBossEnumDelEvntByProto(&Reg->Proto, OutFile,
                  [](void* OutFile, LqEvntHdr* Conn) -> bool
                 {
                     if(Conn->Flag & _LQEVNT_FLAG_CONN)
                     {
-                        socklen_t PeerName = sizeof(LqConnInetAddress);
-						LqConnInetAddress adr;
-                        getpeername(Conn->Fd, &adr.Addr, &PeerName);
-                        char Host[1024];
-                        char Service[1024];
-                        getnameinfo(&adr.Addr, PeerName, Host, sizeof(Host) - 1, Service, sizeof(Service) - 1, NI_NUMERICSERV | NI_NUMERICHOST);
-                        fprintf((FILE*)OutFile, " Host: %s, Port: %s\n", Host, Service);
+                        char IpBuf[256];
+                        LqHttpConnGetRemoteIpStr((LqHttpConn*)Conn, IpBuf, 255);
+                        fprintf((FILE*)OutFile, " Host: %s, Port: %i\n", IpBuf, LqHttpConnGetRemotePort((LqHttpConn*)Conn));
                     }
-					return false;
+                    return false;
                 }
                 );
             }
@@ -1111,11 +1095,11 @@ lblAgain:
                 LqTimeMillisec Millisec;
                 if(!ReadNumber(CommandData, &Millisec))
                 {
-					LqHttpProtoGetInfo(Reg, nullptr, 0, nullptr, 0, nullptr, nullptr, &Millisec);
+                    LqHttpProtoGetInfo(Reg, nullptr, 0, nullptr, 0, nullptr, nullptr, &Millisec);
                     fprintf(OutFile, " %llu\n", (ullong)Millisec);
                     break;
                 }
-				LqHttpProtoSetInfo(Reg, nullptr,nullptr, nullptr, nullptr, &Millisec);
+                LqHttpProtoSetInfo(Reg, nullptr,nullptr, nullptr, nullptr, &Millisec);
                 fprintf(OutFile, " OK\n");
             }
             break;
@@ -1163,9 +1147,9 @@ lblAgain:
             break;
         }
     }
-	LqHttpProtoDelete(Reg);
-	LqWrkBossSetMinWrkCount(0);
-	LqWrkBossKickAllWrk();
+    LqHttpProtoDelete(Reg);
+    LqWrkBossSetMinWrkCount(0);
+    LqWrkBossKickAllWrk();
     return 0;
 }
 

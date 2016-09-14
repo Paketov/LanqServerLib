@@ -112,12 +112,21 @@ LQ_IMPORTEXPORT int LQ_CALL LqConnBind(const char* lqain lqaopt Host, const char
 
 LQ_IMPORTEXPORT int LQ_CALL LqConnConnect(const char* lqain Address, const char* lqain Port, void* lqaout lqaopt IpPrtAddress, socklen_t* lqaio lqaopt IpPrtAddressLen);
 
+LQ_IMPORTEXPORT int LQ_CALL LqConnStrToRowIp(int TypeIp, const char* lqain SourseStr, LqConnInetAddress* lqaout DestAddress);
+
+LQ_IMPORTEXPORT int LQ_CALL LqConnRowIpToStr(LqConnInetAddress* lqain SourceAddress, char* lqaout DestStr, size_t DestStrLen);
+
 LQ_IMPORTEXPORT void LQ_CALL __LqEvntFdDfltHandler(LqEvntFd* Instance, LqEvntFlag Flags);
 
 /*
-* Add new file descriptor to follow
+* Add new file descriptor to follow async
 */
 LQ_IMPORTEXPORT int LQ_CALL LqEvntFdAdd(LqEvntFd* lqain Evnt);
+
+/*
+* Add new file descriptor force immediately
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqEvntFdAdd2(LqEvntFd* lqain Evnt);
 
 /*
 * @return: SSL_CTX

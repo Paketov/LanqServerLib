@@ -129,9 +129,9 @@ LQ_EXTERN_C int LQ_CALL LqHttpConnGetRemotePort(const LqHttpConn* c)
     switch(LqHttpConnGetRmtAddr(c)->sa_family)
     {
         case AF_INET:
-            return ((sockaddr_in*)LqHttpConnGetRmtAddr(c))->sin_port;
+            return ntohs(((sockaddr_in*)LqHttpConnGetRmtAddr(c))->sin_port);
         case AF_INET6:
-            return ((sockaddr_in6*)LqHttpConnGetRmtAddr(c))->sin6_port;
+            return ntohs(((sockaddr_in6*)LqHttpConnGetRmtAddr(c))->sin6_port);
         default:
             return 0;
     }
