@@ -22,10 +22,10 @@
 #include "LqHttpAtz.h"
 #include "LqBse64.hpp"
 #include "LqStr.hpp"
+#include "LqDef.hpp"
 
 
 #include <stdlib.h>
-#include <stdint.h>
 #include <type_traits>
 #include <vector>
 #include <thread>
@@ -390,7 +390,7 @@ lblAgain:
             {
                 char Buf[10000];
                 bool IsFree = false;
-                for(uintptr_t h = 0; LqHttpMdlEnm(Reg, &h, Buf, sizeof(Buf), &IsFree);)
+                for(uintptr_t h = 0; LqHttpMdlEnm(Reg, &h, Buf, sizeof(Buf), &IsFree) >= 0;)
                     fprintf(OutFile, " #%llx (%s) %s\n", (ullong)h, Buf, (IsFree) ? "released" : "");
             }
             break;
@@ -409,13 +409,13 @@ lblAgain:
                     ullong v = 0;
                     sscanf(ModuleName.data(), "%llx", &v);
 
-                    if(LqHttpMdlSendCommandByHandle(Reg, (uintptr_t)v, CommandData.c_str(), OutFile) >= 1)
+                    if(LqHttpMdlSendCommandByHandle(Reg, (uintptr_t)v, CommandData.c_str(), OutFile) >= 0)
                         fprintf(OutFile, "\n OK\n");
                     else
                         fprintf(OutFile, " ERROR: Module not found\n");
                     break;
                 }
-                if(LqHttpMdlSendCommandByName(Reg, ModuleName.c_str(), CommandData.c_str(), OutFile) >= 1)
+                if(LqHttpMdlSendCommandByName(Reg, ModuleName.c_str(), CommandData.c_str(), OutFile) >= 0)
                     fprintf(OutFile, "\n OK\n");
                 else
                     fprintf(OutFile, " ERROR: Module not found\n");
@@ -1071,7 +1071,7 @@ lblAgain:
             LQSTR_CASE("connlist")
             {
 				LqWrkBossEnumDelEvntByProto(&Reg->Proto, OutFile,
-                 [](void* OutFile, LqEvntHdr* Conn) -> LqBool
+                 [](void* OutFile, LqEvntHdr* Conn) -> bool
                 {
                     if(Conn->Flag & _LQEVNT_FLAG_CONN)
                     {

@@ -24,25 +24,25 @@ static const auto LqTimeStrLen = sizeof("Wed Feb 13 16:06:10 2013");
 #define PRINTF_TIME_TM_FORMAT_GMT "%3s, %02i %3s %i %02i:%02i:%02i GMT"
 
 #define PRINTF_TIME_TM_ARG_GMT(Tm) \
-		(char*)LqTimeWeeks[(Tm).tm_wday],\
-		(int)(Tm).tm_mday,\
-		(char*)LqTimeMonths[(Tm).tm_mon],\
-		(int)((Tm).tm_year + 1900),\
-		(int)(Tm).tm_hour,\
-		(int)(Tm).tm_min,\
-		(int)(Tm).tm_sec
+        (char*)LqTimeWeeks[(Tm).tm_wday],\
+        (int)(Tm).tm_mday,\
+        (char*)LqTimeMonths[(Tm).tm_mon],\
+        (int)((Tm).tm_year + 1900),\
+        (int)(Tm).tm_hour,\
+        (int)(Tm).tm_min,\
+        (int)(Tm).tm_sec
 
 
 #define PRINTF_TIME_TM_FORMAT "%3s %3s %02i %02i:%02i:%02i %i"
 
 #define PRINTF_TIME_TM_ARG(Tm) \
-		(char*)LqTimeWeeks[(Tm).tm_wday],\
-		(char*)LqTimeMonths[(Tm).tm_mon],\
-		(int)(Tm).tm_mday,\
-		(int)(Tm).tm_hour,\
-		(int)(Tm).tm_min,\
-		(int)(Tm).tm_sec,\
-		(int)((Tm).tm_year + 1900)
+        (char*)LqTimeWeeks[(Tm).tm_wday],\
+        (char*)LqTimeMonths[(Tm).tm_mon],\
+        (int)(Tm).tm_mday,\
+        (int)(Tm).tm_hour,\
+        (int)(Tm).tm_min,\
+        (int)(Tm).tm_sec,\
+        (int)((Tm).tm_year + 1900)
 
 
 LQ_IMPORTEXPORT int LQ_CALL LqTimeStrToLocTm(const char* lqain lqacp Str, tm* lqaout Result);
@@ -51,14 +51,14 @@ LQ_IMPORTEXPORT int LQ_CALL LqTimeStrToGmtTm(const char* lqain lqacp Str, tm* lq
 LQ_IMPORTEXPORT int LQ_CALL LqTimeStrToLocSec(const char* lqain lqacp Str, LqTimeSec* lqaout Result);
 LQ_IMPORTEXPORT int LQ_CALL LqTimeStrToGmtSec(const char* lqain lqacp Str, LqTimeSec* lqaout Result);
 
-LQ_IMPORTEXPORT bool LQ_CALL LqTimeGmtTmToStr(char* lqaout lqacp DestStr, LqTimeSec DestStrLen, const tm* lqain InTmGmt);
-LQ_IMPORTEXPORT bool LQ_CALL LqTimeLocTmToStr(char* lqaout lqacp DestStr, LqTimeSec DestStrLen, const tm* lqain InTm);
+LQ_IMPORTEXPORT int LQ_CALL LqTimeGmtTmToStr(char* lqaout lqacp DestStr, LqTimeSec DestStrLen, const tm* lqain InTmGmt);
+LQ_IMPORTEXPORT int LQ_CALL LqTimeLocTmToStr(char* lqaout lqacp DestStr, LqTimeSec DestStrLen, const tm* lqain InTm);
 
-LQ_IMPORTEXPORT bool LQ_CALL LqTimeLocToStr(char* lqaout lqacp DestStr, LqTimeSec DestStrLen);
-LQ_IMPORTEXPORT bool LQ_CALL LqTimeGmtToStr(char* lqaout lqacp DestStr, LqTimeSec DestStrLen);
+LQ_IMPORTEXPORT int LQ_CALL LqTimeLocToStr(char* lqaout lqacp DestStr, LqTimeSec DestStrLen);
+LQ_IMPORTEXPORT int LQ_CALL LqTimeGmtToStr(char* lqaout lqacp DestStr, LqTimeSec DestStrLen);
 
-LQ_IMPORTEXPORT bool LQ_CALL LqTimeGmtSecToStr(char* lqaout lqacp DestStr, size_t DestStrLen, LqTimeSec FileTimeGmt);
-LQ_IMPORTEXPORT bool LQ_CALL LqTimeLocSecToStr(char* lqaout lqacp DestStr, size_t DestStrLen, LqTimeSec FileTime);
+LQ_IMPORTEXPORT int LQ_CALL LqTimeGmtSecToStr(char* lqaout lqacp DestStr, size_t DestStrLen, LqTimeSec FileTimeGmt);
+LQ_IMPORTEXPORT int LQ_CALL LqTimeLocSecToStr(char* lqaout lqacp DestStr, size_t DestStrLen, LqTimeSec FileTime);
 
 LQ_IMPORTEXPORT void LQ_CALL LqTimeLocSecToLocTm(tm* lqaout Tm, LqTimeSec LocalTime);
 LQ_IMPORTEXPORT void LQ_CALL LqTimeLocSecToGmtTm(tm* lqaout Tm, LqTimeSec LocalTime);

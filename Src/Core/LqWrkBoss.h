@@ -15,7 +15,7 @@ LQ_EXTERN_C_BEGIN
 
 LQ_IMPORTEXPORT void* LQ_CALL LqWrkBossGet();
 
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossAddWrks(size_t Count, LqBool IsStart);
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossAddWrks(size_t Count, bool IsStart);
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossAddWrk(void* Wrk);
 
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossKickAllWrk();
@@ -46,8 +46,8 @@ LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByTimeoutSync(LqTimeMillisec Ti
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseConnByProtoTimeoutAsync(const LqProto* Proto, LqTimeMillisec TimeLive);
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByProtoTimeoutSync(const LqProto* Proto, LqTimeMillisec TimeLive);
 
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossEnumDelEvntByProto(const LqProto* Proto, void * UserData, LqBool(*Proc)(void *UserData, LqEvntHdr *Conn));
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossEnumDelEvnt(void * UserData, LqBool(*Proc)(void *UserData, LqEvntHdr *Conn));
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossEnumDelEvntByProto(const LqProto* Proto, void * UserData, bool(*Proc)(void *UserData, LqEvntHdr *Conn));
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossEnumDelEvnt(void * UserData, bool(*Proc)(void *UserData, LqEvntHdr *Conn));
 
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossSetMinWrkCount(size_t NewCount);
 

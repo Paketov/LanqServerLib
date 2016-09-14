@@ -6,6 +6,7 @@
 */
 
 #include "LqOs.h"
+#include "LqDef.hpp"
 #include "LqStr.hpp"
 #include "LqDfltRef.hpp"
 #include "LqCp.h"
@@ -69,7 +70,7 @@ LQ_EXTERN_C uint32_t LQ_CALL LqStrCharUtf16ToUpper(uint32_t r)
 }
 
 
-LQ_EXTERN_C LqBool LQ_CALL LqStrCharUtf16IsAlpha(uint32_t r)
+LQ_EXTERN_C bool LQ_CALL LqStrCharUtf16IsAlpha(uint32_t r)
 {
 #if defined(LQPLATFORM_WINDOWS)
     return IsCharAlphaW(r) == TRUE;

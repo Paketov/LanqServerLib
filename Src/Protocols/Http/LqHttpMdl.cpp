@@ -100,15 +100,15 @@ static void LqHttpMdlPathUnregister(LqHttpPathListHdr* l)
 
 static bool _LqHttpMdlEnumDomenProc(void* UserData, LqHttpDomainPaths* Element)
 {
-    auto Result = true;
+    bool Result = true;
     LqHttpPth* WebPath = (LqHttpPth*)UserData;
     auto Pth = Element->t.Search(WebPath);
     if((Pth != nullptr) && (Pth->p == WebPath))
     {
-	auto DelPth = Element->t.RemoveRetPointer(WebPath);
-	Result = !LqHttpPthRelease(DelPth->p);
-	DelPth->p = nullptr;
-	Element->t.DeleteRetPointer(DelPth);
+        auto DelPth = Element->t.RemoveRetPointer(WebPath);
+        Result = !LqHttpPthRelease(DelPth->p);
+        DelPth->p = nullptr;
+        Element->t.DeleteRetPointer(DelPth);
     }
     return Result;
 }
@@ -116,12 +116,12 @@ static bool _LqHttpMdlEnumDomenProc(void* UserData, LqHttpDomainPaths* Element)
 static bool _LqHttpMdlEnumDomenForResize(LqHttpDomainPaths* Element)
 {
     if((size_t)(Element->t.Count() * 1.7f) < Element->t.AllocCount())
-	Element->t.ResizeAfterRemove();
+        Element->t.ResizeAfterRemove();
     return true;
 }
 
 static void LqHttpMdlFree_Native(LqHttpMdl* Module)
-{	
+{
     auto& FileSystem = ((LqHttpProto*)Module->Proto)->FileSystem;
     LqHttpMdlLockWrite(Module);
     Module->CountPointers++;
@@ -163,10 +163,10 @@ static void LqHttpMdlEnmFree(LqHttpMdl* Module)
     }
 }
 
-//LQ_EXTERN_C bool LQ_CALL LqHttpMdlFree(LqHttpMdl* Module)
+//LQ_EXTERN_C int LQ_CALL LqHttpMdlFree(LqHttpMdl* Module)
 //{
 //    if(&Module->Proto->StartModule == Module)
-//        return false;
+//        return -1;
 //    bool Expected = false;
 //    if(LqAtmCmpXchg(Module->IsFree, Expected, true))
 //    {
@@ -175,9 +175,9 @@ static void LqHttpMdlEnmFree(LqHttpMdl* Module)
 //            LqHttpMdlModuleRemoveFromReg(Module);
 //        else
 //            LqHttpMdlUnlockWrite(Module);
-//        return true;
+//        return 0;
 //    }
-//    return false;
+//    return -1;
 //}
 
 LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByName(LqHttpProtoBase* Reg, const char* NameModule, bool IsAll)
@@ -228,7 +228,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByHandle(LqHttpProtoBase* Reg, uintptr_t Ha
         t = i->Next;
         if(i->Handle == Handle)
         {
-            Res = 1;
+            Res = 0;
             LqHttpMdlEnmFree(i);
             break;
         }
@@ -237,12 +237,12 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByHandle(LqHttpProtoBase* Reg, uintptr_t Ha
     return Res;
 }
 
-LQ_EXTERN_C bool LQ_CALL LqHttpMdlSendCommandByHandle(LqHttpProtoBase* Reg, uintptr_t Handle, const char* Command, void* Data)
+LQ_EXTERN_C int LQ_CALL LqHttpMdlSendCommandByHandle(LqHttpProtoBase* Reg, uintptr_t Handle, const char* Command, void* Data)
 {
     LqHttpMdlListLockWrite(Reg);
     auto StartMdl = &Reg->StartModule;
     LqHttpMdl *Mdl = nullptr;
-    bool Res = false;
+    int Res = -1;
     for(auto i = StartMdl->Next, t = i->Next; i != StartMdl; i = t)
     {
         t = i->Next;
@@ -257,18 +257,18 @@ LQ_EXTERN_C bool LQ_CALL LqHttpMdlSendCommandByHandle(LqHttpProtoBase* Reg, uint
         LqHttpMdlUnlockForThisThread();
         Mdl->ReciveCommandProc(Mdl, Command, Data);
         LqHttpMdlLockForThisThread();
-        Res = true;
+        Res = 0;
     }
     LqHttpMdlListUnlockWrite(Reg);
     return Res;
 }
 
-LQ_EXTERN_C bool LQ_CALL LqHttpMdlSendCommandByName(LqHttpProtoBase* Reg, const char* Name, const char* Command, void* Data)
+LQ_EXTERN_C int LQ_CALL LqHttpMdlSendCommandByName(LqHttpProtoBase* Reg, const char* Name, const char* Command, void* Data)
 {
     LqHttpMdlListLockWrite(Reg);
     auto StartMdl = &Reg->StartModule;
     LqHttpMdl *Mdl = nullptr;
-    bool Res = false;
+    int Res = -1;
     for(auto i = StartMdl->Next, t = i->Next; i != StartMdl; i = t)
     {
         t = i->Next;
@@ -283,7 +283,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpMdlSendCommandByName(LqHttpProtoBase* Reg, const 
         LqHttpMdlUnlockForThisThread();
         Mdl->ReciveCommandProc(Mdl, Command, Data);
         LqHttpMdlLockForThisThread();
-        Res = true;
+        Res = 0;
     }
     LqHttpMdlListUnlockWrite(Reg);
     return Res;
@@ -308,7 +308,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlIsHave(LqHttpProtoBase* Reg, uintptr_t Handle)
     return Res;
 }
 
-LQ_EXTERN_C bool LQ_CALL LqHttpMdlEnm(LqHttpProtoBase* Reg, uintptr_t* ModuleHandle, char* Name, size_t NameLen, bool* IsFree)
+LQ_EXTERN_C int LQ_CALL LqHttpMdlEnm(LqHttpProtoBase* Reg, uintptr_t* ModuleHandle, char* Name, size_t NameLen, bool* IsFree)
 {
     LqHttpMdlListLockRead(Reg);
     auto StartMdl = &Reg->StartModule;
@@ -321,7 +321,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpMdlEnm(LqHttpProtoBase* Reg, uintptr_t* ModuleHan
         if(IsFree != nullptr)
             *IsFree = StartMdl->Next->IsFree;
         LqHttpMdlListUnlockRead(Reg);
-        return true;
+        return 0;
     }
     for(auto i = StartMdl; i->Next != StartMdl; i = i->Next)
     {
@@ -333,11 +333,11 @@ LQ_EXTERN_C bool LQ_CALL LqHttpMdlEnm(LqHttpProtoBase* Reg, uintptr_t* ModuleHan
             if(IsFree != nullptr)
                 *IsFree = i->Next->IsFree;
             LqHttpMdlListUnlockRead(Reg);
-            return true;
+            return 0;
         }
     }
     LqHttpMdlListUnlockRead(Reg);
-    return false;
+    return -1;
 }
 
 LQ_EXTERN_C void LQ_CALL LqHttpMdlInit(LqHttpProtoBase* Reg, LqHttpMdl* Module, const char* Name, uintptr_t Handle)
@@ -348,7 +348,7 @@ LQ_EXTERN_C void LQ_CALL LqHttpMdlInit(LqHttpProtoBase* Reg, LqHttpMdl* Module, 
     struct Procs
     {
         static uintptr_t LQ_CALL FreeNotifyProc(LqHttpMdl* Module) { return Module->Handle; }
-        static void LQ_CALL BeforeFreeNotifyProc(LqHttpMdl* Module) { }
+        static void LQ_CALL BeforeFreeNotifyProc(LqHttpMdl* Module) {}
         static void LQ_CALL DelCreatePathProc(LqHttpPth*) {}
         static bool LQ_CALL RegisterPathInDomenProc(LqHttpPth*, const char*) { return true; }
         static void LQ_CALL UnregisterPathFromDomenProc(LqHttpPth*, const char*) {}

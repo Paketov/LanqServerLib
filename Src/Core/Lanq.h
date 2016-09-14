@@ -13,7 +13,6 @@
 
 #include "LqOs.h"
 #include "LqDef.h"
-#include <stdint.h>
 
 
 LQ_EXTERN_C_BEGIN

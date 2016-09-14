@@ -229,24 +229,24 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToGmtSec(const char* Str, LqTimeSec* Result)
 }
 
 
-LQ_EXTERN_C bool LQ_CALL LqTimeGmtTmToStr(char* DestStr, LqTimeSec DestStrLen, const tm* InTmGmt)
+LQ_EXTERN_C int LQ_CALL LqTimeGmtTmToStr(char* DestStr, LqTimeSec DestStrLen, const tm* InTmGmt)
 {
-    return snprintf(DestStr, DestStrLen, PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*InTmGmt)) > 0;
+    return snprintf(DestStr, DestStrLen, PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*InTmGmt));
 }
 
-LQ_EXTERN_C bool LQ_CALL LqTimeLocTmToStr(char* DestStr, LqTimeSec DestStrLen, const tm* InTm)
+LQ_EXTERN_C int LQ_CALL LqTimeLocTmToStr(char* DestStr, LqTimeSec DestStrLen, const tm* InTm)
 {
-    return snprintf(DestStr, DestStrLen, PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*InTm)) > 0;
+    return snprintf(DestStr, DestStrLen, PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*InTm));
 }
 
-LQ_EXTERN_C bool LQ_CALL LqTimeLocToStr(char* DestStr, LqTimeSec DestStrLen)
+LQ_EXTERN_C int LQ_CALL LqTimeLocToStr(char* DestStr, LqTimeSec DestStrLen)
 {
     auto t = time(nullptr);
     auto Tm = localtime(&t);
     return LqTimeLocTmToStr(DestStr, DestStrLen, Tm);
 }
 
-LQ_EXTERN_C bool LQ_CALL LqTimeGmtToStr(char* DestStr, LqTimeSec DestStrLen)
+LQ_EXTERN_C int LQ_CALL LqTimeGmtToStr(char* DestStr, LqTimeSec DestStrLen)
 {
     auto t = time(nullptr) + GmtCorrection;
     time_t Tt = t;
@@ -327,13 +327,14 @@ LQ_EXTERN_C LqTimeSec LQ_CALL LqTimeGmtSecToLocSec(LqTimeSec GmtTime)
 #endif
 }
 
-LQ_EXTERN_C bool LQ_CALL LqTimeLocSecToStr(char* DestStr, size_t DestStrLen, LqTimeSec FileTime)
+LQ_EXTERN_C int LQ_CALL LqTimeLocSecToStr(char* DestStr, size_t DestStrLen, LqTimeSec FileTime)
 {
     time_t Tt = FileTime;
     auto Tm = localtime(&Tt);
     return LqTimeLocTmToStr(DestStr, DestStrLen, Tm);
 }
-LQ_EXTERN_C bool LQ_CALL LqTimeGmtSecToStr(char* DestStr, size_t DestStrLen, LqTimeSec FileTimeGmt)
+
+LQ_EXTERN_C int LQ_CALL LqTimeGmtSecToStr(char* DestStr, size_t DestStrLen, LqTimeSec FileTimeGmt)
 {
     FileTimeGmt += GmtCorrection;
     time_t Tt = FileTimeGmt;

@@ -6,9 +6,9 @@
 */
 
 #include "LqOs.h"
+#include "LqDef.hpp"
 #include "LqStr.hpp"
 #include <ctype.h>
-#include <stdint.h>
 
 #include "LqHttpPrs.h"
 

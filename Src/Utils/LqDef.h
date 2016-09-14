@@ -10,8 +10,9 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
-typedef unsigned char           uchar, LqBool;
+typedef unsigned char           uchar;
 typedef unsigned short          ushort;
 typedef unsigned int            uint;
 typedef unsigned long           ulong;
@@ -21,6 +22,7 @@ typedef llong                   LqFileSz;
 typedef llong                   LqTimeSec;
 typedef llong                   LqTimeMillisec;
 typedef uint16_t                LqEvntFlag;
+
 
 #define lq_max(a,b) (((a) > (b)) ? (a) : (b))
 #define lq_min(a,b) (((a) < (b)) ? (a) : (b))

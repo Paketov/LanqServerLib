@@ -124,8 +124,8 @@ public:
     bool        SyncEvntFlagAsync(LqEvntHdr* Conn) const;
     bool        SyncEvntFlagSync(LqEvntHdr* Conn) const;
 
-    size_t      EnumDelEvnt(void* UserData, LqBool(*Proc)(void* UserData, LqEvntHdr* Conn)) const; //Enum all events
-    size_t      EnumDelEvntByProto(const LqProto* Proto, void* UserData, LqBool(*Proc)(void* UserData, LqEvntHdr* Conn)) const; //Enum event by proto
+    size_t      EnumDelEvnt(void* UserData, bool(*Proc)(void* UserData, LqEvntHdr* Conn)) const; //Enum all events
+    size_t      EnumDelEvntByProto(const LqProto* Proto, void* UserData, bool(*Proc)(void* UserData, LqEvntHdr* Conn)) const; //Enum event by proto
 
     size_t      KickAllWorkers();
 

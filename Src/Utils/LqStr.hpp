@@ -8,7 +8,7 @@
 
 
 #include "LqStr.h"
-
+#include "LqDef.hpp"
 
 
 template<typename TypeNumber>

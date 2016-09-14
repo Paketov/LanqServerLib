@@ -68,12 +68,12 @@ LQ_EXTERN_C int LQ_CALL LqLibGetPathByHandle(uintptr_t Handle, char* DestName, s
 #endif
 }
 
-LQ_EXTERN_C bool LQ_CALL LqLibFree(uintptr_t ModuleHandle)
+LQ_EXTERN_C int LQ_CALL LqLibFree(uintptr_t ModuleHandle)
 {
 #if defined(LQPLATFORM_WINDOWS)
-    return FreeLibrary((HMODULE)ModuleHandle) == TRUE;
+    return (FreeLibrary((HMODULE)ModuleHandle) == TRUE)? 0: -1;
 #else
-    return dlclose((void*)ModuleHandle) == 0;
+    return (dlclose((void*)ModuleHandle) == 0)? 0: -1;
 #endif
 }
 

@@ -294,7 +294,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoBind(LqHttpProtoBase* Reg)
                        &Reg->ZmbClr, 
                        &Reg->Proto, 
                        Reg->TimeLive, 
-                       [](LqEvntFd* EventFd, void* Data) -> LqBool
+                       [](LqEvntFd* EventFd, void* Data) -> bool
                         {
                             auto Ob = (LqHttpProto*)Data;
                             LqObDereference<LqHttpProto, LqFastAlloc::Delete>(Ob);

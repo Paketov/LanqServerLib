@@ -144,8 +144,8 @@ public:
     bool CloseConnByProtoAsync(const LqProto* Addr);
     size_t CloseConnByProtoSync(const LqProto* Addr);
 
-    size_t EnumDelEvnt(void* UserData, LqBool(*Proc)(void* UserData, LqEvntHdr* Conn));
-    size_t EnumDelEvntByProto(const LqProto* Proto, void* UserData, LqBool(*Proc)(void* UserData, LqEvntHdr* Conn));
+    size_t EnumDelEvnt(void* UserData, bool(*Proc)(void* UserData, LqEvntHdr* Conn));
+    size_t EnumDelEvntByProto(const LqProto* Proto, void* UserData, bool(*Proc)(void* UserData, LqEvntHdr* Conn));
 
     LqString DebugInfo() const;
     LqString AllDebugInfo();

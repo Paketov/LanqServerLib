@@ -9,7 +9,6 @@
 #ifndef __STREAM_BUF_H_HAS_INCLUDED__
 #define __STREAM_BUF_H_HAS_INCLUDED__
 
-#include <stdint.h>
 #include "LqOs.h"
 #include "LqDef.h"
 

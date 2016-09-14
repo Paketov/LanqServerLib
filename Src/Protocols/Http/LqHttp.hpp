@@ -537,8 +537,8 @@ public:
             inline operator LqEvntFlag() { return Conn->Flags & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_WR | LQEVNT_FLAG_RD); }
                inline LqEvntFlag operator =(LqEvntFlag NewFlag) { LqEvntSetFlags(Conn, NewFlag); return NewFlag; }
                inline int SetCloseAsync() { return LqEvntSetClose(Conn); }
-			   inline int SetCloseSync(LqTimeMillisec WaitTime) { return LqEvntSetClose2(Conn, WaitTime); }
-			   inline int SetCloseSyncForce() { return LqEvntSetClose3(Conn); }
+               inline int SetCloseSync(LqTimeMillisec WaitTime) { return LqEvntSetClose2(Conn, WaitTime); }
+               inline int SetCloseSyncForce() { return LqEvntSetClose3(Conn); }
                inline bool IsClose() { return LqConnIsClose(Conn); }
                /*Set default flags for current action*/
                inline int ReturnToDefault() { return LqHttpEvntSetFlagByAct(Conn); }

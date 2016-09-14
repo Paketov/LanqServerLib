@@ -9,9 +9,6 @@
 #ifndef __LANQ_HTTP_CONN_H_HAS_INCLUDED__
 #define __LANQ_HTTP_CONN_H_HAS_INCLUDED__
 
-
-#include <stdint.h>
-
 #include "LqOs.h"
 #include "LqDef.h"
 #include "LqHttp.h"

@@ -46,7 +46,7 @@ LQ_IMPORTEXPORT void LQ_CALL LqMd5Final(unsigned char* lqaout Result, LqMd5Ctx* 
 
 LQ_IMPORTEXPORT int LQ_CALL LqMd5Compare(const LqMd5* lqain Hash1, const LqMd5* lqain Hash2);
 LQ_IMPORTEXPORT void LQ_CALL LqMd5ToString(char* lqaout lqacp DestStr, const LqMd5* lqain Hash);
-LQ_IMPORTEXPORT bool LQ_CALL LqMd5FromString(LqMd5* lqaout Hash, const char* lqain lqacp SourceStr);
+LQ_IMPORTEXPORT int LQ_CALL LqMd5FromString(LqMd5* lqaout Hash, const char* lqain lqacp SourceStr);
 LQ_IMPORTEXPORT void LQ_CALL LqMd5Gen(LqMd5* lqaout Hash, const void* lqain Buf, size_t BufLen);
 LQ_IMPORTEXPORT void LQ_CALL LqMd5GenToString(char* lqaout lqacp Dest, const void* lqain Buf, size_t BufLen);
 

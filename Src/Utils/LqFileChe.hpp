@@ -16,7 +16,6 @@
 #include "LqFile.h"
 #include "LqStr.h"
 
-#include <stdint.h>
 #undef max
 
 #if defined(_DEBUG)

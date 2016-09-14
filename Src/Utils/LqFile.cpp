@@ -6,6 +6,7 @@
 */
 
 #include "LqOs.h"
+#include "LqDef.hpp"
 #include "LqFile.h"
 #include "LqStr.h"
 #include "LqErr.h"

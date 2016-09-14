@@ -10,7 +10,7 @@
 
 #include "LqHttp.h"
 #include "LqOs.h"
-#include "LqDef.hpp"
+#include "LqDef.h"
 
 enum LqHttpPrsHdrStatEnm
 {

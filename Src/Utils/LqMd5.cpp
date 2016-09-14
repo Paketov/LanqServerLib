@@ -338,9 +338,9 @@ LQ_EXTERN_C void LQ_CALL LqMd5ToString(char* DestStr, const LqMd5* Hash)
     LqStrToHex(DestStr, Hash, sizeof(LqMd5));
 }
 
-LQ_EXTERN_C bool LQ_CALL LqMd5FromString(LqMd5* Hash, const char* SourceStr)
+LQ_EXTERN_C int LQ_CALL LqMd5FromString(LqMd5* Hash, const char* SourceStr)
 {
-    return LqStrFromHex(Hash, sizeof(LqMd5), SourceStr) == 16;
+    return LqStrFromHex(Hash, sizeof(LqMd5), SourceStr);
 }
 
 LQ_EXTERN_C void LQ_CALL LqMd5Gen(LqMd5* Hash, const void* Buf, size_t BufLen)

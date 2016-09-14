@@ -386,31 +386,31 @@ void LQ_CALL LqHttpMdlHandlersMime(const char* Path, LqHttpConn* Connection, cha
 }
 
 #define MIME_RET(...) \
-		{\
-			static const char* Mime[] = {__VA_ARGS__};
+        {\
+            static const char* Mime[] = {__VA_ARGS__};
 
 #define EXTENSION_RET(...) \
-			static const char* Ext[] = {__VA_ARGS__};\
-			static const LqHttpExtensionMime h = \
-			{\
-				sizeof(Ext) / sizeof(Ext[0]),\
-				(char**)&Ext,\
-				sizeof(Mime) / sizeof(Mime[0]),\
-				(char**)&Mime,\
-			};\
-			return &h;\
-		}
+            static const char* Ext[] = {__VA_ARGS__};\
+            static const LqHttpExtensionMime h = \
+            {\
+                sizeof(Ext) / sizeof(Ext[0]),\
+                (char**)&Ext,\
+                sizeof(Mime) / sizeof(Mime[0]),\
+                (char**)&Mime,\
+            };\
+            return &h;\
+        }
 #define EXTENSION_RET_OCT_STREAM \
-			static const char* Ext[] = {""};\
-			static const LqHttpExtensionMime h = \
-			{\
-				0,\
-				(char**)&Ext,\
-				sizeof(Mime) / sizeof(Mime[0]),\
-				(char**)&Mime,\
-			};\
-			return &h;\
-		}
+            static const char* Ext[] = {""};\
+            static const LqHttpExtensionMime h = \
+            {\
+                0,\
+                (char**)&Ext,\
+                sizeof(Mime) / sizeof(Mime[0]),\
+                (char**)&Mime,\
+            };\
+            return &h;\
+        }
 
 const LqHttpExtensionMime* LqHttpMimeExtension(const char* Str)
 {

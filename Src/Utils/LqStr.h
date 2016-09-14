@@ -8,8 +8,9 @@
 #ifndef __LQ_STR_H_HAS_INCLUDED__
 #define __LQ_STR_H_HAS_INCLUDED__
 
-#include "LqDef.hpp"
+#include "LqDef.h"
 #include "LqOs.h"
+#include <stdio.h>
 
 LQ_EXTERN_C_BEGIN
 
@@ -44,7 +45,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqStrFromHex(void* lqaout Dest, size_t DestLen, cons
 
 LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrCharUtf16ToLower(uint32_t r);
 LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrCharUtf16ToUpper(uint32_t r);
-LQ_IMPORTEXPORT LqBool LQ_CALL LqStrCharUtf16IsAlpha(uint32_t r);
+LQ_IMPORTEXPORT bool LQ_CALL LqStrCharUtf16IsAlpha(uint32_t r);
 
 
 LQ_IMPORTEXPORT char* LQ_CALL LqStrUtf8CharToStr(char* lqautf8 lqaout Dest, uint32_t ch);

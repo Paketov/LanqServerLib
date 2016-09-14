@@ -44,7 +44,6 @@
 
 
 #include <time.h>
-#include <stdint.h>
 #ifdef HAVE_OPENSSL
 #include <openssl/ssl.h>
 #endif
@@ -96,9 +95,9 @@ enum LqHttpActResultEnm
 
     LQHTTPACT_RES_INVALID_TYPE_PATH,
 
-	LQHTTPACT_RES_SSL_FAILED_HANDSHAKE,
+    LQHTTPACT_RES_SSL_FAILED_HANDSHAKE,
 
-	LQHTTPACT_RES_INVALID_ACT_CHAIN,
+    LQHTTPACT_RES_INVALID_ACT_CHAIN,
 
     LQHTTPACT_RES_CLOSE_CONN //For event proc
 };
@@ -124,9 +123,9 @@ enum LqHttpActEnm
     LQHTTPACT_STATE_MULTIPART_RCV_FILE =        LQHTTPACT_CLASS_QER | 8,
     LQHTTPACT_STATE_MULTIPART_RCV_STREAM =      LQHTTPACT_CLASS_QER | 9,
     LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS =   LQHTTPACT_CLASS_QER | 10,
-	LQHTTPACT_STATE_QUERY_HANDLE_PROCESS =      LQHTTPACT_CLASS_RSP | 11,
-	LQHTTPACT_STATE_QUERY_SSL_HANDSHAKE =       LQHTTPACT_CLASS_QER | 12,
-	LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE =    LQHTTPACT_CLASS_RSP | 13,
+    LQHTTPACT_STATE_QUERY_HANDLE_PROCESS =      LQHTTPACT_CLASS_RSP | 11,
+    LQHTTPACT_STATE_QUERY_SSL_HANDSHAKE =       LQHTTPACT_CLASS_QER | 12,
+    LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE =    LQHTTPACT_CLASS_RSP | 13,
     LQHTTPACT_STATE_RSP_INIT_HANDLE =           LQHTTPACT_CLASS_RSP | 14,
     LQHTTPACT_STATE_SKIP_QUERY_BODY =           LQHTTPACT_CLASS_QER | 15,
     LQHTTPACT_STATE_RSP =                       LQHTTPACT_CLASS_RSP | 16,
@@ -194,7 +193,7 @@ enum LqHttpQurRspFlagsEnm
 {
     LQHTTPCONN_FLAG_CLOSE = 1,
     LQHTTPCONN_FLAG_NO_BODY = 2,
-	LQHTTPCONN_FLAG_CLIENT = 4 /*Have a query to another server*/
+    LQHTTPCONN_FLAG_CLIENT = 4 /*Have a query to another server*/
 };
 
 #pragma pack(push)
@@ -280,10 +279,10 @@ struct LqHttpConn
     size_t                      BufSize;
     uintptr_t                   ModuleData;
     uintptr_t                   _Reserved;
-    LqHttpEvntHandlerFn         EventAct;	 /* Change action event*/
-    LqHttpEvntHandlerFn         EventClose;	 /* Unexpected closing*/
+    LqHttpEvntHandlerFn         EventAct;    /* Change action event*/
+    LqHttpEvntHandlerFn         EventClose;  /* Unexpected closing*/
     LqHttpPth                   *Pth;
-    LqHttpActState              ActionState;	 /* HTTP_ACTION_... */
+    LqHttpActState              ActionState;     /* HTTP_ACTION_... */
     LqHttpActResult             ActionResult;
     uint8_t                     Flags;
     LqFileSz                    WrittenBodySize;
@@ -395,9 +394,9 @@ struct LqHttpMdl
 
         LqFileStat const* lqain lqaopt Stat /*(Something sends for optimizing)*/
     );
-	/* Use for response error to client*/
+    /* Use for response error to client*/
     int (LQ_CALL* RspErrorProc)(LqHttpConn* lqain c, int lqain Code);
-	/* Use for set status in start line*/
+    /* Use for set status in start line*/
     int (LQ_CALL* RspStatusProc)(LqHttpConn* lqain c, int lqain Code);
 
     /*If NameBuf == "", then ignore name server*/
@@ -433,29 +432,29 @@ struct LqHttpMdl
 struct LqHttpProtoBase
 {
     LqProto                     Proto;
-	LqProto                     BindProto;
-	LqConn                      Conn;
-	LqEvntFd                    ZmbClr;
+    LqProto                     BindProto;
+    LqConn                      Conn;
+    LqEvntFd                    ZmbClr;
 
-	size_t						BindLocker;
+    size_t                      BindLocker;
     size_t                      CountConnections;
-	size_t                      MaxConnections;
+    size_t                      MaxConnections;
     size_t                      MaxHeadersSize;
     size_t                      MaxMultipartHeadersSize;
-	size_t                      CountConnAccepted;
-	size_t                      CountConnIgnored;
-	uintptr_t                   LockerBind;
-	LqBool                      IsRebind;
-	int                         TransportProtoFamily;
+    size_t                      CountConnAccepted;
+    size_t                      CountConnIgnored;
+    uintptr_t                   LockerBind;
+    bool                      IsRebind;
+    int                         TransportProtoFamily;
 
-	LqTimeMillisec              TimeLive;
+    LqTimeMillisec              TimeLive;
 
     LqTimeSec                   PeriodChangeDigestNonce;
-	LqBool                      IsResponse429;
-	LqBool                      IsUnregister;
-	LqBool                      IsResponseDate;
+    bool                      IsResponse429;
+    bool                      IsUnregister;
+    bool                      IsResponseDate;
     char                        HTTPProtoVer[16];
-	LqBool                      UseDefaultDmn;
+    bool                      UseDefaultDmn;
 
     LqHttpMdl                   StartModule;
     size_t                      CountModules;
@@ -470,9 +469,9 @@ struct LqHttpProtoBase
     uintptr_t                   _InternalUsed2;
 #endif
 
-	LqEvntFd				    ZombieKiller;
-	LqTimeMillisec              ZombieKillerTimeLiveConnMillisec;
-	LqBool                      ZombieKillerIsSyncCheck;	
+    LqEvntFd                    ZombieKiller;
+    LqTimeMillisec              ZombieKillerTimeLiveConnMillisec;
+    bool                      ZombieKillerIsSyncCheck;  
 };
 
 
@@ -516,36 +515,36 @@ LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoUnbind(LqHttpProtoBase* Reg);
 
 LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoGetInfo
 (
-	LqHttpProtoBase* lqaio Reg, 
-	char* lqaout lqaopt Host,
-	size_t HostBufSize, 
-	char* lqaout lqaopt Port,
-	size_t PortBufSize,
-	int* lqaout lqaopt TransportProtoFamily,
-	int* lqaout lqaopt MaxConnections,
-	LqTimeMillisec* lqaout lqaopt TimeLive
+    LqHttpProtoBase* lqaio Reg, 
+    char* lqaout lqaopt Host,
+    size_t HostBufSize, 
+    char* lqaout lqaopt Port,
+    size_t PortBufSize,
+    int* lqaout lqaopt TransportProtoFamily,
+    int* lqaout lqaopt MaxConnections,
+    LqTimeMillisec* lqaout lqaopt TimeLive
 );
 
 LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoSetInfo
 (
-	LqHttpProtoBase* lqaio Reg, 
-	const char* lqain lqaopt Host, 
-	const char* lqain lqaopt Port, 
-	const int* lqain lqaopt TransportProtoFamily,
-	const int* lqain lqaopt MaxConnections, 
-	const LqTimeMillisec* lqain lqaopt TimeLive
+    LqHttpProtoBase* lqaio Reg, 
+    const char* lqain lqaopt Host, 
+    const char* lqain lqaopt Port, 
+    const int* lqain lqaopt TransportProtoFamily,
+    const int* lqain lqaopt MaxConnections, 
+    const LqTimeMillisec* lqain lqaopt TimeLive
 );
 
 LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoCreateSSL
 (
-	LqHttpProtoBase*lqaio Reg,
-	const void*lqain MethodSSL, /* Example SSLv23_method()*/
-	const char*lqain CertFile, /* Example: "server.pem"*/
-	const char*lqain KeyFile, /*Example: "server.key"*/
-	const char*lqain lqaopt CipherList,
-	int TypeCertFile, /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
-	const char*lqain lqaopt CAFile,
-	const char*lqain lqaopt DhpFile
+    LqHttpProtoBase*lqaio Reg,
+    const void*lqain MethodSSL, /* Example SSLv23_method()*/
+    const char*lqain CertFile, /* Example: "server.pem"*/
+    const char*lqain KeyFile, /*Example: "server.key"*/
+    const char*lqain lqaopt CipherList,
+    int TypeCertFile, /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
+    const char*lqain lqaopt CAFile,
+    const char*lqain lqaopt DhpFile
 );
 
 LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoSetSSL

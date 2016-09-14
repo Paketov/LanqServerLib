@@ -40,10 +40,10 @@ void LQ_CALL LqHttpMdlHandlersCacheInfo
 
 struct LqHttpExtensionMime
 {
-    size_t	CountExt;
-    char**	Ext;
-    size_t	CountMime;
-    char**	Mime;
+    size_t  CountExt;
+    char**  Ext;
+    size_t  CountMime;
+    char**  Mime;
 };
 
 #pragma pack(pop)

@@ -171,8 +171,8 @@ void LqThreadBase::SetPriority(LqThreadPriorEnm New)
         Priority = New;
         if(!IsOut)
         {
-			try
-			{
+            try
+            {
 #if defined(LQPLATFORM_WINDOWS)
             SetThreadPriority(native_handle(), __GetRealPrior(Priority));
 #else
@@ -180,9 +180,9 @@ void LqThreadBase::SetPriority(LqThreadPriorEnm New)
             schedparams.sched_priority = __GetRealPrior(Priority);
             pthread_setschedparam(native_handle(), SCHED_OTHER, &schedparams);
 #endif
-			} catch(...)
-			{
-			}
+            } catch(...)
+            {
+            }
         }
     }
     ThreadParamLocker.UnlockWrite();
@@ -216,18 +216,18 @@ void LqThreadBase::WaitEnd()
 {
     if(!this->IsOut)
     {
-		bool IsCallHandler = false;
+        bool IsCallHandler = false;
         try
         {
             this->join();
         } catch(...)
-		{
-			/*Is thread killed by system (Actual for Windows)*/
-			IsOut = true;
-			IsCallHandler = true;
-		}
-		if(IsCallHandler)
-			ExitHandler(UserData);
+        {
+            /*Is thread killed by system (Actual for Windows)*/
+            IsOut = true;
+            IsCallHandler = true;
+        }
+        if(IsCallHandler)
+            ExitHandler(UserData);
     }
 }
 
@@ -237,7 +237,7 @@ void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
         LqThreadYield();
 
 #if defined(LQPLATFORM_WINDOWS)
-	pthread_setname_np(This->ThreadId(), This->Name);
+    pthread_setname_np(This->ThreadId(), This->Name);
 #elif defined(LQPLATFORM_LINUX) || defined(LQPLATFORM_ANDROID)
     pthread_setname_np(pthread_self(), This->Name);
 #elif defined(LQPLATFORM_FREEBSD)
@@ -414,7 +414,6 @@ bool LqThreadBase::EndWorkSync()
 
 intptr_t LqThreadBase::ThreadId() const
 {
-	get_id();
     std::basic_stringstream<char> r;
     r << get_id();
     intptr_t id = 0;

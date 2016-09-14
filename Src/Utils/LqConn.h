@@ -117,7 +117,7 @@ LQ_IMPORTEXPORT void LQ_CALL __LqEvntFdDfltHandler(LqEvntFd* Instance, LqEvntFla
 /*
 * Add new file descriptor to follow
 */
-LQ_IMPORTEXPORT bool LQ_CALL LqEvntFdAdd(LqEvntFd* lqain Evnt);
+LQ_IMPORTEXPORT int LQ_CALL LqEvntFdAdd(LqEvntFd* lqain Evnt);
 
 /*
 * @return: SSL_CTX

@@ -40,7 +40,7 @@
 #include <stdint.h>
 #include <ctype.h>
 #include <string.h>
-#include "LqStr.hpp"
+#include "LqStr.h"
 
 
 inline constexpr uint32_t __StrSwitchLen(const char* const Str) { return (*Str != '\0') ? (__StrSwitchLen(Str + 1) + 1) : 0; }

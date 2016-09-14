@@ -14,9 +14,9 @@ struct LqZmbClrAdditionalInfo
 {
     LqTimeMillisec          TimeLive;
     const LqProto*          Proto;
-    volatile LqBool         IsUsed;
+    volatile bool         IsUsed;
     void*                   UserData;
-    LqBool(*RemoveProc)(LqEvntFd* Evnt, void* UserData);
+    bool(*RemoveProc)(LqEvntFd* Evnt, void* UserData);
 };
 
 
@@ -41,7 +41,7 @@ static void LQ_CALL LqZmbClrHandlerClose(LqEvntFd* Fd, LqEvntFlag RetFlags)
     }
 }
 
-LQ_EXTERN_C int LQ_CALL LqZmbClrInit(LqEvntFd* Dest, const LqProto* Proto, LqTimeMillisec TimeLive, LqBool(*RemoveProc)(LqEvntFd* Evnt, void* UserData), void* UserData)
+LQ_EXTERN_C int LQ_CALL LqZmbClrInit(LqEvntFd* Dest, const LqProto* Proto, LqTimeMillisec TimeLive, bool(*RemoveProc)(LqEvntFd* Evnt, void* UserData), void* UserData)
 {
     auto AddInfo = LqFastAlloc::New<LqZmbClrAdditionalInfo>();
     if(AddInfo == nullptr)

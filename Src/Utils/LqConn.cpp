@@ -525,7 +525,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose3(void * Conn)
     return LqWrkBossCloseEvntSync(h);
 }
 
-LQ_EXTERN_C bool LQ_CALL LqEvntFdAdd(LqEvntFd* Evnt)
+LQ_EXTERN_C int LQ_CALL LqEvntFdAdd(LqEvntFd* Evnt)
 {
     return LqWrkBossAddEvntAsync((LqEvntHdr*)Evnt);
 }

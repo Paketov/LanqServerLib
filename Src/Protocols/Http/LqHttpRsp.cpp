@@ -620,7 +620,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqHttpRspHdrAddSmallContent(LqHttpConn* c, const vo
         return -1;
     char* Place = LqHttpRspHdrAppendSize(c, LenContent);
     if(Place == nullptr)
-		return 0;
+        return 0;
     memcpy(Place, Content, LenContent);
     return LenContent;
 }

@@ -11,7 +11,6 @@
 
 #include "LqDef.h"
 #include "LqOs.h"
-#include <stdint.h>
 
 #ifdef LQPLATFORM_POSIX
 # include <poll.h>
@@ -27,7 +26,7 @@ struct LqAsync
 
 struct LqAsync
 {
-    LqBool IsNonBlock;
+    bool IsNonBlock;
     int EvFd;
     aiocb cb;
 };

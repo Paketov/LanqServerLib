@@ -19,8 +19,6 @@
 #include "LqOs.h"
 #include "LqDef.h"
 
-#include <stdint.h>
-
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
@@ -34,19 +32,19 @@ struct LqEvntInterator
 
 
 struct LqEvnt
-{	
-	LqBool              IsRemoved;
-	LqBool              DeepLoop;
-	int                 SignalFd;
-	LqEvntHdr**         ClientArr;
+{   
+    bool                IsRemoved;
+    int                 DeepLoop;
+    int                 SignalFd;
+    LqEvntHdr**         ClientArr;
 #if defined(LQEVNT_WIN_EVENT)
-	HANDLE*             EventArr;
+    HANDLE*             EventArr;
     int                 Count;
     int                 AllocCount;
     int                 EventEnumIndex;
 #elif defined(LQEVNT_KEVENT)
 #elif defined(LQEVNT_EPOLL)
-	void*               EventArr;
+    void*               EventArr;
     int                 EpollFd;
     int                 Count;
     int                 AllocCount;
@@ -57,7 +55,7 @@ struct LqEvnt
     void*               EventArr;
     int                 Count;
     int                 AllocCount;
-	int                 EventEnumIndex;
+    int                 EventEnumIndex;
 #endif
 };
 

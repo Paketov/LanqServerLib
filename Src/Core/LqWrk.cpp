@@ -799,7 +799,7 @@ size_t LqWrk::CloseConnByProtoSync(const LqProto * Addr)
     return Res;
 }
 
-size_t LqWrk::EnumDelEvnt(void* UserData, LqBool(*Proc)(void *UserData, LqEvntHdr* Conn))
+size_t LqWrk::EnumDelEvnt(void* UserData, bool(*Proc)(void *UserData, LqEvntHdr* Conn))
 {
     size_t Res = 0;
     LockWrite();
@@ -817,7 +817,7 @@ size_t LqWrk::EnumDelEvnt(void* UserData, LqBool(*Proc)(void *UserData, LqEvntHd
     return Res;
 }
 
-size_t LqWrk::EnumDelEvntByProto(const LqProto * Proto, void * UserData, LqBool(*Proc)(void *UserData, LqEvntHdr *Conn))
+size_t LqWrk::EnumDelEvntByProto(const LqProto * Proto, void * UserData, bool(*Proc)(void *UserData, LqEvntHdr *Conn))
 {
     size_t Res = 0;
     LockWrite();

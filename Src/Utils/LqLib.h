@@ -11,13 +11,10 @@
 #include "LqOs.h"
 #include "LqDef.h"
 
-#include <stdint.h>
-
-
 LQ_EXTERN_C_BEGIN
 
 LQ_IMPORTEXPORT uintptr_t LQ_CALL LqLibLoad(const char* lqain lqacp ModuleName);
-LQ_IMPORTEXPORT bool LQ_CALL LqLibFree(uintptr_t ModuleHandle);
+LQ_IMPORTEXPORT int LQ_CALL LqLibFree(uintptr_t ModuleHandle);
 LQ_IMPORTEXPORT uintptr_t LQ_CALL LqLibGetHandleByAddr(const void* Address);
 LQ_IMPORTEXPORT int LQ_CALL LqLibGetPathByHandle(uintptr_t Handle, char* lqaout lqacp DestName, size_t DestSize);
 LQ_IMPORTEXPORT void* LQ_CALL LqLibGetProc(uintptr_t ModuleHandle, const char* lqain ProcName);

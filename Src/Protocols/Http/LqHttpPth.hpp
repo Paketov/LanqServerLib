@@ -13,6 +13,7 @@ struct LqHttpDomainPaths;
 #include "LqLock.hpp"
 #include "LqHashTable.hpp"
 #include "LqHttpPth.h"
+#include "LqDef.hpp"
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)

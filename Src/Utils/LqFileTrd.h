@@ -10,7 +10,7 @@
 #define __TRANSACTED_FILE_H_HAS_INCLUDED__
 
 #include "LqOs.h"
-#include <stdint.h>
+#include "LqDef.h"
 
 
 #define LQ_TC_REPLACE           0x00010000

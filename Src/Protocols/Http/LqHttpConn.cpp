@@ -13,8 +13,6 @@
 #include "LqAlloc.hpp"
 #include "LqHttpPth.hpp"
 
-#include <stdint.h>
-
 
 intptr_t LqHttpConnHdrEnm(bool IsResponse, char* Buf, size_t SizeHeaders, char** HeaderNameResult, char** HeaderNameResultEnd, char** HeaderValResult, char** HeaderValEnd)
 {
