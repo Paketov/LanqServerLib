@@ -511,6 +511,7 @@ LQ_IMPORTEXPORT LqHttpProtoBase* LQ_CALL LqHttpProtoCreate();
 LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoDelete(LqHttpProtoBase* Proto);
 
 LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoBind(LqHttpProtoBase* Reg);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpProtoIsBind(LqHttpProtoBase* Reg);
 LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoUnbind(LqHttpProtoBase* Reg);
 
 LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoGetInfo

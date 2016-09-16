@@ -69,13 +69,14 @@ struct LqFilePoll
 
 struct LqAsync
 {
-	union
-	{
-		long        Status;
-		void*       Pointer;
-	};
-	uintptr_t       Information;
+    union
+    {
+        long        Status;
+        void*       Pointer;
+    };
+    uintptr_t       Information;
 };
+
 
 #define LQ_POLLIN    1
 #define LQ_POLLOUT   2
@@ -428,6 +429,16 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileProcessParentId();
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileProcessName(int Pid, char* lqacp lqaout DestBuf, intptr_t SizeBuf);
 
 /*------------------------------------------
+* Change or get current working directory
+* Set current working directory
+*   @return: -1 - on error, 0 - on success
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqFileSetCurDir(const char* lqacp lqain NewDir);
+/* Get current working directory
+*   @return: -1 - on error, 0 - on success
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqFileGetCurDir(char* lqacp lqaout DirBuf, size_t LenBuf);
+/*------------------------------------------
 * Start enumerate path
 *  @retur: -1 is end enum, 0 - is have path
 */
@@ -456,6 +467,8 @@ LQ_IMPORTEXPORT void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* lqaio Evnt);
 *  @return: 0 - on success, -1 - on error
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFileTermPairCreate(int* lqaout MasterFd, int* lqaout SlaveFd, int MasterFlags, int SlaveFlags);
+
+LQ_IMPORTEXPORT bool LQ_CALL LqFileDirIsRoot(const char* DirOrFile);
 
 /*------------------------------------------
 * Shared memory

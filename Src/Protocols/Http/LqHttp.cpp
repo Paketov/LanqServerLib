@@ -325,6 +325,11 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoBind(LqHttpProtoBase* Reg)
     return 0;
 }
 
+LQ_EXTERN_C bool LQ_CALL LqHttpProtoIsBind(LqHttpProtoBase* Reg)
+{
+    return Reg->Conn.Fd != -1;
+}
+
 LQ_EXTERN_C int LQ_CALL LqHttpProtoUnbind(LqHttpProtoBase* Reg)
 {
     LqHttpProto* Proto = (LqHttpProto*)Reg;

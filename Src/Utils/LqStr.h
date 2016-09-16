@@ -55,6 +55,8 @@ LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrUtf8StrToChar(const char* lqautf8 lqain  S
 
 LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrCharRead(FILE* FileBuf);
 
+LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrCharReadUtf8File(FILE* FileBuf);
+
 LQ_EXTERN_C_END
 
 #endif

@@ -622,7 +622,14 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFileRealPath(const char* Source, char* Dest, intp
     wchar_t New[LQ_MAX_PATH];
     _LqFileConvertNameToWcs(Source, Name, LQ_MAX_PATH);
     auto Ret = GetFullPathNameW(Name, LQ_MAX_PATH - 1, New, NULL);
-    LqCpConvertFromWcs(New, Dest, DestLen);
+    if(!((Source[0] == '\\') && (Source[1] == '\\') && (Source[2] == '?') && (Source[3] == '\\')) && 
+        (New[0] == L'\\') && (New[1] == L'\\') && (New[2] == L'?') && (New[3] == L'\\'))
+    {
+        LqCpConvertFromWcs(New + 4, Dest, DestLen);
+    } else
+    {
+        LqCpConvertFromWcs(New, Dest, DestLen);
+    }
     return (Ret == 0) ? -1 : Ret;
 }
 
@@ -954,6 +961,22 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFileProcessName(int Pid, char* DestBuf, intptr_t 
     if(Ret <= 0)
         return -1;
     return LqCpConvertFromWcs(Name, DestBuf, SizeBuf);
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileSetCurDir(const char* NewDir)
+{
+    wchar_t Name[LQ_MAX_PATH];
+	LqCpConvertToWcs(NewDir, Name, LQ_MAX_PATH);
+    return (SetCurrentDirectoryW(Name) == TRUE)? 0: -1;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileGetCurDir(char* DirBuf, size_t LenBuf)
+{
+    wchar_t Name[LQ_MAX_PATH];
+    if(GetCurrentDirectoryW(LQ_MAX_PATH - 1, Name) <= 0)
+        return -1;
+    LqCpConvertFromWcs(Name, DirBuf, LenBuf);
+    return 0;
 }
 
 /*------------------------------------------
@@ -1968,11 +1991,13 @@ LQ_EXTERN_C int LQ_CALL LqFileSetLock(int Fd, LqFileSz StartOffset, LqFileSz Len
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileRealPath(const char* Source, char* Dest, intptr_t DestLen)
 {
-    auto Ret = realpath(Source, nullptr);
+    char Buf[PATH_MAX];
+    auto Ret = realpath(Source, Buf);
     if(Ret == nullptr)
         return -1;
     auto Len = LqStrCopyMax(Dest, Ret, DestLen);
-    free(Ret);
+    if(Ret != Buf)
+        free(Ret);
     return Len;
 }
 
@@ -2200,6 +2225,16 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFileProcessName(int Pid, char* DestBuf, intptr_t 
     char Buf[64];
     sprintf(Buf, "/proc/%i/exe", Pid);
     return readlink(Buf, DestBuf, SizeBuf);
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileSetCurDir(const char* NewDir)
+{
+    return chdir(NewDir);
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileGetCurDir(char* DirBuf, size_t LenBuf)
+{
+    return (getcwd(DirBuf, LenBuf) != nullptr) ? 0 : -1;
 }
 
 
@@ -2842,6 +2877,22 @@ LQ_EXTERN_C int LQ_CALL LqFileTermPairCreate(int* MasterFd, int* SlaveFd, int Ma
 }
 
 #endif
+
+LQ_EXTERN_C bool LQ_CALL LqFileDirIsRoot(const char* DirOrFile)
+{
+    if(LQ_PATH_SEPARATOR == '/')
+    {
+        return DirOrFile[0] == '/';
+    } else
+    {
+        if(((((DirOrFile[0] >= 'a') && (DirOrFile[0] <= 'z')) || ((DirOrFile[0] >= 'A') && (DirOrFile[0] <= 'Z'))) && (DirOrFile[1] == ':')) ||
+            ((DirOrFile[0] == '\\') && (DirOrFile[1] == '\\') && (DirOrFile[2] == '?') && (DirOrFile[3] == '\\')))
+        {
+            return true;
+        }
+    }
+    return false;
+}
 
 
 LQ_EXTERN_C int LQ_CALL LqFileMakeSubdirs(const char* NewSubdirsDirName, int Access)

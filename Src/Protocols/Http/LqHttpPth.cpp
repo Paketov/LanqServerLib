@@ -982,12 +982,15 @@ static LqHttpPth* LqHttpPthCreate
         {
             if(Data != nullptr)
             {
-                ResultPth->RealPath = LqStrDuplicate((const char*)Data);
-                if(ResultPth->RealPath == nullptr)
+                size_t CurLen = (LQ_MAX_PATH + 1024) * sizeof(char);
+                char* Buf = (char*)malloc(CurLen);
+                if((Buf == nullptr) || (LqFileRealPath((const char*)Data, Buf, CurLen - 1) == -1))
                 {
                     LqHttpPthRelease(ResultPth);
                     return nullptr;
                 }
+                CurLen = LqStrLen(Buf) + 2;
+                ResultPth->RealPath = (char*)realloc(Buf, CurLen);
             } else
             {
                 ResultPth->RealPath = nullptr;

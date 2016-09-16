@@ -23,7 +23,6 @@
 
 #include "LqAlloc.hpp"
 
-
 extern "C" __kernel_entry NTSTATUS NTAPI NtReadFile(
     _In_     HANDLE           FileHandle,
     _In_opt_ HANDLE           Event,
@@ -69,6 +68,8 @@ extern "C" NTSYSAPI NTSTATUS NTAPI NtWaitForMultipleObjects(
     __in_opt PLARGE_INTEGER Timeout
 );
 
+extern "C" __kernel_entry NTSTATUS NTAPI NtClearEvent(IN HANDLE EventHandle);
+
 #define LQCONN_FLAG_RD_AGAIN _LQEVNT_FLAG_RESERVED_1
 #define LQCONN_FLAG_WR_AGAIN _LQEVNT_FLAG_RESERVED_2
 
@@ -81,6 +82,7 @@ extern "C" NTSYSAPI NTSTATUS NTAPI NtWaitForMultipleObjects(
 #define IsRdAgain(Client)  ((Client->Flag & (LQCONN_FLAG_RD_AGAIN | LQEVNT_FLAG_RD)) == (LQCONN_FLAG_RD_AGAIN | LQEVNT_FLAG_RD))
 #define IsWrAgain(Client)  ((Client->Flag & (LQCONN_FLAG_WR_AGAIN | LQEVNT_FLAG_WR)) == (LQCONN_FLAG_WR_AGAIN | LQEVNT_FLAG_WR))
 #define IsAgain(Client)    (IsRdAgain(Client) || IsWrAgain(Client))
+
 
 bool LqEvntInit(LqEvnt* Dest)
 {
@@ -95,7 +97,7 @@ bool LqEvntInit(LqEvnt* Dest)
 
     Dest->AllocCount = Dest->Count = 1;
     Dest->SignalFd = LqFileEventCreate(LQ_O_NOINHERIT);
-    if(Dest->SignalFd == NULL)
+    if(Dest->SignalFd == -1)
     {
         ___free(Dest->EventArr);
         Dest->EventArr = nullptr;
@@ -136,7 +138,7 @@ bool LqEvntAddHdr(LqEvnt* Dest, LqEvntHdr* Client)
     int Event = -1;
     if(LqEvntIsConn(Client))
     {
-        if((Event = (int)WSACreateEvent()) == 0)
+        if((Event = LqFileEventCreate(LQ_O_NOINHERIT)) == -1)
             return false;
         if(WSAEventSelect(Client->Fd, (HANDLE)Event, LqEvntSystemEventByConnEvents(Client)) == SOCKET_ERROR)
             goto lblErrOut;

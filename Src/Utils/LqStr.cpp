@@ -10,6 +10,7 @@
 #include "LqStr.hpp"
 #include "LqDfltRef.hpp"
 #include "LqCp.h"
+#include "LqFile.h"
 #if defined(LQPLATFORM_WINDOWS)
 #include "Windows.h"
 #include <io.h>
@@ -86,8 +87,10 @@ LQ_EXTERN_C uint32_t LQ_CALL LqStrCharRead(FILE* FileBuf)
     fflush(FileBuf);
     HANDLE h = (HANDLE)_get_osfhandle(_fileno(FileBuf));
     uint8_t Buf2[5] = {0};
+
     if(ReadConsoleW(h, Buf1, 1, LqDfltPtr(), nullptr) == FALSE)
         return -1;
+
     if(LqStrUtf16Count(Buf1[0]) >= 2)
     {
         if(ReadConsoleW(h, Buf1 + 1, 1, LqDfltPtr(), nullptr) == FALSE)
@@ -98,6 +101,21 @@ LQ_EXTERN_C uint32_t LQ_CALL LqStrCharRead(FILE* FileBuf)
 #else
     return getc(FileBuf);
 #endif
+}
+
+LQ_EXTERN_C uint32_t LQ_CALL LqStrCharReadUtf8File(FILE* FileBuf)
+{
+    char Buf[6] = {0};
+    if(fread(Buf, 1, 1, FileBuf) < 1)
+        return -1;
+    auto Count = LqStrUtf8Count(Buf[0]);
+    Count--;
+    if(Count > 0)
+    {
+        if(fread(Buf + 1, 1, Count, FileBuf) < Count)
+            return -1;
+    }
+    return LqStrUtf8StrToChar(Buf);
 }
 
 LQ_EXTERN_C int LQ_CALL LqStrUtf8Count(char ch)
