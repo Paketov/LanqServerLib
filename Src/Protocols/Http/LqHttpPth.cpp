@@ -605,8 +605,9 @@ static LqHttpPth* LqHttpPthGetByAddressSubdirCheck
             if(Pth != nullptr)
             {
                 if((k > 1) && !(Pth->p->Type & LQHTTPPTH_FLAG_SUBDIR))
-                    continue;
-                break;
+                    Pth = nullptr;
+                else
+                    break;
             }
         }
     LQ_BREAK_BLOCK_END
