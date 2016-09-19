@@ -966,7 +966,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFileProcessName(int Pid, char* DestBuf, intptr_t 
 LQ_EXTERN_C int LQ_CALL LqFileSetCurDir(const char* NewDir)
 {
     wchar_t Name[LQ_MAX_PATH];
-	LqCpConvertToWcs(NewDir, Name, LQ_MAX_PATH);
+    LqCpConvertToWcs(NewDir, Name, LQ_MAX_PATH);
     return (SetCurrentDirectoryW(Name) == TRUE)? 0: -1;
 }
 
@@ -1639,6 +1639,55 @@ LQ_EXTERN_C void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* Evnt)
     }
 }
 
+LQ_EXTERN_C int LQ_CALL LqFileSetEnv(const char* Name, const char* Value)
+{
+    wchar_t NameW[32768];
+    wchar_t ValueW[32768];
+    LqCpConvertToWcs(Name, NameW, 32767);
+    if(Value != nullptr)
+        LqCpConvertToWcs(Value, ValueW, 32767);
+    return (SetEnvironmentVariableW(NameW, (Value != nullptr) ? ValueW : nullptr) == TRUE) ? 0 : -1;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileGetEnv(const char* Name, char* Value, size_t ValueBufLen)
+{
+    wchar_t NameW[32768];
+    wchar_t ValueW[32768];
+    LqCpConvertToWcs(Name, NameW, 32767);
+
+    if(GetEnvironmentVariableW(NameW, ValueW, 32767) == 0)
+        return -1;
+    return LqCpConvertFromWcs(ValueW, Value, ValueBufLen);
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileGetEnvs(char* Buf, size_t BufLen)
+{
+    LPWCH Wch = GetEnvironmentStringsW();
+    if(Wch == nullptr)
+        return -1;
+    if(BufLen <= 4)
+    {
+        FreeEnvironmentStringsW(Wch);
+        lq_errno_set(EINVAL);
+        return -1;
+    }
+    char* m = Buf + BufLen - 1, *s = Buf;
+    int j = 0;
+    auto FreeWch = Wch;
+    for(; *Wch != L'\0';)
+    {
+        auto l = m - s;
+        auto k = LqCpConvertFromWcs(Wch, s, l);
+        if((k + 1) >= l)
+            break;
+        s += k;
+        while(*(Wch++) != L'\0');
+        j++;
+    }
+    FreeEnvironmentStringsW(FreeWch);
+    *s = '\0';
+    return j;
+}
 
 #define __METHOD_DECLS__
 #include "LqAlloc.hpp"
@@ -2875,6 +2924,62 @@ LQ_EXTERN_C int LQ_CALL LqFileTermPairCreate(int* MasterFd, int* SlaveFd, int Ma
     *SlaveFd = pts;
     return 0;
 }
+
+static LqLocker<uintptr_t> EnvLocker;
+
+LQ_EXTERN_C int LQ_CALL LqFileSetEnv(const char* Name, const char* Value)
+{
+    EnvLocker.LockWriteYield();
+    auto Ret = (Value != nullptr) ? setenv(Name, Value, 1) : unsetenv(Name);
+    EnvLocker.UnlockWrite();
+    return Ret;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileGetEnv(const char* Name, char* Value, size_t ValueBufLen)
+{
+    EnvLocker.LockReadYield();
+    auto Ret = getenv(Name);
+    int Len;
+    if(Ret != nullptr)
+        Len = LqStrCopyMax(Value, Ret, ValueBufLen);
+    else
+        Len = -1;
+    EnvLocker.UnlockRead();
+    return Len;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFileGetEnvs(char* Buf, size_t BufLen)
+{
+    EnvLocker.LockReadYield();
+    auto Envs = environ;
+    if(Envs == nullptr)
+    {
+        EnvLocker.UnlockRead();
+        return -1;
+    }
+    if(BufLen <= 4)
+    {
+        EnvLocker.UnlockRead();
+        lq_errno_set(EINVAL);
+        return -1;
+    }
+    char* m = Buf + BufLen - 1;
+    char* s = Buf;
+    int j = 0;
+    for(int i = 0; Envs[i] != '\0'; i++)
+    {
+        auto l = m - s;
+        auto k = LqStrCopyMax(s, Envs[i], l);
+        if((k + 1) >= l)
+            break;
+        s += (k + 1);
+        j++;
+    }
+    EnvLocker.UnlockRead();
+    *s = '\0';
+    return j;
+}
+
 
 #endif
 

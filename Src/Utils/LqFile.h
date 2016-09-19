@@ -470,6 +470,32 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileTermPairCreate(int* lqaout MasterFd, int* lqao
 
 LQ_IMPORTEXPORT bool LQ_CALL LqFileDirIsRoot(const char* DirOrFile);
 
+
+/*------------------------------------------
+* Multiplatform environment (Used code page from LqCp...)
+*/
+/*LqFileSetEnv
+*  @Name: Name of env. var
+*  @Value: New value, or when == nullptr unsetted var
+*  @return: -1 - on error, 0 - on success
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqFileSetEnv(const char* lqain Name, const char* lqain Value);
+
+/*LqFileGetEnv
+*  @Name: Name of env. var
+*  @Value: Buffer for value
+*  @ValueBufLen: Size of @Value buffer
+*  @return: -1 - on error, otherwise count written bytes
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqFileGetEnv(const char* lqain Name, char* lqaout Value, size_t ValueBufLen);
+
+/*LqFileGetEnvs
+*  @Buf: Dest buffer (Name1=Value1\0Name2=Value2\0\0)
+*  @BufLen: Length of @Buf
+*  @return: -1 - on error, otherwise count variables written
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqFileGetEnvs(char* lqaout Buf, size_t BufLen);
+
 /*------------------------------------------
 * Shared memory
 *

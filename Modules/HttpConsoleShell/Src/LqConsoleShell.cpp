@@ -227,6 +227,26 @@ lblAgain:
         if(CommandFlags.find_first_of('@') != LqString::npos)
             OutFile = NullOut;
         IsSuccess = true;
+
+        size_t LastIndex = 0;
+        while(LastIndex != LqString::npos)
+        {
+            auto VarIndex = CommandData.find("$<", LastIndex);
+            LastIndex = LqString::npos;
+            if(VarIndex != LqString::npos)
+            {
+                auto EndIndex = CommandData.find('>', VarIndex);
+                if(EndIndex != LqString::npos)
+                {
+                    char Buf[32768];
+                    Buf[0] = '\0';
+                    if(LqFileGetEnv(CommandData.substr(VarIndex + 2, EndIndex - (VarIndex + 2)).c_str(), Buf, 32767) != -1)
+                        CommandData = CommandData.substr(0, VarIndex) + Buf + CommandData.substr(EndIndex + 1);
+                    LastIndex = EndIndex;
+                }
+            }
+        }
+
         LQSTR_SWITCH_N(CommandBuf, CommandLen)
         {
             LQSTR_CASE("lqcmd")
@@ -283,6 +303,54 @@ lblAgain:
                 if(LqFileSetCurDir(Path.c_str()) == -1)
                 {
                     fprintf(OutFile, " ERROR: Not change current dir (%s)\n", strerror(lq_errno));
+                    IsSuccess = false;
+                } else
+                {
+                    fprintf(OutFile, " OK\n");
+                }
+            }
+            break;
+            LQSTR_CASE("set")
+            {
+                if(CommandData[0] == '\0')
+                {
+                    char Buf[32768];
+                    char *s = Buf;
+                    Buf[0] = Buf[1] = '\0';
+                    auto Count = LqFileGetEnvs(Buf, 32767);
+                    for(; *s != '\0'; )
+                    {
+                        printf("%s\n", s);
+                        s += (LqStrLen(s) + 1);
+                    }
+                    break;
+                }
+                auto i = CommandData.find('=');
+                if(i == LqString::npos)
+                {
+                    char Buf[32768];
+                    Buf[0] = '\0';
+                    LqFileGetEnv(CommandData.c_str(), Buf, 32767);
+                    fprintf(OutFile, " %s\n", Buf);
+                    break;
+                }
+                LqString Name = CommandData.substr(0, i);
+                LqString Value = CommandData.substr(i + 1);
+                if(LqFileSetEnv(Name.c_str(), Value.c_str()) == -1)
+                {
+                    fprintf(OutFile, " ERROR: Not setted env. arg. (%s)\n", strerror(lq_errno));
+                    IsSuccess = false;
+                } else
+                {
+                    fprintf(OutFile, " OK\n");
+                }
+            }
+            break;
+            LQSTR_CASE("unset")
+            {
+                if(LqFileSetEnv(CommandData.c_str(), nullptr) == -1)
+                {
+                    fprintf(OutFile, " ERROR: Not unsetted env. arg. (%s)\n", strerror(lq_errno));
                     IsSuccess = false;
                 } else
                 {
@@ -1457,7 +1525,7 @@ void PrintPthRegisterResult(FILE* Dest, LqHttpPthResultEnm Res)
         case LQHTTPPTH_RES_NOT_HAVE_DOMEN: fprintf(Dest, " ERROR: Not have domen\n"); break;
         case LQHTTPPTH_RES_NOT_HAVE_ATZ: fprintf(Dest, " ERROR: Not have authorization\n"); break;
         case LQHTTPPTH_RES_ALREADY_HAVE_ATZ: fprintf(Dest, " ERROR: Already have authorization\n"); break;
-        case LQHTTPPTH_RES_NOT_DIR: fprintf(Dest, " ERROR: Not dir\n"); break;
+        case LQHTTPPTH_RES_NOT_DIR: fprintf(Dest, " ERROR: Not dir (dir must be ex: /serv/)\n"); break;
         case LQHTTPPTH_RES_NOT_HAVE_PATH: fprintf(Dest, " ERROR: Not have path\n"); break;
         case LQHTTPPTH_RES_OK: fprintf(Dest, " OK\n"); return;
         default: fprintf(Dest, " ERROR\n"); break;

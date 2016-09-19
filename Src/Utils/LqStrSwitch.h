@@ -42,41 +42,52 @@
 #include <string.h>
 #include "LqStr.h"
 
+#ifndef LQSTR_SWITCH_TYPE_CASE
+#define LQSTR_SWITCH_TYPE_CASE uint64_t
+#endif
+#ifndef LQSTR_SWITCH_TYPE_HASH
+#define LQSTR_SWITCH_TYPE_HASH uint32_t
+#endif
+#ifndef LQSTR_SWITCH_TYPE_LEN
+#define LQSTR_SWITCH_TYPE_LEN  uint32_t
+#endif
 
-inline constexpr uint32_t __StrSwitchLen(const char* const Str) { return (*Str != '\0') ? (__StrSwitchLen(Str + 1) + 1) : 0; }
-inline constexpr uint32_t __StrSwitchHash(const char* const Str, uint32_t CurHash) { return (*Str != '\0') ? (__StrSwitchHash(Str + 1, CurHash * 31 + *Str)) : CurHash; }
-inline constexpr uint64_t __StrSwitchStrCase(const char* const Str) { return ((uint64_t)__StrSwitchLen(Str) << 32) | (uint64_t)__StrSwitchHash(Str, 0); }
+inline constexpr LQSTR_SWITCH_TYPE_LEN __StrSwitchLen(const char* const Str) { return (*Str != '\0') ? (__StrSwitchLen(Str + 1) + 1) : 0; }
+inline constexpr LQSTR_SWITCH_TYPE_HASH __StrSwitchHash(const char* const Str, LQSTR_SWITCH_TYPE_HASH CurHash) \
+	{ return (*Str != '\0') ? (__StrSwitchHash(Str + 1, CurHash * (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8 - 1) + *Str)) : CurHash; }
+inline constexpr LQSTR_SWITCH_TYPE_CASE __StrSwitchStrCase(const char* const Str) \
+	{ return ((LQSTR_SWITCH_TYPE_CASE)__StrSwitchLen(Str) << (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8)) | (LQSTR_SWITCH_TYPE_CASE)__StrSwitchHash(Str, 0); }
 
-inline uint64_t __StrSwitch(const char* Str)
+inline LQSTR_SWITCH_TYPE_CASE __StrSwitch(const char* Str)
 {
-    uint32_t h = 0;
+	LQSTR_SWITCH_TYPE_HASH h = 0;
     const char* k = Str;
-    for(; *k != '\0'; k++) h = 31 * h + *k;
-    return ((uint64_t)(k - Str) << 32) | (uint64_t)h;
+    for(; *k != '\0'; k++) h = (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8 - 1) * h + *k;
+    return ((LQSTR_SWITCH_TYPE_CASE)(k - Str) << (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8)) | (LQSTR_SWITCH_TYPE_CASE)h;
 }
 
-inline uint64_t __StrSwitchN(const char* Str, size_t Len)
+inline LQSTR_SWITCH_TYPE_CASE __StrSwitchN(const char* Str, size_t Len)
 {
-    uint32_t h = 0;
+	LQSTR_SWITCH_TYPE_HASH h = 0;
     const char* k = Str, *m = Str + Len;
-    for(; k < m; k++) h = 31 * h + *k;
-    return ((uint64_t)(Len) << 32) | (uint64_t)h;
+    for(; k < m; k++) h = (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8 - 1) * h + *k;
+    return ((LQSTR_SWITCH_TYPE_CASE)(Len) << (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8)) | (LQSTR_SWITCH_TYPE_CASE)h;
 }
 
-inline uint64_t __StrSwitchI(const char* Str)
+inline LQSTR_SWITCH_TYPE_CASE __StrSwitchI(const char* Str)
 {
-    uint32_t h = 0;
+	LQSTR_SWITCH_TYPE_HASH h = 0;
     const char* k = Str;
-    for(; *k != '\0'; k++) h = 31 * h + tolower(*k);
-    return ((uint64_t)(k - Str) << 32) | (uint64_t)h;
+    for(; *k != '\0'; k++) h = (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8 - 1) * h + tolower(*k);
+    return ((LQSTR_SWITCH_TYPE_CASE)(k - Str) << (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8)) | (LQSTR_SWITCH_TYPE_CASE)h;
 }
 
-inline uint64_t __StrSwitchNI(const char* Str, size_t Len)
+inline LQSTR_SWITCH_TYPE_CASE __StrSwitchNI(const char* Str, size_t Len)
 {
-    uint32_t h = 0;
+	LQSTR_SWITCH_TYPE_HASH h = 0;
     const char* k = Str, *m = Str + Len;
-    for(; k < m; k++) h = 31 * h + tolower(*k);
-    return ((uint64_t)(Len) << 32) | (uint64_t)h;
+    for(; k < m; k++) h = (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8 - 1) * h + tolower(*k);
+    return ((LQSTR_SWITCH_TYPE_CASE)(Len) << (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8)) | (LQSTR_SWITCH_TYPE_CASE)h;
 }
 
 #define LQSTR_SWITCH(Str) \
@@ -99,7 +110,7 @@ inline uint64_t __StrSwitchNI(const char* Str, size_t Len)
         {\
             static const auto h = __StrSwitchStrCase(Str);\
             case h:\
-            if((___switch_hash == h) && (memcmp(Str, ___switch_str, h >> 32) != 0)) break;\
+            if((___switch_hash == h) && (memcmp(Str, ___switch_str, h >> (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8)) != 0)) break;\
         }
 
 /*@Str - must be string in lower case*/
@@ -107,7 +118,7 @@ inline uint64_t __StrSwitchNI(const char* Str, size_t Len)
         {\
             static const auto h = __StrSwitchStrCase(Str);\
             case h:\
-            if((___switch_hash == h) && !LqStrUtf8CmpCaseLen(Str, ___switch_str, h >> 32)) break;\
+            if((___switch_hash == h) && !LqStrUtf8CmpCaseLen(Str, ___switch_str, h >> (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8))) break;\
         }
 
 #define LQSTR_SWITCH_DEFAULT default:
