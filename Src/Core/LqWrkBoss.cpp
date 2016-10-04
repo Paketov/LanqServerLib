@@ -81,10 +81,10 @@ size_t LqWrkBoss::TransferAllEvnt(LqWrk* Source) const
                 Command.Pop<LqEvntHdr*>();
                 Source->CountConnectionsInQueue--;
 
-				intptr_t Min = std::numeric_limits<intptr_t>::max(), Index;
-				for(size_t i = 0, m = LocalWrks.size(); i < m; i++)
+                intptr_t Min = std::numeric_limits<intptr_t>::max(), Index;
+                for(size_t i = 0, m = LocalWrks.size(); i < m; i++)
                 {
-					if(LocalWrks[i] == Source)
+                    if(LocalWrks[i] == Source)
                         continue;
                     size_t l = LocalWrks[i]->GetAssessmentBusy();
                     if(l < Min)
@@ -116,23 +116,23 @@ int LqWrkBoss::AddWorkers(size_t Count, bool IsStart)
     if(Count <= 0)
         return 0;
     int Res = 0;
-	for(size_t i = 0; i < Count; i++)
-	{
-		auto NewWorker = LqWrk::New(IsStart);
-		if(NewWorker == nullptr)
-		{
-			LQ_ERR("LqWrkBoss::AddWorkers() not alloc new worker\n");
-			continue;
-		}
-		Wrks.push_back(NewWorker);
-		Res++;
-	}
+    for(size_t i = 0; i < Count; i++)
+    {
+        auto NewWorker = LqWrk::New(IsStart);
+        if(NewWorker == nullptr)
+        {
+            LQ_ERR("LqWrkBoss::AddWorkers() not alloc new worker\n");
+            continue;
+        }
+        Wrks.push_back(NewWorker);
+        Res++;
+    }
     return Res;
 }
 
 bool LqWrkBoss::AddWorker(const LqWrkPtr& Wrk)
 {
-	return Wrks.push_back(Wrk);
+    return Wrks.push_back(Wrk);
 }
 
 bool LqWrkBoss::AddEvntAsync(LqEvntHdr* Evnt)
@@ -158,7 +158,7 @@ bool LqWrkBoss::AddEvntAsync(LqEvntHdr* Evnt)
 bool LqWrkBoss::AddEvntSync(LqEvntHdr* Evnt)
 {
     bool Res = true;
-	auto LocalWrks = Wrks.begin();
+    auto LocalWrks = Wrks.begin();
 
     if(LocalWrks.size() <= 0)
     {
@@ -179,7 +179,7 @@ bool LqWrkBoss::AddEvntSync(LqEvntHdr* Evnt)
 bool LqWrkBoss::TransferEvnt(const LqListEvnt & ConnectionsList) const
 {
     bool Res = false;
-	auto LocalWrks = Wrks.begin();
+    auto LocalWrks = Wrks.begin();
     if(LocalWrks.size() > 0)
     {
         for(size_t i = 0; i < ConnectionsList.GetCount(); i++)
@@ -240,7 +240,7 @@ size_t LqWrkBoss::StartAllWorkersSync() const
 size_t LqWrkBoss::StartAllWorkersAsync() const
 {
     size_t Ret = 0;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Ret += ((*i)->StartAsync() ? 1 : 0);
     return Ret;
 }
@@ -248,18 +248,18 @@ size_t LqWrkBoss::StartAllWorkersAsync() const
 bool LqWrkBoss::KickWorker(ullong IdWorker)
 {
     /*Lock operation remove from array*/
-	return Wrks.remove_by_compare_fn([&](LqWrkPtr& Wrk) { return Wrk->GetId() == IdWorker; });
+    return Wrks.remove_by_compare_fn([&](LqWrkPtr& Wrk) { return Wrk->GetId() == IdWorker; });
 }
 
 size_t LqWrkBoss::KickWorkers(uintptr_t Count)
 {
-	return Wrks.unappend(Count);
+    return Wrks.unappend(Count);
 }
 
 bool LqWrkBoss::CloseAllEvntAsync() const
 {
     bool Res = true;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res &= (*i)->CloseAllEvntAsync();
     return Res;
 }
@@ -267,7 +267,7 @@ bool LqWrkBoss::CloseAllEvntAsync() const
 size_t LqWrkBoss::CloseAllEvntSync() const
 {
     size_t Res = 0;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res += (*i)->CloseAllEvntSync();
     return Res;
 }
@@ -275,7 +275,7 @@ size_t LqWrkBoss::CloseAllEvntSync() const
 size_t LqWrkBoss::CloseEventAsync(LqEvntHdr* Event) const
 {
     bool Res = true;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res &= (*i)->CloseEvntAsync(Event);
     return Res;
 }
@@ -283,7 +283,7 @@ size_t LqWrkBoss::CloseEventAsync(LqEvntHdr* Event) const
 bool LqWrkBoss::CloseEventSync(LqEvntHdr* Event) const
 {
     size_t Res = 0;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res += (*i)->CloseEvntSync(Event);
     return Res;
 }
@@ -291,7 +291,7 @@ bool LqWrkBoss::CloseEventSync(LqEvntHdr* Event) const
 size_t LqWrkBoss::CloseEventByTimeoutSync(LqTimeMillisec LiveTime) const
 {
     size_t Res = 0;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res += (*i)->RemoveConnOnTimeOutSync(LiveTime);
     return Res;
 }
@@ -299,7 +299,7 @@ size_t LqWrkBoss::CloseEventByTimeoutSync(LqTimeMillisec LiveTime) const
 bool LqWrkBoss::CloseEventByTimeoutAsync(LqTimeMillisec LiveTime) const
 {
     bool Res = true;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res &= (*i)->RemoveConnOnTimeOutAsync(LiveTime);
     return Res;
 }
@@ -307,7 +307,7 @@ bool LqWrkBoss::CloseEventByTimeoutAsync(LqTimeMillisec LiveTime) const
 size_t LqWrkBoss::CloseEventByTimeoutSync(const LqProto * Proto, LqTimeMillisec LiveTime) const
 {
     size_t Res = 0;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res += (*i)->RemoveConnOnTimeOutSync(Proto, LiveTime);
     return Res;
 }
@@ -315,7 +315,7 @@ size_t LqWrkBoss::CloseEventByTimeoutSync(const LqProto * Proto, LqTimeMillisec 
 bool LqWrkBoss::CloseEventByTimeoutAsync(const LqProto * Proto, LqTimeMillisec LiveTime) const
 {
     bool Res = true;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res &= (*i)->RemoveConnOnTimeOutAsync(Proto, LiveTime);
     return Res;
 }
@@ -323,7 +323,7 @@ bool LqWrkBoss::CloseEventByTimeoutAsync(const LqProto * Proto, LqTimeMillisec L
 bool LqWrkBoss::CloseConnByIpAsync(const sockaddr* Addr) const
 {
     bool Res = true;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res &= (*i)->CloseConnByIpAsync(Addr);
     return Res;
 }
@@ -331,7 +331,7 @@ bool LqWrkBoss::CloseConnByIpAsync(const sockaddr* Addr) const
 size_t LqWrkBoss::CloseConnByIpSync(const sockaddr* Addr) const
 {
     size_t Res = 0;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res += (*i)->CloseConnByIpSync(Addr);
     return Res;
 }
@@ -339,7 +339,7 @@ size_t LqWrkBoss::CloseConnByIpSync(const sockaddr* Addr) const
 bool LqWrkBoss::CloseConnByProtoAsync(const LqProto* Proto) const
 {
     bool Res = true;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res &= (*i)->CloseConnByProtoAsync(Proto);
     return Res;
 }
@@ -347,7 +347,7 @@ bool LqWrkBoss::CloseConnByProtoAsync(const LqProto* Proto) const
 size_t LqWrkBoss::CloseConnByProtoSync(const LqProto* Proto) const
 {
     size_t Res = 0;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res += (*i)->CloseConnByProtoSync(Proto);
     return Res;
 }
@@ -355,7 +355,7 @@ size_t LqWrkBoss::CloseConnByProtoSync(const LqProto* Proto) const
 size_t LqWrkBoss::EnumDelEvnt(void * UserData, bool(*Proc)(void *UserData, LqEvntHdr* Conn)) const
 {
     size_t Res = 0;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res += (*i)->EnumDelEvnt(UserData, Proc);
     return Res;
 }
@@ -363,7 +363,7 @@ size_t LqWrkBoss::EnumDelEvnt(void * UserData, bool(*Proc)(void *UserData, LqEvn
 size_t LqWrkBoss::EnumDelEvntByProto(const LqProto* Proto, void * UserData, bool(*Proc)(void *UserData, LqEvntHdr *Conn)) const
 {
     size_t Res = 0;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res += (*i)->EnumDelEvntByProto(Proto, UserData, Proc);
     return Res;
 }
@@ -371,7 +371,7 @@ size_t LqWrkBoss::EnumDelEvntByProto(const LqProto* Proto, void * UserData, bool
 bool LqWrkBoss::SyncEvntFlagAsync(LqEvntHdr* Conn) const
 {
     bool Res = true;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res &= (*i)->SyncEvntFlagAsync(Conn);
     return Res;
 }
@@ -379,7 +379,7 @@ bool LqWrkBoss::SyncEvntFlagAsync(LqEvntHdr* Conn) const
 bool LqWrkBoss::SyncEvntFlagSync(LqEvntHdr * Conn) const
 {
     bool Res = true;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res &= (*i)->SyncEvntFlagSync(Conn);
     return Res;
 }

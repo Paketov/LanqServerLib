@@ -43,11 +43,11 @@ class LqWrk;
 class LQ_IMPORTEXPORT LqWrkBoss
 {
     friend LqWrk;
-	friend void LqWrkDelete(LqWrk* This);
+    friend void LqWrkDelete(LqWrk* This);
 
-	typedef LqPtdArr<LqWrkPtr> WrkArray;
+    typedef LqPtdArr<LqWrkPtr> WrkArray;
 
-	WrkArray      Wrks;
+    WrkArray      Wrks;
     intptr_t      MinCount;
 
     static size_t MinBusy(const WrkArray::interator& AllWrks, size_t* MinCount = LqDfltPtr());
