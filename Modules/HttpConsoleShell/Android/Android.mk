@@ -17,7 +17,7 @@ else
 OPTIM_CFLAGS		:= $(LOCAL_CFLAGS) -O3
 endif
 
-LOCAL_CFLAGS		:= $(OPTIM_CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive
+LOCAL_CFLAGS		:= $(OPTIM_CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive -fno-stack-protector
 LOCAL_MODULE		:= lanq
 LOCAL_SHARED_LIBRARIES := lanq_lib
 LOCAL_LDFLAGS		:= $(OPTIM_CFLAGS) -fvisibility=hidden -fvisibility-inlines-hidden

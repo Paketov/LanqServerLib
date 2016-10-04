@@ -73,6 +73,8 @@
 #endif
 
 #ifdef __cplusplus
+# define LQ_LANG_CPLUSPLUS
+
 # define LQ_EXTERN_C extern "C"
 # define LQ_EXTERN_C_BEGIN LQ_EXTERN_C {
 # define LQ_EXTERN_C_END }
@@ -82,6 +84,8 @@
 # define LQ_EXTERN_CPP_END }
 
 #else
+# define LQ_LANG_C
+
 # define LQ_EXTERN_C
 # define LQ_EXTERN_C_BEGIN
 # define LQ_EXTERN_C_END

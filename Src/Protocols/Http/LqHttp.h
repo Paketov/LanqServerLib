@@ -53,6 +53,7 @@
 #include "Lanq.h"
 #include "LqFile.h"
 #include "LqSbuf.h"
+#include "LqConn.h"
 
 LQ_EXTERN_C_BEGIN
 
@@ -61,13 +62,14 @@ struct LqHttpConn;
 struct LqHttpPth;
 struct LqHttpProtoBase;
 struct LqHttpAtz;
-struct LqHttpPathListHdr;
 struct LqHttpMdl;
 struct LqHttpExtensionMime;
 struct LqHttpResponse;
 struct LqHttpMultipartHeaders;
 
-typedef void (LQ_CALL *LqHttpEvntHandlerFn)(LqHttpConn* Connection);
+typedef void(LQ_CALL *LqHttpEvntHandlerFn)(LqHttpConn* Connection);
+
+typedef void(LQ_CALL *LqHttpNotifyFn)(LqHttpConn* NewConn);
 
 typedef uint8_t LqHttpActState;
 typedef uint16_t LqHttpActResult;
@@ -192,8 +194,7 @@ enum LqHttpAuthorizPermissionEnm
 enum LqHttpQurRspFlagsEnm
 {
     LQHTTPCONN_FLAG_CLOSE = 1,
-    LQHTTPCONN_FLAG_NO_BODY = 2,
-    LQHTTPCONN_FLAG_CLIENT = 4 /*Have a query to another server*/
+    LQHTTPCONN_FLAG_NO_BODY = 2
 };
 
 #pragma pack(push)
@@ -270,6 +271,12 @@ struct LqHttpResponse
     uint8_t                     CurRange;
 };
 
+struct LqHttpUserData
+{
+     void* Name;
+     void* Data;
+};
+
 struct LqHttpConn
 {
     LqConn                      CommonConn;
@@ -277,7 +284,8 @@ struct LqHttpConn
     LqTimeMillisec              TimeLastExchangeMillisec;
     char*                       Buf;
     size_t                      BufSize;
-    uintptr_t                   ModuleData;
+	unsigned short				UserDataCount;
+    LqHttpUserData*             UserData;
     uintptr_t                   _Reserved;
     LqHttpEvntHandlerFn         EventAct;    /* Change action event*/
     LqHttpEvntHandlerFn         EventClose;  /* Unexpected closing*/
@@ -307,7 +315,7 @@ struct LqHttpPth
 {
     size_t                      CountPointers;
     char*                       WebPath;
-    size_t                      WebPathHash;
+	uint32_t                    WebPathHash;
     uintptr_t                   ModuleData;
     union
     {
@@ -320,7 +328,9 @@ struct LqHttpPth
         char*                   RealPath;
         LqHttpEvntHandlerFn     ExecQueryProc;
     };
-    LqHttpAtz*                  Atz;            /* NET_AUTHORIZATION Array */
+	LqHttpAtz*                  Atz;
+	uint16_t                    AtzPtrLk;
+    
     union
     {
         LqHttpPth*              Parent;
@@ -328,13 +338,6 @@ struct LqHttpPth
     };
     uint8_t                     Type;           /* NET_PATH_TYPE_ ... */
     uint8_t                     Permissions;    /* AUTHORIZATION_MASK_ ... */
-};
-
-struct LqHttpPathListHdr
-{
-    LqHttpPth                   Path;
-    LqHttpPathListHdr*          Next;
-    LqHttpPathListHdr*          Prev;
 };
 
 #pragma pack(pop)
@@ -348,8 +351,6 @@ struct LqHttpPathListHdr
 struct LqHttpMdl
 {
     LqHttpProtoBase*            Proto;
-    LqHttpMdl*                  Next;
-    LqHttpMdl*                  Prev;
 
     char*                       Name;
 
@@ -418,16 +419,14 @@ struct LqHttpMdl
     /* Use for send command to module. If @Command[0] == '?', then the command came from the console and in Data FILE* descriptor for out*/
     void (LQ_CALL* ReciveCommandProc)(LqHttpMdl* This, const char* Command, void* Data);
 
-    uintptr_t                   PathListLocker;
-    LqHttpPathListHdr           StartPathList;
+	/* Internally used in C++ part */
+	char						_Paths[sizeof(void*) * 3];
+
+	bool					    IsFree;
     uintptr_t                   UserData;
-
-    bool                        IsFree;
-
 };
 
 #define LqHttpProtoGetByConn(Conn) ((LqHttpProtoBase*)((LqConn*)Conn)->Proto)
-
 
 struct LqHttpProtoBase
 {
@@ -444,19 +443,18 @@ struct LqHttpProtoBase
     size_t                      CountConnAccepted;
     size_t                      CountConnIgnored;
     uintptr_t                   LockerBind;
-    bool                      IsRebind;
+    bool                        IsRebind;
     int                         TransportProtoFamily;
 
     LqTimeMillisec              TimeLive;
 
     LqTimeSec                   PeriodChangeDigestNonce;
-    bool                      IsResponse429;
-    bool                      IsUnregister;
-    bool                      IsResponseDate;
+    bool                        IsResponse429;
+    bool                        IsUnregister;
+    bool                        IsResponseDate;
     char                        HTTPProtoVer[16];
-    bool                      UseDefaultDmn;
+    bool                        UseDefaultDmn;
 
-    LqHttpMdl                   StartModule;
     size_t                      CountModules;
 
     char                        ServName[1024];
@@ -469,9 +467,11 @@ struct LqHttpProtoBase
     uintptr_t                   _InternalUsed2;
 #endif
 
+	LqHttpMdl					StartModule;
+
     LqEvntFd                    ZombieKiller;
     LqTimeMillisec              ZombieKillerTimeLiveConnMillisec;
-    bool                      ZombieKillerIsSyncCheck;  
+    bool                        ZombieKillerIsSyncCheck;
 };
 
 
@@ -507,6 +507,7 @@ struct LqHttpAtz
 *----------------------------
 * Set and get HTTP proto parametrs
 */
+
 LQ_IMPORTEXPORT LqHttpProtoBase* LQ_CALL LqHttpProtoCreate();
 LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoDelete(LqHttpProtoBase* Proto);
 
@@ -579,6 +580,19 @@ LQ_IMPORTEXPORT void LQ_CALL LqHttpCheSetMaxCountOfPrepared(LqHttpProtoBase* Reg
 
 LQ_IMPORTEXPORT LqEvntFlag LQ_CALL LqHttpEvntGetFlagByAct(LqHttpConn* Conn);
 LQ_IMPORTEXPORT int LQ_CALL LqHttpEvntSetFlagByAct(LqHttpConn* Conn);
+
+/*
+* Protocol notify handlers
+*/
+
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsRegisterQuery(LqHttpProtoBase* Reg, LqHttpNotifyFn QueryFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsUnregisterQuery(LqHttpProtoBase* Reg, LqHttpNotifyFn QueryFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsRegisterResponse(LqHttpProtoBase* Reg, LqHttpNotifyFn ResponseFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsUnregisterResponse(LqHttpProtoBase* Reg, LqHttpNotifyFn ResponseFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsRegisterConnect(LqHttpProtoBase* Reg, LqHttpNotifyFn ConnectFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsUnregisterConnect(LqHttpProtoBase* Reg, LqHttpNotifyFn ConnectFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsRegisterDisconnect(LqHttpProtoBase* Reg, LqHttpNotifyFn DisconnectFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsUnregisterDisconnect(LqHttpProtoBase* Reg, LqHttpNotifyFn DisconnectFunc);
 
 LQ_EXTERN_C_END
 

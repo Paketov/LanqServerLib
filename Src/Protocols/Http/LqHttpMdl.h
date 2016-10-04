@@ -19,7 +19,7 @@ LQ_EXTERN_C_BEGIN
 
 #ifdef LANQBUILD
 void LqHttpMdlPathFree(LqHttpPth* Pth);
-void LqHttpMdlPathRegister(LqHttpMdl* Module, LqHttpPathListHdr* l);
+void LqHttpMdlPathRegister(LqHttpMdl* Module, LqHttpPth* l);
 #endif
 
 
@@ -51,6 +51,7 @@ LQ_IMPORTEXPORT LqHttpMdlLoadEnm LQ_CALL LqHttpMdlLoad(LqHttpProtoBase* lqain Re
 LQ_IMPORTEXPORT void LQ_CALL LqHttpMdlInit(LqHttpProtoBase* lqain Reg, LqHttpMdl* lqain Module, const char* lqain Name, uintptr_t Handle);
 LQ_IMPORTEXPORT int LQ_CALL LqHttpMdlFreeByName(LqHttpProtoBase* lqain Reg, const char* lqain lqautf8 NameModule, bool IsAll);
 LQ_IMPORTEXPORT int LQ_CALL LqHttpMdlFreeAll(LqHttpProtoBase* Reg);
+LQ_IMPORTEXPORT void LQ_CALL LqHttpMdlFreeMain(LqHttpProtoBase* Reg);
 LQ_IMPORTEXPORT int LQ_CALL LqHttpMdlFreeByHandle(LqHttpProtoBase* lqain Reg, uintptr_t Handle);
 LQ_IMPORTEXPORT int LQ_CALL LqHttpMdlGetNameByHandle(LqHttpProtoBase* lqain Reg, uintptr_t Handle, char* lqaout lqautf8 NameDest, size_t NameDestSize);
 LQ_IMPORTEXPORT int LQ_CALL LqHttpMdlIsHave(LqHttpProtoBase* lqain Reg, uintptr_t Handle);

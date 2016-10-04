@@ -88,11 +88,14 @@
     <ClInclude Include="..\Src\Utils\LqFile.h" />
     <ClInclude Include="..\Src\Utils\LqFileChe.hpp" />
     <ClInclude Include="..\Src\Utils\LqFileTrd.h" />
-    <ClInclude Include="..\Src\Utils\LqHashTable.hpp" />
+    <ClInclude Include="..\Src\Utils\LqTbl.hpp" />
+    <ClInclude Include="..\Src\Utils\LqHndls.hpp" />
     <ClInclude Include="..\Src\Utils\LqLib.h" />
     <ClInclude Include="..\Src\Utils\LqList.hpp" />
     <ClInclude Include="..\Src\Utils\LqLock.hpp" />
     <ClInclude Include="..\Src\Utils\LqOs.h" />
+    <ClInclude Include="..\Src\Utils\LqPtdArr.hpp" />
+    <ClInclude Include="..\Src\Utils\LqPtdTbl.hpp" />
     <ClInclude Include="..\Src\Utils\LqSbuf.h" />
     <ClInclude Include="..\Src\Utils\LqShdPtr.hpp" />
     <ClInclude Include="..\Src\Utils\LqStr.h" />

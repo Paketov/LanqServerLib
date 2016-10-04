@@ -83,6 +83,8 @@ LQ_IMPORTEXPORT LqTimeMillisec LQ_CALL LqTimeGetLocMillisec();
 LQ_IMPORTEXPORT LqTimeMillisec LQ_CALL LqTimeGetGmtMillisec();
 LQ_IMPORTEXPORT LqTimeMillisec LQ_CALL LqTimeGetMaxMillisec();
 
+LQ_IMPORTEXPORT LqTimeMillisec LQ_CALL LqTimeGet(short* TimeZone);
+
 LQ_EXTERN_C_END
 
 #endif

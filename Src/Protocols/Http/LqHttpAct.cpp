@@ -34,15 +34,16 @@ void LqHttpActSwitchToRcv(LqHttpConn* c)
     c->ActionResult = LQHTTPACT_RES_BEGIN;
     c->ActionState = LQHTTPACT_STATE_GET_HDRS;
     c->Flags &= ~LQHTTPCONN_FLAG_NO_BODY;
-
-    if(!(c->Flags & LQHTTPCONN_FLAG_CLIENT))
-    {
-        LqHttpConnPthRemove(c);
-        LqHttpEvntCloseSet(c, LqHttpMdlHandlersEmpty);
-        LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
-        c->ReadedBodySize = 0;
-        c->WrittenBodySize = 0;
-    }
+    LqHttpConnPthRemove(c);
+    LqHttpEvntCloseSet(c, LqHttpMdlHandlersEmpty);
+    LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
+    c->ReadedBodySize = 0;
+    c->WrittenBodySize = 0;
+	if(c->UserData != nullptr)
+	{
+		c->UserData = LqFastAlloc::ReallocCount<LqHttpUserData>(c->UserData, c->UserDataCount, 0);
+		c->UserDataCount = 0;
+	}
 }
 
 LQ_EXTERN_C void LQ_CALL LqHttpActSwitchToRsp(LqHttpConn* c)
@@ -52,17 +53,7 @@ LQ_EXTERN_C void LQ_CALL LqHttpActSwitchToRsp(LqHttpConn* c)
     c->ActionResult = LQHTTPACT_RES_BEGIN;
     c->ActionState = LQHTTPACT_STATE_RSP;
     memset(&c->Response, 0, sizeof(c->Response));  
-    if(c->Flags & LQHTTPCONN_FLAG_CLIENT)
-    {
-        LqHttpConnPthRemove(c);
-        LqHttpEvntCloseSet(c, LqHttpMdlHandlersEmpty);
-        LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
-        c->ReadedBodySize = 0;
-        c->WrittenBodySize = 0;
-    } else
-    {
-        c->Response.CountNeedRecive = ReciveLen;
-    }
+    c->Response.CountNeedRecive = ReciveLen;
 }
 
 LQ_EXTERN_C void LQ_CALL LqHttpActSwitchToClose(LqHttpConn* c)

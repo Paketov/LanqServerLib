@@ -22,14 +22,15 @@ template<
     typename _t,        /* _t - must contain CountPointers field */
     void(*DeleteProc)(_t*) = SHARED_POINTERDeleteProc, /* Proc called when object have zero references*/
     bool IsLock = false /* true - is pointer contact with multiple threads*/, 
-    typename LockerType = unsigned char /* For locker*/
+    bool IsNullCheck = true, /* Set false if pointer never be setted on nullptr (For optimized)*/
+    typename LockerType = unsigned char /* Locker type (use any integer type)*/
 >
 class LqShdPtr
 {
-    template<typename _t2, void(*)(_t2*), bool, typename>
+    template<typename _t2, void(*)(_t2*), bool, bool, typename>
     friend class LqShdPtr;
 
-    struct _s 
+    struct _s
     {
        _t* p;
        inline void LockRead() const { }
@@ -52,33 +53,30 @@ class LqShdPtr
    
     inline _t* Deinit()
     {
-        if(fld.p == nullptr)
+        if(IsNullCheck && (fld.p == nullptr))
             return nullptr;
-        decltype(fld.p->CountPointers) Expected;
-        bool IsDelete;
-        do
-        {
-            Expected = fld.p->CountPointers;
-            IsDelete = Expected == 1;
-        } while(!LqAtmCmpXchg(fld.p->CountPointers, Expected, Expected - 1));
-        return IsDelete? fld.p: nullptr;
+        /* thread race cond. solution */
+        auto Expected = fld.p->CountPointers;
+        for(; !LqAtmCmpXchg(fld.p->CountPointers, Expected, Expected - 1); Expected = fld.p->CountPointers);
+        return (Expected == 1) ? fld.p: nullptr;
     }
 
 public:
     static const auto IsHaveLock = IsLock;
     typedef LockerType        LockType;
+    typedef _t                ElemType;
 
     inline LqShdPtr() { fld.p = nullptr; };
-    inline LqShdPtr(_t* Pointer) { if((fld.p = Pointer) != nullptr) LqAtmIntrlkInc(fld.p->CountPointers);  }
-    LQ_NO_INLINE LqShdPtr(const LqShdPtr<_t, DeleteProc, false, LockerType>& a)
+    inline LqShdPtr(_t* Pointer) { if(((fld.p = Pointer) != nullptr) || !IsNullCheck) LqAtmIntrlkInc(fld.p->CountPointers);  }
+    LqShdPtr(const LqShdPtr<_t, DeleteProc, false, IsNullCheck, LockerType>& a)
     { 
-        if((fld.p = a.fld.p) != nullptr)
+        if(((fld.p = a.fld.p) != nullptr) || !IsNullCheck)
             LqAtmIntrlkInc(fld.p->CountPointers);
     }
-    LQ_NO_INLINE LqShdPtr(const LqShdPtr<_t, DeleteProc, true, LockerType>& a)
+    LQ_NO_INLINE LqShdPtr(const LqShdPtr<_t, DeleteProc, true, IsNullCheck, LockerType>& a)
     {
         a.fld.LockRead();
-        if((fld.p = a.fld.p) != nullptr)
+        if(((fld.p = a.fld.p) != nullptr) || !IsNullCheck)
             LqAtmIntrlkInc(fld.p->CountPointers);
         a.fld.UnlockRead();
     }
@@ -88,44 +86,64 @@ public:
         if(auto Del = Deinit())
             DeleteProc(Del);
     }
-    /* Copy from pointer without locking */
-    template<typename ArgLockerType>
-    LQ_NO_INLINE LqShdPtr& operator=(const LqShdPtr<_t, DeleteProc, false, ArgLockerType>& a)
-    {
-        fld.LockWrite();
-        auto Del = Deinit();
-        if((fld.p = a.fld.p) != nullptr)
-            LqAtmIntrlkInc(fld.p->CountPointers);
-        fld.UnlockWrite();
-        if(Del != nullptr)
-            DeleteProc(Del);
-        return *this;
-    }
-    /* Copy from pointer with locking */
-    template<typename ArgLockerType>
-    LQ_NO_INLINE LqShdPtr& operator=(const LqShdPtr<_t, DeleteProc, true, ArgLockerType>& a)
+    template<bool ArgIsHaveLock, bool ArgNullCheck, typename ArgLockerType>
+    void Set(const LqShdPtr<_t, DeleteProc, ArgIsHaveLock, ArgNullCheck, ArgLockerType>& a)
     {
         fld.LockWrite();
         a.fld.LockRead();
+        if((a.fld.p != nullptr) || !IsNullCheck || !ArgNullCheck)
+            LqAtmIntrlkInc(a.fld.p->CountPointers);
         auto Del = Deinit();
-        if((fld.p = a.fld.p) != nullptr)
-            LqAtmIntrlkInc(fld.p->CountPointers);
+        fld.p = a.fld.p;
         a.fld.UnlockRead();
         fld.UnlockWrite();
         if(Del != nullptr)
             DeleteProc(Del);
-        return *this;
     }
-    LqShdPtr& operator=(_t* a)
+
+    void Set(_t* a)
     {
         fld.LockWrite();
+        if((a != nullptr) || !IsNullCheck)
+            LqAtmIntrlkInc(a->CountPointers);
         auto Del = Deinit();
-        if((fld.p = a) != nullptr)
-            LqAtmIntrlkInc(fld.p->CountPointers);
+        fld.p = a;
         fld.UnlockWrite();
         if(Del != nullptr)
             DeleteProc(Del);
-        return *this;
+    }
+
+    inline LqShdPtr& operator=(LqShdPtr&& a) { Set(a); return *this; }
+
+    template<typename _TInput>
+    inline LqShdPtr& operator=(_TInput&& a) { Set(a); return *this; }
+    /* Set new data between NewStart() and NewFin()*/
+    inline _t* NewStart()
+    {
+        fld.LockWrite();
+        return fld.p;
+    }
+    void NewFin(_t* NewVal)
+    {
+        if((NewVal != nullptr) || !IsNullCheck)
+            LqAtmIntrlkInc(NewVal->CountPointers);
+        auto Del = Deinit();
+        fld.p = NewVal;
+        fld.UnlockWrite();
+        if(Del != nullptr)
+            DeleteProc(Del);
+    }
+
+    template<bool ArgIsHaveLock, bool ArgNullCheck, typename ArgLockerType>
+    void Swap(LqShdPtr<_t, DeleteProc, ArgIsHaveLock, ArgNullCheck, ArgLockerType>& a)
+    {
+        fld.LockWrite();
+        a.fld.LockRead();
+        auto t = fld.p;
+        fld.p = a.fld.p;
+        a.fld.p = t;
+        a.fld.UnlockRead();
+        fld.UnlockWrite();
     }
 
     inline _t* operator->() const { return fld.p; }
@@ -140,23 +158,18 @@ public:
     inline bool operator !=(decltype(nullptr) n) const { return fld.p != nullptr; }
 };
 
+
+/* C - defines for trivial types */
+
 template<typename _t>
-void LqObReference(_t* Ob)
-{
-    LqAtmIntrlkInc(Ob->CountPointers);
-}
+inline void LqObPtrReference(_t* Ob) { LqAtmIntrlkInc(Ob->CountPointers); }
 
 template<typename _t, void(*DeleteProc)(_t*) = SHARED_POINTERDeleteProc>
-bool LqObDereference(_t* Ob)
+bool LqObPtrDereference(_t* Ob)
 {
-    decltype(Ob->CountPointers) Expected;
-    bool IsDelete;
-    do
-    {
-        Expected = Ob->CountPointers;
-        IsDelete = Expected == 1;
-    } while(!LqAtmCmpXchg(Ob->CountPointers, Expected, Expected - 1));
-    if(IsDelete)
+    auto Expected = Ob->CountPointers;
+    for(; !LqAtmCmpXchg(Ob->CountPointers, Expected, Expected - 1); Expected = Ob->CountPointers);
+    if(Expected == 1)
     {
         DeleteProc(Ob);
         return true;
@@ -164,6 +177,63 @@ bool LqObDereference(_t* Ob)
     {
         return false;
     }
+}
+
+template<typename _t, typename _LkType>
+void LqObPtrInit(_t*& Ob, _t* NewOb, volatile _LkType& Lk)
+{
+    LqAtmLkInit(Lk);
+    Ob = NewOb;
+    if(Ob != nullptr)
+        LqAtmIntrlkInc(Ob->CountPointers);
+}
+
+template<typename _t, typename _LkType>
+_t* LqObPtrGet(_t* Ob, volatile _LkType& Lk)
+{
+    LqAtmLkRd(Lk);
+    if(Ob != nullptr)
+        LqAtmIntrlkInc(Ob->CountPointers);
+    _t* Res = Ob;
+    LqAtmUlkRd(Lk);
+    return Res;
+}
+
+template<typename _t, void(*DeleteProc)(_t*), bool IsNullCheck, typename _LkType>
+LqShdPtr<_t, DeleteProc, false, IsNullCheck> LqObPtrGetEx(_t* Ob, volatile _LkType& Lk)
+{
+    LqAtmLkRd(Lk);
+    auto Res = LqShdPtr<_t, DeleteProc, false, IsNullCheck>(Ob);
+    LqAtmUlkRd(Lk);
+    return Res;
+}
+
+template<typename _t, typename _LkType>
+inline _t* LqObPtrNewStart(_t* Ob, volatile _LkType& Lk)
+{
+    LqAtmLkWr(Lk);
+    return Ob;
+}
+
+template<typename _t, void(*DeleteProc)(_t*), typename _LkType>
+void LqObPtrNewFin(_t*& Ob, _t* NewVal, volatile _LkType& Lk)
+{
+    if(NewVal != nullptr)
+        LqAtmIntrlkInc(NewVal->CountPointers);
+    _t* DelVal;
+    if(Ob != nullptr)
+    {
+        auto Expected = Ob->CountPointers;
+        for(; !LqAtmCmpXchg(Ob->CountPointers, Expected, Expected - 1); Expected = Ob->CountPointers);
+        DelVal = (Expected == 1) ? Ob : nullptr;
+    } else
+    {
+        DelVal = nullptr;
+    }
+    Ob = NewVal;
+    LqAtmUlkWr(Lk);
+    if(DelVal != nullptr)
+        DeleteProc(DelVal);
 }
 
 

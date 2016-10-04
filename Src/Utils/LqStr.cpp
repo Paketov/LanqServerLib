@@ -642,6 +642,20 @@ LQ_EXTERN_C char* LQ_CALL LqStrDuplicate(const char* SourceStr)
     return r;
 }
 
+LQ_EXTERN_C char* LQ_CALL LqStrDuplicateMax(const char* lqain SourceStr, size_t Count)
+{
+	const char *s = SourceStr, *m = s + Count;
+	for(; (*s != '\0') && (s < m); s++);
+	size_t l = (s - SourceStr) + 1;
+	char* r = (char*)malloc(l);
+	if(r != nullptr)
+	{
+		memcpy(r, SourceStr, l);
+		r[l - 1] = '\0';
+	}
+	return r;
+}
+
 LQ_EXTERN_C bool LQ_CALL LqStrSame(const char* Str1, const char* Str2)
 {
     const char *s1 = Str1, *s2 = Str2;

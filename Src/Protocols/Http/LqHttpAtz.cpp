@@ -71,9 +71,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* c, uint8_t AccessMask)
 {
     auto q = &c->Query;
     auto np = c->Pth;
-    auto a = np->Atz;
-
-
+    auto a = LqObPtrGetEx<LqHttpAtz, _LqHttpAtzDelete, true>(np->Atz, np->AtzPtrLk);
     if((np->Permissions & AccessMask) == AccessMask)
         return true;
     if(a == nullptr)
@@ -81,7 +79,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* c, uint8_t AccessMask)
         LqHttpRspError(c, 401);
         return false;
     }
-    LqHttpAtzLockRead(a);
+    LqHttpAtzLockRead(a.Get());
 
     if(a->AuthType == LQHTTPATZ_TYPE_BASIC)
     {
@@ -89,7 +87,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* c, uint8_t AccessMask)
         if(LqHttpRcvHdrSearch(c, 0, "Authorization", nullptr, &HdrVal, &HdrEndVal) < 0)
         {
             LqHttpAtzRsp401Basic(c);
-            LqHttpAtzUnlock(a);
+            LqHttpAtzUnlock(a.Get());
             return false;
         }
         char* Base64LogPass;
@@ -97,7 +95,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* c, uint8_t AccessMask)
         if(!LqHttpAtzGetBasicBase64LoginPassword(HdrVal, HdrEndVal - HdrVal, &Base64LogPass, &LenLogPass))
         {
             LqHttpAtzRsp401Basic(c);
-            LqHttpAtzUnlock(a);
+            LqHttpAtzUnlock(a.Get());
             return false;
         }
         auto t = Base64LogPass[LenLogPass];
@@ -109,7 +107,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* c, uint8_t AccessMask)
                 if((a->Basic[i].AccessMask & AccessMask) == AccessMask)
                 {
                     Base64LogPass[LenLogPass] = t;
-                    LqHttpAtzUnlock(a);
+                    LqHttpAtzUnlock(a.Get());
                     return true;
                 }
             }
@@ -124,8 +122,8 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* c, uint8_t AccessMask)
         LqHttpMdlGetByConn(c)->NonceProc(c, Nonce, sizeof(Nonce) - 1);
         if(LqHttpRcvHdrSearch(c, 0, "Authorization", nullptr, &HdrVal, &HdrEndVal) < 0)
         {
-            LqHttpAtzRsp401Digest(c, a, Nonce, false);
-            LqHttpAtzUnlock(a);
+            LqHttpAtzRsp401Digest(c, a.Get(), Nonce, false);
+            LqHttpAtzUnlock(a.Get());
             return false;
         }
 
@@ -134,8 +132,8 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* c, uint8_t AccessMask)
         size_t ValLen, UsernameLen, ResponseLen;
         if(!LqHttpAtzGetAuthorizationParametr(HdrVal, HdrEndVal - HdrVal, "nonce", &Val, &ValLen, true))
         {
-            LqHttpAtzRsp401Digest(c, a, Nonce, false);
-            LqHttpAtzUnlock(a);
+            LqHttpAtzRsp401Digest(c, a.Get(), Nonce, false);
+            LqHttpAtzUnlock(a.Get());
             return false;
         }
         t = Val[ValLen];
@@ -143,28 +141,28 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* c, uint8_t AccessMask)
         if(!LqStrSame(Val, Nonce))
         {
             Val[ValLen] = t;
-            LqHttpAtzRsp401Digest(c, a, Nonce, true);
-            LqHttpAtzUnlock(a);
+            LqHttpAtzRsp401Digest(c, a.Get(), Nonce, true);
+            LqHttpAtzUnlock(a.Get());
             return false;
         }
         Val[ValLen] = t;
         if(!LqHttpAtzGetAuthorizationParametr(HdrVal, HdrEndVal - HdrVal, "username", &UserName, &UsernameLen, true))
         {
-            LqHttpAtzRsp401Digest(c, a, Nonce, false);
-            LqHttpAtzUnlock(a);
+            LqHttpAtzRsp401Digest(c, a.Get(), Nonce, false);
+            LqHttpAtzUnlock(a.Get());
             return false;
         }
         if(!LqHttpAtzGetAuthorizationParametr(HdrVal, HdrEndVal - HdrVal, "uri", &Val, &ValLen, true))
         {
-            LqHttpAtzRsp401Digest(c, a, Nonce, false);
-            LqHttpAtzUnlock(a);
+            LqHttpAtzRsp401Digest(c, a.Get(), Nonce, false);
+            LqHttpAtzUnlock(a.Get());
             return false;
         }
         bool r = LqHttpAtzGetAuthorizationParametr(HdrVal, HdrEndVal - HdrVal, "response", &Response, &ResponseLen, true);
         if(!r || (ResponseLen != LqMd5HexStringLen))
         {
-            LqHttpAtzRsp401Digest(c, a, Nonce, false);
-            LqHttpAtzUnlock(a);
+            LqHttpAtzRsp401Digest(c, a.Get(), Nonce, false);
+            LqHttpAtzUnlock(a.Get());
             return false;
         }
 
@@ -196,14 +194,14 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* c, uint8_t AccessMask)
                 LqMd5ToString(HashBuf, &h);
                 if(LqStrSameMax(HashBuf, Response, LqMd5HexStringLen) && ((a->Digest[i].AccessMask & AccessMask) == AccessMask))
                 {
-                    LqHttpAtzUnlock(a);
+                    LqHttpAtzUnlock(a.Get());
                     return true;
                 }
             }
         }
-        LqHttpAtzRsp401Digest(c, a, Nonce, false);
+        LqHttpAtzRsp401Digest(c, a.Get(), Nonce, false);
     }
-    LqHttpAtzUnlock(a);
+    LqHttpAtzUnlock(a.Get());
     return false;
 }
 
@@ -318,7 +316,7 @@ LQ_EXTERN_C LqHttpAtz* LQ_CALL LqHttpAtzCreate(LqHttpAtzTypeEnm AuthType, const 
     memset(r, 0, sizeof(LqHttpAtz));
 
     r->CountPointers = 1;
-    r->Locker = 1;
+    LqAtmLkInit(r->Locker);
     r->AuthType = AuthType;
     r->Realm = LqStrDuplicate(Realm);
     if(r->Realm == nullptr)
@@ -439,33 +437,35 @@ LQ_EXTERN_C void LQ_CALL LqHttpAtzAssign(LqHttpAtz* NetAutoriz)
     LqAtmIntrlkInc(NetAutoriz->CountPointers);
 }
 
+void _LqHttpAtzDelete(LqHttpAtz* NetAutoriz)
+{
+	if(NetAutoriz->AuthType == LQHTTPATZ_TYPE_BASIC)
+	{
+		if(NetAutoriz->Basic != nullptr)
+		{
+			for(size_t i = 0, m = NetAutoriz->CountAuthoriz; i < m; i++)
+				LqCheckedFree(NetAutoriz->Basic[i].LoginPassword);
+			LqCheckedFree(NetAutoriz->Basic);
+		}
+	} else if(NetAutoriz->AuthType == LQHTTPATZ_TYPE_DIGEST)
+	{
+		if(NetAutoriz->Digest != nullptr)
+		{
+			for(size_t i = 0, m = NetAutoriz->CountAuthoriz; i < m; i++)
+				LqCheckedFree(NetAutoriz->Digest[i].UserName);
+			LqCheckedFree(NetAutoriz->Digest);
+		}
+	}
+	LqCheckedFree(NetAutoriz->Realm);
+	LqFastAlloc::Delete(NetAutoriz);
+}
+
+
 LQ_EXTERN_C bool LQ_CALL LqHttpAtzRelease(LqHttpAtz* NetAutoriz)
 {
-    if(NetAutoriz == nullptr)
-        return false;
-    LqAtmIntrlkDec(NetAutoriz->CountPointers);
-    if(NetAutoriz->CountPointers > 0)
-        return false;
-    if(NetAutoriz->AuthType == LQHTTPATZ_TYPE_BASIC)
-    {
-        if(NetAutoriz->Basic != nullptr)
-        {
-            for(size_t i = 0, m = NetAutoriz->CountAuthoriz; i < m; i++)
-                LqCheckedFree(NetAutoriz->Basic[i].LoginPassword);
-            LqCheckedFree(NetAutoriz->Basic);
-        }
-    } else if(NetAutoriz->AuthType == LQHTTPATZ_TYPE_DIGEST)
-    {
-        if(NetAutoriz->Digest != nullptr)
-        {
-            for(size_t i = 0, m = NetAutoriz->CountAuthoriz; i < m; i++)
-                LqCheckedFree(NetAutoriz->Digest[i].UserName);
-            LqCheckedFree(NetAutoriz->Digest);
-        }
-    }
-    LqCheckedFree(NetAutoriz->Realm);
-    LqFastAlloc::Delete(NetAutoriz);
-    return true;
+	if(NetAutoriz == nullptr)
+		return false;
+	return LqObPtrDereference<LqHttpAtz, _LqHttpAtzDelete>(NetAutoriz);
 }
 
 LQ_EXTERN_C void LQ_CALL LqHttpAtzLockWrite(LqHttpAtz* NetAutoriz)

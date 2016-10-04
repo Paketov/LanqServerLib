@@ -23,11 +23,19 @@ struct LqHttpQuery;
 #include "LqHttpRsp.h"
 #include "LqHttpConn.h"
 #include "LqDfltRef.hpp"
+#include "LqHndls.hpp"
+#include "LqShdPtr.hpp"
+#include "LqPtdArr.hpp"
 
 #include <stdarg.h>
 #include <vector>
 
 #define LqHttpGetReg(ConnectionPointer) ((LqHttpProto*)((LqConn*)ConnectionPointer)->Proto)
+
+void __LqHttpMdlDelete(LqHttpMdl*);
+
+typedef LqShdPtr<LqHttpMdl, __LqHttpMdlDelete, false, false> LqHttpMdlPtr;
+
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
@@ -35,10 +43,10 @@ struct LqHttpQuery;
 struct LqCachedFileHdr
 {
 private:
-    LqMd5   Hash;
+    LqMd5  Hash;
 public:
-    char*       Etag;
-    char*       MimeType;
+    char*  Etag;
+    char*  MimeType;
     void   GetMD5(const void * CacheInterator, LqMd5* Dest);
 
     void Cache(const char* Path, void* Buf, size_t SizeBuf, time_t LastModifTime, const LqFileStat* Stat);
@@ -50,14 +58,21 @@ public:
 struct LqHttpProto
 {
     LqHttpProtoBase                 Base;
-    LqHttpFileSystem                FileSystem;
+	LqHttpDmnTbl                    Dmns;
     LqFileChe<LqCachedFileHdr>      Cache;
-    LqLocker<uintptr_t>             ModuleListLocker;
+
+	LqPtdArr<LqHttpMdlPtr>          Modules;
 
     LqString                        Port;
     LqString                        Host;
 
     uintptr_t                       CountPointers;
+
+    LqHndls<LqHttpNotifyFn>         StartQueryHndls;
+    LqHndls<LqHttpNotifyFn>         EndResponseHndls;
+
+    LqHndls<LqHttpNotifyFn>         ConnectHndls;
+    LqHndls<LqHttpNotifyFn>         DisconnectHndls;
 };
 
 #pragma pack(pop)
@@ -100,7 +115,7 @@ public:
                 {
                     LqHttpConn* Conn;
                 public: DISABLE_COPY_CONSTRUCT(_Method) DEF_CMP_STRING
-                    inline operator LqString() const { return LqString(Conn->Query.Method, Conn->Query.MethodLen); }
+                    inline operator LqString() const { if(Conn->Query.Method == nullptr) return ""; return LqString(Conn->Query.Method, Conn->Query.MethodLen); }
                 } Method;
                 class _Domen
                 {
@@ -108,33 +123,33 @@ public:
                     friend _Quer;
                     LqHttpConn* Conn;
                 public: DISABLE_COPY_CONSTRUCT(_Domen) DEF_CMP_STRING
-                    inline operator LqString() const { return LqString(Conn->Query.Host, Conn->Query.HostLen); }
+                    inline operator LqString() const { if(Conn->Query.Host == nullptr) return ""; return LqString(Conn->Query.Host, Conn->Query.HostLen); }
                 } Domen;
                 class _User
                 {
                     LqHttpConn* Conn;
                 public: DISABLE_COPY_CONSTRUCT(_User) DEF_CMP_STRING
-                    inline operator LqString() const { return LqString(Conn->Query.UserInfo, Conn->Query.UserInfoLen); }
+                    inline operator LqString() const { if(Conn->Query.UserInfo == nullptr) return ""; return LqString(Conn->Query.UserInfo, Conn->Query.UserInfoLen); }
                 } User;
 
                 class _Path
                 {
                     LqHttpConn* Conn;
                 public: DISABLE_COPY_CONSTRUCT(_Path) DEF_CMP_STRING
-                    inline operator LqString() const { return LqString(Conn->Query.Path, Conn->Query.PathLen); }
+                    inline operator LqString() const { if(Conn->Query.Path == nullptr) return ""; return LqString(Conn->Query.Path, Conn->Query.PathLen); }
                 } Path;
                 class _Fragment
                 {
                     LqHttpConn* Conn;
                 public:  DISABLE_COPY_CONSTRUCT(_Fragment) DEF_CMP_STRING
-                    inline operator LqString() const { return LqString(Conn->Query.Fragment, Conn->Query.FragmentLen); }
+                    inline operator LqString() const { if(Conn->Query.Fragment == nullptr) return ""; return LqString(Conn->Query.Fragment, Conn->Query.FragmentLen); }
                 } Fragment;
 
                 class _ProtoVer
                 {
                     LqHttpConn* Conn;
                 public: DISABLE_COPY_CONSTRUCT(_ProtoVer) DEF_CMP_STRING
-                    inline operator LqString() const { return LqString(Conn->Query.ProtoVer, Conn->Query.ProtoVerLen); }
+                    inline operator LqString() const { if(Conn->Query.ProtoVer == nullptr) return ""; return LqString(Conn->Query.ProtoVer, Conn->Query.ProtoVerLen); }
                 } ProtoVer;
 
                 class _Arg
@@ -210,6 +225,30 @@ public:
                     inline operator LqFileSz() const { return Conn->Query.ContentLen; }
                 } ContentLen;
 
+				class _StartLine
+				{
+					LqHttpConn* Conn;
+				public: DISABLE_COPY_CONSTRUCT(_StartLine) DEF_CMP_STRING
+					inline operator LqString() const 
+					{ 
+						if(Conn->Query.Method == nullptr) 
+							return "";
+						char* c = Conn->Query.Method;
+						for(char* m = c + Conn->Query.HeadersEnd;((c[0] != '\r') || (c[1] != '\n')) && (c < m); c++);
+						return LqString(Conn->Query.Method, c); 
+					}
+                    bool Get(char**Start, char** End)
+                    {
+                        if(Conn->Query.Method == nullptr)
+                            return false;
+                        char* c = Conn->Query.Method;
+                        for(char* m = c + Conn->Query.HeadersEnd; ((c[0] != '\r') || (c[1] != '\n')) && (c < m); c++);
+                        *Start = Conn->Query.Method;
+                        *End = c;
+                        return true;
+                    }
+				} StartLine;
+
                 class _Hdr
                 {
                     LqHttpConn* Conn;
@@ -230,17 +269,19 @@ public:
                     };
                 public: DISABLE_COPY_CONSTRUCT(_Hdr)
                     inline operator HdrsType() const
-                {
-                    HdrsType Res;
-                    char* HeaderNameResult = nullptr, *HeaderNameResultEnd = nullptr, *HeaderValResult = nullptr, *HeaderValEnd = nullptr;
-                    while(LqHttpRcvHdrEnum(Conn, &HeaderNameResult, &HeaderNameResultEnd, &HeaderValResult, &HeaderValEnd) >= 0)
-                        Res.push_back(std::pair<LqString, LqString>(LqString(HeaderNameResult, HeaderNameResultEnd - HeaderNameResult), LqString(HeaderValResult, HeaderValEnd - HeaderValResult)));
-                    return Res;
-                }
-                        inline operator LqString() const { return Conn->Buf; }
-                        inline LqString operator[](const char* Index) const { return _HdrsInterator(Conn, Index); }
-                        inline LqString operator[](const LqString& Index) const { return operator[](Index.c_str()); }
+					{
+						HdrsType Res;
+						char* HeaderNameResult = nullptr, *HeaderNameResultEnd = nullptr, *HeaderValResult = nullptr, *HeaderValEnd = nullptr;
+						while(LqHttpRcvHdrEnum(Conn, &HeaderNameResult, &HeaderNameResultEnd, &HeaderValResult, &HeaderValEnd) >= 0)
+							Res.push_back(std::pair<LqString, LqString>(LqString(HeaderNameResult, HeaderNameResultEnd - HeaderNameResult), LqString(HeaderValResult, HeaderValEnd - HeaderValResult)));
+						return Res;
+					}
+                    inline operator LqString() const { return Conn->Buf; }
+                    inline LqString operator[](const char* Index) const { return _HdrsInterator(Conn, Index); }
+                    inline LqString operator[](const LqString& Index) const { return operator[](Index.c_str()); }
                 } Hdrs;
+
+
 
                 struct _Stream
                 {
@@ -446,6 +487,13 @@ public:
 
                 } Hdrs;
 
+				struct _Stat
+				{
+						LqHttpConn* Conn;
+				public:DISABLE_COPY_CONSTRUCT(_Stat)
+						inline operator int() const { return Conn->Response.Status; }
+				} Stat;
+
                 struct _Stream
                 {
                     class _Size
@@ -497,32 +545,32 @@ public:
             inline void KeepOnlyHeaders() { return LqHttpActKeepOnlyHeaders(Hdrs.Conn); }
         } Rsp;
 
-		class _RemoteIp
-		{
-			LqHttpConn* Conn;
-		public: DISABLE_COPY_CONSTRUCT(_RemoteIp) DEF_CMP_STRING
-			inline operator LqString() const
-			{
-				char Buf[256];
-				Buf[0] = '\0';
-				LqHttpConnGetRemoteIpStr(Conn, Buf, 255);
-				return Buf;
-			}
-				/*@return: For IPv4 - 4, for IPv6 - 6, on error - 0*/
-			inline int GetType() const
-			{
-				char Buf[256];
-				return LqHttpConnGetRemoteIpStr(Conn, Buf, 255);
-			}
-		} RemoteIp;
+        class _RemoteIp
+        {
+            LqHttpConn* Conn;
+        public: DISABLE_COPY_CONSTRUCT(_RemoteIp) DEF_CMP_STRING
+            inline operator LqString() const
+            {
+                char Buf[256];
+                Buf[0] = '\0';
+                LqHttpConnGetRemoteIpStr(Conn, Buf, 255);
+                return Buf;
+            }
+                /*@return: For IPv4 - 4, for IPv6 - 6, on error - 0*/
+            inline int GetType() const
+            {
+                char Buf[256];
+                return LqHttpConnGetRemoteIpStr(Conn, Buf, 255);
+            }
+        } RemoteIp;
 
-		class _RemotePort
-		{
-			LqHttpConn* Conn;
-		public: DISABLE_COPY_CONSTRUCT(_RemotePort) DEF_CMP_STRING
-			inline operator int() const { return LqHttpConnGetRemotePort(Conn); }
-			inline operator LqString() const { return LqToString(operator int()); }
-		} RemotePort;
+        class _RemotePort
+        {
+            LqHttpConn* Conn;
+        public: DISABLE_COPY_CONSTRUCT(_RemotePort) DEF_CMP_STRING
+            inline operator int() const { return LqHttpConnGetRemotePort(Conn); }
+            inline operator LqString() const { return LqToString(operator int()); }
+        } RemotePort;
 
         class _Action
         {
@@ -544,8 +592,8 @@ public:
             LqHttpConn* Conn;
         public:DISABLE_COPY_CONSTRUCT(_EvntHandler)
             inline operator LqHttpEvntHandlerFn() const { return Conn->EventAct; }
-               inline LqHttpEvntHandlerFn operator=(LqHttpEvntHandlerFn NewFn) { return Conn->EventAct = NewFn; }
-               inline void Ignore() { LqHttpEvntActSetIgnore(Conn); }
+            inline LqHttpEvntHandlerFn operator=(LqHttpEvntHandlerFn NewFn) { return Conn->EventAct = NewFn; }
+            inline void Ignore() { LqHttpEvntActSetIgnore(Conn); }
         } EvntHandler;
 
         class _CloseHandler
@@ -553,8 +601,8 @@ public:
             LqHttpConn* Conn;
         public:DISABLE_COPY_CONSTRUCT(_CloseHandler)
             inline operator LqHttpEvntHandlerFn() const { return Conn->EventClose; }
-               inline LqHttpEvntHandlerFn operator=(LqHttpEvntHandlerFn NewFn) { return Conn->EventClose = NewFn; }
-               inline void Ignore() { LqHttpEvntCloseSetIgnore(Conn); }
+            inline LqHttpEvntHandlerFn operator=(LqHttpEvntHandlerFn NewFn) { return Conn->EventClose = NewFn; }
+            inline void Ignore() { LqHttpEvntCloseSetIgnore(Conn); }
         } CloseHandler;
 
         class _EvntFlag
@@ -562,14 +610,48 @@ public:
             LqHttpConn* Conn;
         public:DISABLE_COPY_CONSTRUCT(_EvntFlag)
             inline operator LqEvntFlag() { return Conn->Flags & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_WR | LQEVNT_FLAG_RD); }
-               inline LqEvntFlag operator =(LqEvntFlag NewFlag) { LqEvntSetFlags(Conn, NewFlag); return NewFlag; }
-               inline int SetCloseAsync() { return LqEvntSetClose(Conn); }
-               inline int SetCloseSync(LqTimeMillisec WaitTime) { return LqEvntSetClose2(Conn, WaitTime); }
-               inline int SetCloseSyncForce() { return LqEvntSetClose3(Conn); }
-               inline bool IsClose() { return LqConnIsClose(Conn); }
-               /*Set default flags for current action*/
-               inline int ReturnToDefault() { return LqHttpEvntSetFlagByAct(Conn); }
+            inline LqEvntFlag operator =(LqEvntFlag NewFlag) { LqEvntSetFlags(Conn, NewFlag); return NewFlag; }
+            inline int SetCloseAsync() { return LqEvntSetClose(Conn); }
+            inline int SetCloseSync(LqTimeMillisec WaitTime) { return LqEvntSetClose2(Conn, WaitTime); }
+            inline int SetCloseSyncForce() { return LqEvntSetClose3(Conn); }
+            inline bool IsClose() { return LqConnIsClose(Conn); }
+            /*Set default flags for current action*/
+            inline int ReturnToDefault() { return LqHttpEvntSetFlagByAct(Conn); }
         } EvntFlag;
+
+		class __UserData
+		{
+			LqHttpConn* Conn;
+
+		public:DISABLE_COPY_CONSTRUCT(__UserData)
+			class ___Interator
+			{
+				LqHttpConn* Conn;
+				void* UniquePointer;
+			public:
+				inline ___Interator(LqHttpConn* c, void* v): Conn(c), UniquePointer(v) {}
+				template<typename TypeResult>
+				inline operator TypeResult() const
+				{ 
+					void* Res = nullptr;
+					LqHttpConnDataGet(Conn, UniquePointer, &Res);
+					return (TypeResult)Res;
+				}
+				template<typename TypeResult>
+				inline TypeResult operator =(TypeResult v)
+				{
+					void* NewVal = (void*)v;
+					LqHttpConnDataStore(Conn, UniquePointer, NewVal);
+					return v;
+				}
+				inline bool Delete() const
+				{
+					return LqHttpConnDataUnstore(Conn, UniquePointer) != -1;
+				}
+			};
+			___Interator operator[] (void* UniquePointer) { return ___Interator(Conn, UniquePointer); }
+
+		} UserData;
 
         class _Row
         {

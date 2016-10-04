@@ -33,11 +33,8 @@ class LqWrk;
 #include "LqDef.h"
 #include "LqWrkBoss.h"
 #include "LqAlloc.hpp"
-
-void LqWrkDelete(LqWrk* This);
-
-
-typedef LqShdPtr<LqWrk, LqWrkDelete, true> LqWrkPtr;
+#include "LqPtdArr.hpp"
+#include "LqWrk.hpp"
 
 #pragma pack(push) 
 #pragma pack(LQSTRUCT_ALIGN_FAST)
@@ -46,34 +43,15 @@ typedef LqShdPtr<LqWrk, LqWrkDelete, true> LqWrkPtr;
 class LQ_IMPORTEXPORT LqWrkBoss
 {
     friend LqWrk;
-    struct WorkerArray;
-    friend void LqWrkDelete(LqWrk* This);
-    
-    typedef LqShdPtr<LqWrkBoss::WorkerArray, LqFastAlloc::Delete, true> LqWrkArrPtr;
-    typedef LqShdPtr<LqWrkBoss::WorkerArray, LqFastAlloc::Delete, false> LqWrkArrPtrLoc;
-    
-    struct WorkerArray
-    {
-        size_t        CountPointers;
-        size_t        Count;
-        LqWrkPtr*     Ptrs;
+	friend void LqWrkDelete(LqWrk* This);
 
-        WorkerArray(const LqWrkArrPtr Another, const LqWrkPtr NewWorker, bool IsAdd);
-        WorkerArray(const LqWrkArrPtr Another, ullong Id);
-        WorkerArray(const LqWrkArrPtr Another, bool, size_t RemoveCount, size_t MinCount);
+	typedef LqPtdArr<LqWrkPtr> WrkArray;
 
-        WorkerArray();
-        ~WorkerArray();
-        LqWrk* operator[](size_t Index) const;
-        LqWrk* At(size_t Index) const;
-    };
-
-    LqWrkArrPtr   Wrks;
+	WrkArray      Wrks;
     intptr_t      MinCount;
 
-
-    static size_t MinBusy(const LqWrkArrPtr& AllWrks, size_t* MinCount = LqDfltPtr());
-    static size_t MaxBusy(const LqWrkArrPtr& AllWrks, size_t* MaxCount = LqDfltPtr());
+    static size_t MinBusy(const WrkArray::interator& AllWrks, size_t* MinCount = LqDfltPtr());
+    static size_t MaxBusy(const WrkArray::interator& AllWrks, size_t* MaxCount = LqDfltPtr());
     size_t      MinBusy(size_t* MinCount = LqDfltPtr());
 
     size_t      TransferAllEvnt(LqWrk* Source) const;
@@ -83,7 +61,6 @@ public:
     LqWrkBoss(size_t CountWorkers);
     ~LqWrkBoss();
 
-
     int         AddWorkers(size_t Count = LqSystemThread::hardware_concurrency(), bool IsStart = true);
     bool        AddWorker(const LqWrkPtr& LqWorker);
 
@@ -92,10 +69,7 @@ public:
 
     bool        TransferEvnt(const LqListEvnt& ConnectionsList) const;
 
-
     size_t      CountWorkers() const;
-    /* Get worker by id*/
-    LqWrkPtr    operator[](size_t Index) const;
 
     size_t      StartAllWorkersSync() const;
     size_t      StartAllWorkersAsync() const;

@@ -3,12 +3,13 @@
 #include <stdio.h>
 #include <type_traits>
 #include <string.h>
+#include <functional>
 #include "LqAlloc.hpp"
 
 
 
 /*
-LqHashTable
+LqTbl
  Solodov A. N. (hotSAN)
  2016
 
@@ -66,7 +67,7 @@ template
     typename TIndex = decltype(std::declval<TElementStruct>().IndexInBound(0)),
     TIndex NothingIndex = TIndex(-1)
 >
-class LqHashTable
+class LqTbl
 {
 public:
     typedef TIndex      IndexType, *LpIndexType;
@@ -90,25 +91,13 @@ protected:
     IndexType count, alloc_count;
 public:
 
-    size_t Count() const
-    {
-        return count;
-    }
+    size_t Count() const { return count; }
 
-    size_t AllocCount() const
-    {
-        return alloc_count;
-    }
+    size_t AllocCount() const { return alloc_count; }
 
-    bool IsFull() const
-    {
-        return count >= alloc_count;
-    }
+    bool IsFull() const { return count >= alloc_count; }
 
-    IndexType EmptyCount() const
-    {
-        return alloc_count - count;
-    }
+    IndexType EmptyCount() const { return alloc_count - count; }
 
     static const IndexType EmptyElement = NothingIndex;
 
@@ -119,8 +108,6 @@ public:
 
     template<typename TYPE_KEY>
     inline LpCell* ElementByKey(TYPE_KEY Key) const { return GetTable() + TElementStruct::IndexByKey(Key, alloc_count); }
-
-
 
 protected:
 
@@ -154,14 +141,14 @@ public:
     /*
             After call this constructor AllocCount = NewAllocCount.
     */
-    LqHashTable(IndexType NewAllocCount = 1)
+    LqTbl(IndexType NewAllocCount = 1)
     {
         Table = nullptr;
         alloc_count = count = 0;
         ReallocAndClear(NewAllocCount);
     }
 
-    inline ~LqHashTable()
+    inline ~LqTbl()
     {
         if(Table != nullptr)
         {
@@ -251,7 +238,7 @@ public:
             Return address element in table.
     */
     template<typename T>
-    TElementStruct* RemoveRetPointer(T SearchKey)
+    TElementStruct* RemoveAndRetPointer(T SearchKey)
     {
         for(LpCell *lpStart = ElementByKey(SearchKey); *lpStart != nullptr; lpStart = &(*lpStart)->HeadCell::Next)
         {
@@ -360,6 +347,17 @@ public:
         return true;
     }
 
+    inline bool EnumValues2(std::function<bool(TElementStruct*)> EnumFunc) const
+    {
+        for(LpCell *s = GetTable(), *m = s + alloc_count; s < m; s++)
+            for(LpCell i = *s; i != nullptr; i = i->HeadCell::Next)
+            {
+                if(!EnumFunc(i))
+                    return false;
+            }
+        return true;
+    }
+
     /*
             Enumerate all elements in the table with the EnumFunc.
             Caution! When you call this function, you can not change the contents of the table!
@@ -417,7 +415,21 @@ public:
             }
     }
 
-
+    inline void EnumDelete2(std::function<bool(TElementStruct*)> IsDeleteProc)
+    {
+        for(LpCell *s = GetTable(), *m = s + alloc_count; s < m; s++)
+            for(LpCell* i = s; *i != nullptr; )
+            {
+                if(IsDeleteProc(*i))
+                {
+                    LpCell DelElem = *i;
+                    *i = DelElem->HeadCell::Next;
+                    LqFastAlloc::Delete(DelElem);
+                    count--;
+                } else
+                    i = &((*i)->HeadCell::Next);
+            }
+    }
 
     /*========================================================*/
     /*Resize table functional*/
@@ -473,7 +485,7 @@ public:
     /*
             Clone this table to another
     */
-    bool Clone(LqHashTable<TElementStruct, TIndex, NothingIndex>& Dest) const
+    bool Clone(LqTbl<TElementStruct, TIndex, NothingIndex>& Dest) const
     {
         LpCell UsedList = nullptr;
         if(Dest.count >= 0)
@@ -543,7 +555,7 @@ lblOut:
             Move this table to another.
             After call GetCount == 0.
     */
-    bool Move(LqHashTable<TElementStruct, TIndex, NothingIndex>& Dest)
+    bool Move(LqTbl<TElementStruct, TIndex, NothingIndex>& Dest)
     {
         if(!Dest.ReallocAndClear(1))
             return false;
@@ -571,14 +583,14 @@ lblOut:
     */
     typedef struct Iterator
     {
-        friend LqHashTable;
+        friend LqTbl;
     public:
         union
         {
             class
             {
                 friend Iterator;
-                friend LqHashTable;
+                friend LqTbl;
                 IndexType CurStartList;
                 LpCell CurElementInList;
             public:

@@ -18,7 +18,7 @@ OPTIM_CFLAGS        := $(LOCAL_CFLAGS) -O3
 endif
 
 LOCAL_CFLAGS        := $(OPTIM_CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive -fno-stack-protector
-LOCAL_MODULE        := remoteterm
+LOCAL_MODULE        := log
 LOCAL_SHARED_LIBRARIES := lanq_lib
 LOCAL_LDFLAGS       := $(OPTIM_CFLAGS) -shared -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive 
 

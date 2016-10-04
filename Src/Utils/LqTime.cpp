@@ -361,6 +361,23 @@ LQ_EXTERN_C LqTimeMillisec LQ_CALL LqTimeGetGmtMillisec()
 #endif
 }
 
+LQ_EXTERN_C LqTimeMillisec LQ_CALL LqTimeGet(short* TimeZone)
+{
+#if !defined(LQPLATFORM_ANDROID)
+	timeb t;
+	ftime(&t);
+	*TimeZone = t.timezone;
+	return (LqTimeMillisec)t.time * 1000ULL + t.millitm;
+#else
+	struct timezone tz;
+	timeval tv;
+	gettimeofday(&tv, &tz);
+	*TimeZone = tz.tz_minuteswest;
+	return (LqTimeMillisec)tv.tv_sec * 1000ULL + tv.tv_usec / 1000ULL;
+#endif
+}
+
+
 LQ_EXTERN_C LqTimeMillisec LQ_CALL LqTimeGetMaxMillisec()
 {
     return (LqTimeMillisec)std::numeric_limits<LqTimeMillisec>::max();

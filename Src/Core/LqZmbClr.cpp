@@ -1,7 +1,7 @@
 
 #include "LqZmbClr.h"
 #include "LqFile.h"
-#include "LqWrkBoss.hpp"
+#include "LqWrkBoss.h"
 #include "LqLog.h"
 
 #include <string.h>

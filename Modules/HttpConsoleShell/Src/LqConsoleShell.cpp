@@ -152,9 +152,9 @@ bool IsSuccess = true;
 
 int main(int argc, char* argv[])
 {
-
     OutFile = stdout;
     InFile = stdin;
+
 
     FILE* NullOut = fopen(LQ_NULLDEV, "wt");
 #if !defined(LQPLATFORM_WINDOWS)
@@ -249,6 +249,8 @@ lblAgain:
 
         LQSTR_SWITCH_N(CommandBuf, CommandLen)
         {
+			LQSTR_CASE("rem") /* Ignore line */
+				break;
             LQSTR_CASE("lqcmd")
             {
                 if(InFiles.size() >= 200)
@@ -381,6 +383,21 @@ lblAgain:
                     break;
                 }
                 LqHttpProtoSetInfo(Reg, nullptr, PortName, nullptr, nullptr, nullptr);
+                fprintf(OutFile, " OK\n");
+            }
+            break;
+            LQSTR_CASE("hst")
+            {
+                if(CommandData[0] == '\0')
+                {
+                    char Buf[16000];
+                    LqHttpProtoGetInfo(Reg, Buf, sizeof(Buf) - 1, nullptr, 0, nullptr, nullptr, nullptr);
+                    fprintf(OutFile, " %s\n", Buf);
+                    break;
+                }
+
+                LqString Path = ReadPath(CommandData);
+                LqHttpProtoSetInfo(Reg, Path.c_str(), nullptr, nullptr, nullptr, nullptr);
                 fprintf(OutFile, " OK\n");
             }
             break;
@@ -994,8 +1011,8 @@ lblAgain:
                     break;
                 }
                 auto Res = (Param.find("f") == LqString::npos) ?
-                    LqHttpPthDirSetAtz(Reg, Domen.c_str(), NetDir.c_str(), nullptr, false) :
-                    LqHttpPthFileSetAtz(Reg, Domen.c_str(), NetDir.c_str(), nullptr, false);
+                    LqHttpPthDirSetAtz(Reg, Domen.c_str(), NetDir.c_str(), nullptr, true) :
+                    LqHttpPthFileSetAtz(Reg, Domen.c_str(), NetDir.c_str(), nullptr, true);
                 PrintPthRegisterResult(OutFile, Res);
             }
             break;
@@ -1431,7 +1448,7 @@ const char* PrintHlp()
         "   Syntax of command: [Command prefix]<command> [args ...]\n"
         "     [Command prefix] - @ - Not out messages, + - Execute when previous command success, - - Execute when previous command fail\n"
         "     <command> - Command name (Ex. start, ldmdl, lqcmd)\n"
-		"     [args ...] - Command arguments. Can contain ref on environment variable (Ex: $<VARIABLE>)\n"
+        "     [args ...] - Command arguments. Can contain ref on environment variable (Ex: $<VARIABLE>)\n"
         "   Example commands:\n"
         "    lqcmd D:\\server\\lqcmd\\init_serv.lqcmd\n"
         "    @+start\n"
@@ -1439,11 +1456,13 @@ const char* PrintHlp()
         "   Commands:\n"
         "    ? or help - Show this help.\n"
         "    q or quit - Quit from server shell.\n"
-		"    set [Name][=Value]- Set or get environment variable (When spec =, then setted, otherwise get)\n"
-		"    unset [Name]- Unset environment variable\n"
+		"    rem <Some comments> - Ignore line (Primary used in lqcmd file)\n"
+        "    set [Name][=Value]- Set or get environment variable (When spec =, then setted, otherwise get)\n"
+        "    unset [Name]- Unset environment variable\n"
         "    lqcmd <Path to lanq command file> - Execute command file\n"
         "    exitlqcmd - Quit from execute command file\n"
         "    cd [<Dir path>]- Set or get Current directory\n"
+        "    hst [\"Name or IP address host\"] - Set or get host address. Ex. hst 0.0.0.0; hst \"0.0.0.0\"; hst; hst ::;\n"
         "    prt [<integer or name service>] - Set or get port number or name service. Ex: prt http; prt 8080; prt;\n"
         "    gmtcorr [<Count secods>] - Set or get GMT (relatively) correction for current system time. Ex: gmtcorr 3600; gmtcorr -7200; gmtcorr;\n"
         "    maxconn [<Count connections>] - Set or get max connection.\n"
@@ -1462,7 +1481,7 @@ const char* PrintHlp()
 
         "    mkredirect [-(f - for file(otherwise for dir);)] <domen name or *> <URI path> <Real path> <Respose status> <permissions> - Add redirection."
         " Ex: mkredirect * /hello http://lanqsite.com/hello 301 rt\n"
-		"    mkpth [-(f - for file(otherwise for dir); s - with subdir(default non subdirs))] <domen name or *> <URI path> <Real path> <permissions> - Add path."
+        "    mkpth [-(f - for file(otherwise for dir); s - with subdir(default non subdirs))] <domen name or *> <URI path> <Real path> <permissions> - Add path."
         " Ex: mkpth * /hello/ \"C:\\LanQ\\html\\\" rt; mkpth -f * / \"C:\\LanQ\\html\\index.html\" rt; mkpth * / \"C:\\LanQ\\html\" rt\n"
         "    rmpth [-(f - for file(otherwise for dir);)] <domen name or *> <URI path> - Remove path or redirection."
         " Ex: rmpth -f * /\n"

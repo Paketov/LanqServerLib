@@ -215,9 +215,6 @@
     <ClInclude Include="..\Src\Utils\LqFileTrd.h">
       <Filter>Utils</Filter>
     </ClInclude>
-    <ClInclude Include="..\Src\Utils\LqHashTable.hpp">
-      <Filter>Utils</Filter>
-    </ClInclude>
     <ClInclude Include="..\Src\Utils\LqLib.h">
       <Filter>Utils</Filter>
     </ClInclude>
@@ -255,6 +252,18 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Utils\LqShdPtr.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqHndls.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqPtdTbl.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqPtdArr.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqTbl.hpp">
       <Filter>Utils</Filter>
     </ClInclude>
   </ItemGroup>

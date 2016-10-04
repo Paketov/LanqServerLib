@@ -27,9 +27,9 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 
     Mod.FreeNotifyProc =
         [](LqHttpMdl* This) -> uintptr_t
-    {
-        return This->Handle;
-    };
+        {
+            return This->Handle;
+        };
 
     Mod.ReciveCommandProc =
         [](LqHttpMdl* Mdl, const char* Command, void* Data)

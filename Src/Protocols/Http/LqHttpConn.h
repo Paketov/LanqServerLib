@@ -71,6 +71,12 @@ LQ_IMPORTEXPORT int LQ_CALL LqHttpConnGetRemotePort(const LqHttpConn* lqain lqat
 
 //LQ_IMPORTEXPORT const LqHttpHdr* LQ_CALL LqHttpQurHdrSearchByCode(const LqHttpConn* lqain c, HttpHdrTypeEnm Type);
 
+LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataStore(LqHttpConn* lqain lqatns c, const void* Name, const void* Value);
+LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataGet(const LqHttpConn* lqain lqatns c, const void* Name, void** Value);
+LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataUnstore(LqHttpConn* lqain lqatns c, const void* Name);
+
+
+
 LQ_EXTERN_C_END
 
 

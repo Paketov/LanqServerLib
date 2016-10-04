@@ -70,14 +70,14 @@ static LqString ReadParams(LqString& Source, const char * Params)
     return "";
 }
 
-static void Response(LqHttpConn* c, int Code, const char* Content)
+static void Response(LqHttpConn* c, int Code, const char* Content, bool IsJson = false)
 {
     LqHttpConnInterface Conn = c;
     Conn.Rsp.MakeStatus(Code);
     auto l = LqStrLen(Content);
     Conn.Rsp.Hdrs["Content-Length"] = LqToString(l);
     Conn.Rsp.Hdrs["Cache-Control"] = "no-cache";
-    Conn.Rsp.Hdrs["Content-Type"] = "text/plain";
+    Conn.Rsp.Hdrs["Content-Type"] = (IsJson)? "application/json":"text/plain";
     Conn.Rsp.Hdrs.AppendSmallContent(Content, l);
     Conn.EvntHandler.Ignore();
 }
@@ -87,7 +87,7 @@ LqHttpMdl Mod;
 LqHttpProtoBase* Proto;
 LqTimeMillisec SessionTimeLife = 12000;
 size_t MaxCountSessions = 50;
-
+static char ModUnique;
 
 
 CmdSession::CmdSession(int NewStdIn, int NewPid, LqString& NewKey):
@@ -105,7 +105,7 @@ CmdSession::CmdSession(int NewStdIn, int NewPid, LqString& NewKey):
     TimerFd.Handler = TimerHandler;
     TimerFd.CloseHandler = TimerHandlerClose;
     TimerFd.UserData = (uintptr_t)&TimerFd - (uintptr_t)this;
-    LqObReference(this);
+    LqObPtrReference(this);
     LqEvntFdAdd(&TimerFd);
     Sessions.Add(this);
 }
@@ -126,7 +126,7 @@ void LQ_CALL CmdSession::TimerHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags)
     LqFileClose(Ob->TimerFd.Fd);
     Ob->TimerFd.Fd = -1;
     Ob->Unlock();
-    LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
+    LqObPtrDereference<CmdSession, LqFastAlloc::Delete>(Ob);
 }
 
 
@@ -142,9 +142,12 @@ bool CmdSession::StartRead(LqHttpConn* c)
         ReadFd.UserData = (uintptr_t)&ReadFd - (uintptr_t)this;
 
         LqEvntFdAdd(&ReadFd);
-        LqObReference(this);
-        LqObReference(this);
-        c->ModuleData = (uintptr_t)this;
+        LqObPtrReference(this);
+        LqObPtrReference(this);
+
+		/////////////
+		LqHttpConnInterface Conn(c);
+		Conn.UserData[&ModUnique] = this;
         LastAct = LqTimeGetLocMillisec();
         Res = true;
     }
@@ -153,7 +156,8 @@ bool CmdSession::StartRead(LqHttpConn* c)
 
 void CmdSession::EndRead(LqHttpConn* c)
 {
-    auto Ob = (CmdSession*)(c->ModuleData);
+	LqHttpConnInterface Conn(c);
+	CmdSession* Ob = Conn.UserData[&ModUnique];
     Ob->LockWrite();
 
     Ob->LastAct = LqTimeGetLocMillisec();
@@ -163,13 +167,13 @@ void CmdSession::EndRead(LqHttpConn* c)
         LqEvntSetClose(&Ob->ReadFd);
     }
     Ob->Unlock();
-    LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
+    LqObPtrDereference<CmdSession, LqFastAlloc::Delete>(Ob);
 }
 
 void LQ_CALL CmdSession::ReadHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags)
 {
     auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
-    LqObDereference<CmdSession, LqFastAlloc::Delete>(Ob);
+    LqObPtrDereference<CmdSession, LqFastAlloc::Delete>(Ob);
 }
 
 size_t _Sessions::Add(CmdSession* Session)
@@ -274,7 +278,7 @@ void LQ_CALL ConnHandlers::NewTerminal(LqHttpConn* c)
     auto Ses = LqFastAlloc::New<CmdSession>(MasterFd, Pid, LqString(KeyBuffer));
     LqString LqResponse;
     LqResponse = "{\"Key\": \"" + LqString(KeyBuffer) + "\", \"SessionIndex\": " + LqToString(Ses->Index) + "}";
-    Response(c, 200, LqResponse.c_str());
+    Response(c, 200, LqResponse.c_str(), true);
 }
 
 void LQ_CALL ConnHandlers::CloseTerminal(LqHttpConn* c)
@@ -367,8 +371,6 @@ void LQ_CALL ConnHandlers::ReadClose(LqHttpConn* c)
     Conn.EvntHandler.Ignore();
     Conn.CloseHandler.Ignore();
 }
-
-
 
 void LQ_CALL CmdSession::TimerHandler(LqEvntFd* Instance, LqEvntFlag Flags)
 {
@@ -482,11 +484,11 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                 )
                 {
                     if(OutBuffer != nullptr)
-                        fprintf(OutBuffer, " [RemoteTerminal] Error: invalid syntax of command\n");
+                        fprintf(OutBuffer, " [RemoteTerminal] ERROR: invalid syntax of command\n");
                     return;
                 }
 
-                auto c = LqHttpAtzCreate(LQHTTPATZ_TYPE_BASIC, "Lanq Remote Terminal");
+                auto c = LqHttpAtzCreate((AuthType[1] != 'b')?LQHTTPATZ_TYPE_BASIC: LQHTTPATZ_TYPE_DIGEST, "Lanq Remote Terminal");
                 LqHttpAtzAdd(c,
                              LQHTTPATZ_PERM_CHECK | 
                              LQHTTPATZ_PERM_CREATE | 
@@ -507,10 +509,10 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                    , LQHTTPATZ_PERM_READ | LQHTTPATZ_PERM_CHECK,
                    nullptr,
                    0
-                   ) != LQHTTPPTH_RES_OK)
+                 ) != LQHTTPPTH_RES_OK)
                 {
                     if(OutBuffer != nullptr)
-                        fprintf(OutBuffer, " [RemoteTerminal] Error: not create path entry for html page\n");
+                        fprintf(OutBuffer, " [RemoteTerminal] ERROR: not create path entry for html page\n");
                     return;
                 }
 
@@ -528,7 +530,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                    ) != LQHTTPPTH_RES_OK)
                 {
                     if(OutBuffer != nullptr)
-                        fprintf(OutBuffer, " [RemoteTerminal] Error: not create path entry for creating shell\n");
+                        fprintf(OutBuffer, " [RemoteTerminal] ERROR: not create path entry for creating shell\n");
                     return;
                 }
                 if(OutBuffer != nullptr)
@@ -552,7 +554,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
             break;
             LQSTR_SWITCH_DEFAULT
                 if(OutBuffer != nullptr)
-                    fprintf(OutBuffer, " [RemoteTerminal] Error: invalid command\n");
+                    fprintf(OutBuffer, " [RemoteTerminal] ERROR: invalid command\n");
         }
 
     };
@@ -595,10 +597,19 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 
 
     Mod.FreeNotifyProc =
-        [](LqHttpMdl* This) -> uintptr_t
+    [](LqHttpMdl* This) -> uintptr_t
     {
+
+		LqWrkBossEnumDelEvnt(nullptr, 
+		[](void*, LqEvntHdr* Evnt)
+		{
+			if(auto EvntFd = LqEvntToFd(Evnt))
+				return (EvntFd->Handler == CmdSession::TimerHandler) || (EvntFd->Handler == CmdSession::ReadHandler);
+			return false;
+		});
+
         return This->Handle;
     };
-    //Add task to worker boss
+
     return LQHTTPMDL_REG_OK;
 }

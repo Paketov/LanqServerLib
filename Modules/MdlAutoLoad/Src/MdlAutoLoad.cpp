@@ -245,7 +245,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                 if(DirEvent == nullptr)
                 {
                     if(OutBuffer)
-                        fprintf(OutBuffer, " [MdlAutoLoad] Error: path not added (not mem alloc)\n");
+                        fprintf(OutBuffer, " [MdlAutoLoad] ERROR: path not added (not mem alloc)\n");
                     break;
                 }
                 auto r = LqFilePathEvntCreate
@@ -257,7 +257,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                 if(r == -1)
                 {
                     if(OutBuffer)
-                        fprintf(OutBuffer, " [MdlAutoLoad] Error: path not added\n");
+                        fprintf(OutBuffer, " [MdlAutoLoad] ERROR: path not added\n");
                     break;
                 }
 
@@ -311,7 +311,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                 } else
                 {
                     if(OutBuffer)
-                        fprintf(OutBuffer, " [MdlAutoLoad] Error: not found path\n");
+                        fprintf(OutBuffer, " [MdlAutoLoad] ERROR: not found path\n");
                 }
             }
             break;
@@ -341,7 +341,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
             break;
             LQSTR_SWITCH_DEFAULT
                 if(OutBuffer)
-                    fprintf(OutBuffer, " [MdlAutoLoad] Error: unknown command");
+                    fprintf(OutBuffer, " [MdlAutoLoad] ERROR: unknown command");
         }
     };
 
@@ -379,9 +379,5 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 
     return LQHTTPMDL_REG_OK;
 }
-
-
-
-
 
 

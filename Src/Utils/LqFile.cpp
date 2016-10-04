@@ -183,7 +183,6 @@ static int LqFileOpenFlagsToCreateFileFlags(int openFlags)
 
 LQ_EXTERN_C int LQ_CALL LqFileOpen(const char *FileName, uint32_t Flags, int Access)
 {
-    //int                       fd;
     HANDLE              h;
     SECURITY_ATTRIBUTES InheritAttr = {sizeof(SECURITY_ATTRIBUTES), NULL, (Flags & LQ_O_NOINHERIT)? FALSE: TRUE};
     wchar_t Name[LQ_MAX_PATH];
@@ -208,26 +207,8 @@ LQ_EXTERN_C int LQ_CALL LqFileOpen(const char *FileName, uint32_t Flags, int Acc
                 NULL
             )
         ) == INVALID_HANDLE_VALUE
-        )
-    {
-        switch(GetLastError())
-        {
-
-            case ERROR_PATH_NOT_FOUND:
-            case ERROR_FILE_NOT_FOUND:
-                errno = ENOENT;
-                break;
-            case ERROR_FILE_EXISTS:
-                errno = EEXIST;
-                break;
-            case ERROR_ACCESS_DENIED:
-                errno = EACCES;
-                break;
-            default:
-                errno = EINVAL;
-        }
+		)
         return -1;
-    }
     //if(
     //  ((fd = _open_osfhandle((long)h, (Flags & LQ_O_APND) ? O_APPEND : 0)) < 0) ||
     //  (Flags & (LQ_O_TXT | LQ_O_BIN) && (_setmode(fd, ((Flags & LQ_O_TXT) ? O_TEXT : 0) | ((Flags & LQ_O_BIN) ? O_BINARY : 0)) < 0))
@@ -1713,7 +1694,7 @@ LQ_EXTERN_C int LQ_CALL LqFileGetEnvs(char* Buf, size_t BufLen)
 
 #include <vector>
 #include "LqAtm.hpp"
-
+#include "LqLock.hpp"
 
 #ifndef O_SHORT_LIVED
 #define O_SHORT_LIVED 0

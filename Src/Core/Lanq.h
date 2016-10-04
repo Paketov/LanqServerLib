@@ -87,6 +87,8 @@ struct LqEvntFd
 };
 
 #define LqEvntIsConn(Hdr) (((LqEvntHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)
+#define LqEvntToConn(Hdr) ((((LqEvntHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)? ((LqConn*)(Hdr)): ((LqConn*)nullptr))
+#define LqEvntToFd(Hdr) ((((LqEvntHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)? ((LqEvntFd*)nullptr): ((LqEvntFd*)(Hdr)))
 
 #pragma pack(pop)
 
@@ -106,16 +108,16 @@ struct LqProto
     LqFileSz MaxReciveInSingleTime;
 
     /*
-    * Read notifycation.
+    * Read notification.
     */
     void (LQ_CALL *ReciveProc)(LqConn* Connection);
     /*
-    * Write notifycation.
+    * Write notification.
     */
     void (LQ_CALL *WriteProc)(LqConn* Connection);
 
     /*
-    * Error notifycation.
+    * Error notification.
     */
     void (LQ_CALL *ErrorProc)(LqConn* Connection);
     /*

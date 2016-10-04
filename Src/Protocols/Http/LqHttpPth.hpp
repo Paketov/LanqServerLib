@@ -7,47 +7,53 @@
 */
 
 
-struct LqHttpDomainPaths;
-
 #include <time.h>
 #include "LqLock.hpp"
-#include "LqHashTable.hpp"
+#include "LqPtdArr.hpp"
+#include "LqPtdTbl.hpp"
 #include "LqHttpPth.h"
 #include "LqDef.hpp"
+#include "LqHttp.h"
+
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-struct LqHttpDomainPaths
+struct LqHttpDmn;
+struct LqHttpPthCmp;
+
+void _LqHttpPthDelete(LqHttpPth* Pth);
+void _LqHttpDmnDelete(LqHttpDmn* Pth);
+
+typedef LqShdPtr<LqHttpPth, _LqHttpPthDelete, false, false> LqHttpPthPtr;
+typedef LqShdPtr<LqHttpDmn, _LqHttpDmnDelete, false, false> LqHttpDmnPtr;
+
+struct LqHttpPthCmp 
 {
-    struct Element
-    {
-        LqHttpPth* p;
+    static uint16_t IndexByKey(const LqHttpPthPtr& CurPth, uint16_t MaxIndex);
+    static uint16_t IndexByKey(const char* Key, uint16_t MaxIndex);
 
-        bool SetKey(const LqHttpPth* NewKey);
-        static size_t IndexByKey(const LqHttpPth* Key, size_t MaxCount);
-        static size_t IndexByKey(const char* Key, size_t MaxCount);
-        size_t IndexInBound(size_t MaxCount) const;
-        bool CmpKey(const LqHttpPth* Key) const;
-        bool CmpKey(const char* Key) const;
-    };
+    static bool Cmp(const LqHttpPthPtr& CurPth, const LqHttpPthPtr& Key);
+    static bool Cmp(const LqHttpPthPtr& CurPth, const char* Key);
+};
+typedef LqPtdTbl<LqHttpPthPtr, LqHttpPthCmp>            LqHttpPthTbl;
 
-    char*                               NameDomain;
-    size_t                              NameHash;
-    LqHashTable<Element>                t;
+struct LqHttpDmn
+{
+    static uint16_t IndexByKey(const LqHttpDmnPtr& CurPth, uint16_t MaxIndex);
+    static uint16_t IndexByKey(const char* Key, uint16_t MaxIndex);
 
-    bool SetKey(const char* Name);
-    static size_t IndexByKey(const char* Key, size_t MaxCount);
-    size_t IndexInBound(size_t MaxCount) const;
-    bool CmpKey(const char* Key) const;
-    LqHttpDomainPaths();
-    ~LqHttpDomainPaths();
+    static bool Cmp(const LqHttpDmnPtr& CurPth, const LqHttpDmnPtr& Key);
+    static bool Cmp(const LqHttpDmnPtr& CurPth, const char* Key);
+
+    char*                               Name;
+    size_t                              CountPointers;
+    uint32_t                            NameHash;
+    LqHttpPthTbl                        Pths;
 };
 
-struct LqHttpFileSystem
-{
-    LqHashTable<LqHttpDomainPaths>  t;
-    LqLocker<uintptr_t>             l;
-};
+
+typedef LqPtdTbl<LqHttpDmnPtr, LqHttpDmn>               LqHttpDmnTbl;
+typedef LqPtdArr<LqHttpPth*>                            LqHttpPthArr;
 
 #pragma pack(pop)

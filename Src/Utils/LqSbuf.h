@@ -2,7 +2,7 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-*   LqSbuf... - (Lanq Stream Buffer) Implement faster stream buffer for async send or recive data from/in socket.
+*   LqSbuf... - (Lanq Stream Buffer) Implement faster stream buffer for async send/recive data from/in socket.
 */
 
 

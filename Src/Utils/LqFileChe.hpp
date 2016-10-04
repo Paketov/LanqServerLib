@@ -9,7 +9,7 @@
 
 #include "LqOs.h"
 #include "LqAlloc.hpp"
-#include "LqHashTable.hpp"
+#include "LqTbl.hpp"
 #include "LqLock.hpp"
 #include "LqDef.hpp"
 #include "LqTime.h"
@@ -60,7 +60,7 @@ public:
     struct CachedFile;
 private:
 
-    typedef LqHashTable<CachedFile, size_t>         TableType;
+    typedef LqTbl<CachedFile, size_t>         TableType;
 
     struct FileDescriptor
     {

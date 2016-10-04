@@ -12,6 +12,8 @@
 #include "LqOs.h"
 #include "LqDef.h"
 
+LQ_EXTERN_C_BEGIN
+
 enum LqHttpPrsHdrStatEnm
 {
     LQPRS_HDR_SUCCESS,
@@ -36,39 +38,37 @@ enum LqHttpPrsUrlStatEnm
     LQPRS_URL_ERR_QUERY,
 };
 
-
-LqHttpPrsUrlStatEnm LqHttpPrsUrl
+LQ_IMPORTEXPORT LqHttpPrsUrlStatEnm LQ_CALL LqHttpPrsUrl
 (
     char* String,
-    char*& SchemeStart, char*& SchemeEnd,
-    char*& UserInfoStart, char*& UserInfoEnd,
-    char*& HostStart, char*& HostEnd,
-    char*& PortStart, char*& PortEnd,
-    char*& DirStart, char*& DirEnd,
-    char*& QueryStart, char*& QueryEnd,
-    char*& FragmentStart, char*& FragmentEnd,
-    char*& End, char& TypeHost,
-    void(*AddQueryProc)(void* UserData, char* StartKey, char* EndKey, char* StartVal, char* EndVal)
-    = [](void*, char*, char*, char*, char*) {},
+    char** SchemeStart, char** SchemeEnd,
+    char** UserInfoStart, char** UserInfoEnd,
+    char** HostStart, char** HostEnd,
+    char** PortStart, char** PortEnd,
+    char** DirStart, char** DirEnd,
+    char** QueryStart, char** QueryEnd,
+    char** FragmentStart, char** FragmentEnd,
+    char** End, char* TypeHost,
+    void(*AddQueryProc)(void* UserData, char* StartKey, char* EndKey, char* StartVal, char* EndVal),
     void* UserData = nullptr
 );
 
-LqHttpPrsStartLineStatEnm LqHttpPrsStartLine
+LQ_IMPORTEXPORT LqHttpPrsStartLineStatEnm LQ_CALL LqHttpPrsStartLine
 (
     char* String,
-    char*& sMethod, char*& eMethod,
-    char*& sUri, char*& eUri,
-    char*& sVer, char*& eVer,
-    char*& End
+    char** sMethod, char** eMethod,
+    char** sUri, char** eUri,
+    char** sVer, char** eVer,
+    char** End
 );
 
-LqHttpPrsHdrStatEnm LqHttpPrsHeader(char* String, char*& KeyStart, char*& KeyEnd, char*& ValStart, char*& ValEnd, char*& End);
+LQ_IMPORTEXPORT LqHttpPrsHdrStatEnm LQ_CALL LqHttpPrsHeader(char* String, char** KeyStart, char** KeyEnd, char** ValStart, char** ValEnd, char** End);
 
-LqString& LqHttpPrsEscapeDecode(LqString& Source);
-char* LqHttpPrsEscapeDecode(char* Source, char*& NewEnd);
-char* LqHttpPrsEscapeDecode(char* Source, char* EndSource, char*& NewEnd);
-char* LqHttpPrsGetEndHeaders(char* Buf, size_t *CountLines);
-const char* LqHttpPrsGetMsgByStatus(int Status);
+LQ_IMPORTEXPORT char* LQ_CALL LqHttpPrsEscapeDecodeSz(char* Dest, const char* Source);
+LQ_IMPORTEXPORT char* LQ_CALL LqHttpPrsEscapeDecode(char* Source, char* EndSource, char** NewEnd);
+LQ_IMPORTEXPORT char* LQ_CALL LqHttpPrsGetEndHeaders(char* Buf, size_t *CountLines);
+LQ_IMPORTEXPORT const char* LQ_CALL LqHttpPrsGetMsgByStatus(int Status);
 
+LQ_EXTERN_C_END
 
 #endif

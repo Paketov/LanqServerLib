@@ -20,16 +20,40 @@
 #include "LqHttpMdl.h"
 #include "LqHttpConn.h"
 
-
 #define __METHOD_DECLS__
 #include "LqAlloc.hpp"
 
+LqHttpDmn EmptyDmn;
+LqHttpPth EmptyPth;
+LqHttpAtz EmptyAtz;
+
+static const char __init = ([]
+{
+    /* Init empty domain */
+    static char EmptyStr[5] = "";
+    EmptyDmn.CountPointers = 5;
+    EmptyDmn.Name = EmptyStr;
+    EmptyDmn.NameHash = 0;
+
+    EmptyAtz.AuthType = LQHTTPATZ_TYPE_NONE;
+    EmptyAtz.CountAuthoriz = 0;
+    EmptyAtz.CountPointers = 6;
+    LqAtmLkInit(EmptyAtz.Locker);
+    EmptyAtz.Realm = EmptyStr;
+
+    LqObPtrInit<LqHttpAtz>(EmptyPth.Atz, &EmptyAtz, EmptyPth.AtzPtrLk);
+    EmptyPth.CountPointers = 5;
+    EmptyPth.WebPath = EmptyStr;
+    EmptyPth.Atz = &EmptyAtz;
+    
+    return char(0);
+})();
+
 #define LqCheckedFree(MemReg) (((MemReg) != nullptr)? free(MemReg): void())
 
-static LqHttpPthResultEnm LqHttpPthRegisterNative(LqHttpFileSystem& fs, const char* WebDomen, LqHttpPth* Path);
-static LqHttpPthResultEnm LqHttpPthRegisterNative(LqHttpDomainPaths* WebDomen, LqHttpPth* Path);
+static LqHttpPthResultEnm LqHttpPthRegisterNative(LqHttpDmnTbl& Dmns, const char* WebDomen, LqHttpPthPtr& Path);
 
-static LqHttpPth* LqHttpPthCreate
+static LqHttpPthPtr LqHttpPthCreate
 (
     const char* WebPath,
     uint8_t Type,
@@ -48,35 +72,54 @@ static inline T StringHash(const char * Str)
     return h;
 }
 
-bool LqHttpDomainPaths::Element::SetKey(const LqHttpPth* NewKey) { p = (decltype(p))NewKey; LqHttpPthAssign(p);  return true; }
-size_t LqHttpDomainPaths::Element::IndexByKey(const LqHttpPth* Key, size_t MaxCount) { return Key->WebPathHash % MaxCount; }
-size_t LqHttpDomainPaths::Element::IndexByKey(const char* Key, size_t MaxCount) { return StringHash<size_t>(Key) % MaxCount; }
-size_t LqHttpDomainPaths::Element::IndexInBound(size_t MaxCount) const { return p->WebPathHash % MaxCount; }
-bool LqHttpDomainPaths::Element::CmpKey(const LqHttpPth* Key) const { return (Key == p) || ((Key->WebPathHash == p->WebPathHash) && LqStrSame(Key->WebPath, p->WebPath)); }
-bool LqHttpDomainPaths::Element::CmpKey(const char* Key) const { return LqStrSame(Key, p->WebPath); }
-
-bool LqHttpDomainPaths::SetKey(const char* Name)
+uint16_t LqHttpPthCmp::IndexByKey(const LqHttpPthPtr& CurPth, uint16_t MaxIndex) { return CurPth->WebPathHash % MaxIndex; }
+uint16_t LqHttpPthCmp::IndexByKey(const char* Key, uint16_t MaxIndex) { return StringHash<uint32_t>(Key) % MaxIndex; }
+bool LqHttpPthCmp::Cmp(const LqHttpPthPtr& CurPth, const LqHttpPthPtr& Key)
 {
-    auto l = LqStrLen(Name);
-    NameDomain = (char*)malloc(l + 1);
-    LqStrUtf8ToLower(NameDomain, l + 1, Name, -1);
-    NameHash = StringHash<decltype(NameHash)>(Name);
-    return true;
+    return (Key == CurPth.Get()) || ((Key->WebPathHash == CurPth->WebPathHash) && LqStrSame(Key->WebPath, CurPth->WebPath));
 }
-size_t LqHttpDomainPaths::IndexByKey(const char* Key, size_t MaxCount)
+
+bool LqHttpPthCmp::Cmp(const LqHttpPthPtr& CurPth, const char* Key) { return LqStrSame(Key, CurPth->WebPath); }
+uint16_t LqHttpDmn::IndexByKey(const LqHttpDmnPtr& CurPth, uint16_t MaxIndex) { return CurPth->NameHash % MaxIndex; }
+
+uint16_t LqHttpDmn::IndexByKey(const char* Key, uint16_t MaxIndex)
 {
-    decltype(NameHash) h = 0;
+    uint32_t h = 0;
     for(const char* k = Key; *k != '\0';)
         h = 31 * h + ((*k >= 'a') && (*k <= 'z')) ? (uint32_t)*(k++) : LqStrUtf8ToLowerChar(&k, -1);
-    return h % MaxCount;
+    return h % MaxIndex;
 }
-size_t LqHttpDomainPaths::IndexInBound(size_t MaxCount) const { return NameHash % MaxCount; }
-bool LqHttpDomainPaths::CmpKey(const char* Key) const
+
+bool LqHttpDmn::Cmp(const LqHttpDmnPtr& CurPth, const LqHttpDmnPtr& Key) { return LqStrUtf8CmpCase(CurPth->Name, Key->Name); }
+bool LqHttpDmn::Cmp(const LqHttpDmnPtr& CurPth, const char* Key) { return LqStrUtf8CmpCase(CurPth->Name, Key); }
+
+LqHttpDmnPtr LqHttpDmnAlloc(const char* NewName)
 {
-    return LqStrUtf8CmpCase(Key, NameDomain);
+    auto NewDomen = LqFastAlloc::New<LqHttpDmn>();
+    char HostBuf[LQHTTPPTH_MAX_DOMEN_NAME];
+    LqStrUtf8ToLower(HostBuf, sizeof(HostBuf) - 1, NewName, -1);
+
+    auto l = LqStrLen(HostBuf);
+    auto NameDomain = (char*)malloc(l + 1);
+    if(NameDomain == nullptr)
+        throw "LqHttpDmnAlloc(): Not alloc memory\n";
+    LqStrUtf8ToLower(NameDomain, l + 1, HostBuf, -1);
+    uint32_t h = 0;
+    for(const char* k = NewName; *k != '\0';)
+        h = 31 * h + ((*k >= 'a') && (*k <= 'z')) ? (uint32_t)*(k++) : LqStrUtf8ToLowerChar(&k, -1);
+    NewDomen->NameHash = h;
+    NewDomen->Name = NameDomain;
+    NewDomen->CountPointers = 0;
+    return NewDomen;
 }
-LqHttpDomainPaths::LqHttpDomainPaths(): NameDomain(nullptr), NameHash(0) {}
-LqHttpDomainPaths::~LqHttpDomainPaths() { if(NameDomain != nullptr) free(NameDomain); }
+
+void _LqHttpDmnDelete(LqHttpDmn* Dmn)
+{
+    for(auto& i : Dmn->Pths)
+        i->ParentModule->UnregisterPathFromDomenProc(i.Get(), Dmn->Name);
+    free(Dmn->Name);
+    LqFastAlloc::Delete(Dmn);
+}
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFile
 (
@@ -90,7 +133,7 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFile
     uintptr_t ModuleData
 )
 {
-    auto r = LqHttpPthCreate
+    auto NewPath = LqHttpPthCreate
     (
         WebPath,
         LQHTTPPTH_TYPE_FILE,
@@ -99,12 +142,8 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFile
         Autoriz,
         (RegModule == nullptr) ? &Reg->StartModule : RegModule
     );
-    if(r == nullptr)
-        return LQHTTPPTH_RES_NOT_ALLOC_MEM;
-    r->ModuleData = ModuleData;
-    auto t = LqHttpPthRegisterNative(((LqHttpProto*)Reg)->FileSystem, WebDomen, r);
-    LqHttpPthRelease(r);
-    return t;
+    NewPath->ModuleData = ModuleData;
+    return LqHttpPthRegisterNative(((LqHttpProto*)Reg)->Dmns, WebDomen, NewPath);
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDir
@@ -123,7 +162,7 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDir
     auto l = LqStrLen(WebPath);
     if((l == 0) || (WebPath[l - 1] != '/'))
         return LQHTTPPTH_RES_NOT_DIR;
-    auto r = LqHttpPthCreate
+    auto NewPath = LqHttpPthCreate
     (
         WebPath,
         LQHTTPPTH_TYPE_DIR | ((IsIncludeSubdirs) ? LQHTTPPTH_FLAG_SUBDIR : 0),
@@ -132,12 +171,8 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDir
         Autoriz,
         (RegModule == nullptr) ? &Reg->StartModule : RegModule
     );
-    if(r == nullptr)
-        return LQHTTPPTH_RES_NOT_ALLOC_MEM;
-    r->ModuleData = ModuleData;
-    auto t = LqHttpPthRegisterNative(((LqHttpProto*)Reg)->FileSystem, WebDomen, r);
-    LqHttpPthRelease(r);
-    return t;
+    NewPath->ModuleData = ModuleData;
+    return LqHttpPthRegisterNative(((LqHttpProto*)Reg)->Dmns, WebDomen, NewPath);
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecFile
@@ -152,7 +187,7 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecFile
     uintptr_t ModuleData
 )
 {
-    auto r = LqHttpPthCreate
+    auto NewPath = LqHttpPthCreate
     (
         WebPath,
         LQHTTPPTH_TYPE_EXEC_FILE,
@@ -161,12 +196,8 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecFile
         Autoriz,
         (RegModule == nullptr) ? &Reg->StartModule : RegModule
     );
-    if(r == nullptr)
-        return LQHTTPPTH_RES_NOT_ALLOC_MEM;
-    r->ModuleData = ModuleData;
-    auto t = LqHttpPthRegisterNative(((LqHttpProto*)Reg)->FileSystem, WebDomen, r);
-    LqHttpPthRelease(r);
-    return t;
+    NewPath->ModuleData = ModuleData;
+    return LqHttpPthRegisterNative(((LqHttpProto*)Reg)->Dmns, WebDomen, NewPath);
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecDir
@@ -186,7 +217,7 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecDir
     if((l == 0) || (WebPath[l - 1] != '/'))
         return LQHTTPPTH_RES_NOT_DIR;
 
-    auto r = LqHttpPthCreate
+    auto NewPath = LqHttpPthCreate
     (
         WebPath,
         LQHTTPPTH_TYPE_EXEC_DIR | ((IsIncludeSubdirs) ? LQHTTPPTH_FLAG_SUBDIR : 0),
@@ -195,12 +226,8 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecDir
         Autoriz,
         (RegModule == nullptr) ? &Reg->StartModule : RegModule
     );
-    if(r == nullptr)
-        return LQHTTPPTH_RES_NOT_ALLOC_MEM;
-    r->ModuleData = ModuleData;
-    auto t = LqHttpPthRegisterNative(((LqHttpProto*)Reg)->FileSystem, WebDomen, r);
-    LqHttpPthRelease(r);
-    return t;
+    NewPath->ModuleData = ModuleData;
+    return LqHttpPthRegisterNative(((LqHttpProto*)Reg)->Dmns, WebDomen, NewPath);
 }
 
 
@@ -217,7 +244,7 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFileRedirection
     uintptr_t ModuleData
 )
 {
-    auto r = LqHttpPthCreate
+    auto NewPath = LqHttpPthCreate
     (
         WebPath,
         LQHTTPPTH_TYPE_FILE_REDIRECTION,
@@ -226,14 +253,9 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFileRedirection
         Autoriz,
         (RegModule == nullptr) ? &Reg->StartModule : RegModule
     );
-    if(r == nullptr)
-        return LQHTTPPTH_RES_NOT_ALLOC_MEM;
-
-    r->ModuleData = ModuleData;
-    r->StatusCode = ResponseStatus;
-    auto t = LqHttpPthRegisterNative(((LqHttpProto*)Reg)->FileSystem, WebDomen, r);
-    LqHttpPthRelease(r);
-    return t;
+    NewPath->ModuleData = ModuleData;
+    NewPath->StatusCode = ResponseStatus;
+    return LqHttpPthRegisterNative(((LqHttpProto*)Reg)->Dmns, WebDomen, NewPath);
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDirRedirection
@@ -252,7 +274,7 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDirRedirection
     auto l = LqStrLen(WebPath);
     if((l == 0) || (WebPath[l - 1] != '/'))
         return LQHTTPPTH_RES_NOT_DIR;
-    auto r = LqHttpPthCreate
+    auto NewPath = LqHttpPthCreate
     (
         WebPath,
         LQHTTPPTH_TYPE_DIR_REDIRECTION | LQHTTPPTH_FLAG_SUBDIR,
@@ -261,13 +283,9 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDirRedirection
         Autoriz,
         (RegModule == nullptr) ? &Reg->StartModule : RegModule
     );
-    if(r == nullptr)
-        return LQHTTPPTH_RES_NOT_ALLOC_MEM;
-    r->ModuleData = ModuleData;
-    r->StatusCode = ResponseStatus;
-    auto t = LqHttpPthRegisterNative(((LqHttpProto*)Reg)->FileSystem, WebDomen, r);
-    LqHttpPthRelease(r);
-    return t;
+    NewPath->ModuleData = ModuleData;
+    NewPath->StatusCode = ResponseStatus;
+    return LqHttpPthRegisterNative(((LqHttpProto*)Reg)->Dmns, WebDomen, NewPath);
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthCopyFile
@@ -278,27 +296,20 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthCopyFile
     const char* WebPath
 )
 {
-    auto& FileSystem = ((LqHttpProto*)Reg)->FileSystem;
-    auto r = LQHTTPPTH_RES_OK;
-    FileSystem.l.LockWriteYield();
-    LQ_BREAK_BLOCK_BEGIN
-        auto DmnSrc = FileSystem.t.Search(WebDomenSource);
-    auto DmnDest = FileSystem.t.Search(WebDomenDest);
-    if((DmnSrc == nullptr) || (DmnDest == nullptr))
+    auto Dmns = ((LqHttpProto*)Reg)->Dmns;
+    auto DmnSourceInterator = Dmns.search(WebDomenSource);
+    auto DmnDestInterator = Dmns.search(WebDomenDest);
+    if(DmnSourceInterator.is_end() || DmnDestInterator.is_end())
+        return LQHTTPPTH_RES_NOT_HAVE_DOMEN;
+    auto PthInterator = (*DmnSourceInterator)->Pths.search(WebPath);
+    if(PthInterator.is_end())
+        return LQHTTPPTH_RES_NOT_HAVE_PATH;
+    switch((*DmnDestInterator)->Pths.push_back_uniq(*PthInterator))
     {
-        r = LQHTTPPTH_RES_NOT_HAVE_DOMEN;
-        break;
+        case -1: return LQHTTPPTH_RES_NOT_ALLOC_MEM;
+        case 0: return LQHTTPPTH_RES_ALREADY_HAVE;
     }
-    auto Pth = DmnSrc->t.Search(WebPath);
-    if(Pth == nullptr)
-    {
-        r = LQHTTPPTH_RES_NOT_HAVE_PATH;
-        break;
-    }
-    r = LqHttpPthRegisterNative(DmnDest, Pth->p);
-    LQ_BREAK_BLOCK_END
-        FileSystem.l.UnlockWrite();
-    return r;
+    return LQHTTPPTH_RES_OK;
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthCopyDir
@@ -321,35 +332,17 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthUnregisterFile
     const char* WebPath
 )
 {
-    auto& FileSystem = ((LqHttpProto*)Reg)->FileSystem;
-    auto r = LQHTTPPTH_RES_NOT_HAVE_DOMEN;
-    FileSystem.l.LockWriteYield();
-    LQ_BREAK_BLOCK_BEGIN
-        auto Dmn = FileSystem.t.Search(WebDomen);
-    if(Dmn == nullptr)
+    auto& Dmns = ((LqHttpProto*)Reg)->Dmns;
+    const auto DmnInterator = Dmns.search(WebDomen);
+    if(DmnInterator.is_end())
+        return LQHTTPPTH_RES_NOT_HAVE_DOMEN;
+    LqHttpPthPtr Pth = &EmptyPth;
+    if((*DmnInterator)->Pths.remove_by_val(WebPath, &Pth))
     {
-        r = LQHTTPPTH_RES_NOT_HAVE_DOMEN;
-        break;
+        Pth->ParentModule->UnregisterPathFromDomenProc(Pth.Get(), WebDomen);
+        return LQHTTPPTH_RES_OK;
     }
-    auto Pth = Dmn->t.Search(WebPath);
-    if(Pth == nullptr)
-    {
-        r = LQHTTPPTH_RES_NOT_HAVE_PATH;
-        break;
-    }
-    Pth->p->ParentModule->UnregisterPathFromDomenProc(Pth->p, WebDomen);
-
-    auto OldTableElement = Dmn->t.RemoveRetPointer(WebPath);
-    LqHttpPthRelease(OldTableElement->p);
-    OldTableElement->p = nullptr;
-    Dmn->t.DeleteRetPointer(OldTableElement);
-
-    r = LQHTTPPTH_RES_OK;
-    if((size_t)(Dmn->t.Count() * 1.7f) < Dmn->t.AllocCount())
-        Dmn->t.ResizeAfterRemove();
-    LQ_BREAK_BLOCK_END
-        FileSystem.l.UnlockWrite();
-    return r;
+    return LQHTTPPTH_RES_NOT_HAVE_PATH;
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthUnregisterDir
@@ -377,86 +370,34 @@ static LqHttpPthResultEnm LqHttpPthFileSetUnsetAtz
     bool IsSetPerm
 )
 {
-    auto& FileSystem = ((LqHttpProto*)Reg)->FileSystem;
-    auto r = LQHTTPPTH_RES_NOT_HAVE_DOMEN;
-    LqHttpPth* ReleasePth = nullptr;
-    FileSystem.l.LockWriteYield();
-    LQ_BREAK_BLOCK_BEGIN
-        auto Dmn = FileSystem.t.Search(WebDomen);
-    if(Dmn == nullptr)
-    {
-        r = LQHTTPPTH_RES_NOT_HAVE_DOMEN;
-        break;
-    }
-    auto Pth = Dmn->t.Search(WebPath);
-    if(Pth == nullptr)
-    {
-        r = LQHTTPPTH_RES_NOT_HAVE_PATH;
-        break;
-    }
-    auto RmPath = Pth->p;
+    auto Dmns = ((LqHttpProto*)Reg)->Dmns;
+    auto DmnInterator = Dmns.search(WebDomen);
+    if(DmnInterator.is_end())
+        return LQHTTPPTH_RES_NOT_HAVE_DOMEN;
+
+    auto PthIntertor = (*DmnInterator)->Pths.search(WebPath);
+    if(PthIntertor.is_end())
+        return LQHTTPPTH_RES_NOT_HAVE_PATH;
+
+    LqHttpPthPtr Pth = *PthIntertor;
     if(IsSetAtz)
     {
-        if(Atz == nullptr)
+        auto PrevVal = LqObPtrNewStart(Pth->Atz, Pth->AtzPtrLk);
+        if((!IsReplaceAtz) && (PrevVal != nullptr))
         {
-            if(RmPath->Atz == nullptr)
-            {
-                r = LQHTTPPTH_RES_NOT_HAVE_ATZ;
-                break;
-            }
-        } else
-        {
-            if(!IsReplaceAtz && (RmPath->Atz != nullptr))
-            {
-                r = LQHTTPPTH_RES_ALREADY_HAVE_ATZ;
-                break;
-            }
+            LqObPtrNewFin<LqHttpAtz, _LqHttpAtzDelete>(Pth->Atz, PrevVal, Pth->AtzPtrLk);
+            return LQHTTPPTH_RES_ALREADY_HAVE_ATZ;
         }
+        if((Atz == nullptr) && (PrevVal == nullptr))
+        {
+            LqObPtrNewFin<LqHttpAtz, _LqHttpAtzDelete>(Pth->Atz, PrevVal, Pth->AtzPtrLk);
+            return LQHTTPPTH_RES_NOT_HAVE_ATZ;
+        }
+        LqObPtrNewFin<LqHttpAtz, _LqHttpAtzDelete>(Pth->Atz, Atz, Pth->AtzPtrLk);
     }
-    void* Data = nullptr;
-    switch(RmPath->Type & LQHTTPPTH_TYPE_SEP)
-    {
-        case LQHTTPPTH_TYPE_DIR:
-        case LQHTTPPTH_TYPE_FILE:
-            Data = RmPath->RealPath;
-            break;
-        case LQHTTPPTH_TYPE_DIR_REDIRECTION:
-        case LQHTTPPTH_TYPE_FILE_REDIRECTION:
-            Data = RmPath->Location;
-            break;
-        case LQHTTPPTH_TYPE_EXEC_DIR:
-        case LQHTTPPTH_TYPE_EXEC_FILE:
-            Data = (void*)RmPath->ExecQueryProc;
-            break;
-    }
-    auto ResPath = LqHttpPthCreate(WebPath, RmPath->Type, Data, (IsSetPerm) ? Perm : RmPath->Permissions, (IsSetAtz) ? Atz : RmPath->Atz, RmPath->ParentModule);
-    if(ResPath == nullptr)
-    {
-        r = LQHTTPPTH_RES_NOT_ALLOC_MEM;
-        break;
-    }
-    ResPath->ModuleData = RmPath->ModuleData;
-    switch(RmPath->Type & LQHTTPPTH_TYPE_SEP)
-    {
-        case LQHTTPPTH_TYPE_DIR_REDIRECTION:
-        case LQHTTPPTH_TYPE_FILE_REDIRECTION:
-            ResPath->StatusCode = RmPath->StatusCode;
-            break;
-    }
-
-    /* Remove old path from main table*/
-    auto OldTableElement = Dmn->t.RemoveRetPointer(RmPath);
-    ReleasePth = OldTableElement->p;
-    OldTableElement->p = nullptr;
-    Dmn->t.DeleteRetPointer(OldTableElement);
-    /* Register new path in table*/
-    ResPath->Type |= LQHTTPPTH_FLAG_CHILD; /* Not call module proc*/
-    r = LqHttpPthRegisterNative(Dmn, ResPath);
-    ResPath->Type &= ~LQHTTPPTH_FLAG_CHILD;
-    LQ_BREAK_BLOCK_END
-    FileSystem.l.UnlockWrite();
-    LqHttpPthRelease(ReleasePth);//Should remove over safe block
-    return r;
+    if(IsSetPerm)
+        Pth->Permissions = Perm;
+    return LQHTTPPTH_RES_OK;
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthDirSetAtz(LqHttpProtoBase* Reg, const char* WebDomen, const char* WebPath, LqHttpAtz* Atz, bool IsReplace)
@@ -488,76 +429,41 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthFileSetPerm(LqHttpProtoBase* Reg
 */
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthDmnCreate(LqHttpProtoBase* Reg, const char* WebDomen)
 {
-    auto& FileSystem = ((LqHttpProto*)Reg)->FileSystem;
-    auto r = LQHTTPPTH_RES_NOT_HAVE_DOMEN;
-    FileSystem.l.LockWriteYield();
-    LQ_BREAK_BLOCK_BEGIN
-        if(FileSystem.t.Search(WebDomen) != nullptr)
-        {
-            r = LQHTTPPTH_RES_ALREADY_HAVE;
-            break;
-        }
-    if(FileSystem.t.IsFull())
-        FileSystem.t.ResizeBeforeInsert((FileSystem.t.Count() < 3) ? 3 : (size_t)(FileSystem.t.Count() * 1.61803398875f));
-    char HostBuf[LQHTTPPTH_MAX_DOMEN_NAME];
-    if(auto r = LqStrUtf8ToLower(HostBuf, sizeof(HostBuf) - 1, WebDomen, -1))
-    {
-        if(r >= (HostBuf + sizeof(HostBuf)))
-        {
-            FileSystem.l.UnlockWrite();
-            return LQHTTPPTH_RES_DOMEN_NAME_OVERFLOW;
-        }
-        *r = '\0';
-    } else
-    {
-        FileSystem.l.UnlockWrite();
-        return LQHTTPPTH_RES_INVALID_NAME;
-    }
-    r = (FileSystem.t.Insert(HostBuf) != nullptr) ? LQHTTPPTH_RES_OK : LQHTTPPTH_RES_NOT_ALLOC_MEM;
-    LQ_BREAK_BLOCK_END
-        FileSystem.l.UnlockWrite();
-    return r;
+    auto& Dmns = ((LqHttpProto*)Reg)->Dmns;
+    auto DmnPtr = LqHttpDmnAlloc(WebDomen);
+    auto Res = Dmns.push_back_uniq(DmnPtr);
+    if(Res == -1)
+        return LQHTTPPTH_RES_NOT_ALLOC_MEM;
+    if(Res == 0)
+        return LQHTTPPTH_RES_ALREADY_HAVE;
+    return LQHTTPPTH_RES_OK;
 }
 
 LQ_EXTERN_C bool LQ_CALL LqHttpPthDmnEnm(LqHttpProtoBase* Reg, char* WebDomen, size_t WebDomenLen)
 {
-    auto& FileSystem = ((LqHttpProto*)Reg)->FileSystem;
-    FileSystem.l.LockReadYield();
-    if(auto i = ((WebDomen[0] == '\0') ? FileSystem.t.GetStartCell() : FileSystem.t.GetNextCellByKey(WebDomen)))
+    auto& Dmns = ((LqHttpProto*)Reg)->Dmns;
+    LqHttpDmnTbl::interator Dmn;
+    if(WebDomen[0] == '\0')
     {
-        LqStrCopyMax(WebDomen, i->NameDomain, WebDomenLen);
-        FileSystem.l.UnlockRead();
-        return true;
+        Dmn = Dmns.begin();
+    } else
+    {
+        Dmn = Dmns.search(WebDomen);
+        if(Dmn.is_end())
+            return false;
+        ++Dmn;
     }
-    FileSystem.l.UnlockRead();
-    return false;
+    if(Dmn.is_end())
+        return false;
+    LqStrCopyMax(WebDomen, (*Dmn)->Name, WebDomenLen);
+    return true;
 }
 
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthDmnDelete(LqHttpProtoBase* Reg, const char* WebDomen)
 {
-    auto& FileSystem = ((LqHttpProto*)Reg)->FileSystem;
-    FileSystem.l.LockWriteYield();
-    auto d = FileSystem.t.Search(WebDomen);
-    struct LocalFunctions
-    {
-        static bool EnmDomain(void* DomainName, LqHttpDomainPaths::Element* e)
-        {
-            e->p->ParentModule->UnregisterPathFromDomenProc(e->p, (const char*)DomainName);
-            LqHttpPthRelease(e->p);
-            return true;
-        }
-    };
-
-    if(d != nullptr)
-    {
-        d->t.EnumDelete(LocalFunctions::EnmDomain, (void*)WebDomen);
-        FileSystem.t.Remove(WebDomen);
-        if((size_t)(FileSystem.t.Count() * 1.7f) < FileSystem.t.AllocCount())
-            FileSystem.t.ResizeAfterRemove();
-    }
-    FileSystem.l.UnlockWrite();
-    return (d == nullptr) ? LQHTTPPTH_RES_NOT_HAVE_DOMEN : LQHTTPPTH_RES_OK;
+    auto& Dmns = ((LqHttpProto*)Reg)->Dmns;
+    return (Dmns.remove_by_val(WebDomen))? LQHTTPPTH_RES_OK: LQHTTPPTH_RES_NOT_HAVE_DOMEN;
 }
 
 /*
@@ -576,22 +482,30 @@ static LqHttpPth* LqHttpPthGetByAddressSubdirCheck
 {
     uint k = 0;
     char c, c2;
-    LqHttpDomainPaths::Element* Pth = nullptr;
-    auto& FileSystem = ((LqHttpProto*)Reg)->FileSystem;
-    FileSystem.l.LockReadYield();
-    LQ_BREAK_BLOCK_BEGIN
-    auto Dmn = FileSystem.t.Search(Domain);
-    if(Dmn == nullptr)
+    LqHttpDmnPtr DefaultDmn = &EmptyDmn, Dmn = &EmptyDmn;
+    auto& Dmns = ((LqHttpProto*)Reg)->Dmns;
+
     {
-        if(Reg->UseDefaultDmn)
-            Dmn = FileSystem.t.Search("*");
-        else
-            break;
+        auto Interator = Dmns.search(Domain);
+        if(!Interator.is_end())
+            Dmn = *Interator;
     }
-    Pth = Dmn->t.Search(Path);
-    if(Pth != nullptr)
-        break;
-    for(int l = LqStrLen(Path) - 1; l >= 0; l--)
+    if(Reg->UseDefaultDmn)
+    {   
+        auto Interator = Dmns.search("*");
+        if(!Interator.is_end())
+            DefaultDmn = *Interator;
+    }
+    auto Pth = Dmn->Pths.search(Path);
+    if(Pth.is_end())
+        Pth = DefaultDmn->Pths.search(Path);
+    if(!Pth.is_end())
+    {
+        LqHttpPthAssign(Pth->Get());
+        *DeepSubDirs = k;
+        return Pth->Get();
+    }
+    for(intptr_t l = LqStrLen(Path) - 1; l >= 0; l--)
         if(Path[l] == '/')
         {
             k++;
@@ -599,73 +513,69 @@ static LqHttpPth* LqHttpPthGetByAddressSubdirCheck
             Path[l + 1] = '?';
             c2 = Path[l + 2];
             Path[l + 2] = '\0';
-            Pth = Dmn->t.Search(Path);
+            Pth = Dmn->Pths.search(Path);
+            if(Pth.is_end())
+                Pth = DefaultDmn->Pths.search(Path);
             Path[l + 1] = c;
             Path[l + 2] = c2;
-            if(Pth != nullptr)
+            if(!Pth.is_end())
             {
-                if((k > 1) && !(Pth->p->Type & LQHTTPPTH_FLAG_SUBDIR))
-                    Pth = nullptr;
-                else
-                    break;
+                if((k > 1) && !((*Pth)->Type & LQHTTPPTH_FLAG_SUBDIR))
+                {
+                    Pth.set_end();
+                } else
+                {
+                    LqHttpPthAssign(Pth->Get());
+                    *DeepSubDirs = k;
+                    return Pth->Get();
+                }
             }
         }
-    LQ_BREAK_BLOCK_END
-    if(Pth != nullptr)
-    {
-        LqHttpPthAssign(Pth->p);
-        FileSystem.l.UnlockRead();
-        *DeepSubDirs = k;
-        return Pth->p;
-    } else
-    {
-        FileSystem.l.UnlockRead();
-        return nullptr;
-    }
+    return nullptr;
 }
 
 static LqHttpPth* LqHttpPthGetByAddress(LqHttpProtoBase* Reg, const char* Domain, char* Path)
 {
     char c, c2;
-    LqHttpDomainPaths::Element* Pth = nullptr;
-    auto& FileSystem = ((LqHttpProto*)Reg)->FileSystem;
-    FileSystem.l.LockReadYield();
-    LQ_BREAK_BLOCK_BEGIN
-    auto Dmn = FileSystem.t.Search(Domain);
-    if(Dmn == nullptr)
+    LqHttpDmnPtr DefaultDmn = &EmptyDmn, Dmn = &EmptyDmn;
+    auto& Dmns = ((LqHttpProto*)Reg)->Dmns;
     {
-        if(Reg->UseDefaultDmn)
-            Dmn = FileSystem.t.Search("*");
-        else
-            break;
+        auto Interator = Dmns.search(Domain);
+        if(!Interator.is_end())
+            Dmn = *Interator;
     }
-    Pth = Dmn->t.Search(Path);
-    if(Pth != nullptr)
-        break;
-    for(int l = LqStrLen(Path) - 1; l >= 0; l--)
+    if(Reg->UseDefaultDmn)
+    {
+        auto Interator = Dmns.search("*");
+        if(!Interator.is_end())
+            DefaultDmn = *Interator;
+    }
+    auto Pth = Dmn->Pths.search(Path);
+    if(Pth.is_end())
+        Pth = DefaultDmn->Pths.search(Path);
+    if(!Pth.is_end())
+    {
+        LqHttpPthAssign(Pth->Get());
+        return Pth->Get();
+    }
+    for(intptr_t l = LqStrLen(Path) - 1; l >= 0; l--)
         if(Path[l] == '/')
         {
             c = Path[l + 1];
             c2 = Path[l + 2];
             Path[l + 1] = '?';
             Path[l + 2] = '\0';
-            Pth = Dmn->t.Search(Path);
+            if((Pth = Dmn->Pths.search(Path)).is_end())
+                Pth = DefaultDmn->Pths.search(Path);
             Path[l + 1] = c;
             Path[l + 2] = c2;
-            if(Pth != nullptr)
-                break;
+            if(!Pth.is_end())
+            {
+                LqHttpPthAssign(Pth->Get());
+                return Pth->Get();
+            }
         }
-    LQ_BREAK_BLOCK_END
-    if(Pth != nullptr)
-    {
-        LqHttpPthAssign(Pth->p); //Occupy   path struct
-        FileSystem.l.UnlockRead();
-        return Pth->p;
-    } else
-    {
-        FileSystem.l.UnlockRead();
-        return nullptr;
-    }
+    return nullptr;
 }
 
 
@@ -687,17 +597,22 @@ LQ_EXTERN_C bool LQ_CALL LqHttpPthEnm
     LqHttpAtz** AccessUserList
 )
 {
-    auto& FileSystem = ((LqHttpProto*)Reg)->FileSystem;
-    FileSystem.l.LockRead();
-    auto r = FileSystem.t.Search(Domain);
-    if(r == nullptr)
-    {
-        FileSystem.l.UnlockRead();
+    auto& Dmns = ((LqHttpProto*)Reg)->Dmns;
+    auto r = Dmns.search(Domain);
+    if(r.is_end())
         return false;
-    }
-    if(auto i = ((WebPath[0] == '\0') ? r->t.GetStartCell() : r->t.GetNextCellByKey((char*)WebPath)))
+    LqHttpPthTbl::interator i;
+    if(WebPath[0] == '\0')
     {
-        const LqHttpPth* Pth = i->p;
+        i = (*r)->Pths.begin();
+    } else
+    {
+        i = (*r)->Pths.search(WebPath);
+        i++;
+    }
+    if(!i.is_end())
+    {
+        const LqHttpPth* Pth = i->Get();
         auto l = LqStrLen(WebPath);
         LqStrCopyMax(WebPath, Pth->WebPath, PathLen);
         if(Type != nullptr)
@@ -739,10 +654,8 @@ LQ_EXTERN_C bool LQ_CALL LqHttpPthEnm
             if(*AccessUserList = Pth->Atz)
                 LqHttpAtzAssign(Pth->Atz);
         }
-        FileSystem.l.UnlockRead();
         return true;
     }
-    FileSystem.l.UnlockRead();
     return false;
 }
 
@@ -774,99 +687,78 @@ LQ_EXTERN_C bool LQ_CALL LqHttpPthInfo
         WebPathBuf.append(1, '?');
         WebPath = WebPathBuf.c_str();
     }
-    LqHttpDomainPaths::Element* p = nullptr;
-    auto& FileSystem = ((LqHttpProto*)Reg)->FileSystem;
-    FileSystem.l.LockReadYield();
-    auto Dmn = FileSystem.t.Search(Domain);
-    if(Dmn == nullptr)
-    {
-        FileSystem.l.UnlockRead();
+
+    auto& Dmns = ((LqHttpProto*)Reg)->Dmns;
+    auto Dmn = Dmns.search(Domain);
+    if(Dmn.is_end())
         return false;
-    }
-    const LqHttpPth* Pth;
-    if(auto v = Dmn->t.Search(WebPath))
-    {
-        Pth = v->p;
-    } else
-    {
-        FileSystem.l.UnlockRead();
+
+    auto Pth = (*Dmn)->Pths.search(WebPath);
+    if(Pth.is_end())
         return false;
-    }
+
     if(Type != nullptr)
-        *Type = Pth->Type;
-    switch(Pth->Type & LQHTTPPTH_TYPE_SEP)
+        *Type = (*Pth)->Type;
+    switch((*Pth)->Type & LQHTTPPTH_TYPE_SEP)
     {
         case LQHTTPPTH_TYPE_DIR: case LQHTTPPTH_TYPE_FILE:
             if(RealPath != nullptr)
-                LqStrCopyMax(RealPath, Pth->RealPath, RealPathLen);
+                LqStrCopyMax(RealPath, (*Pth)->RealPath, RealPathLen);
             break;
         case LQHTTPPTH_TYPE_FILE_REDIRECTION: case LQHTTPPTH_TYPE_DIR_REDIRECTION:
             if(RealPath != nullptr)
-                LqStrCopyMax(RealPath, Pth->Location, RealPathLen);
+                LqStrCopyMax(RealPath, (*Pth)->Location, RealPathLen);
             break;
         case LQHTTPPTH_TYPE_EXEC_DIR: case LQHTTPPTH_TYPE_EXEC_FILE:
             if(EventFunction != nullptr)
-                *EventFunction = Pth->ExecQueryProc;
+                *EventFunction = (*Pth)->ExecQueryProc;
             break;
     }
     if(ModuleOwner != nullptr)
     {
-        if(Pth->ParentModule != nullptr)
-            *ModuleOwner = Pth->ParentModule->Handle;
+        if((*Pth)->ParentModule != nullptr)
+            *ModuleOwner = (*Pth)->ParentModule->Handle;
         else
             *ModuleOwner = 0;
     }
     if(ModuleName != nullptr)
     {
         ModuleName[0] = '\0';
-        if(Pth->ParentModule != nullptr)
-            LqStrCopyMax(ModuleName, Pth->ParentModule->Name, ModuleNameSize);
+        if((*Pth)->ParentModule != nullptr)
+            LqStrCopyMax(ModuleName, (*Pth)->ParentModule->Name, ModuleNameSize);
     }
     if(ModuleData != nullptr)
-        *ModuleData = Pth->ModuleData;
+        *ModuleData = (*Pth)->ModuleData;
     if(Permissions != nullptr)
-        *Permissions = Pth->Permissions;
+        *Permissions = (*Pth)->Permissions;
     if(AccessUserList != nullptr)
     {
-        if(*AccessUserList = Pth->Atz)
-            LqHttpAtzAssign(Pth->Atz);
+        if(*AccessUserList = (*Pth)->Atz)
+            LqHttpAtzAssign((*Pth)->Atz);
     }
-    FileSystem.l.UnlockRead();
     return true;
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegister(LqHttpProtoBase* Reg, const char* Domain, LqHttpPth* Path)
 {
-    return LqHttpPthRegisterNative(((LqHttpProto*)Reg)->FileSystem, Domain, Path);
+    LqHttpPthPtr Pth = Path;
+    return LqHttpPthRegisterNative(((LqHttpProto*)Reg)->Dmns, Domain, Pth);
 }
 
-static LqHttpPthResultEnm LqHttpPthRegisterNative(LqHttpFileSystem& FileSystem, const char* WebDomen, LqHttpPth* Path)
-{
-    LqHttpPthResultEnm Result = LQHTTPPTH_RES_NOT_HAVE_DOMEN;
-    FileSystem.l.LockWrite();
-    auto Dmn = FileSystem.t.Search(WebDomen);
-    if(Dmn != nullptr)
-        Result = LqHttpPthRegisterNative(Dmn, Path);
-    FileSystem.l.UnlockWrite();
-    return Result;
-}
-
-static LqHttpPthResultEnm LqHttpPthRegisterNative(LqHttpDomainPaths* WebDomen, LqHttpPth* Path)
-{
-    if(WebDomen->t.IsFull())
-        WebDomen->t.ResizeBeforeInsert((WebDomen->t.Count() < 3) ? 3 : (size_t)(WebDomen->t.Count() * 1.61803398875f));
-    if(!(Path->Type & LQHTTPPTH_FLAG_CHILD) && !Path->ParentModule->RegisterPathInDomenProc(Path, WebDomen->NameDomain))
+static LqHttpPthResultEnm LqHttpPthRegisterNative(LqHttpDmnTbl& Dmns, const char* WebDomen, LqHttpPthPtr& Path)
+{   
+    if(!(Path->Type & LQHTTPPTH_FLAG_CHILD) && !Path->ParentModule->RegisterPathInDomenProc(Path.Get(), WebDomen))
         return LQHTTPPTH_RES_MODULE_REJECT;
-    auto j = WebDomen->t.Insert(Path);
-    if(j != nullptr)
-    {
-        if(j->p != Path)
-            return LQHTTPPTH_RES_ALREADY_HAVE;
-        else
-            return LQHTTPPTH_RES_OK;
-    } else
-        return LQHTTPPTH_RES_NOT_ALLOC_MEM;
+    LqHttpPthResultEnm Result = LQHTTPPTH_RES_NOT_HAVE_DOMEN;
 
+    auto DmnInter = Dmns.search(WebDomen);
+    if(DmnInter.is_end())
+        return LQHTTPPTH_RES_NOT_HAVE_DOMEN;
+    switch((*DmnInter)->Pths.push_back_uniq(Path))
+    {
+        case -1: return LQHTTPPTH_RES_NOT_ALLOC_MEM;
+        case 0: return LQHTTPPTH_RES_ALREADY_HAVE;
+    }
     return LQHTTPPTH_RES_OK;
 }
 
@@ -874,43 +766,41 @@ void LqHttpPthAssign(LqHttpPth* Pth)
 {
     if(Pth == nullptr)
         return;
-    LqAtmIntrlkInc(Pth->CountPointers);
+    LqObPtrReference(Pth);
 }
 
+void _LqHttpPthDelete(LqHttpPth* Pth)
+{
+    if(Pth->Type & LQHTTPPTH_FLAG_CHILD)
+        LqHttpPthRelease(Pth->Parent);
+    else
+        LqHttpMdlPathFree(Pth);
+
+    LqHttpAtzRelease(Pth->Atz);
+    switch(Pth->Type & LQHTTPPTH_TYPE_SEP)
+    {
+        case LQHTTPPTH_TYPE_DIR:
+        case LQHTTPPTH_TYPE_FILE:
+            LqCheckedFree(Pth->RealPath);
+            break;
+        case LQHTTPPTH_TYPE_DIR_REDIRECTION:
+        case LQHTTPPTH_TYPE_FILE_REDIRECTION:
+            LqCheckedFree(Pth->Location);
+            break;
+    }
+    LqCheckedFree(Pth->WebPath);
+    LqFastAlloc::Delete(Pth);
+}
+
+/* Dereference HTTP path */
 bool LqHttpPthRelease(LqHttpPth* Pth)
 {
     if(Pth == nullptr)
         return false;
-    LqAtmIntrlkDec(Pth->CountPointers);
-    if(Pth->CountPointers == 0)
-    {
-        if(Pth->Type & LQHTTPPTH_FLAG_CHILD)
-            LqHttpPthRelease(Pth->Parent);
-        else
-            LqHttpMdlPathFree(Pth);
-        LqHttpAtzRelease(Pth->Atz);
-        switch(Pth->Type & LQHTTPPTH_TYPE_SEP)
-        {
-            case LQHTTPPTH_TYPE_DIR:
-            case LQHTTPPTH_TYPE_FILE:
-                LqCheckedFree(Pth->RealPath);
-                break;
-            case LQHTTPPTH_TYPE_DIR_REDIRECTION:
-            case LQHTTPPTH_TYPE_FILE_REDIRECTION:
-                LqCheckedFree(Pth->Location);
-                break;
-        }
-        LqCheckedFree(Pth->WebPath);
-        if(Pth->Type & LQHTTPPTH_FLAG_CHILD)
-            LqFastAlloc::Delete(Pth);
-        else
-            LqFastAlloc::Delete((LqHttpPathListHdr*)Pth);
-        return true;
-    }
-    return false;
+    return LqObPtrDereference<LqHttpPth, _LqHttpPthDelete>(Pth);
 }
 
-static LqHttpPth* LqHttpPthCreate
+static LqHttpPthPtr LqHttpPthCreate
 (
     const char* WebPath,
     uint8_t Type,
@@ -920,25 +810,17 @@ static LqHttpPth* LqHttpPthCreate
     LqHttpMdl* RegModule
 )
 {
-    LqHttpPth* ResultPth;
-    if(RegModule == nullptr)
-    {
-        ResultPth = LqFastAlloc::New<LqHttpPth>();
-        if(ResultPth == nullptr)
-            return nullptr;
-        Type |= LQHTTPPTH_FLAG_CHILD;
-    } else
-    {
-        auto l = LqFastAlloc::New<LqHttpPathListHdr>();
-        if(l == nullptr)
-            return nullptr;
-        LqHttpMdlPathRegister(RegModule, l);
-        ResultPth = &l->Path;
-    }
+    LqHttpPth* ResultPth = LqFastAlloc::New<LqHttpPth>();
+    if(ResultPth == nullptr)
+        return &EmptyPth;
     memset(ResultPth, 0, sizeof(*ResultPth));
-    ResultPth->CountPointers = 1;
-    ResultPth->Type = Type;
     ResultPth->ParentModule = RegModule;
+    if(RegModule == nullptr)
+        Type |= LQHTTPPTH_FLAG_CHILD;
+    else
+        LqHttpMdlPathRegister(RegModule, ResultPth);
+
+    ResultPth->Type = Type;
     if(WebPath != nullptr)
     {
         switch(Type & LQHTTPPTH_TYPE_SEP)
@@ -973,7 +855,7 @@ static LqHttpPth* LqHttpPthCreate
         if(ResultPth->WebPath == nullptr)
         {
             LqHttpPthRelease(ResultPth);
-            return nullptr;
+            return &EmptyPth;
         }
         ResultPth->WebPathHash = StringHash<decltype(ResultPth->WebPathHash)>(ResultPth->WebPath);
     }
@@ -988,7 +870,7 @@ static LqHttpPth* LqHttpPthCreate
                 if((Buf == nullptr) || (LqFileRealPath((const char*)Data, Buf, CurLen - 1) == -1))
                 {
                     LqHttpPthRelease(ResultPth);
-                    return nullptr;
+                    return &EmptyPth;
                 }
                 CurLen = LqStrLen(Buf) + 2;
                 ResultPth->RealPath = (char*)realloc(Buf, CurLen);
@@ -1024,15 +906,14 @@ static LqHttpPth* LqHttpPthCreate
         break;
     }
 
-    ResultPth->Atz = Authoriz;
-    LqHttpAtzAssign(Authoriz);
+    LqObPtrInit(ResultPth->Atz, Authoriz, ResultPth->AtzPtrLk);
     ResultPth->Permissions = Permissions;
     if(RegModule != nullptr)
         RegModule->CreatePathProc(ResultPth);
     return ResultPth;
 }
 
-static LqHttpPth* LqHttpPthGetFileByDir(LqHttpConn* c, uint CountSubDirs)
+static LqHttpPthPtr LqHttpPthGetFileByDir(LqHttpConn* c, uint CountSubDirs)
 {
     auto Pth = c->Pth;
     auto Query = &c->Query;
@@ -1053,15 +934,12 @@ static LqHttpPth* LqHttpPthGetFileByDir(LqHttpConn* c, uint CountSubDirs)
                 break;
         }
     if((Deep < 0) || (Query->PathLen == ++i))
-        return nullptr;
+        return &EmptyPth;
     auto NewPth = LqHttpPthCreate(nullptr, LQHTTPPTH_TYPE_FILE, nullptr, Pth->Permissions, Pth->Atz, nullptr);
     if(NewPth == nullptr)
-        return nullptr;
+        return &EmptyPth;
     if((NewPth->RealPath = (char*)malloc(RealPathLen + (Query->PathLen - i) + 3)) == nullptr)
-    {
-        LqHttpPthRelease(NewPth);
-        return nullptr;
-    }
+        return &EmptyPth;
     char* s = Pth->RealPath, *d = NewPth->RealPath;
     for(; *s; s++, d++)
         *d = *s;
@@ -1069,7 +947,7 @@ static LqHttpPth* LqHttpPthGetFileByDir(LqHttpConn* c, uint CountSubDirs)
         *d = LQ_PATH_SEPARATOR, d++;
     s = Query->Path + i;
     auto m = s + (Query->PathLen - i);
-    if(LQ_PATH_SEPARATOR != '/')
+    if(LQ_PATH_SEPARATOR != '/') //Const compare (If you know what I mean)
     {
         for(; s < m; s++, d++)
             *d = (*s == '/') ? '\\' : *s;
@@ -1082,7 +960,7 @@ static LqHttpPth* LqHttpPthGetFileByDir(LqHttpConn* c, uint CountSubDirs)
     return NewPth;
 }
 
-static LqHttpPth* LqHttpPthGetFileRedirectionByDirRedirection(LqHttpConn* c, uint CountSubDirs)
+static LqHttpPthPtr LqHttpPthGetFileRedirectionByDirRedirection(LqHttpConn* c, uint CountSubDirs)
 {
     auto Pth = c->Pth;
     auto Query = &c->Query;
@@ -1104,15 +982,12 @@ static LqHttpPth* LqHttpPthGetFileRedirectionByDirRedirection(LqHttpConn* c, uin
         }
 
     if((Deep < 0) || (Query->PathLen == ++i))
-        return nullptr;
+        return &EmptyPth;
     auto NewPth = LqHttpPthCreate(nullptr, LQHTTPPTH_TYPE_FILE_REDIRECTION, nullptr, Pth->Permissions, Pth->Atz, nullptr);
-    if(NewPth == nullptr)
-        return nullptr;
+    if(NewPth == &EmptyPth)
+        return &EmptyPth;
     if((NewPth->Location = (char*)malloc(LocationLen + (Query->PathLen - i) + 3)) == nullptr)
-    {
-        LqHttpPthRelease(NewPth);
-        return nullptr;
-    }
+        return &EmptyPth;
     NewPth->StatusCode = Pth->StatusCode;
     LqStrCopy(NewPth->Location, Pth->Location);
     if((LocationLen == 0) || (Pth->Location[LocationLen - 1] != '/'))
@@ -1149,10 +1024,11 @@ void LqHttpPthRecognize(LqHttpConn* c)
             case LQHTTPPTH_TYPE_DIR:
             {
                 auto Pth = LqHttpPthGetFileByDir(c, CountSubDirs);
-                if(Pth != nullptr)
+                if(Pth != &EmptyPth)
                 {
                     Pth->Parent = c->Pth;
-                    c->Pth = Pth;
+                    c->Pth = Pth.Get();
+                    LqHttpPthAssign(c->Pth);
                     Pth->Type |= LQHTTPPTH_FLAG_CHILD;
                 } else
                 {
@@ -1166,7 +1042,8 @@ void LqHttpPthRecognize(LqHttpConn* c)
                 if(Pth != nullptr)
                 {
                     Pth->Parent = c->Pth;
-                    c->Pth = Pth;
+                    c->Pth = Pth.Get();
+                    LqHttpPthAssign(c->Pth);
                     Pth->Type |= LQHTTPPTH_FLAG_CHILD;
                 } else
                 {

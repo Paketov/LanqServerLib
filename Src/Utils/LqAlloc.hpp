@@ -12,6 +12,7 @@
 #include <malloc.h>
 #include "LqDef.hpp"
 #include "LqLock.hpp"
+#include <type_traits>
 
 
 #if /*!defined(_DEBUG) &&*/ defined(LQPLATFORM_WINDOWS)
@@ -37,14 +38,14 @@ class LqFastAlloc
         void*                   StartElement;
         size_t                  Count;
         size_t                  SizeList;
-        mutable LqLocker<uchar> Locker;
+        mutable LqLocker<uintptr_t> Locker;
 
         Fields(): StartElement(nullptr), SizeList(80), Count(0) {}
         ~Fields() { for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next) Next = *(void**)Ptr, ___free(Ptr); }
 
         void* Alloc()
         {
-            Locker.LockWriteYield();
+            Locker.LockWrite();
             if(StartElement != nullptr)
             {
                 void* Ret = StartElement;
@@ -60,7 +61,7 @@ class LqFastAlloc
         }
         void Free(void* Data)
         {
-            Locker.LockWriteYield();
+            Locker.LockWrite();
             if(Count >= SizeList)
             {
                 Locker.UnlockWrite();
@@ -75,20 +76,17 @@ class LqFastAlloc
         }
         void ClearList()
         {
-            Locker.LockWriteYield();
-            void * Cur = StartElement;
-            StartElement = nullptr;
-            while(Cur != nullptr)
-            {
-                void * v = *(void**)Cur;
-                ___free(Cur);
-                Cur = v;
-            }
+            Locker.LockWrite();
+            for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next) 
+                Next = *(void**)Ptr, ___free(Ptr);
             Count = 0;
             Locker.UnlockWrite();
         }
         inline void SetMaxCount(size_t NewVal) { SizeList = NewVal; }
     };
+
+    template<typename Type, size_t Size>
+    struct StructSize { Type v[Size]; };
 
     template<size_t Len>
     struct VAL_TYPE_: Fields<((Len < sizeof(void*)) ? sizeof(void*) : Len)> {};
@@ -99,27 +97,11 @@ class LqFastAlloc
     template<typename TYPE, TYPE Val, typename ASSOC_TYPE>
     struct assoc_val { static ASSOC_TYPE value; };
 public:
+    template<typename Type, typename... _Args>
+    inline static Type* LqFastAlloc::New(_Args&&... _Ax);
 
     template<typename Type>
-    inline static Type* New();
-
-    template<typename Type, typename A1>
-    inline static Type* New(A1&& arg1);
-
-    template<typename Type, typename A1, typename A2>
-    inline static Type* New(A1&& arg1, A2&& arg2);
-
-    template<typename Type, typename A1, typename A2, typename A3>
-    inline static Type* New(A1&& arg1, A2&& arg2, A3&& arg3);
-
-    template<typename Type, typename A1, typename A2, typename A3, typename A4>
-    inline static Type* New(A1&& arg1, A2&& arg2, A3&& arg3, A4&& arg4);
-
-    template<typename Type, typename A1, typename A2, typename A3, typename A4, typename A5>
-    inline static Type* New(A1 arg1, A2&& arg2, A3&& arg3, A4&& arg4, A5&& arg5);
-
-    template<typename Type, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
-    inline static Type* New(A1&& arg1, A2&& arg2, A3&& arg3, A4&& arg4, A5&& arg5, A6&& arg6);
+    static Type* ReallocCount(Type* Prev, size_t PrevCount, size_t NewCount);
 
     /*
     Delete memory region with adding in stack regions. Late, this region takes from stack.
@@ -134,70 +116,70 @@ public:
     inline static void JustDelete(void* Val) { ___free(Val); }
 
     template<typename Type>
-    inline static void ClearList();
+    inline static void Clear();
 
     /*
-    * Set max count in memory region stack.
+    * Set max count for memory region stack.
     */
     template<typename Type>
-    inline static void SetMaxCountList(size_t NewSize);
+    inline static void SetMaxCount(size_t NewSize);
 
     template<typename Type>
-    inline static size_t GetMaxCountList();
+    inline static size_t GetMaxCount();
 
 };
 
 #pragma pack(pop)
-
 
 #endif
 
 #if defined(__METHOD_DECLS__) && !defined(__LQ_ALLOC_H_2_)
 #define __LQ_ALLOC_H_2_
 
+template<typename Type, typename... _Args>
+inline Type* LqFastAlloc::New(_Args&&... _Ax)
+{
+    return new(assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.Alloc()) Type(_Ax...);
+}
 
 template<typename Type>
-inline Type* LqFastAlloc::New()
+static Type* LqFastAlloc::ReallocCount(Type* Prev, size_t PrevCount, size_t NewCount)
 {
-    return new(assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.Alloc()) Type();
-}
+    Type* NewVal = nullptr;
 
-template<typename Type, typename A1>
-inline Type* LqFastAlloc::New(A1&& arg1)
-{
-    return new(assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.Alloc()) Type(arg1);
-}
+    switch(NewCount)
+    {
+        case 0: lblExit:
+            switch(PrevCount)
+            {
+                case 0: break;
+                case 1: LqFastAlloc::Delete((StructSize<Type, 1>*)Prev);  break;
+                case 2: LqFastAlloc::Delete((StructSize<Type, 2>*)Prev);  break;
+                case 3: LqFastAlloc::Delete((StructSize<Type, 3>*)Prev);  break;
+                case 4: LqFastAlloc::Delete((StructSize<Type, 4>*)Prev);  break;
+                case 5: LqFastAlloc::Delete((StructSize<Type, 5>*)Prev);  break;
+                case 6: LqFastAlloc::Delete((StructSize<Type, 6>*)Prev);  break;
+                case 7: LqFastAlloc::Delete((StructSize<Type, 7>*)Prev);  break;
+                case 8: LqFastAlloc::Delete((StructSize<Type, 8>*)Prev);  break;
+                default: ___free(Prev); break;
+            }
+        return NewVal;
+        case 1: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 1>>(); break;
+        case 2: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 2>>(); break;
+        case 3: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 3>>(); break;
+        case 4: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 4>>(); break;
+        case 5: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 5>>(); break;
+        case 6: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 6>>(); break;
+        case 7: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 7>>(); break;
+        case 8: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 8>>(); break;
+        default: NewVal = (Type*)___malloc(NewCount * sizeof(Type));
+    }
 
-template<typename Type, typename A1, typename A2>
-inline Type* LqFastAlloc::New(A1&& arg1, A2&& arg2)
-{
-    return new(assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.Alloc()) Type(arg1, arg2);
+    if(NewVal == nullptr)
+        return nullptr;
+    memcpy(NewVal, Prev, lq_min(PrevCount, NewCount) * sizeof(Type));
+    goto lblExit;
 }
-
-template<typename Type, typename A1, typename A2, typename A3>
-inline Type* LqFastAlloc::New(A1&& arg1, A2&& arg2, A3&& arg3)
-{
-    return new(assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.Alloc()) Type(arg1, arg2, arg3);
-}
-
-template<typename Type, typename A1, typename A2, typename A3, typename A4>
-inline Type* LqFastAlloc::New(A1&& arg1, A2&& arg2, A3&& arg3, A4&& arg4)
-{
-    return new(assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.Alloc()) Type(arg1, arg2, arg3, arg4);
-}
-
-template<typename Type, typename A1, typename A2, typename A3, typename A4, typename A5>
-inline Type* LqFastAlloc::New(A1 arg1, A2&& arg2, A3&& arg3, A4&& arg4, A5&& arg5)
-{
-    return new(assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.Alloc()) Type(arg1, arg2, arg3, arg4, arg5);
-}
-
-template<typename Type, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
-inline Type* LqFastAlloc::New(A1&& arg1, A2&& arg2, A3&& arg3, A4&& arg4, A5&& arg5, A6&& arg6)
-{
-    return new(assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.Alloc()) Type(arg1, arg2, arg3, arg4, arg5, arg6);
-}
-
 /*
 Delete memory region with adding in stack regions. Late, this region takes from stack.
 */
@@ -210,19 +192,19 @@ inline typename std::enable_if<!std::is_same<Type, void>::value>::type LqFastAll
 
 
 template<typename Type>
-inline void LqFastAlloc::ClearList()
+inline void LqFastAlloc::Clear()
 {
     assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.ClearList();
 }
 
 template<typename Type>
-inline void LqFastAlloc::SetMaxCountList(size_t NewSize)
+inline void LqFastAlloc::SetMaxCount(size_t NewSize)
 {
     assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.SetMaxCount(NewSize);
 }
 
 template<typename Type>
-inline size_t LqFastAlloc::GetMaxCountList()
+inline size_t LqFastAlloc::GetMaxCount()
 {
     return assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.SizeList;
 }

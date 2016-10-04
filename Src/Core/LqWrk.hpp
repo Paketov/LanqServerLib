@@ -24,7 +24,7 @@ class LqWrkBoss;
 
 void LqWrkDelete(LqWrk* This);
 
-typedef LqShdPtr<LqWrk, LqWrkDelete, true> LqWrkPtr;
+typedef LqShdPtr<LqWrk, LqWrkDelete, false, false> LqWrkPtr;
 
 #pragma pack(push) 
 #pragma pack(LQSTRUCT_ALIGN_FAST)

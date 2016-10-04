@@ -254,13 +254,15 @@ LQ_EXTERN_C LqHttpProtoBase* LQ_CALL LqHttpProtoCreate()
 #endif
     LqHttpMdlInit(&r->Base, &r->Base.StartModule, "StartModule", 0);
     r->CountPointers = 0;
-    LqObReference(r); //Main reference
+    LqObPtrReference(r); //Main reference
 
     return &r->Base;
 }
 
 LQ_EXTERN_C int LQ_CALL LqHttpProtoDelete(LqHttpProtoBase* Proto)
 {
+	LqHttpMdlFreeAll(Proto);
+	LqHttpMdlFreeMain(Proto);
     LqAtmLkWr(Proto->BindLocker);
 
     if(Proto->ZmbClr.Fd != -1)
@@ -272,7 +274,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoDelete(LqHttpProtoBase* Proto)
     if(Proto.ssl_ctx != nullptr)
         LqAtmLkInit(r->Base.sslLocker);
 #endif
-    LqObDereference<LqHttpProto, LqFastAlloc::Delete>((LqHttpProto*)Proto);
+    LqObPtrDereference<LqHttpProto, LqFastAlloc::Delete>((LqHttpProto*)Proto);
     return 0;
 }
 
@@ -297,13 +299,13 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoBind(LqHttpProtoBase* Reg)
                        [](LqEvntFd* EventFd, void* Data) -> bool
                         {
                             auto Ob = (LqHttpProto*)Data;
-                            LqObDereference<LqHttpProto, LqFastAlloc::Delete>(Ob);
+                            LqObPtrDereference<LqHttpProto, LqFastAlloc::Delete>(Ob);
                             return 1;
                         },
                         Reg
                     );
         
-        LqObReference(Proto); //Reference by zombie killer
+        LqObPtrReference(Proto); //Reference by zombie killer
         LqWrkBossAddEvntSync((LqEvntHdr*)&Reg->ZmbClr);
         
     }
@@ -317,7 +319,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoBind(LqHttpProtoBase* Reg)
 
     LqConnInit(&Reg->Conn, BindedSock, &Reg->BindProto, LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD);
 
-    LqObReference(Proto); //Reference by bineded sock
+    LqObPtrReference(Proto); //Reference by bineded sock
 
     LqWrkBossAddEvntSync((LqEvntHdr*)&Reg->Conn);
     
@@ -343,9 +345,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoUnbind(LqHttpProtoBase* Reg)
         r = 0;
     }
     if(Reg->ZmbClr.Fd != -1)
-    {
         LqZmbClrUninit(&Reg->ZmbClr);
-    }
     LqAtmUlkWr(Reg->BindLocker);
     return r;
 }
@@ -357,7 +357,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoGetInfo(LqHttpProtoBase* Reg, char* Host, siz
     if(Port != nullptr)
         LqStrCopyMax(Port, Proto->Port.c_str(), PortBufSize);
     if(Host != nullptr)
-        LqStrCopyMax(Port, Proto->Host.c_str(), PortBufSize);
+        LqStrCopyMax(Host, Proto->Host.c_str(), HostBufSize);
     if(TransportProtoFamily != nullptr)
         *TransportProtoFamily = Proto->Base.TransportProtoFamily;
     if(MaxConnections != nullptr)
@@ -520,11 +520,14 @@ static void LQ_CALL LqHttpCoreDisconnectProc(LqConn* Connection)
     LqHttpConn* c = (LqHttpConn*)Connection;
     LqHttpProto* r = LqHttpGetReg(c);
     c->EventClose(c);
+
+    r->DisconnectHndls.Call(c);
     LqHttpActKeepOnlyHeaders(c);
     LqHttpConnPthRemove(c);
     if(c->Buf != nullptr)
         ___free(c->Buf);
-
+	if(c->UserData != nullptr)
+		LqFastAlloc::ReallocCount<LqHttpUserData>(c->UserData, c->UserDataCount, 0);
     LqAtmIntrlkDec(r->Base.CountConnections);
     if(r->Base.IsUnregister && (r->Base.CountConnections == 0))
         LqFastAlloc::Delete(r);
@@ -578,6 +581,12 @@ lblResponseResult:
                         LqEvntSetClose(c);
                         return;
                     }
+					{
+						auto t = c->Response.HeadersStart;
+						c->Response.HeadersStart = 0;
+						((LqHttpProto*)LqHttpProtoGetByConn(c))->EndResponseHndls.Call(c);
+						c->Response.HeadersStart = t;
+					}
                     LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
                     LqHttpActSwitchToRcv(c);
                     LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
@@ -822,6 +831,12 @@ lblSwitch:
                     LqEvntSetClose(c);
                     return;
                 }
+				{
+					auto t = c->Response.HeadersStart;
+					c->Response.HeadersStart = 0;
+					((LqHttpProto*)LqHttpProtoGetByConn(c))->EndResponseHndls.Call(c);
+					c->Response.HeadersStart = t;
+				}
                 LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
                 LqHttpActSwitchToRcv(c);
                 if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
@@ -844,6 +859,12 @@ lblResponseResult:
                         return;
                     }
                     LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
+					{
+						auto t = c->Response.HeadersStart;
+						c->Response.HeadersStart = 0;
+						((LqHttpProto*)LqHttpProtoGetByConn(c))->EndResponseHndls.Call(c);
+						c->Response.HeadersStart = t;
+					}
                     LqHttpActSwitchToRcv(c);
                     LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
                     return;
@@ -976,6 +997,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
 #endif
     LqAtmIntrlkInc(Proto->Base.CountConnections);
     LqWrkBossAddEvntAsync((LqEvntHdr*)c);
+	Proto->ConnectHndls.Call(c);
 }
 
 static void LQ_CALL LqHttpCoreBindErrorProc(LqConn* Connection)
@@ -992,7 +1014,7 @@ static void LQ_CALL LqHttpCoreBindDisconnectProc(LqConn* Connection)
         closesocket(Connection->Fd);
     Connection->Fd = -1;
     LQHTTPLOG_DEBUG("LqHttpCoreBindDisconnectProc() disconnected\n");
-    LqObDereference<LqHttpProto, LqFastAlloc::Delete>(Proto);
+    LqObPtrDereference<LqHttpProto, LqFastAlloc::Delete>(Proto);
 }
 
 LQ_EXTERN_C LqEvntFlag LQ_CALL LqHttpEvntGetFlagByAct(LqHttpConn* Conn)
@@ -1043,8 +1065,8 @@ static void LQ_CALL LqHttpFreeProtoNotifyProc(LqProto* This)
     if(CurReg->Base.CountConnections == 0)
     {
 #ifdef HAVE_OPENSSL
-        if(CurReg->Base.ssl_ctx != nullptr)
-            SSL_CTX_free(CurReg->Base.ssl_ctx);
+        if(CurProto->Base.ssl_ctx != nullptr)
+            SSL_CTX_free(CurProto->Base.ssl_ctx);
 #endif
         LqFastAlloc::Delete(CurReg);
     }
@@ -1400,7 +1422,7 @@ static void LqHttpRcvMultipartReadHdr(LqHttpConn* c)
                 for(;;)
                 {
                     char *StartKey, *EndKey, *StartVal, *EndVal, *EndHeader;
-                    LqHttpPrsHdrStatEnm r = LqHttpPrsHeader(Start, StartKey, EndKey, StartVal, EndVal, EndHeader);
+                    LqHttpPrsHdrStatEnm r = LqHttpPrsHeader(Start, &StartKey, &EndKey, &StartVal, &EndVal, &EndHeader);
                     switch(r)
                     {
                         case LQPRS_HDR_SUCCESS:
@@ -1689,16 +1711,16 @@ static bool LqHttpMultipartAddHeaders(LqHttpMultipartHeaders** CurMultipart, con
 static void LqHttpQurReadHeaders(LqHttpConn* c)
 {
     int CountReaded;
-    size_t NewAllocSize, ReadSize, SizeAllReaded, CountLines;
+    size_t NewAllocSize, ReadSize, SizeAllReaded, CountLines, UrlLength, LengthHeaders;
     char *EndQuery, *EndStartLine, *StartMethod = "", *EndMethod = StartMethod,
         *StartUri = StartMethod, *EndUri = StartMethod,
         *StartVer = StartMethod, *EndVer = StartMethod,
         *SchemeStart, *SchemeEnd, *UserInfoStart, *UserInfoEnd,
         *HostStart, *HostEnd, *PortStart, *PortEnd,
         *DirStart, *DirEnd, *QueryStart, *QueryEnd,
-        *FragmentStart, *FragmentEnd, *End, TypeHost;
+        *FragmentStart, *FragmentEnd, *End, TypeHost, *NewPlaceForUrl;
 
-    LqHttpProto* CurReg = LqHttpGetReg(c);
+    LqHttpProto* CurProto = LqHttpGetReg(c);
     auto q = &c->Query;
 
 
@@ -1706,7 +1728,7 @@ lblContinueRead:
     NewAllocSize = q->PartLen + 2045;
     if(c->BufSize < NewAllocSize)
     {
-        if(!LqHttpConnBufferRealloc(c, (NewAllocSize > CurReg->Base.MaxHeadersSize) ? CurReg->Base.MaxHeadersSize : NewAllocSize))
+        if(!LqHttpConnBufferRealloc(c, (NewAllocSize > CurProto->Base.MaxHeadersSize) ? CurProto->Base.MaxHeadersSize : NewAllocSize))
         {
             //Error allocate memory
             c->Flags = LQHTTPCONN_FLAG_CLOSE;
@@ -1734,7 +1756,7 @@ lblContinueRead:
     c->Buf[SizeAllReaded] = '\0';
     if((EndQuery = LqHttpPrsGetEndHeaders(c->Buf + q->PartLen, &CountLines)) == nullptr)
     {
-        if((SizeAllReaded + 4) >= CurReg->Base.MaxHeadersSize)
+        if((SizeAllReaded + 4) >= CurProto->Base.MaxHeadersSize)
         {
             //Error request to large
             q->PartLen = 0;
@@ -1752,25 +1774,26 @@ lblContinueRead:
             return;
         }
     }
-
+	
     LqHttpConnRecive_Native(c, c->Buf + q->PartLen, EndQuery - (c->Buf + q->PartLen), 0);
     *EndQuery = '\0';
     q->PartLen = 0;
+	LengthHeaders = EndQuery - c->Buf;
 
     /*
     Read start line.
     */
-
+lblGetUrlAgain:
     switch(
         LqHttpPrsStartLine
         (
-        c->Buf,
-        StartMethod, EndMethod,
-        StartUri, EndUri,
-        StartVer, EndVer,
-        EndStartLine
+            c->Buf,
+            &StartMethod, &EndMethod,
+            &StartUri, &EndUri,
+            &StartVer, &EndVer,
+            &EndStartLine
         )
-        )
+     )
     {
         case LQPRS_START_LINE_ERR:
             //Err invalid start line
@@ -1779,36 +1802,49 @@ lblContinueRead:
             return;
     }
 
+	UrlLength = LengthHeaders + (EndUri - StartUri) + 10;
+
+	if(UrlLength > c->BufSize)
+	{
+		if(!LqHttpConnBufferRealloc(c, UrlLength))
+		{
+			free(c->Buf);
+			c->Buf = nullptr;
+			c->Flags = LQHTTPCONN_FLAG_CLOSE;
+			LqHttpRspError(c, 500);
+			return;
+		}
+		goto lblGetUrlAgain;
+	}
+
+	memcpy(NewPlaceForUrl = (c->Buf + (LengthHeaders + 2)), StartUri, EndUri - StartUri);
+	NewPlaceForUrl[EndUri - StartUri] = '\0';
     struct LocalFunc
     {
-        static void EnumURIArg(void* QueryData, char* StartKey, char* EndKey, char* StartVal, char* EndVal)
-        {
-            if(((LqHttpQuery*)QueryData)->Arg == nullptr)
-                ((LqHttpQuery*)QueryData)->Arg = StartKey;
-            ((LqHttpQuery*)QueryData)->ArgLen = EndVal - ((LqHttpQuery*)QueryData)->Arg;
-        }
+        static void EnumURIArg(void* QueryData, char* StartKey, char* EndKey, char* StartVal, char* EndVal){}
     };
 
     if(
         LqHttpPrsUrl
         (
-        StartUri,
-        SchemeStart, SchemeEnd,
-        UserInfoStart, UserInfoEnd,
-        HostStart, HostEnd,
-        PortStart, PortEnd,
-        DirStart, DirEnd,
-        QueryStart, QueryEnd,
-        FragmentStart, FragmentEnd,
-        End, TypeHost,
-        LocalFunc::EnumURIArg,
-        q
+		    NewPlaceForUrl,
+			&SchemeStart, &SchemeEnd,
+			&UserInfoStart, &UserInfoEnd,
+			&HostStart, &HostEnd,
+			&PortStart, &PortEnd,
+			&DirStart, &DirEnd,
+			&QueryStart, &QueryEnd,
+			&FragmentStart, &FragmentEnd,
+			&End, &TypeHost,
+			LocalFunc::EnumURIArg,
+			q
         ) != LQPRS_URL_SUCCESS
         )
     {
-        if(*StartUri == '*')
-            DirEnd = (DirStart = StartUri) + 1;
-        else
+		if(*StartUri == '*')
+		{
+			DirEnd = (DirStart = StartUri) + 1;
+		} else
         {
             //Err invalid uri in start line
             LqHttpRspError(c, 400);
@@ -1817,26 +1853,32 @@ lblContinueRead:
     } else
     {
         char* NewEnd;
-        if(UserInfoStart != nullptr)
-        {
-            q->UserInfo = LqHttpPrsEscapeDecode(UserInfoStart, UserInfoEnd, NewEnd);
-            q->UserInfoLen = NewEnd - UserInfoStart;
-        }
-        if(HostStart != nullptr)
-        {
-            q->Host = LqHttpPrsEscapeDecode(HostStart, HostEnd, NewEnd);
-            q->HostLen = NewEnd - HostStart;
-        }
-        if(FragmentStart != nullptr)
-        {
-            q->Fragment = LqHttpPrsEscapeDecode(FragmentStart, FragmentEnd, NewEnd);
-            q->FragmentLen = NewEnd - FragmentStart;
-        }
-        if(DirStart != nullptr)
-        {
-            q->Path = LqHttpPrsEscapeDecode(DirStart, DirEnd, NewEnd);
-            q->PathLen = NewEnd - DirStart;
-        }
+
+		if(UserInfoStart != nullptr)
+		{
+			q->UserInfo = LqHttpPrsEscapeDecode(UserInfoStart, UserInfoEnd, &NewEnd);
+			q->UserInfoLen = NewEnd - UserInfoStart;
+		}
+		if(HostStart != nullptr)
+		{
+			q->Host = LqHttpPrsEscapeDecode(HostStart, HostEnd, &NewEnd);
+			q->HostLen = NewEnd - HostStart;
+		}		
+		if(DirStart != nullptr)
+		{
+			q->Path = LqHttpPrsEscapeDecode(DirStart, DirEnd, &NewEnd);
+			q->PathLen = NewEnd - DirStart;
+		}
+		if(QueryStart != nullptr)
+		{
+			q->Arg = LqHttpPrsEscapeDecode(QueryStart, QueryEnd, &NewEnd);
+			q->ArgLen = NewEnd - q->Arg;
+		}
+		if(FragmentStart != nullptr)
+		{
+			q->Fragment = LqHttpPrsEscapeDecode(FragmentStart, FragmentEnd, &NewEnd);
+			q->FragmentLen = NewEnd - FragmentStart;
+		}
     }
     if(StartVer < EndVer)
     {
@@ -1856,7 +1898,7 @@ lblContinueRead:
     for(;;)
     {
         char *StartKey, *EndKey, *StartVal, *EndVal, *EndHeader;
-        LqHttpPrsHdrStatEnm r = LqHttpPrsHeader(EndStartLine, StartKey, EndKey, StartVal, EndVal, EndHeader);
+        LqHttpPrsHdrStatEnm r = LqHttpPrsHeader(EndStartLine, &StartKey, &EndKey, &StartVal, &EndVal, &EndHeader);
         switch(r)
         {
             case LQPRS_HDR_SUCCESS:
@@ -1880,10 +1922,14 @@ lblContinueRead:
     LqHttpPthRecognize(c);
     c->ActionState = LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS;
     c->ActionResult = LQHTTPACT_RES_OK;
+
+    CurProto->StartQueryHndls.Call(c);
+
     if(auto MethodHandler = LqHttpMdlGetByConn(c)->GetActEvntHandlerProc(c))
         c->EventAct = MethodHandler;
     else
         LqHttpRspError(c, 405);
+    
 }
 
 static void LqHttpParseHeader(LqHttpConn* c, LqHttpQuery* q, char* StartKey, char* StartVal, char* EndVal, size_t* CountHeders)
@@ -1931,8 +1977,46 @@ static void LqHttpParseHeader(LqHttpConn* c, LqHttpQuery* q, char* StartKey, cha
                 }
             }
         }
-        break;
+		break;
     }
 }
 
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsRegisterQuery(LqHttpProtoBase* Reg, LqHttpNotifyFn QueryFunc)
+{
+    return ((LqHttpProto*)Reg)->StartQueryHndls.Add(QueryFunc);
+}
 
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsUnregisterQuery(LqHttpProtoBase* Reg, LqHttpNotifyFn QueryFunc)
+{
+    return ((LqHttpProto*)Reg)->StartQueryHndls.Rm(QueryFunc);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsRegisterResponse(LqHttpProtoBase* Reg, LqHttpNotifyFn ResponseFunc)
+{
+    return ((LqHttpProto*)Reg)->EndResponseHndls.Add(ResponseFunc);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsUnregisterResponse(LqHttpProtoBase* Reg, LqHttpNotifyFn ResponseFunc)
+{
+    return ((LqHttpProto*)Reg)->EndResponseHndls.Rm(ResponseFunc);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsRegisterConnect(LqHttpProtoBase* Reg, LqHttpNotifyFn ConnectFunc)
+{
+    return ((LqHttpProto*)Reg)->ConnectHndls.Add(ConnectFunc);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsUnregisterConnect(LqHttpProtoBase* Reg, LqHttpNotifyFn ConnectFunc)
+{
+    return ((LqHttpProto*)Reg)->ConnectHndls.Rm(ConnectFunc);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsRegisterDisconnect(LqHttpProtoBase* Reg, LqHttpNotifyFn DisconnectFunc)
+{
+    return ((LqHttpProto*)Reg)->DisconnectHndls.Add(DisconnectFunc);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsUnregisterDisconnect(LqHttpProtoBase* Reg, LqHttpNotifyFn DisconnectFunc)
+{
+    return ((LqHttpProto*)Reg)->DisconnectHndls.Rm(DisconnectFunc);
+}

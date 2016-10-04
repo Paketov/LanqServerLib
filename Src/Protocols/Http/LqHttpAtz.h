@@ -11,6 +11,10 @@
 #include "LqHttp.h"
 #include "LqOs.h"
 
+#if defined(LANQBUILD)
+void _LqHttpAtzDelete(LqHttpAtz* NetAutoriz);
+#endif
+
 LQ_EXTERN_C_BEGIN
 
 LQ_IMPORTEXPORT LqHttpAtz* LQ_CALL LqHttpAtzCreate(LqHttpAtzTypeEnm AuthType, const char* lqain lqautf8 Realm);

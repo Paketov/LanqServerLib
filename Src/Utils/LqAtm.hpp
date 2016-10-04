@@ -8,68 +8,13 @@
 
 
 #include <atomic>
-#include "LqLock.hpp"
-
+#include <thread>
 
 template<typename T>
 inline bool LqAtmCmpXchg(volatile T& Val, T& Expected, T NewVal)
 {
     static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
     return ((std::atomic<T>&)Val).compare_exchange_strong(Expected, NewVal);
-}
-
-template<typename T>
-inline void LqAtmLkInit(volatile T& Val)
-{
-    new((void*)&Val) LqLocker<T>();
-}
-
-template<typename T>
-inline void LqAtmLkRd(volatile T& Val)
-{
-    static_assert(sizeof(LqLocker<T>) == sizeof(T), "sizeof(LqLocker<T>) != sizeof(T), use another method this");
-    ((LqLocker<T>&)Val).LockReadYield();
-}
-
-template<typename T>
-inline void LqAtmUlkRd(volatile T& Val)
-{
-    static_assert(sizeof(LqLocker<T>) == sizeof(T), "sizeof(LqLocker<T>) != sizeof(T), use another method this");
-    ((LqLocker<T>&)Val).UnlockRead();
-}
-
-template<typename T>
-inline void LqAtmLkWr(volatile T& Val)
-{
-    static_assert(sizeof(LqLocker<T>) == sizeof(T), "sizeof(LqLocker<T>) != sizeof(T), use another method this");
-    ((LqLocker<T>&)Val).LockWriteYield();
-}
-
-template<typename T>
-inline void LqAtmUlkWr(volatile T& Val)
-{
-    static_assert(sizeof(LqLocker<T>) == sizeof(T), "sizeof(LqLocker<T>) != sizeof(T), use another method this");
-    ((LqLocker<T>&)Val).UnlockWrite();
-}
-
-template<typename T>
-inline bool LqAtmLkIsRd(volatile T& Val)
-{
-    return ((LqLocker<T>&)Val).IsLockRead();
-}
-
-template<typename T>
-inline void LqAtmIntrlkInc(volatile T& Val)
-{
-    static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
-    ((std::atomic<T>&)Val)++;
-}
-
-template<typename T>
-inline void LqAtmIntrlkDec(volatile T& Val)
-{
-    static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
-    ((std::atomic<T>&)Val)--;
 }
 
 template<typename T, typename T2>
@@ -85,3 +30,71 @@ inline void LqAtmIntrlkSub(volatile T& Val, T2 SubVal)
     static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
     ((std::atomic<T>&)Val) -= SubVal;
 }
+
+#ifdef LQPLATFORM_WINDOWS
+
+#include <Windows.h>
+
+template<typename T>
+inline typename std::enable_if<sizeof(T) == 1>::type LqAtmIntrlkInc(volatile T& Val) 
+{ 
+    static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
+    ++((std::atomic<T>&)Val);
+}
+template<typename T>
+inline typename std::enable_if<sizeof(T) == 2>::type LqAtmIntrlkInc(volatile T& Val) { _InterlockedIncrement16((volatile SHORT*)&Val); }
+template<typename T>
+inline typename std::enable_if<sizeof(T) == 4>::type LqAtmIntrlkInc(volatile T& Val) { _InterlockedIncrement((volatile LONG*)&Val); }
+template<typename T>
+inline typename std::enable_if<sizeof(T) == 8>::type LqAtmIntrlkInc(volatile T& Val) { _InterlockedIncrement64((volatile LONG64*)&Val); }
+
+
+template<typename T>
+inline typename std::enable_if<sizeof(T) == 1>::type LqAtmIntrlkDec(volatile T& Val) 
+{ 
+    static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
+    ++((std::atomic<T>&)Val);
+}
+template<typename T>
+inline typename std::enable_if<sizeof(T) == 2>::type LqAtmIntrlkDec(volatile T& Val) { _InterlockedDecrement16((volatile SHORT*)&Val); }
+template<typename T>
+inline typename std::enable_if<sizeof(T) == 4>::type LqAtmIntrlkDec(volatile T& Val) { _InterlockedDecrement((volatile LONG*)&Val); }
+template<typename T>
+inline typename std::enable_if<sizeof(T) == 8>::type LqAtmIntrlkDec(volatile T& Val) { _InterlockedDecrement64((volatile LONG64*)&Val); }
+
+#else
+
+template<typename T>
+inline void LqAtmIntrlkInc(volatile T& Val)
+{
+    static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
+    ++((std::atomic<T>&)Val);
+}
+
+template<typename T>
+inline void LqAtmIntrlkDec(volatile T& Val)
+{
+    static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
+    --((std::atomic<T>&)Val);
+}
+
+#endif
+
+
+template<typename T>
+inline void LqAtmLkInit(volatile T& Val) { Val = 1; }
+
+template<typename T>
+inline void LqAtmLkRd(volatile T& Val) { for(T v; ((v = Val) == 0) || !LqAtmCmpXchg(Val, v, (T)(v + 1)); std::this_thread::yield()); }
+
+template<typename T>
+inline void LqAtmUlkRd(volatile T& Val) { LqAtmIntrlkDec(Val); }
+
+template<typename T>
+inline void LqAtmLkWr(volatile T& Val) { for(T v = 1; !LqAtmCmpXchg(Val, v, (T)0); std::this_thread::yield(), v = 1); }
+
+template<typename T>
+inline void LqAtmUlkWr(volatile T& Val) { Val = 1; }
+
+template<typename T>
+inline bool LqAtmLkIsRd(volatile T& Val) { return Val > 0; }

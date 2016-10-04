@@ -13,6 +13,9 @@
 #include "LqAlloc.hpp"
 #include "LqHttpPth.hpp"
 
+#define __METHOD_DECLS__
+#include "LqAlloc.hpp"
+
 
 intptr_t LqHttpConnHdrEnm(bool IsResponse, char* Buf, size_t SizeHeaders, char** HeaderNameResult, char** HeaderNameResultEnd, char** HeaderValResult, char** HeaderValEnd)
 {
@@ -305,3 +308,54 @@ LQ_EXTERN_C size_t LQ_CALL LqHttpConnSkip(LqHttpConn* c, size_t Count)
     return r;
 }
 
+LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataStore(LqHttpConn* c, const void* Name, const void* Value)
+{
+    auto UserData = c->UserData;
+    for(unsigned short i = 0; i < c->UserDataCount; i++)
+    {
+        if(UserData[i].Name == Name)
+        {
+            UserData[i].Data = (void*)Value;
+            return c->UserDataCount;
+        }
+    }
+    auto New = LqFastAlloc::ReallocCount<LqHttpUserData>(c->UserData, c->UserDataCount, c->UserDataCount + 1);
+    if(New == nullptr)
+        return -1;
+
+    c->UserData = New;
+    New[c->UserDataCount].Name = (void*)Name;
+    New[c->UserDataCount].Data = (void*)Value;
+    c->UserDataCount++;
+    return c->UserDataCount;
+}
+
+LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataGet(const LqHttpConn* c, const void* Name, void** Value)
+{
+    auto UserData = c->UserData;
+    for(unsigned short i = 0; i < c->UserDataCount; i++)
+    {
+        if(UserData[i].Name == Name)
+        {
+            *Value = UserData[i].Data;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataUnstore(LqHttpConn* c, const void* Name)
+{
+    auto UserData = c->UserData;
+    for(unsigned short i = 0; i < c->UserDataCount; i++)
+    {
+        if(UserData[i].Name == Name)
+        {
+            c->UserDataCount--;
+            UserData[i] = UserData[c->UserDataCount];
+            c->UserData = LqFastAlloc::ReallocCount<LqHttpUserData>(UserData, c->UserDataCount + 1, c->UserDataCount);
+            return c->UserDataCount;
+        }
+    }
+    return -1;
+}

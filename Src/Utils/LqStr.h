@@ -37,6 +37,7 @@ LQ_IMPORTEXPORT size_t LQ_CALL LqStrCopy(char* lqaout DestStr, const char* lqain
 LQ_IMPORTEXPORT size_t LQ_CALL LqStrCat(char* lqaout DestStr, const char* lqain SourceStr);
 LQ_IMPORTEXPORT size_t LQ_CALL LqStrLen(const char* lqain SourceStr);
 LQ_IMPORTEXPORT char* LQ_CALL LqStrDuplicate(const char* lqain SourceStr);
+LQ_IMPORTEXPORT char* LQ_CALL LqStrDuplicateMax(const char* lqain SourceStr, size_t Count);
 LQ_IMPORTEXPORT bool LQ_CALL LqStrSame(const char* lqain Str1, const char* lqain Str2);
 LQ_IMPORTEXPORT bool LQ_CALL LqStrSameMax(const char* lqain Str1, const char* lqain Str2, size_t Max);
 

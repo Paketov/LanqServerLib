@@ -119,19 +119,19 @@ static char* IS_DIR(const char* c)
 
 
 */
-LqHttpPrsUrlStatEnm LqHttpPrsUrl
+LQ_EXTERN_C LqHttpPrsUrlStatEnm LQ_CALL LqHttpPrsUrl
 (
-    char* String,
-    char*& SchemeStart, char*& SchemeEnd,
-    char*& UserInfoStart, char*& UserInfoEnd,
-    char*& HostStart, char*& HostEnd,
-    char*& PortStart, char*& PortEnd,
-    char*& DirStart, char*& DirEnd,
-    char*& QueryStart, char*& QueryEnd,
-    char*& FragmentStart, char*& FragmentEnd,
-    char*& End, char& TypeHost,
-    void(*AddQueryProc)(void* UserData, char* StartKey, char* EndKey, char* StartVal, char* EndVal),
-    void* UserData
+	char* String,
+	char** SchemeStart, char** SchemeEnd,
+	char** UserInfoStart, char** UserInfoEnd,
+	char** HostStart, char** HostEnd,
+	char** PortStart, char** PortEnd,
+	char** DirStart, char** DirEnd,
+	char** QueryStart, char** QueryEnd,
+	char** FragmentStart, char** FragmentEnd,
+	char** End, char* TypeHost,
+	void(*AddQueryProc)(void* UserData, char* StartKey, char* EndKey, char* StartVal, char* EndVal),
+	void* UserData
 )
 {
     /*
@@ -338,25 +338,25 @@ lblDir:
         EndFragment = t = c;
     }
 
-    SchemeStart = StartScheme; SchemeEnd = EndScheme;
-    UserInfoStart = StartUserInfo; UserInfoEnd = EndUserInfo;
-    HostStart = StartHost;  HostEnd = EndHost;
-    PortStart = StartPort; PortEnd = EndPort;
-    DirStart = StartDir; DirEnd = EndDir;
-    QueryStart = StartQuery; QueryEnd = EndQuery;
-    FragmentStart = StartFragment; FragmentEnd = EndFragment;
-    End = t;
-    TypeHost = HostType;
+    *SchemeStart = StartScheme; *SchemeEnd = EndScheme;
+    *UserInfoStart = StartUserInfo; *UserInfoEnd = EndUserInfo;
+    *HostStart = StartHost;  *HostEnd = EndHost;
+    *PortStart = StartPort; *PortEnd = EndPort;
+    *DirStart = StartDir; *DirEnd = EndDir;
+    *QueryStart = StartQuery; *QueryEnd = EndQuery;
+    *FragmentStart = StartFragment; *FragmentEnd = EndFragment;
+    *End = t;
+    *TypeHost = HostType;
     return LQPRS_URL_SUCCESS;
 }
 
-LqHttpPrsStartLineStatEnm LqHttpPrsStartLine
+LQ_EXTERN_C LqHttpPrsStartLineStatEnm LQ_CALL LqHttpPrsStartLine
 (
-    char* String,
-    char*& sMethod, char*& eMethod,
-    char*& sUri, char*& eUri,
-    char*& sVer, char*& eVer,
-    char*& End
+	char* String,
+	char** sMethod, char** eMethod,
+	char** sUri, char** eUri,
+	char** sVer, char** eVer,
+	char** End
 )
 {
     char* c = String, *StartMethod;
@@ -368,15 +368,15 @@ LqHttpPrsStartLineStatEnm LqHttpPrsStartLine
         case ' ': case '\t':
         {
             if(StartMethod == c) return LQPRS_START_LINE_ERR;   //If len method eq. 0
-            eMethod = c;
-            sMethod = StartMethod;
+            *eMethod = c;
+            *sMethod = StartMethod;
             c++;
             break;
         }
         default: return LQPRS_START_LINE_ERR;
     }
     for(; (*c == ' ') || (*c == '\t'); c++);
-    sUri = c;
+    *sUri = c;
     for(;; c++)
     {
         switch(*c)
@@ -386,15 +386,15 @@ LqHttpPrsStartLineStatEnm LqHttpPrsStartLine
                 if(c[1] == '\n')
                 {
                     *c = '\0';
-                    End = c + 2;
+                    *End = c + 2;
                     return LQPRS_START_LINE_SUCCESS;
                 } else if(c[1] != '\0')
                     return LQPRS_START_LINE_ERR;
         }
     }
 lblOutLoop:
-    if(c == sUri) return LQPRS_START_LINE_ERR;
-    eUri = c;
+    if(c == *sUri) return LQPRS_START_LINE_ERR;
+    *eUri = c;
     c++;
     for(;; c++)
     {
@@ -403,20 +403,20 @@ lblOutLoop:
             case ' ': case '\t': continue;
             case '\r':
                 if(*++c != '\n') return LQPRS_START_LINE_ERR;
-                End = c + 1;
+                *End = c + 1;
                 return LQPRS_START_LINE_SUCCESS;
             case 'H':
             {
                 if((c[1] != 'T') || (c[2] != 'T') || (c[3] != 'P') || (c[4] != '/'))
                     return LQPRS_START_LINE_ERR;
-                sVer = (c += 5);
+                *sVer = (c += 5);
                 for(; (*c >= '0') && (*c <= '9') || (*c == '.'); c++);
-                if(sVer == c) return LQPRS_START_LINE_ERR;
+                if(*sVer == c) return LQPRS_START_LINE_ERR;
                 for(; (*c == ' ') || (*c == '\t'); c++);
                 if(*c != '\r') return LQPRS_START_LINE_ERR;
-                eVer = c;
+                *eVer = c;
                 if(*++c != '\n') return LQPRS_START_LINE_ERR;
-                End = c + 1;
+                *End = c + 1;
                 return LQPRS_START_LINE_SUCCESS;
             }
             default: return LQPRS_START_LINE_ERR;
@@ -425,7 +425,7 @@ lblOutLoop:
     return LQPRS_START_LINE_SUCCESS;
 }
 
-LqHttpPrsHdrStatEnm LqHttpPrsHeader(char* String, char*& KeyStart, char*& KeyEnd, char*& ValStart, char*& ValEnd, char*& End)
+LQ_EXTERN_C LqHttpPrsHdrStatEnm LQ_CALL LqHttpPrsHeader(char* String, char** KeyStart, char** KeyEnd, char** ValStart, char** ValEnd, char** End)
 {
     char* c = String, *StartKey, *EndKey, *StartVal, *EndVal;
 
@@ -448,72 +448,65 @@ LqHttpPrsHdrStatEnm LqHttpPrsHeader(char* String, char*& KeyStart, char*& KeyEnd
     EndVal = c;
     if((c[0] != '\r') || (c[1] != '\n')) return LQPRS_HDR_ERR;
 
-    End = c + 2;
-    KeyStart = StartKey, KeyEnd = EndKey, ValStart = StartVal, ValEnd = EndVal;
+    *End = c + 2;
+    *KeyStart = StartKey, *KeyEnd = EndKey, *ValStart = StartVal, *ValEnd = EndVal;
     return LQPRS_HDR_SUCCESS;
 }
 
-LqString& LqHttpPrsEscapeDecode(LqString& Source)
-{
-    char* d, *s = (char*)Source.c_str();
-    LqHttpPrsEscapeDecode(s, d);
-    Source.resize((size_t)d - (size_t)s);
-    return Source;
-}
-
-char* LqHttpPrsEscapeDecode(char* Source, char* EndSource, char*& NewEnd)
+LQ_EXTERN_C char* LQ_CALL LqHttpPrsEscapeDecode(char* Source, char* EndSource, char** NewEnd)
 {
     char c = *EndSource;
     *EndSource = '\0';
-    LqHttpPrsEscapeDecode(Source, NewEnd);
+	*NewEnd = LqHttpPrsEscapeDecodeSz(Source, Source);
     *EndSource = c;
     return Source;
 }
 
-char* LqHttpPrsEscapeDecode(char* Source, char*& NewEnd)
+LQ_EXTERN_C char* LQ_CALL LqHttpPrsEscapeDecodeSz(char* Dest, const char* Source)
 {
-    char* d = (char*)Source, *s = d;
-    const char* c = Source;
-    for(;; c++, d++)
-    {
-        if(*c == '%')
-        {
-            unsigned char v = c[1] - '0';
-            if(v > 9)
-            {
-                v = c[1] - 'a';
-                if(v > 5)
-                {
-                    v = c[1] - 'A';
-                    if(v > 5) continue;
-                }
-                v += 10;
-            }
-            unsigned char b = c[2] - '0';
-            if(b > 9)
-            {
-                b = c[2] - 'a';
-                if(b > 5)
-                {
-                    b = c[2] - 'A';
-                    if(b > 5) continue;
-                }
-                b += 10;
-            }
-            *d = char(b | (v << 4));
-            c += 2;
-        } else if((*d = *c) == '\0')
-        {
-            break;
-        }
-    }
-    NewEnd = d;
-    return Source;
+	char* d = Dest;
+	const char* c = Source;
+	for(;; c++, d++)
+	{
+		if(*c == '%')
+		{
+			unsigned char v = c[1] - '0';
+			if(v > 9)
+			{
+				v = c[1] - 'a';
+				if(v > 5)
+				{
+					v = c[1] - 'A';
+					if(v > 5)
+						continue;
+				}
+				v += 10;
+			}
+			unsigned char b = c[2] - '0';
+			if(b > 9)
+			{
+				b = c[2] - 'a';
+				if(b > 5)
+				{
+					b = c[2] - 'A';
+					if(b > 5)
+						continue;
+				}
+				b += 10;
+			}
+			*d = char(b | (v << 4));
+			c += 2;
+		} else if((*d = *c) == '\0')
+		{
+			break;
+		}
+	}
+	return d;
 }
 
 const static uint16_t TestEndLine = *(uint16_t*)"\r\n";
 
-char* LqHttpPrsGetEndHeaders(char* Buf, size_t *CountLines)
+LQ_EXTERN_C char* LQ_CALL LqHttpPrsGetEndHeaders(char* Buf, size_t *CountLines)
 {
     size_t cl = 1;
     if((Buf[0] == '\0') || (Buf[1] == '\0') || (Buf[2] == '\0'))
@@ -535,8 +528,7 @@ char* LqHttpPrsGetEndHeaders(char* Buf, size_t *CountLines)
     }
 }
 
-
-const char* LqHttpPrsGetMsgByStatus(int Status)
+LQ_EXTERN_C const char* LQ_CALL LqHttpPrsGetMsgByStatus(int Status)
 {
     switch(Status)
     {
