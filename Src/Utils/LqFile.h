@@ -12,24 +12,25 @@
 #include "LqDef.h"
 #include "LqOs.h"
 
+
 #ifdef LQPLATFORM_POSIX
 # include <poll.h>
 
 # ifdef LQ_ASYNC_IO_NOT_HAVE
-struct LqAsync
+typedef struct LqAsync
 {
     char __empty;
-};
+} LqAsync;
 # else
 
 #  include <aio.h>
 
-struct LqAsync
+typedef struct LqAsync
 {
     bool IsNonBlock;
     int EvFd;
     aiocb cb;
-};
+} LqAsync;
 # endif
 
 typedef struct pollfd LqFilePoll;
@@ -59,15 +60,15 @@ LQ_EXTERN_C_END
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-struct LqFilePoll
+typedef struct LqFilePoll
 {
     int   fd;         /* file descriptor */
     short events;     /* requested events */
     short revents;    /* returned events */
-};
+} LqFilePoll;
 #pragma pack(pop)
 
-struct LqAsync
+typedef struct LqAsync
 {
     union
     {
@@ -75,7 +76,7 @@ struct LqAsync
         void*       Pointer;
     };
     uintptr_t       Information;
-};
+} LqAsync;
 
 
 #define LQ_POLLIN    1
@@ -114,7 +115,7 @@ enum
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-struct LqFileStat
+typedef struct LqFileStat
 {
     uint8_t             Type;
     uint16_t            Access;
@@ -130,19 +131,19 @@ struct LqFileStat
 
     short               Gid;
     short               Uid;
-};
+} LqFileStat;
 
-struct LqFileEnm
+typedef struct LqFileEnm
 {
     uintptr_t Hndl;
     char* Internal;
-};
+} LqFileEnm;
 
 /*----------------------------------------
 * LqFilePathEvnt
 */
 
-struct LqFilePathEvnt
+typedef struct LqFilePathEvnt
 {
     int Fd; /*This event can use in LqEvnt or LqFilePoll*/
 
@@ -177,7 +178,7 @@ struct LqFilePathEvnt
     struct
     {
         char*                   Name;
-        Subdir*                 Subdirs;
+        struct Subdir*          Subdirs;
         size_t                  SubdirsCount;
         size_t                  Max;
         uint32_t                Mask;
@@ -186,13 +187,16 @@ struct LqFilePathEvnt
         bool                    IsSubtree;
     } _Data;
 #endif
-};
+} LqFilePathEvnt;
+
+struct LqFilePathEvntEnm;
+typedef struct LqFilePathEvntEnm LqFilePathEvntEnm;
 
 struct LqFilePathEvntEnm
 {
     LqFilePathEvntEnm*  Next;
-    uint8_t         Flag;
-    char            Name[1];
+    uint8_t             Flag;
+    char                Name[1];
 };
 
 #pragma pack(pop)

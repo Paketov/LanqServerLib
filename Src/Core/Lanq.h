@@ -14,14 +14,17 @@
 #include "LqOs.h"
 #include "LqDef.h"
 
-
 LQ_EXTERN_C_BEGIN
 
-struct LqConn;
-struct LqProto;
-struct LqEvntFd;
 struct LqEvntHdr;
+struct LqConn;
+struct LqEvntFd;
+struct LqProto;
 
+typedef struct LqEvntHdr LqEvntHdr;
+typedef struct LqConn LqConn;
+typedef struct LqEvntFd LqEvntFd;
+typedef struct LqProto LqProto;
 
 #define LQEVNT_FLAG_RD                          ((LqEvntFlag)1)         /*Ready for read*/
 #define LQEVNT_FLAG_WR                          ((LqEvntFlag)2)         /*Ready for write*/
@@ -58,7 +61,7 @@ struct LqEvntHdr
 struct LqConn
 {
     LQ_CONN_COMMON_EVNT_HDR;
-    LqProto*            Proto;      /*Server registration*/
+    struct LqProto*   Proto;      /*Server registration*/
 };
 
 typedef void (LQ_CALL *LqEvntFdHandlerFn)(LqEvntFd* Fd, LqEvntFlag RetFlags);

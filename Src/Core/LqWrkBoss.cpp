@@ -474,12 +474,12 @@ LQ_EXTERN_C int LQ_CALL LqWrkBossSyncEvntFlagSync(LqEvntHdr * Conn)
     return Boss.SyncEvntFlagSync(Conn) ? 0 : -1;
 }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossCloseConnByIpAsync(const sockaddr* Addr)
+LQ_EXTERN_C int LQ_CALL LqWrkBossCloseConnByIpAsync(const struct sockaddr* Addr)
 {
     return Boss.CloseConnByIpAsync(Addr) ? 0 : -1;
 }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseConnByIpSync(const sockaddr* Addr)
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseConnByIpSync(const struct sockaddr* Addr)
 {
     return Boss.CloseConnByIpSync(Addr);
 }

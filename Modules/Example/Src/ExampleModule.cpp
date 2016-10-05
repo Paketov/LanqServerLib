@@ -157,7 +157,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
         "/hello",
         [](LqHttpConn* c)
         {
-            LqEvntSetFlags(c, 0);
+            LqEvntSetFlags(c, 0, 0);
 
             LqHttpEvntActSetIgnore(c);
 
@@ -175,7 +175,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 
             auto Sz = LqHttpRspContentGetSz(c);
             LqHttpRspHdrAddPrintf(c, "Content-Length", "%i", (int)Sz);
-            LqEvntSetFlags(c, LqHttpEvntGetFlagByAct(c));
+            LqEvntSetFlags(c, LqHttpEvntGetFlagByAct(c), 0);
         },
         LQHTTPATZ_PERM_READ | LQHTTPATZ_PERM_CHECK,
         nullptr,

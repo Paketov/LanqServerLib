@@ -14,20 +14,20 @@
 
 LQ_EXTERN_C_BEGIN
 
-enum LqHttpPrsHdrStatEnm
+typedef enum LqHttpPrsHdrStatEnm
 {
     LQPRS_HDR_SUCCESS,
     LQPRS_HDR_ERR,
     LQPRS_HDR_END
-};
+} LqHttpPrsHdrStatEnm;
 
-enum LqHttpPrsStartLineStatEnm
+typedef enum LqHttpPrsStartLineStatEnm
 {
     LQPRS_START_LINE_SUCCESS,
     LQPRS_START_LINE_ERR
-};
+} LqHttpPrsStartLineStatEnm;
 
-enum LqHttpPrsUrlStatEnm
+typedef enum LqHttpPrsUrlStatEnm
 {
     LQPRS_URL_SUCCESS,
     LQPRS_URL_ERR_SYMBOLIC_HOST_NAME,
@@ -36,7 +36,7 @@ enum LqHttpPrsUrlStatEnm
     LQPRS_URL_ERR_PORT,
     LQPRS_URL_ERR_DIR,
     LQPRS_URL_ERR_QUERY,
-};
+} LqHttpPrsUrlStatEnm;
 
 LQ_IMPORTEXPORT LqHttpPrsUrlStatEnm LQ_CALL LqHttpPrsUrl
 (
@@ -50,7 +50,7 @@ LQ_IMPORTEXPORT LqHttpPrsUrlStatEnm LQ_CALL LqHttpPrsUrl
     char** FragmentStart, char** FragmentEnd,
     char** End, char* TypeHost,
     void(*AddQueryProc)(void* UserData, char* StartKey, char* EndKey, char* StartVal, char* EndVal),
-    void* UserData = nullptr
+    void* UserData
 );
 
 LQ_IMPORTEXPORT LqHttpPrsStartLineStatEnm LQ_CALL LqHttpPrsStartLine

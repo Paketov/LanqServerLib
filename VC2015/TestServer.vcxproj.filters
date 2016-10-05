@@ -230,15 +230,6 @@
     <ClInclude Include="..\Src\Utils\LqErr.h">
       <Filter>Utils</Filter>
     </ClInclude>
-    <ClInclude Include="..\Src\Core\LqEvntPoll.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Core\LqEvntWin.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Core\LqEvntEpoll.h">
-      <Filter>Core</Filter>
-    </ClInclude>
     <ClInclude Include="..\Src\Utils\LqMd5.h">
       <Filter>Utils</Filter>
     </ClInclude>
@@ -265,6 +256,15 @@
     </ClInclude>
     <ClInclude Include="..\Src\Utils\LqTbl.hpp">
       <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqEvntWin.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqEvntPoll.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqEvntEpoll.hpp">
+      <Filter>Core</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

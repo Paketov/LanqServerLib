@@ -23,7 +23,7 @@ void LqHttpMdlPathRegister(LqHttpMdl* Module, LqHttpPth* l);
 #endif
 
 
-typedef enum
+typedef enum LqHttpMdlLoadEnm
 {
     LQHTTPMDL_LOAD_OK,
     LQHTTPMDL_LOAD_FAIL,
@@ -32,7 +32,7 @@ typedef enum
     LQHTTPMDL_LOAD_INDEPENDENTLY_UNLOADED
 } LqHttpMdlLoadEnm;
 
-typedef enum
+typedef enum LqHttpMdlRegistratorEnm
 {
     LQHTTPMDL_REG_OK,
     LQHTTPMDL_REG_FREE_LIB

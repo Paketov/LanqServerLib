@@ -10,9 +10,10 @@
 #define __LQ_ALLOC_H_1_
 
 #include <malloc.h>
+#include <type_traits>
 #include "LqDef.hpp"
 #include "LqLock.hpp"
-#include <type_traits>
+
 
 
 #if /*!defined(_DEBUG) &&*/ defined(LQPLATFORM_WINDOWS)
@@ -98,7 +99,7 @@ class LqFastAlloc
     struct assoc_val { static ASSOC_TYPE value; };
 public:
     template<typename Type, typename... _Args>
-    inline static Type* LqFastAlloc::New(_Args&&... _Ax);
+    inline static Type* New(_Args&&... _Ax);
 
     template<typename Type>
     static Type* ReallocCount(Type* Prev, size_t PrevCount, size_t NewCount);

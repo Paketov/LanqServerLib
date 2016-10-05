@@ -51,9 +51,9 @@
   <ItemGroup>
     <ClInclude Include="..\Src\Core\Lanq.h" />
     <ClInclude Include="..\Src\Core\LqEvnt.h" />
-    <ClInclude Include="..\Src\Core\LqEvntEpoll.h" />
-    <ClInclude Include="..\Src\Core\LqEvntPoll.h" />
-    <ClInclude Include="..\Src\Core\LqEvntWin.h" />
+    <ClInclude Include="..\Src\Core\LqEvntEpoll.hpp" />
+    <ClInclude Include="..\Src\Core\LqEvntPoll.hpp" />
+    <ClInclude Include="..\Src\Core\LqEvntWin.hpp" />
     <ClInclude Include="..\Src\Core\LqListConn.hpp" />
     <ClInclude Include="..\Src\Core\LqLog.h" />
     <ClInclude Include="..\Src\Core\LqQueueCmd.hpp" />

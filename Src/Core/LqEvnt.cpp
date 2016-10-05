@@ -29,11 +29,11 @@
 #define LQ_EVNT
 
 #if defined(LQEVNT_WIN_EVENT)
-# include "LqEvntWin.h"
+# include "LqEvntWin.hpp"
 #elif defined(LQEVNT_KEVENT)
 #err "Not implemented kevent"
 #elif defined(LQEVNT_EPOLL)
-# include "LqEvntEpoll.h"
+# include "LqEvntEpoll.hpp"
 #elif defined(LQEVNT_POLL)
-# include "LqEvntPoll.h"
+# include "LqEvntPoll.hpp"
 #endif

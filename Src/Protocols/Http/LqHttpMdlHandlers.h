@@ -38,13 +38,13 @@ void LQ_CALL LqHttpMdlHandlersCacheInfo
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-struct LqHttpExtensionMime
+typedef struct LqHttpExtensionMime
 {
     size_t  CountExt;
     char**  Ext;
     size_t  CountMime;
     char**  Mime;
-};
+} LqHttpExtensionMime;
 
 #pragma pack(pop)
 

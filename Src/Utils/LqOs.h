@@ -132,22 +132,25 @@
 
 
 #if defined(LQCOMPILER_VC)
-#define LQ_NO_INLINE  __declspec(noinline)
+#define LQ_NO_INLINE __declspec(noinline)
 #elif defined(LQCOMPILER_GCC_GPP)
 #define LQ_NO_INLINE __attribute__ ((noinline))
 #else
 #define LQ_NO_INLINE
 #endif
 
-
+#ifndef LQSTRUCT_ALIGN_FAST
 /* Set struct or class align */
-#ifdef LQARCH_32
-# define LQSTRUCT_ALIGN_FAST 4
-#else
-# define LQSTRUCT_ALIGN_FAST 8
+# ifdef LQARCH_32
+#  define LQSTRUCT_ALIGN_FAST 4
+# else
+#  define LQSTRUCT_ALIGN_FAST 8
+# endif
 #endif
 
-#define LQSTRUCT_ALIGN_MEM 1
+#ifndef LQSTRUCT_ALIGN_MEM
+# define LQSTRUCT_ALIGN_MEM 1
+#endif
 
 #define lqaopt                  /* LanQ Argument Optional */
 #define lqain                   /* LanQ Argument Input */

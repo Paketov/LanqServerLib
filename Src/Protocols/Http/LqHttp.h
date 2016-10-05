@@ -66,6 +66,18 @@ struct LqHttpMdl;
 struct LqHttpExtensionMime;
 struct LqHttpResponse;
 struct LqHttpMultipartHeaders;
+struct LqHttpUserData;
+
+typedef struct LqHttpConn LqHttpConn;
+typedef struct LqHttpQuery LqHttpQuery;
+typedef struct LqHttpPth LqHttpPth;
+typedef struct LqHttpProtoBase LqHttpProtoBase;
+typedef struct LqHttpAtz LqHttpAtz;
+typedef struct LqHttpMdl LqHttpMdl;
+typedef struct LqHttpExtensionMime LqHttpExtensionMime;
+typedef struct LqHttpResponse LqHttpResponse;
+typedef struct LqHttpMultipartHeaders LqHttpMultipartHeaders;
+typedef struct LqHttpUserData LqHttpUserData;
 
 typedef void(LQ_CALL *LqHttpEvntHandlerFn)(LqHttpConn* Connection);
 
@@ -75,7 +87,7 @@ typedef uint8_t LqHttpActState;
 typedef uint16_t LqHttpActResult;
 
 
-enum LqHttpActResultEnm
+typedef enum LqHttpActResultEnm
 {
     LQHTTPACT_RES_BEGIN,
     LQHTTPACT_RES_OK,
@@ -102,18 +114,18 @@ enum LqHttpActResultEnm
     LQHTTPACT_RES_INVALID_ACT_CHAIN,
 
     LQHTTPACT_RES_CLOSE_CONN //For event proc
-};
+} LqHttpActResultEnm;
 
 //Action classes
-enum LqHttpActClassEnm
+typedef enum LqHttpActClassEnm
 {
     LQHTTPACT_CLASS_QER = 0 << (sizeof(LqHttpActState) * 8 - 2),    /*Query field used*/
     LQHTTPACT_CLASS_RSP = 1 << (sizeof(LqHttpActState) * 8 - 2),    /*Response field used*/
     LQHTTPACT_CLASS_CLS = 2 << (sizeof(LqHttpActState) * 8 - 2)     /*Response and Query filed not used*/
-};
+} LqHttpActClassEnm;
 
 //All actions
-enum LqHttpActEnm
+typedef enum LqHttpActEnm
 {
     LQHTTPACT_STATE_GET_HDRS =                  LQHTTPACT_CLASS_QER | 1,
     LQHTTPACT_STATE_RCV_INIT_HANDLE =           LQHTTPACT_CLASS_QER | 2,
@@ -135,9 +147,9 @@ enum LqHttpActEnm
     LQHTTPACT_STATE_RSP_FD =                    LQHTTPACT_CLASS_RSP | 18,
     LQHTTPACT_STATE_RSP_STREAM =                LQHTTPACT_CLASS_RSP | 19,
     LQHTTPACT_STATE_CLS_CONNECTION =            LQHTTPACT_CLASS_CLS | 20
-};
+} LqHttpActEnm;
 
-enum LqHttpPthResultEnm
+typedef enum LqHttpPthResultEnm
 {
     LQHTTPPTH_RES_OK,
     LQHTTPPTH_RES_ALREADY_HAVE,
@@ -150,15 +162,15 @@ enum LqHttpPthResultEnm
     LQHTTPPTH_RES_MODULE_REJECT,
     LQHTTPPTH_RES_DOMEN_NAME_OVERFLOW,
     LQHTTPPTH_RES_INVALID_NAME
-};
+} LqHttpPthResultEnm;
 
-enum LqHttpPthFlagEnm
+typedef enum LqHttpPthFlagEnm
 {
     LQHTTPPTH_FLAG_SUBDIR = 8,
     LQHTTPPTH_FLAG_CHILD = 16
-};
+} LqHttpPthFlagEnm;
 
-enum LqHttpPthTypeEnm
+typedef enum LqHttpPthTypeEnm
 {
     LQHTTPPTH_TYPE_DIR = 0,
     LQHTTPPTH_TYPE_FILE = 1,
@@ -166,16 +178,16 @@ enum LqHttpPthTypeEnm
     LQHTTPPTH_TYPE_EXEC_FILE = 3,
     LQHTTPPTH_TYPE_FILE_REDIRECTION = 4,
     LQHTTPPTH_TYPE_DIR_REDIRECTION = 5
-};
+} LqHttpPthTypeEnm;
 
-enum LqHttpAtzTypeEnm
+typedef enum LqHttpAtzTypeEnm
 {
     LQHTTPATZ_TYPE_NONE,
     LQHTTPATZ_TYPE_BASIC,
     LQHTTPATZ_TYPE_DIGEST
-};
+} LqHttpAtzTypeEnm;
 
-enum LqHttpAuthorizPermissionEnm
+typedef enum LqHttpAuthorizPermissionEnm
 {
     LQHTTPATZ_PERM_READ = 1,
     LQHTTPATZ_PERM_WRITE = 2,
@@ -184,18 +196,18 @@ enum LqHttpAuthorizPermissionEnm
     LQHTTPATZ_PERM_DELETE = 16,
     LQHTTPATZ_PERM_MODIFY = 32,
     LQHTTPATZ_PERM_CREATE_SUBDIR = 64
-};
+} LqHttpAuthorizPermissionEnm;
 
 
 #define LQHTTPPTH_TYPE_SEP 0x07
 #define LQ_MAX_CONTENT_LEN 0xffffffffff
 
 
-enum LqHttpQurRspFlagsEnm
+typedef enum LqHttpQurRspFlagsEnm
 {
     LQHTTPCONN_FLAG_CLOSE = 1,
     LQHTTPCONN_FLAG_NO_BODY = 2
-};
+} LqHttpQurRspFlagsEnm;
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)

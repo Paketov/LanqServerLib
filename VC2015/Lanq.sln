@@ -26,6 +26,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RemoteTerminal", "..\Module
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Logging", "..\Modules\Logging\VS2015\Logging.vcxproj", "{BB1256A8-ADF1-43DC-89AE-FEF97B2DB30B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{B7EB2CE3-2ADA-4AAE-90E2-9FB826162B5F} = {B7EB2CE3-2ADA-4AAE-90E2-9FB826162B5F}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

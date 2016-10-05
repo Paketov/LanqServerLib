@@ -20,20 +20,20 @@ LQ_EXTERN_C_BEGIN
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-struct LqSbuf
+typedef struct LqSbuf
 {
     uint64_t GlobOffset;
     size_t Len;
     void* Page0;
     void* PageN;
-};
+} LqSbuf;
 
-struct LqSbufPtr
+typedef struct LqSbufPtr
 {
     uint64_t GlobOffset;
     size_t OffsetInPage;
     void* Page;
-};
+} LqSbufPtr;
 
 #pragma pack(pop)
 

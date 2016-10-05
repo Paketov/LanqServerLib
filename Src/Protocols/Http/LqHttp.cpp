@@ -589,7 +589,7 @@ lblResponseResult:
 					}
                     LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
                     LqHttpActSwitchToRcv(c);
-                    LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+                    LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
                     return;
                 default:
                     LqHttpConnCallEvntAct(c);
@@ -610,7 +610,7 @@ lblResponseResult:
             if(OldAct != c->ActionState)
                 return LqHttpCoreReadProc(&c->CommonConn);
             if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-                LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+                LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
             return;
         case LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE:
         case LQHTTPACT_STATE_QUERY_SSL_HANDSHAKE:
@@ -745,7 +745,7 @@ lblSwitch:
             if(OldAct != c->ActionState)
                 goto lblSwitch;
             if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-                LqEvntSetFlags(c, LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+                LqEvntSetFlags(c, LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
             return;
             ////////
         case LQHTTPACT_STATE_MULTIPART_SKIP_TO_HDRS:
@@ -821,7 +821,7 @@ lblSwitch:
                 {   
                     c->ActionState = LQHTTPACT_STATE_SKIP_QUERY_BODY;
                     if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-                        LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+                        LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
                 }
                 return;
             } else
@@ -840,7 +840,7 @@ lblSwitch:
                 LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
                 LqHttpActSwitchToRcv(c);
                 if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-                    LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+                    LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
                 return;
             }
         }
@@ -866,11 +866,11 @@ lblResponseResult:
 						c->Response.HeadersStart = t;
 					}
                     LqHttpActSwitchToRcv(c);
-                    LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+                    LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
                     return;
                 case LQHTTPACT_RES_PARTIALLY:
                     if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-                        LqEvntSetFlags(c, LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+                        LqEvntSetFlags(c, LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
                     return;
                 default:
                     LqHttpConnCallEvntAct(c); //Send Error event to user
@@ -1036,9 +1036,9 @@ LQ_EXTERN_C int LQ_CALL LqHttpEvntSetFlagByAct(LqHttpConn* Conn)
     switch(LqHttpActGetClassByConn(Conn))
     {
         case LQHTTPACT_CLASS_QER:
-            return LqEvntSetFlags(Conn, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD);
+            return LqEvntSetFlags(Conn, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD, 0);
         case LQHTTPACT_CLASS_RSP:
-            return LqEvntSetFlags(Conn, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_WR);
+            return LqEvntSetFlags(Conn, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_WR, 0);
         case LQHTTPACT_CLASS_CLS:
             return LqEvntSetClose(Conn);
     }

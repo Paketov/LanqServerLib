@@ -18,7 +18,6 @@
 
 #if defined(LQPLATFORM_WINDOWS)
 #include <Windows.h>
-#include "LqHashTable.hpp"
 
 static int __GetRealPrior(LqThreadPriorEnm p)
 {

@@ -34,8 +34,8 @@ LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseEvntSync(LqEvntHdr* Conn);
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossSyncEvntFlagAsync(LqEvntHdr* Conn);
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossSyncEvntFlagSync(LqEvntHdr* Conn);
 
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseConnByIpAsync(const sockaddr* Addr);
-LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByIpSync(const sockaddr* Addr);
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseConnByIpAsync(const struct sockaddr* Addr);
+LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByIpSync(const struct sockaddr* Addr);
 
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseConnByProtoAsync(const LqProto* Addr);
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByProtoSync(const LqProto* Addr);

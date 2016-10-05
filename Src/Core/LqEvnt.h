@@ -22,16 +22,16 @@
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-struct LqEvntInterator
+typedef struct LqEvntInterator
 {
 #if defined(LQEVNT_KEVENT)
 #else
     int Index;
 #endif
-};
+} LqEvntInterator;
 
 
-struct LqEvnt
+typedef struct LqEvnt
 {   
     bool                IsRemoved;
     int                 DeepLoop;
@@ -57,7 +57,7 @@ struct LqEvnt
     int                 AllocCount;
     int                 EventEnumIndex;
 #endif
-};
+} LqEvnt;
 
 #pragma pack(pop)
 

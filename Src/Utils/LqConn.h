@@ -61,13 +61,13 @@
 #include "Lanq.h"
 
 
-union LqConnInetAddress
+typedef union LqConnInetAddress
 {
-	sockaddr			Addr;
-	sockaddr_in			AddrInet;
-	sockaddr_in6		AddrInet6;
-	sockaddr_storage	AddrStorage;
-};
+    struct sockaddr         Addr;
+    struct sockaddr_in      AddrInet;
+    struct sockaddr_in6     AddrInet6;
+    struct sockaddr_storage AddrStorage;
+} LqConnInetAddress;
 
 int LqConnCountPendingData(LqConn* c);
 /* Return -1 is err. */
@@ -88,7 +88,7 @@ LQ_EXTERN_C_BEGIN
 * @Flag - New flags LQEVNT_FLAG_RD, LQEVNT_FLAG_WR, LQEVNT_FLAG_HUP, LQEVNT_FLAG_RDHUP
 * @return: 0 - Time out, 1 - thread work set a new value
 */
-LQ_IMPORTEXPORT int LQ_CALL LqEvntSetFlags(void* Conn, LqEvntFlag Flag, LqTimeMillisec WaitTime = 0 /* Wait while worker set new events value*/);
+LQ_IMPORTEXPORT int LQ_CALL LqEvntSetFlags(void* Conn, LqEvntFlag Flag, LqTimeMillisec WaitTime /* Wait while worker set new events value*/);
 
 /*
 * Set close connection. (In async mode)
@@ -133,13 +133,13 @@ LQ_IMPORTEXPORT int LQ_CALL LqEvntFdAdd2(LqEvntFd* lqain Evnt);
 */
 LQ_IMPORTEXPORT void* LQ_CALL LqConnSslCreate
 (
-	const void* lqain MethodSSL, /* Example SSLv23_method()*/
-	const char* lqain CertFile, /* Example: "server.pem"*/
-	const char* lqain KeyFile, /*Example: "server.key"*/
-	const char*lqain lqaopt CipherList,
-	int TypeCertFile, /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
-	const char* lqain lqaopt CAFile,
-	const char* lqain lqaopt DhpFile
+    const void* lqain MethodSSL, /* Example SSLv23_method()*/
+    const char* lqain CertFile, /* Example: "server.pem"*/
+    const char* lqain KeyFile, /*Example: "server.key"*/
+    const char*lqain lqaopt CipherList,
+    int TypeCertFile, /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
+    const char* lqain lqaopt CAFile,
+    const char* lqain lqaopt DhpFile
 );
 
 LQ_EXTERN_C_END
@@ -148,19 +148,19 @@ LQ_EXTERN_C_END
     ((LqConn*)(Conn))->Fd = NewFd;                                      \
     ((LqConn*)(Conn))->Proto = NewProto;                                \
     ((LqConn*)(Conn))->Flag = _LQEVNT_FLAG_NOW_EXEC | _LQEVNT_FLAG_CONN;\
-    LqEvntSetFlags(Conn, NewFlags);                                     \
+    LqEvntSetFlags(Conn, NewFlags, 0);                                  \
     ((LqConn*)(Conn))->Flag &= ~_LQEVNT_FLAG_NOW_EXEC;
 
 #define LqEvntHdrClose(Event)                                           \
     (((LqEvntHdr*)(Event))->Flag |= _LQEVNT_FLAG_NOW_EXEC,              \
-	((((LqEvntHdr*)(Event))->Flag & _LQEVNT_FLAG_CONN)?                 \
+    ((((LqEvntHdr*)(Event))->Flag & _LQEVNT_FLAG_CONN)?                 \
     ((LqConn*)(Event))->Proto->EndConnProc(((LqConn*)(Event))):         \
     (((LqEvntFd*)(Event))->CloseHandler((LqEvntFd*)(Event), 0))))
 
 #define LqEvntFdInit(Evnt, NewFd, NewFlags)                             \
     ((LqEvntFd*)(Evnt))->Fd = (NewFd);                                  \
     ((LqEvntFd*)(Evnt))->Flag = _LQEVNT_FLAG_NOW_EXEC ;                 \
-    LqEvntSetFlags((LqEvntFd*)(Evnt), NewFlags);                        \
+    LqEvntSetFlags((LqEvntFd*)(Evnt), NewFlags, 0);                     \
     ((LqEvntFd*)(Evnt))->Flag &= ~_LQEVNT_FLAG_NOW_EXEC;
 
 #define LqConnIsClose(Conn) (((LqConn*)(Conn))->Flag | LQEVNT_FLAG_END)

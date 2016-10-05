@@ -610,7 +610,7 @@ public:
             LqHttpConn* Conn;
         public:DISABLE_COPY_CONSTRUCT(_EvntFlag)
             inline operator LqEvntFlag() { return Conn->Flags & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_WR | LQEVNT_FLAG_RD); }
-            inline LqEvntFlag operator =(LqEvntFlag NewFlag) { LqEvntSetFlags(Conn, NewFlag); return NewFlag; }
+            inline LqEvntFlag operator =(LqEvntFlag NewFlag) { LqEvntSetFlags(Conn, NewFlag, 0); return NewFlag; }
             inline int SetCloseAsync() { return LqEvntSetClose(Conn); }
             inline int SetCloseSync(LqTimeMillisec WaitTime) { return LqEvntSetClose2(Conn, WaitTime); }
             inline int SetCloseSyncForce() { return LqEvntSetClose3(Conn); }

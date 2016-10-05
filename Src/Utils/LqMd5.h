@@ -11,7 +11,7 @@ LQ_EXTERN_C_BEGIN
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-typedef struct
+typedef struct LqMd5Ctx
 {
     unsigned int lo, hi;
     unsigned int a, b, c, d;
@@ -32,7 +32,7 @@ enum
 #pragma pack(push)
 #pragma pack(1)
 
-typedef struct
+typedef struct LqMd5
 {
     unsigned char data[LqMd5DigestLen];
 } LqMd5;

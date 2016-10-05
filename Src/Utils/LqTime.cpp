@@ -81,7 +81,7 @@ LQ_EXTERN_CPP LqString LQ_CALL LqTimeGmtSecToStlStr(LqTimeSec t)
     return Buf;
 }
 
-LQ_EXTERN_C int LQ_CALL LqTimeStrToLocTm(const char* Str, tm* Result)
+LQ_EXTERN_C int LQ_CALL LqTimeStrToLocTm(const char* Str, struct tm* Result)
 {
     tm OutTm;
     int n = 0;
@@ -136,7 +136,7 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToLocTm(const char* Str, tm* Result)
 }
 
 
-LQ_EXTERN_C int LQ_CALL LqTimeStrToGmtTm(const char * Str, tm* Result)
+LQ_EXTERN_C int LQ_CALL LqTimeStrToGmtTm(const char * Str, struct tm* Result)
 {
     tm OutTm;
     int n = 0;
@@ -229,12 +229,12 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToGmtSec(const char* Str, LqTimeSec* Result)
 }
 
 
-LQ_EXTERN_C int LQ_CALL LqTimeGmtTmToStr(char* DestStr, LqTimeSec DestStrLen, const tm* InTmGmt)
+LQ_EXTERN_C int LQ_CALL LqTimeGmtTmToStr(char* DestStr, LqTimeSec DestStrLen, const struct tm* InTmGmt)
 {
     return snprintf(DestStr, DestStrLen, PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*InTmGmt));
 }
 
-LQ_EXTERN_C int LQ_CALL LqTimeLocTmToStr(char* DestStr, LqTimeSec DestStrLen, const tm* InTm)
+LQ_EXTERN_C int LQ_CALL LqTimeLocTmToStr(char* DestStr, LqTimeSec DestStrLen, const struct tm* InTm)
 {
     return snprintf(DestStr, DestStrLen, PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*InTm));
 }
@@ -273,26 +273,26 @@ LQ_EXTERN_C LqTimeSec LQ_CALL LqTimeGetGmtSec()
 #endif
 }
 
-LQ_EXTERN_C void LQ_CALL LqTimeGetLocTm(tm* Tm)
+LQ_EXTERN_C void LQ_CALL LqTimeGetLocTm(struct tm* Tm)
 {
     auto t = time(nullptr);
     *Tm = *localtime(&t);
 }
 
-LQ_EXTERN_C void LQ_CALL LqTimeGetGmtTm(tm* Tm)
+LQ_EXTERN_C void LQ_CALL LqTimeGetGmtTm(struct tm* Tm)
 {
     auto t = time(nullptr) + GmtCorrection;
     time_t Tt = t;
     *Tm = *gmtime(&Tt);
 }
 
-void LQ_CALL LqTimeLocSecToLocTm(tm* Tm, LqTimeSec LocalTime)
+void LQ_CALL LqTimeLocSecToLocTm(struct tm* Tm, LqTimeSec LocalTime)
 {
     time_t Tt = LocalTime;
     *Tm = *localtime(&Tt);
 }
 
-LQ_EXTERN_C void LQ_CALL LqTimeLocSecToGmtTm(tm* Tm, LqTimeSec LocalTime)
+LQ_EXTERN_C void LQ_CALL LqTimeLocSecToGmtTm(struct tm* Tm, LqTimeSec LocalTime)
 {
     LocalTime += GmtCorrection;
     time_t Tt = LocalTime;

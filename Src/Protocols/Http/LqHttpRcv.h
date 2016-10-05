@@ -16,7 +16,7 @@
 
 LQ_EXTERN_C_BEGIN
 
-enum LqHttpRcvFileResultEnm
+typedef enum LqHttpRcvFileResultEnm
 {
     LQHTTPRCV_FILE_OK,
     LQHTTPRCV_MULTIPART,
@@ -27,7 +27,7 @@ enum LqHttpRcvFileResultEnm
     LQHTTPRCV_UPDATED,
     LQHTTPRCV_CREATED,
     LQHTTPRCV_ACT_ERR
-};
+} LqHttpRcvFileResultEnm;
 
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFile(LqHttpConn* c, const char* lqaopt lqain lqautf8 Path, LqFileSz ReadLen, int Access, bool IsReplace, bool IsCreateSubdir);
 LQ_IMPORTEXPORT LqHttpRcvFileResultEnm LQ_CALL LqHttpRcvFileByFd(LqHttpConn* c, int Fd, LqFileSz ReadLen);
