@@ -11,6 +11,7 @@
 
 #include <malloc.h>
 #include <type_traits>
+#include <string.h>
 #include "LqDef.hpp"
 #include "LqLock.hpp"
 

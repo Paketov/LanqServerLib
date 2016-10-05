@@ -1,6 +1,7 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
+    <meta charset="utf-8" />
     <title>Html console</title>
 
     <script type="text/jscript" language="jscript">
@@ -118,6 +119,7 @@
                 return false;
             }
             return true;
+
         }
 
         TerminalJs.GetObj = function (Name)
@@ -441,6 +443,10 @@
                         OutputArea.appendText(r);
                 }
             OutputArea.appendText(CommPart.length ? CommPart.shift() : "");
+            var Tmphhh = OutputArea.innerText;
+            if (Tmphhh.length > (1024 * 10)) {
+                OutputArea.innerText = Tmphhh.substr(-(1024 * 10));
+            }
         }
         TerminalJs.IntrpCommand = function (com)
         {
@@ -617,15 +623,14 @@
         //=======================================
         window.onload = function ()
         {
-            TerminalJs.printf("hello %#ff0000s on %s", "world", "printf\n");
-            TerminalJs.printf("hello %#ff8f0fs on %s", "world", "printf");
-            
+            InitRemoteTerminal();
+
             TerminalJs.history.maxel = 20;
             TerminalJs.history.load();
             TerminalJs.BindList = TerminalJs.GetSavedBind();
             TerminalJs.SavedBind = TerminalJs.GetSavedBind();
             //Приглашение командной строки
-            TerminalJs.invite = ">";
+            TerminalJs.invite = "";
             if (!Array.prototype.indexOf)
                 Array.prototype.indexOf = function (srh, start)
                 {
@@ -693,10 +698,10 @@
                             delete TerminalJs.EntrHan;
                         } else
                         {
-                            OutputArea.appendText("\n" + this.value);
+                           // OutputArea.appendText("\n" + this.value);
                             TerminalJs.history.add(this.value);
                             TerminalJs.history.save();
-                            TerminalJs.IntrpCommand(this.value.substr(TerminalJs.invite.length));
+                            WriteRemoteTerminal(this.value); //TerminalJs.IntrpCommand(this.value.substr(TerminalJs.invite.length));
                         }
                         this.value = "";
                         this.rows = 1;
@@ -725,16 +730,70 @@
                             TerminalJs.CnclDefaEvn(e);
                 }
             }
-
-            hh = function ()
-            {
-                 TerminalJs.printf("==========%.3#005500f\nTest\n", Math.random());
-                setTimeout(hh, 100);
-                TerminalJs.showlast();
-            }
             InputArea.value = TerminalJs.invite;
             InputArea.onblur();
-        }; 
+        };
+
+        ///=====================================================================
+        // 
+
+        var Session;
+        var Req = new XMLHttpRequest();
+        var ReqRead = new XMLHttpRequest();
+        var ReqWrite = new XMLHttpRequest();
+
+        function InitRemoteTerminal()
+        {
+            Req = new XMLHttpRequest();
+            Req.open("GET", "/RemoteTerminal/New", false);
+            Req.send();
+            if (Req.status != 200)
+            {
+                TerminalJs.printf("%#700000s (%#700000s)", "Not connect to remote terminal.", Req.responseText);
+            } else
+            {
+                Session = JSON.parse(Req.responseText);
+                ReadRemoteTerminal();
+            }
+        }
+
+        function ReadRemoteTerminal()
+        {
+            ReqRead = new XMLHttpRequest();
+            ReqRead.open("GET", "/RemoteTerminal/Out?SessionIndex=" + Session.SessionIndex.toString() + "&Key=" + Session.Key, true);
+            ReqRead.onload = function(e)
+            {
+                if (ReqRead.status == 200)
+                {
+                    var Tmp = ReqRead.responseText;
+                    Tmp = Tmp.replace(/\r/g, "");
+                    TerminalJs.printf("%s", Tmp);
+                    ReadRemoteTerminal();
+                } else if (ReqRead.status == 408)
+                {
+                    ReadRemoteTerminal();
+                }else
+                {
+                    TerminalJs.printf("%#700000s (%#700000s)", "Not recive data from server!", Req.responseText);
+                }
+            };
+
+            ReqRead.send();
+        }
+
+        function WriteRemoteTerminal(Str)
+        {
+            ReqWrite = new XMLHttpRequest();
+            ReqWrite.open("POST", "/RemoteTerminal/In?SessionIndex=" + Session.SessionIndex.toString() + "&Key=" + Session.Key, false);
+            ReqWrite.send(Str + "\r\n");
+        }
+
+
+        function OnUnload() {
+            ReqWrite = new XMLHttpRequest();
+            ReqWrite.open("GET", "/RemoteTerminal/Close?SessionIndex=" + Session.SessionIndex.toString() + "&Key=" + Session.Key, false);
+            ReqWrite.send();
+        }
 
     </script>
 
@@ -749,6 +808,10 @@
             width: 100%;
             font-family: Consolas;
             font-size: 17px;
+
+            margin: 0px;
+            border: 0px;
+            padding: 0px;
         }
         .csOutputArea
         {
@@ -761,16 +824,15 @@
             outline: none;
             resize: none;
             overflow: hidden;
+
         }
     </style>
 </head>
-<body id="GlobalBody" class="csGlobalBody">
-    <input type="file" onchange="TerminalJs.isFileChange=true;" multiple="true" name="__gl_file__"
-        style="visibility: hidden; position: absolute;" />
+<body id="GlobalBody" class="csGlobalBody" onunload="OnUnload()">
+    <input type="file" onchange="TerminalJs.isFileChange=true;" multiple="true" name="__gl_file__" style="visibility: hidden; position: absolute;" />
     <div class="csGlobalDiv">
-        <div id="OutputArea" class="csOutputArea csGlobalDiv">
-        </div>
-        <textarea autofocus="true" rows="1" id="InputArea" class="csGlobalDiv csInputArea"></textarea>
+      <pre id="OutputArea" class="csOutputArea csGlobalDiv"></pre>
+      <textarea autofocus="true" rows="1" id="InputArea" class="csGlobalDiv csInputArea"></textarea>
     </div>
 </body>
 </html>
