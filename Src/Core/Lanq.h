@@ -61,7 +61,7 @@ struct LqEvntHdr
 struct LqConn
 {
     LQ_CONN_COMMON_EVNT_HDR;
-    struct LqProto*   Proto;      /*Server registration*/
+    LqProto*            Proto;      /*Server registration*/
 };
 
 typedef void (LQ_CALL *LqEvntFdHandlerFn)(LqEvntFd* Fd, LqEvntFlag RetFlags);
