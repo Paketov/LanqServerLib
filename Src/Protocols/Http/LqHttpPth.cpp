@@ -248,7 +248,7 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFileRedirection
     (
         WebPath,
         LQHTTPPTH_TYPE_FILE_REDIRECTION,
-        nullptr,
+        (void*)Location,
         Permissions,
         Autoriz,
         (RegModule == nullptr) ? &Reg->StartModule : RegModule
@@ -747,6 +747,8 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegister(LqHttpProtoBase* Reg, c
 
 static LqHttpPthResultEnm LqHttpPthRegisterNative(LqHttpDmnTbl& Dmns, const char* WebDomen, LqHttpPthPtr& Path)
 {   
+    if(Path == &EmptyPth)
+        return LQHTTPPTH_RES_NOT_ALLOC_MEM;
     if(!(Path->Type & LQHTTPPTH_FLAG_CHILD) && !Path->ParentModule->RegisterPathInDomenProc(Path.Get(), WebDomen))
         return LQHTTPPTH_RES_MODULE_REJECT;
     LqHttpPthResultEnm Result = LQHTTPPTH_RES_NOT_HAVE_DOMEN;
@@ -847,9 +849,7 @@ static LqHttpPthPtr LqHttpPthCreate
             case LQHTTPPTH_TYPE_EXEC_FILE:
             case LQHTTPPTH_TYPE_FILE:
             case LQHTTPPTH_TYPE_FILE_REDIRECTION:
-            {
                 ResultPth->WebPath = LqStrDuplicate(WebPath);
-            }
             break;
         }
         if(ResultPth->WebPath == nullptr)
@@ -896,7 +896,7 @@ static LqHttpPthPtr LqHttpPthCreate
                 if(ResultPth->Location == nullptr)
                 {
                     LqHttpPthRelease(ResultPth);
-                    return nullptr;
+                    return &EmptyPth;
                 }
             } else
             {
@@ -1039,7 +1039,7 @@ void LqHttpPthRecognize(LqHttpConn* c)
             case LQHTTPPTH_TYPE_DIR_REDIRECTION:
             {
                 auto Pth = LqHttpPthGetFileRedirectionByDirRedirection(c, CountSubDirs);
-                if(Pth != nullptr)
+                if(Pth != &EmptyPth)
                 {
                     Pth->Parent = c->Pth;
                     c->Pth = Pth.Get();
