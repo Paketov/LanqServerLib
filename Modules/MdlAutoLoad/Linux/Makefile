@@ -62,7 +62,7 @@ $(OBJECT_DIR)/%.o: $(SOURCE_DIR)/%.c
 	@echo " Compile " $<
 	@$(CC) -o $@ -c $< $(CFLAGS) $(addprefix -I, $(INCLUDE_SUBDIRS))
 
-clean :
+clear :
 	@echo " Remove object subdirs" $(OBJECTS_SUBDIRS) " remove module" $(PROGRAM)
 	@rm -rf $(OBJECTS_SUBDIRS) $(PROGRAM)
 
