@@ -71,19 +71,16 @@ struct HttpConnIp6
 /*
 * Protocol managment procs.
 */
-static void LQ_CALL LqHttpCoreErrorProc(LqConn* Connection);
-static void LQ_CALL LqHttpCoreWriteProc(LqConn* Connection);
-static void LQ_CALL LqHttpCoreReadProc(LqConn* Connection);
-static void LQ_CALL LqHttpCoreDisconnectProc(LqConn* Connection);
+static void LQ_CALL LqHttpCoreHandler(LqConn* Connection, LqEvntFlag Flag);
+static void LQ_CALL LqHttpCoreCloseHandler(LqConn* Connection);
 static bool LQ_CALL LqHttpCoreCmpIpAddress(LqConn* Connection, const void* Address);
 static void LQ_CALL LqHttpFreeProtoNotifyProc(LqProto* This);
 static char*LQ_CALL LqHttpCoreDbgInfoProc(LqConn* Connection);
 static bool LQ_CALL LqHttpCoreKickByTimeOutProc(LqConn* Connection, LqTimeMillisec CurrentTimeMillisec, LqTimeMillisec EstimatedLiveTime);
 static bool LqHttpMultipartAddHeaders(LqHttpMultipartHeaders** CurMultipart, const char* Buf, size_t BufLen);
 
-static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection);
-static void LQ_CALL LqHttpCoreBindErrorProc(LqConn* Connection);
-static void LQ_CALL LqHttpCoreBindDisconnectProc(LqConn* Connection);
+static void LQ_CALL LqHttpCoreBindHandler(LqConn* Connection, LqEvntFlag Flag);
+static void LQ_CALL LqHttpCoreBindCloseHandler(LqConn* Connection);
 
 static void LqHttpCoreRcvMultipartSkipToHdr(LqHttpConn* c);
 static void LqHttpRcvMultipartReadHdr(LqHttpConn* c);
@@ -192,23 +189,18 @@ LQ_EXTERN_C LqHttpProtoBase* LQ_CALL LqHttpProtoCreate()
     LqHttpProto* r = LqFastAlloc::New<LqHttpProto>();
     if(r == nullptr)
         return nullptr;
-    r->Base.Proto.ReciveProc = LqHttpCoreReadProc;
-    r->Base.Proto.EndConnProc = LqHttpCoreDisconnectProc;
+    LqProtoInit(&r->Base.Proto);
+    r->Base.Proto.Handler = LqHttpCoreHandler;
+    r->Base.Proto.CloseHandler = LqHttpCoreCloseHandler;
     r->Base.Proto.KickByTimeOutProc = LqHttpCoreKickByTimeOutProc;
     r->Base.Proto.CmpAddressProc = LqHttpCoreCmpIpAddress;
-    r->Base.Proto.WriteProc = LqHttpCoreWriteProc;
-    r->Base.Proto.ErrorProc = LqHttpCoreErrorProc;
     r->Base.Proto.DebugInfoProc = LqHttpCoreDbgInfoProc;
 
     r->Base.BindProto.UserData = r->Base.Proto.UserData = r;
 
-    r->Base.BindProto.ReciveProc = LqHttpCoreBindReadProc;
-    r->Base.BindProto.EndConnProc = LqHttpCoreBindDisconnectProc;
-    r->Base.BindProto.WriteProc = [](LqConn*) {};
-    r->Base.BindProto.ErrorProc = LqHttpCoreBindErrorProc;
-    r->Base.BindProto.CmpAddressProc = [](LqConn*, const void*) { return false; };
-    r->Base.BindProto.KickByTimeOutProc = [](LqConn*, LqTimeMillisec, LqTimeMillisec) { return false; };
-    r->Base.BindProto.DebugInfoProc = [](LqConn*) { return (char*)nullptr; };
+    LqProtoInit(&r->Base.BindProto);
+    r->Base.BindProto.Handler = LqHttpCoreBindHandler;
+    r->Base.BindProto.CloseHandler = LqHttpCoreBindCloseHandler;
 
     r->Base.ZmbClr.Fd = -1;
 
@@ -240,7 +232,7 @@ LQ_EXTERN_C LqHttpProtoBase* LQ_CALL LqHttpProtoCreate()
     r->Port = "80";
     r->Host = "";
     r->Base.MaxConnections = 65000;
-    r->Base.TransportProtoFamily = AF_INET;
+    r->Base.RouteProtoFamily = AF_INET;
 
     LqAtmLkInit(r->Base.ServNameLocker);
     LqHttpProtoSetNameServer(&r->Base, "Lanq(Lan Quick) 1.0");
@@ -261,8 +253,8 @@ LQ_EXTERN_C LqHttpProtoBase* LQ_CALL LqHttpProtoCreate()
 
 LQ_EXTERN_C int LQ_CALL LqHttpProtoDelete(LqHttpProtoBase* Proto)
 {
-	LqHttpMdlFreeAll(Proto);
-	LqHttpMdlFreeMain(Proto);
+    LqHttpMdlFreeAll(Proto);
+    LqHttpMdlFreeMain(Proto);
     LqAtmLkWr(Proto->BindLocker);
 
     if(Proto->ZmbClr.Fd != -1)
@@ -309,7 +301,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoBind(LqHttpProtoBase* Reg)
         LqWrkBossAddEvntSync((LqEvntHdr*)&Reg->ZmbClr);
         
     }
-    int BindedSock = LqConnBind(Proto->Host.c_str(), Proto->Port.c_str(), Proto->Base.TransportProtoFamily, Proto->Base.MaxConnections);
+    int BindedSock = LqConnBind(Proto->Host.c_str(), Proto->Port.c_str(),  Proto->Base.RouteProtoFamily, SOCK_STREAM, IPPROTO_TCP, Proto->Base.MaxConnections, true);
 
     if(BindedSock == -1)
     {
@@ -317,7 +309,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoBind(LqHttpProtoBase* Reg)
         return -1;
     }
 
-    LqConnInit(&Reg->Conn, BindedSock, &Reg->BindProto, LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD);
+    LqConnInit(&Reg->Conn, BindedSock, &Reg->BindProto, LQEVNT_FLAG_ACCEPT);
 
     LqObPtrReference(Proto); //Reference by bineded sock
 
@@ -350,7 +342,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoUnbind(LqHttpProtoBase* Reg)
     return r;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpProtoGetInfo(LqHttpProtoBase* Reg, char* Host, size_t HostBufSize, char* Port, size_t PortBufSize, int* TransportProtoFamily, int* MaxConnections, LqTimeMillisec* TimeLive)
+LQ_EXTERN_C int LQ_CALL LqHttpProtoGetInfo(LqHttpProtoBase* Reg, char* Host, size_t HostBufSize, char* Port, size_t PortBufSize, int* RouteProtoFamily, int* MaxConnections, LqTimeMillisec* TimeLive)
 {
     LqHttpProto* Proto = (LqHttpProto*)Reg;
     LqAtmLkWr(Reg->BindLocker);
@@ -358,8 +350,8 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoGetInfo(LqHttpProtoBase* Reg, char* Host, siz
         LqStrCopyMax(Port, Proto->Port.c_str(), PortBufSize);
     if(Host != nullptr)
         LqStrCopyMax(Host, Proto->Host.c_str(), HostBufSize);
-    if(TransportProtoFamily != nullptr)
-        *TransportProtoFamily = Proto->Base.TransportProtoFamily;
+    if(RouteProtoFamily != nullptr)
+        *RouteProtoFamily = Proto->Base.RouteProtoFamily;
     if(MaxConnections != nullptr)
         *MaxConnections = Proto->Base.MaxConnections;
     if(TimeLive != nullptr)
@@ -368,7 +360,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoGetInfo(LqHttpProtoBase* Reg, char* Host, siz
     return 0;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpProtoSetInfo(LqHttpProtoBase* Reg, const char* Host, const char* Port, const int * TransportProtoFamily, const int* MaxConnections, const LqTimeMillisec* TimeLive)
+LQ_EXTERN_C int LQ_CALL LqHttpProtoSetInfo(LqHttpProtoBase* Reg, const char* Host, const char* Port, const int * RouteProtoFamily, const int* MaxConnections, const LqTimeMillisec* TimeLive)
 {
     LqHttpProto* Proto = (LqHttpProto*)Reg;
     LqAtmLkWr(Reg->BindLocker);
@@ -379,8 +371,8 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoSetInfo(LqHttpProtoBase* Reg, const char* Hos
     if(Host != nullptr)
         Proto->Host = Host;
 
-    if(TransportProtoFamily != nullptr)
-        Proto->Base.TransportProtoFamily = *TransportProtoFamily;
+    if(RouteProtoFamily != nullptr)
+        Proto->Base.RouteProtoFamily = *RouteProtoFamily;
     if(MaxConnections != nullptr)
         Proto->Base.MaxConnections = *MaxConnections;
 
@@ -515,7 +507,7 @@ LQ_EXTERN_C void LQ_CALL LqHttpCheSetMaxCountOfPrepared(LqHttpProtoBase* Reg, si
 }
 
 
-static void LQ_CALL LqHttpCoreDisconnectProc(LqConn* Connection)
+static void LQ_CALL LqHttpCoreCloseHandler(LqConn* Connection)
 {
     LqHttpConn* c = (LqHttpConn*)Connection;
     LqHttpProto* r = LqHttpGetReg(c);
@@ -526,8 +518,8 @@ static void LQ_CALL LqHttpCoreDisconnectProc(LqConn* Connection)
     LqHttpConnPthRemove(c);
     if(c->Buf != nullptr)
         ___free(c->Buf);
-	if(c->UserData != nullptr)
-		LqFastAlloc::ReallocCount<LqHttpUserData>(c->UserData, c->UserDataCount, 0);
+    if(c->UserData != nullptr)
+        LqFastAlloc::ReallocCount<LqHttpUserData>(c->UserData, c->UserDataCount, 0);
     LqAtmIntrlkDec(r->Base.CountConnections);
     if(r->Base.IsUnregister && (r->Base.CountConnections == 0))
         LqFastAlloc::Delete(r);
@@ -554,341 +546,339 @@ static void LQ_CALL LqHttpCoreDisconnectProc(LqConn* Connection)
 
 }
 
-static void LQ_CALL LqHttpCoreErrorProc(LqConn* Connection)
-{
-    LqEvntSetClose(Connection);
-    LQHTTPLOG_ERR("LqHttpCoreErrorProc: have error when wait event on socket\n");
-}
-
-static void LQ_CALL LqHttpCoreWriteProc(LqConn* Connection)
-{
-    LqHttpConn* c = (LqHttpConn*)Connection;
-    c->TimeLastExchangeMillisec = LqTimeGetLocMillisec();
-
-lblSwitch:
-    switch(LqHttpActState OldAct = c->ActionState)
-    {
-        case LQHTTPACT_STATE_RSP:
-            LqHttpCoreRspHdr(c);
-lblResponseResult:
-            switch(c->ActionResult)
-            {
-                case LQHTTPACT_RES_PARTIALLY: return;
-                case LQHTTPACT_RES_OK:
-                    LqHttpConnCallEvntAct(c);
-                    if(c->Flags & LQHTTPCONN_FLAG_CLOSE)
-                    {
-                        LqEvntSetClose(c);
-                        return;
-                    }
-					{
-						auto t = c->Response.HeadersStart;
-						c->Response.HeadersStart = 0;
-						((LqHttpProto*)LqHttpProtoGetByConn(c))->EndResponseHndls.Call(c);
-						c->Response.HeadersStart = t;
-					}
-                    LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
-                    LqHttpActSwitchToRcv(c);
-                    LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-                    return;
-                default:
-                    LqHttpConnCallEvntAct(c);
-                    LqEvntSetClose(c);
-                    return;
-            }
-        case LQHTTPACT_STATE_RSP_CACHE:
-            LqHttpCoreRspCache(c);
-            goto lblResponseResult;
-        case LQHTTPACT_STATE_RSP_FD:
-            LqHttpCoreRspFd(c);
-            goto lblResponseResult;
-        case LQHTTPACT_STATE_RSP_STREAM:
-            LqHttpCoreRspStream(c);
-            goto lblResponseResult;
-        case LQHTTPACT_STATE_RSP_INIT_HANDLE:
-            LqHttpConnCallEvntAct(c);
-            if(OldAct != c->ActionState)
-                return LqHttpCoreReadProc(&c->CommonConn);
-            if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-                LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-            return;
-        case LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE:
-        case LQHTTPACT_STATE_QUERY_SSL_HANDSHAKE:
-        {
-#ifdef HAVE_OPENSSL
-            auto SslAcptErr = SSL_accept(c->ssl);
-            if(SslAcptErr < 0)
-            {
-                if(((SslAcptErr == SSL_ERROR_WANT_READ) || (SslAcptErr == SSL_ERROR_WANT_WRITE)))
-                {
-                    return;
-                } else
-                {
-                    c->ActionResult = LQHTTPACT_RES_SSL_FAILED_HANDSHAKE;
-                    LqEvntSetClose(c);
-                    return;
-                }
-            }
-            LqEvntSetFlags(c, ((OldAct == LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE)?LQEVNT_FLAG_RD: LQEVNT_FLAG_WR) | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
-            c->ActionState = LQHTTPACT_STATE_GET_HDRS;
-#endif
-        }
-        return;
-        case LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS:
-        case LQHTTPACT_STATE_QUERY_HANDLE_PROCESS:
-        {
-            LqHttpActState OldAct = (LqHttpActState)-1;
-            
-            LqHttpConnCallEvntAct(c);
-            
-            if((c->CommonConn.Flag & (LQEVNT_FLAG_RD | LQEVNT_FLAG_WR)) == 0) //Is locked read or write
-                return;
-            if((OldAct == c->ActionState) && (c->ActionResult != LQHTTPACT_RES_BEGIN))
-            {
-                //If EventAct don`t change state
-                LQHTTPLOG_ERR("module \"%s\" dont change action state", LqHttpMdlGetByConn(c)->Name);
-                if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER)
-                {
-                    static const char ErrCode[] =
-                        "HTTP/1.1 500 Internal Server Error\r\n"
-                        "Connection: close\r\n"
-                        "Content-Type: text/html; charset=\"UTF-8\"\r\n"
-                        "Content-Length: 25\r\n"
-                        "\r\n"
-                        "500 Internal Server Error";
-                    LqHttpConnSend_Native(c, ErrCode, sizeof(ErrCode) - 1);
-                }
-                c->ActionResult = LQHTTPACT_RES_INVALID_ACT_CHAIN;
-                LqEvntSetClose(c);
-                return;
-            }
-        }
-        goto lblSwitch;
-    }
-}
-
-static void LQ_CALL LqHttpCoreReadProc(LqConn* Connection)
+static void LQ_CALL LqHttpCoreHandler(LqConn* Connection, LqEvntFlag Flag)
 {
     LqHttpConn* c = (LqHttpConn*)Connection;
     c->TimeLastExchangeMillisec = LqTimeGetLocMillisec();
     LqHttpActState OldAct = (LqHttpActState)-1;
-lblSwitch:
-    if((c->CommonConn.Flag & (LQEVNT_FLAG_RD | LQEVNT_FLAG_WR)) == 0) //Is locked read or write
-        return;
 
-    if((OldAct == c->ActionState) && (c->ActionResult != LQHTTPACT_RES_BEGIN))
+    if(Flag & LQEVNT_FLAG_ERR)
     {
-        //If EventAct don`t change state
-        LQHTTPLOG_ERR("module \"%s\" don`t change action state\n", LqHttpMdlGetByConn(c)->Name);
-        if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER)
-        {
-            static const char ErrCode[] =
-                "HTTP/1.1 500 Internal Server Error\r\n"
-                "Connection: close\r\n"
-                "Content-Type: text/html; charset=\"UTF-8\"\r\n"
-                "Content-Length: 25\r\n"
-                "\r\n"
-                "500 Internal Server Error";
-            LqHttpConnSend_Native(c, ErrCode, sizeof(ErrCode) - 1);
-        }
-        c->ActionResult = LQHTTPACT_RES_INVALID_ACT_CHAIN;
-        LqEvntSetClose(c);
-        return;
-    }
-    switch(OldAct = c->ActionState)
+        LqEvntSetClose(Connection);
+        LQHTTPLOG_ERR("LqHttpCoreErrorProc: have error when wait event on socket\n");
+    }else if(Flag & LQEVNT_FLAG_WR)
     {
-        case LQHTTPACT_STATE_GET_HDRS:
-            LqHttpQurReadHeaders(c);
-            if(c->ActionResult == LQHTTPACT_RES_PARTIALLY) 
-                return;
-            goto lblSwitch;
-        case LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS:
-        case LQHTTPACT_STATE_QUERY_HANDLE_PROCESS:
-            LqHttpConnCallEvntAct(c);
-            goto lblSwitch;
-        case LQHTTPACT_STATE_RCV_FILE:
-            if(LqHttpConnReciveInFile(c, c->Query.OutFd, c->Query.PartLen - c->ReadedBodySize) < 0)
-            {
-                c->ActionResult = LQHTTPACT_RES_FILE_WRITE_ERR;
-            } else if(c->ReadedBodySize < c->Query.PartLen)
-            {
-                c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-                return;
-            } else
-            {
-                c->ActionResult = LQHTTPACT_RES_OK;
-            }
-            LqHttpConnCallEvntAct(c);
-            goto lblSwitch;
-        case LQHTTPACT_STATE_RCV_STREAM:
-            if(LqHttpConnReciveInStream(c, &c->Query.Stream, c->Query.PartLen - c->ReadedBodySize) < 0)
-            {
-                c->ActionResult = LQHTTPACT_RES_STREAM_WRITE_ERR;
-            } else if(c->ReadedBodySize < c->Query.PartLen)
-            {
-                c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-                return;
-            } else
-            {
-                c->ActionResult = LQHTTPACT_RES_OK;
-            }
-            LqHttpConnCallEvntAct(c);
-            goto lblSwitch;
-            ////////
-        case LQHTTPACT_STATE_RCV_INIT_HANDLE:
-            LqHttpConnCallEvntAct(c);
-            if(OldAct != c->ActionState)
-                goto lblSwitch;
-            return;
-        case LQHTTPACT_STATE_RSP_INIT_HANDLE:
-            LqHttpConnCallEvntAct(c);
-            if(OldAct != c->ActionState)
-                goto lblSwitch;
-            if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-                LqEvntSetFlags(c, LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-            return;
-            ////////
-        case LQHTTPACT_STATE_MULTIPART_SKIP_TO_HDRS:
-            LqHttpCoreRcvMultipartSkipToHdr(c);
-            if(c->ActionResult == LQHTTPACT_RES_PARTIALLY) return;
-            LqHttpConnCallEvntAct(c);
-            goto lblSwitch;
-        case LQHTTPACT_STATE_MULTIPART_SKIP_AND_GET_HDRS:
+lblSwitch2:
+        switch(OldAct = c->ActionState)
         {
-            LqHttpCoreRcvMultipartSkipToHdr(c);
-            switch(c->ActionResult)
-            {
-                case LQHTTPACT_RES_PARTIALLY: return;
-                default:
-                    LqHttpConnCallEvntAct(c);
-                    goto lblSwitch;
-                case LQHTTPACT_RES_OK: OldAct = c->ActionState = LQHTTPACT_STATE_MULTIPART_RCV_HDRS;
-            }
-        }
-        case LQHTTPACT_STATE_MULTIPART_RCV_HDRS:
-        {
-            LqHttpRcvMultipartReadHdr(c);
-            if(c->ActionResult == LQHTTPACT_RES_PARTIALLY)
-                return;
-            LqHttpConnCallEvntAct(c);
-        }
-        goto lblSwitch;
-        case LQHTTPACT_STATE_MULTIPART_RCV_FILE:
-        {
-            LqHttpRcvMultipartReadInFile(c);
-            if(c->ActionResult == LQHTTPACT_RES_PARTIALLY) 
-                return;
-            LqHttpConnCallEvntAct(c);
-        }
-        goto lblSwitch;
-        case LQHTTPACT_STATE_MULTIPART_RCV_STREAM:
-        {
-            LqHttpRcvMultipartReadInStream(c);
-            if(c->ActionResult == LQHTTPACT_RES_PARTIALLY)
-                return;
-            LqHttpConnCallEvntAct(c); 
-        }
-        goto lblSwitch;
-        case LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE:
-        case LQHTTPACT_STATE_QUERY_SSL_HANDSHAKE:
-        {
-#ifdef HAVE_OPENSSL
-            auto SslAcptErr = SSL_accept(c->ssl);
-            if(SslAcptErr < 0)
-            {
-                if(((SslAcptErr == SSL_ERROR_WANT_READ) || (SslAcptErr == SSL_ERROR_WANT_WRITE)))
+            case LQHTTPACT_STATE_RSP:
+                LqHttpCoreRspHdr(c);
+lblResponseResult:
+                switch(c->ActionResult)
                 {
-                    return;
-                } else
-                {
-                    c->ActionResult = LQHTTPACT_RES_SSL_FAILED_HANDSHAKE;
-                    LqEvntSetClose(c);
-                    return;
-                }
-            }
-            LqEvntSetFlags(c, ((OldAct == LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE) ? LQEVNT_FLAG_RD : LQEVNT_FLAG_WR) | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
-            c->ActionState = LQHTTPACT_STATE_GET_HDRS;
-#endif
-        }
-        return;
-        ////////
-        case LQHTTPACT_STATE_SKIP_QUERY_BODY: lblSkip:
-        {
-            c->Response.CountNeedRecive -= LqHttpConnSkip(c, c->Response.CountNeedRecive);
-            if(c->Response.CountNeedRecive > 0)
-            {
-                if(c->ActionState == LQHTTPACT_STATE_RSP)
-                {   
-                    c->ActionState = LQHTTPACT_STATE_SKIP_QUERY_BODY;
-                    if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
+                    case LQHTTPACT_RES_PARTIALLY: return;
+                    case LQHTTPACT_RES_OK:
+                        LqHttpConnCallEvntAct(c);
+                        if(c->Flags & LQHTTPCONN_FLAG_CLOSE)
+                        {
+                            LqEvntSetClose(c);
+                            return;
+                        }
+                        {
+                            auto t = c->Response.HeadersStart;
+                            c->Response.HeadersStart = 0;
+                            ((LqHttpProto*)LqHttpProtoGetByConn(c))->EndResponseHndls.Call(c);
+                            c->Response.HeadersStart = t;
+                        }
+                        LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
+                        LqHttpActSwitchToRcv(c);
                         LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
+                        return;
+                    default:
+                        LqHttpConnCallEvntAct(c);
+                        LqEvntSetClose(c);
+                        return;
                 }
-                return;
-            } else
-            {
-                if(c->Flags & LQHTTPCONN_FLAG_CLOSE)
-                {
-                    LqEvntSetClose(c);
-                    return;
-                }
-				{
-					auto t = c->Response.HeadersStart;
-					c->Response.HeadersStart = 0;
-					((LqHttpProto*)LqHttpProtoGetByConn(c))->EndResponseHndls.Call(c);
-					c->Response.HeadersStart = t;
-				}
-                LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
-                LqHttpActSwitchToRcv(c);
+            case LQHTTPACT_STATE_RSP_CACHE:
+                LqHttpCoreRspCache(c);
+                goto lblResponseResult;
+            case LQHTTPACT_STATE_RSP_FD:
+                LqHttpCoreRspFd(c);
+                goto lblResponseResult;
+            case LQHTTPACT_STATE_RSP_STREAM:
+                LqHttpCoreRspStream(c);
+                goto lblResponseResult;
+            case LQHTTPACT_STATE_RSP_INIT_HANDLE:
+                LqHttpConnCallEvntAct(c);
+                if(OldAct != c->ActionState)
+                    return LqHttpCoreHandler(&c->CommonConn, LQEVNT_FLAG_RD);
                 if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
                     LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
                 return;
-            }
-        }
-        case LQHTTPACT_STATE_RSP:
-            LqHttpCoreRspHdr(c);
-lblResponseResult:
-            switch(c->ActionResult)
+            case LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE:
+            case LQHTTPACT_STATE_QUERY_SSL_HANDSHAKE:
             {
-                case LQHTTPACT_RES_OK:
-                    LqHttpConnCallEvntAct(c); //Send OK state event to user //If you dont want this event, then set empty function instead this
-                    if(c->Response.CountNeedRecive > 0)
-                        goto lblSkip;
+#ifdef HAVE_OPENSSL
+                auto SslAcptErr = SSL_accept(c->ssl);
+                if(SslAcptErr < 0)
+                {
+                    if(((SslAcptErr == SSL_ERROR_WANT_READ) || (SslAcptErr == SSL_ERROR_WANT_WRITE)))
+                    {
+                        return;
+                    } else
+                    {
+                        c->ActionResult = LQHTTPACT_RES_SSL_FAILED_HANDSHAKE;
+                        LqEvntSetClose(c);
+                        return;
+                    }
+                }
+                LqEvntSetFlags(c, ((OldAct == LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE) ? LQEVNT_FLAG_RD : LQEVNT_FLAG_WR) | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+                c->ActionState = LQHTTPACT_STATE_GET_HDRS;
+#endif
+            }
+            return;
+            case LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS:
+            case LQHTTPACT_STATE_QUERY_HANDLE_PROCESS:
+            {
+                LqHttpActState OldAct = (LqHttpActState)-1;
+
+                LqHttpConnCallEvntAct(c);
+
+                if((c->CommonConn.Flag & (LQEVNT_FLAG_RD | LQEVNT_FLAG_WR)) == 0) //Is locked read or write
+                    return;
+                if((OldAct == c->ActionState) && (c->ActionResult != LQHTTPACT_RES_BEGIN))
+                {
+                    //If EventAct don`t change state
+                    LQHTTPLOG_ERR("module \"%s\" dont change action state", LqHttpMdlGetByConn(c)->Name);
+                    if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER)
+                    {
+                        static const char ErrCode[] =
+                            "HTTP/1.1 500 Internal Server Error\r\n"
+                            "Connection: close\r\n"
+                            "Content-Type: text/html; charset=\"UTF-8\"\r\n"
+                            "Content-Length: 25\r\n"
+                            "\r\n"
+                            "500 Internal Server Error";
+                        LqHttpConnSend_Native(c, ErrCode, sizeof(ErrCode) - 1);
+                    }
+                    c->ActionResult = LQHTTPACT_RES_INVALID_ACT_CHAIN;
+                    LqEvntSetClose(c);
+                    return;
+                }
+            }
+            goto lblSwitch2;
+        }
+        return;
+    } else if(Flag & LQEVNT_FLAG_RD)
+    {
+lblSwitch:
+        if((c->CommonConn.Flag & (LQEVNT_FLAG_RD | LQEVNT_FLAG_WR)) == 0) //Is locked read or write
+            return;
+
+        if((OldAct == c->ActionState) && (c->ActionResult != LQHTTPACT_RES_BEGIN))
+        {
+            //If EventAct don`t change state
+            LQHTTPLOG_ERR("module \"%s\" don`t change action state\n", LqHttpMdlGetByConn(c)->Name);
+            if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER)
+            {
+                static const char ErrCode[] =
+                    "HTTP/1.1 500 Internal Server Error\r\n"
+                    "Connection: close\r\n"
+                    "Content-Type: text/html; charset=\"UTF-8\"\r\n"
+                    "Content-Length: 25\r\n"
+                    "\r\n"
+                    "500 Internal Server Error";
+                LqHttpConnSend_Native(c, ErrCode, sizeof(ErrCode) - 1);
+            }
+            c->ActionResult = LQHTTPACT_RES_INVALID_ACT_CHAIN;
+            LqEvntSetClose(c);
+            return;
+        }
+        switch(OldAct = c->ActionState)
+        {
+            case LQHTTPACT_STATE_GET_HDRS:
+                LqHttpQurReadHeaders(c);
+                if(c->ActionResult == LQHTTPACT_RES_PARTIALLY)
+                    return;
+                goto lblSwitch;
+            case LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS:
+            case LQHTTPACT_STATE_QUERY_HANDLE_PROCESS:
+                LqHttpConnCallEvntAct(c);
+                goto lblSwitch;
+            case LQHTTPACT_STATE_RCV_FILE:
+                if(LqHttpConnReciveInFile(c, c->Query.OutFd, c->Query.PartLen - c->ReadedBodySize) < 0)
+                {
+                    c->ActionResult = LQHTTPACT_RES_FILE_WRITE_ERR;
+                } else if(c->ReadedBodySize < c->Query.PartLen)
+                {
+                    c->ActionResult = LQHTTPACT_RES_PARTIALLY;
+                    return;
+                } else
+                {
+                    c->ActionResult = LQHTTPACT_RES_OK;
+                }
+                LqHttpConnCallEvntAct(c);
+                goto lblSwitch;
+            case LQHTTPACT_STATE_RCV_STREAM:
+                if(LqHttpConnReciveInStream(c, &c->Query.Stream, c->Query.PartLen - c->ReadedBodySize) < 0)
+                {
+                    c->ActionResult = LQHTTPACT_RES_STREAM_WRITE_ERR;
+                } else if(c->ReadedBodySize < c->Query.PartLen)
+                {
+                    c->ActionResult = LQHTTPACT_RES_PARTIALLY;
+                    return;
+                } else
+                {
+                    c->ActionResult = LQHTTPACT_RES_OK;
+                }
+                LqHttpConnCallEvntAct(c);
+                goto lblSwitch;
+                ////////
+            case LQHTTPACT_STATE_RCV_INIT_HANDLE:
+                LqHttpConnCallEvntAct(c);
+                if(OldAct != c->ActionState)
+                    goto lblSwitch;
+                return;
+            case LQHTTPACT_STATE_RSP_INIT_HANDLE:
+                LqHttpConnCallEvntAct(c);
+                if(OldAct != c->ActionState)
+                    goto lblSwitch;
+                if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
+                    LqEvntSetFlags(c, LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
+                return;
+                ////////
+            case LQHTTPACT_STATE_MULTIPART_SKIP_TO_HDRS:
+                LqHttpCoreRcvMultipartSkipToHdr(c);
+                if(c->ActionResult == LQHTTPACT_RES_PARTIALLY) return;
+                LqHttpConnCallEvntAct(c);
+                goto lblSwitch;
+            case LQHTTPACT_STATE_MULTIPART_SKIP_AND_GET_HDRS:
+            {
+                LqHttpCoreRcvMultipartSkipToHdr(c);
+                switch(c->ActionResult)
+                {
+                    case LQHTTPACT_RES_PARTIALLY: return;
+                    default:
+                        LqHttpConnCallEvntAct(c);
+                        goto lblSwitch;
+                    case LQHTTPACT_RES_OK: OldAct = c->ActionState = LQHTTPACT_STATE_MULTIPART_RCV_HDRS;
+                }
+            }
+            case LQHTTPACT_STATE_MULTIPART_RCV_HDRS:
+            {
+                LqHttpRcvMultipartReadHdr(c);
+                if(c->ActionResult == LQHTTPACT_RES_PARTIALLY)
+                    return;
+                LqHttpConnCallEvntAct(c);
+            }
+            goto lblSwitch;
+            case LQHTTPACT_STATE_MULTIPART_RCV_FILE:
+            {
+                LqHttpRcvMultipartReadInFile(c);
+                if(c->ActionResult == LQHTTPACT_RES_PARTIALLY)
+                    return;
+                LqHttpConnCallEvntAct(c);
+            }
+            goto lblSwitch;
+            case LQHTTPACT_STATE_MULTIPART_RCV_STREAM:
+            {
+                LqHttpRcvMultipartReadInStream(c);
+                if(c->ActionResult == LQHTTPACT_RES_PARTIALLY)
+                    return;
+                LqHttpConnCallEvntAct(c);
+            }
+            goto lblSwitch;
+            case LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE:
+            case LQHTTPACT_STATE_QUERY_SSL_HANDSHAKE:
+            {
+#ifdef HAVE_OPENSSL
+                auto SslAcptErr = SSL_accept(c->ssl);
+                if(SslAcptErr < 0)
+                {
+                    if(((SslAcptErr == SSL_ERROR_WANT_READ) || (SslAcptErr == SSL_ERROR_WANT_WRITE)))
+                    {
+                        return;
+                    } else
+                    {
+                        c->ActionResult = LQHTTPACT_RES_SSL_FAILED_HANDSHAKE;
+                        LqEvntSetClose(c);
+                        return;
+                    }
+                }
+                LqEvntSetFlags(c, ((OldAct == LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE) ? LQEVNT_FLAG_RD : LQEVNT_FLAG_WR) | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+                c->ActionState = LQHTTPACT_STATE_GET_HDRS;
+#endif
+            }
+            return;
+            ////////
+            case LQHTTPACT_STATE_SKIP_QUERY_BODY: lblSkip:
+            {
+                c->Response.CountNeedRecive -= LqHttpConnSkip(c, c->Response.CountNeedRecive);
+                if(c->Response.CountNeedRecive > 0)
+                {
+                    if(c->ActionState == LQHTTPACT_STATE_RSP)
+                    {
+                        c->ActionState = LQHTTPACT_STATE_SKIP_QUERY_BODY;
+                        if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
+                            LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
+                    }
+                    return;
+                } else
+                {
                     if(c->Flags & LQHTTPCONN_FLAG_CLOSE)
                     {
                         LqEvntSetClose(c);
                         return;
                     }
+                    {
+                        auto t = c->Response.HeadersStart;
+                        c->Response.HeadersStart = 0;
+                        ((LqHttpProto*)LqHttpProtoGetByConn(c))->EndResponseHndls.Call(c);
+                        c->Response.HeadersStart = t;
+                    }
                     LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
-					{
-						auto t = c->Response.HeadersStart;
-						c->Response.HeadersStart = 0;
-						((LqHttpProto*)LqHttpProtoGetByConn(c))->EndResponseHndls.Call(c);
-						c->Response.HeadersStart = t;
-					}
                     LqHttpActSwitchToRcv(c);
-                    LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-                    return;
-                case LQHTTPACT_RES_PARTIALLY:
                     if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-                        LqEvntSetFlags(c, LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
+                        LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
                     return;
-                default:
-                    LqHttpConnCallEvntAct(c); //Send Error event to user
-                    LqEvntSetClose(c);
-                    return;
+                }
             }
-        case LQHTTPACT_STATE_RSP_CACHE:
-            LqHttpCoreRspCache(c);
-            goto lblResponseResult;
-        case LQHTTPACT_STATE_RSP_FD:
-            LqHttpCoreRspFd(c);
-            goto lblResponseResult;
-        case LQHTTPACT_STATE_RSP_STREAM:
-            LqHttpCoreRspStream(c);
-            goto lblResponseResult;
-        case LQHTTPACT_STATE_CLS_CONNECTION:
-            LqEvntSetClose(c);
-            return;
+            case LQHTTPACT_STATE_RSP:
+                LqHttpCoreRspHdr(c);
+lblResponseResult2:
+                switch(c->ActionResult)
+                {
+                    case LQHTTPACT_RES_OK:
+                        LqHttpConnCallEvntAct(c); //Send OK state event to user //If you dont want this event, then set empty function instead this
+                        if(c->Response.CountNeedRecive > 0)
+                            goto lblSkip;
+                        if(c->Flags & LQHTTPCONN_FLAG_CLOSE)
+                        {
+                            LqEvntSetClose(c);
+                            return;
+                        }
+                        LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
+                        {
+                            auto t = c->Response.HeadersStart;
+                            c->Response.HeadersStart = 0;
+                            ((LqHttpProto*)LqHttpProtoGetByConn(c))->EndResponseHndls.Call(c);
+                            c->Response.HeadersStart = t;
+                        }
+                        LqHttpActSwitchToRcv(c);
+                        LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
+                        return;
+                    case LQHTTPACT_RES_PARTIALLY:
+                        if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
+                            LqEvntSetFlags(c, LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
+                        return;
+                    default:
+                        LqHttpConnCallEvntAct(c); //Send Error event to user
+                        LqEvntSetClose(c);
+                        return;
+                }
+            case LQHTTPACT_STATE_RSP_CACHE:
+                LqHttpCoreRspCache(c);
+                goto lblResponseResult2;
+            case LQHTTPACT_STATE_RSP_FD:
+                LqHttpCoreRspFd(c);
+                goto lblResponseResult2;
+            case LQHTTPACT_STATE_RSP_STREAM:
+                LqHttpCoreRspStream(c);
+                goto lblResponseResult2;
+            case LQHTTPACT_STATE_CLS_CONNECTION:
+                LqEvntSetClose(c);
+                return;
+        }
     }
 }
 
@@ -900,8 +890,15 @@ lblResponseResult:
 /*
 * Create new connection to client
 */
-static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
+static void LQ_CALL LqHttpCoreBindHandler(LqConn* Connection, LqEvntFlag Flag)
 {   
+    if(Flag & LQEVNT_FLAG_ERR)
+    {
+        LqEvntSetClose(Connection);
+        LQHTTPLOG_ERR("LqHttpCoreBindErrorProc() have error on binded socket\n");
+        return;
+    }
+
     LqConnInetAddress ClientAddr;
     auto Proto = (LqHttpProto*)Connection->Proto->UserData;
     socklen_t ClientAddrLen = sizeof(ClientAddr);
@@ -910,7 +907,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
 
     if((ClientFd = accept(Connection->Fd, &ClientAddr.Addr, &ClientAddrLen)) == -1)
     {
-        LQHTTPLOG_ERR("LqHttpCoreBindReadProc() client not accepted\n");
+        LQHTTPLOG_ERR("LqHttpCoreBindHandler() client not accepted\n");
         return;
     }
 
@@ -922,7 +919,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
             if(r == nullptr)
             {
                 closesocket(ClientFd);
-                LQHTTPLOG_ERR("LqHttpCoreBindReadProc() not alloc memory for connection\n");
+                LQHTTPLOG_ERR("LqHttpCoreBindHandler() not alloc memory for connection\n");
                 return;
             }
             r->Ip4Addr = ClientAddr.AddrInet;
@@ -935,7 +932,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
             if(r == nullptr)
             {
                 closesocket(ClientFd);
-                LQHTTPLOG_ERR("LqHttpCoreBindReadProc() not alloc memory for connection\n");
+                LQHTTPLOG_ERR("LqHttpCoreBindHandler() not alloc memory for connection\n");
                 return;
             }
             r->Ip6Addr = ClientAddr.AddrInet6;
@@ -943,7 +940,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
         }
         break;
         default:
-            LQHTTPLOG_ERR("LqHttpCoreBindReadProc() unicknown connection protocol\n");
+            LQHTTPLOG_ERR("LqHttpCoreBindHandler() unicknown connection protocol\n");
             closesocket(ClientFd);
             return;
     }
@@ -966,7 +963,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
         if((c->ssl = SSL_new(Proto->Base.ssl_ctx)) == nullptr)
         {
             LqAtmLkUlkRd(Proto->Base.sslLocker);
-            LqHttpCoreDisconnectProc(&c->CommonConn);
+            LqHttpCoreCloseHandler(&c->CommonConn);
             return;
         }
         LqAtmLkUlkRd(Proto->Base.sslLocker);
@@ -974,7 +971,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
         {
             SSL_free(c->ssl);
             c->ssl = nullptr;
-            LqHttpCoreDisconnectProc(&c->CommonConn);
+            LqHttpCoreCloseHandler(&c->CommonConn);
             return;
         }
         auto SslAcptErr = SSL_accept(c->ssl);
@@ -986,7 +983,7 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
                 LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
             } else
             {
-                LqHttpCoreDisconnectProc(&c->CommonConn);
+                LqHttpCoreCloseHandler(&c->CommonConn);
                 return;
             }
         }
@@ -997,23 +994,17 @@ static void LQ_CALL LqHttpCoreBindReadProc(LqConn* Connection)
 #endif
     LqAtmIntrlkInc(Proto->Base.CountConnections);
     LqWrkBossAddEvntAsync((LqEvntHdr*)c);
-	Proto->ConnectHndls.Call(c);
+    Proto->ConnectHndls.Call(c);
 }
 
-static void LQ_CALL LqHttpCoreBindErrorProc(LqConn* Connection)
-{
-    LqEvntSetClose(Connection);
-    LQHTTPLOG_ERR("LqHttpCoreBindErrorProc() have error on binded socket\n");
-}
-
-static void LQ_CALL LqHttpCoreBindDisconnectProc(LqConn* Connection)
+static void LQ_CALL LqHttpCoreBindCloseHandler(LqConn* Connection)
 {
     auto Proto = (LqHttpProto*)Connection->Proto->UserData;
     LqHttpConn* c = (LqHttpConn*)Connection;
     if(Connection->Fd != -1)
         closesocket(Connection->Fd);
     Connection->Fd = -1;
-    LQHTTPLOG_DEBUG("LqHttpCoreBindDisconnectProc() disconnected\n");
+    LQHTTPLOG_DEBUG("LqHttpCoreBindCloseHandler() disconnected\n");
     LqObPtrDereference<LqHttpProto, LqFastAlloc::Delete>(Proto);
 }
 
@@ -1076,14 +1067,23 @@ static bool LQ_CALL LqHttpCoreKickByTimeOutProc(LqConn* Connection, LqTimeMillis
 {
     LqHttpConn* c = (LqHttpConn*)Connection;
     LqTimeMillisec TimeDiff = CurrentTimeMillisec - c->TimeLastExchangeMillisec;
-    if(TimeDiff > EstimatedLiveTime)
-        return true;
-    return false;
+    return TimeDiff > EstimatedLiveTime;
 }
 
 static char* LQ_CALL LqHttpCoreDbgInfoProc(LqConn* Connection)
 {
-    return nullptr;
+	char * Info = (char*)malloc(255);
+	if(Info == nullptr)
+		return nullptr;
+	snprintf(
+		Info, 
+		254,
+	    "  HTTP connection. flags: %s%s%s",
+		(Connection->Flag & LQEVNT_FLAG_RD)? "RD ": "",
+		(Connection->Flag & LQEVNT_FLAG_WR) ? "WR " : "",
+		(Connection->Flag & LQEVNT_FLAG_HUP) ? "HUP " : ""
+	);
+    return Info;
 }
 
 /////////////////////////////////////////
@@ -1774,11 +1774,11 @@ lblContinueRead:
             return;
         }
     }
-	
+    
     LqHttpConnRecive_Native(c, c->Buf + q->PartLen, EndQuery - (c->Buf + q->PartLen), 0);
     *EndQuery = '\0';
     q->PartLen = 0;
-	LengthHeaders = EndQuery - c->Buf;
+    LengthHeaders = EndQuery - c->Buf;
 
     /*
     Read start line.
@@ -1802,23 +1802,23 @@ lblGetUrlAgain:
             return;
     }
 
-	UrlLength = LengthHeaders + (EndUri - StartUri) + 10;
+    UrlLength = LengthHeaders + (EndUri - StartUri) + 10;
 
-	if(UrlLength > c->BufSize)
-	{
-		if(!LqHttpConnBufferRealloc(c, UrlLength))
-		{
-			free(c->Buf);
-			c->Buf = nullptr;
-			c->Flags = LQHTTPCONN_FLAG_CLOSE;
-			LqHttpRspError(c, 500);
-			return;
-		}
-		goto lblGetUrlAgain;
-	}
+    if(UrlLength > c->BufSize)
+    {
+        if(!LqHttpConnBufferRealloc(c, UrlLength))
+        {
+            free(c->Buf);
+            c->Buf = nullptr;
+            c->Flags = LQHTTPCONN_FLAG_CLOSE;
+            LqHttpRspError(c, 500);
+            return;
+        }
+        goto lblGetUrlAgain;
+    }
 
-	memcpy(NewPlaceForUrl = (c->Buf + (LengthHeaders + 2)), StartUri, EndUri - StartUri);
-	NewPlaceForUrl[EndUri - StartUri] = '\0';
+    memcpy(NewPlaceForUrl = (c->Buf + (LengthHeaders + 2)), StartUri, EndUri - StartUri);
+    NewPlaceForUrl[EndUri - StartUri] = '\0';
     struct LocalFunc
     {
         static void EnumURIArg(void* QueryData, char* StartKey, char* EndKey, char* StartVal, char* EndVal){}
@@ -1827,24 +1827,24 @@ lblGetUrlAgain:
     if(
         LqHttpPrsUrl
         (
-		    NewPlaceForUrl,
-			&SchemeStart, &SchemeEnd,
-			&UserInfoStart, &UserInfoEnd,
-			&HostStart, &HostEnd,
-			&PortStart, &PortEnd,
-			&DirStart, &DirEnd,
-			&QueryStart, &QueryEnd,
-			&FragmentStart, &FragmentEnd,
-			&End, &TypeHost,
-			LocalFunc::EnumURIArg,
-			q
+            NewPlaceForUrl,
+            &SchemeStart, &SchemeEnd,
+            &UserInfoStart, &UserInfoEnd,
+            &HostStart, &HostEnd,
+            &PortStart, &PortEnd,
+            &DirStart, &DirEnd,
+            &QueryStart, &QueryEnd,
+            &FragmentStart, &FragmentEnd,
+            &End, &TypeHost,
+            LocalFunc::EnumURIArg,
+            q
         ) != LQPRS_URL_SUCCESS
         )
     {
-		if(*StartUri == '*')
-		{
-			DirEnd = (DirStart = StartUri) + 1;
-		} else
+        if(*StartUri == '*')
+        {
+            DirEnd = (DirStart = StartUri) + 1;
+        } else
         {
             //Err invalid uri in start line
             LqHttpRspError(c, 400);
@@ -1854,31 +1854,31 @@ lblGetUrlAgain:
     {
         char* NewEnd;
 
-		if(UserInfoStart != nullptr)
-		{
-			q->UserInfo = LqHttpPrsEscapeDecode(UserInfoStart, UserInfoEnd, &NewEnd);
-			q->UserInfoLen = NewEnd - UserInfoStart;
-		}
-		if(HostStart != nullptr)
-		{
-			q->Host = LqHttpPrsEscapeDecode(HostStart, HostEnd, &NewEnd);
-			q->HostLen = NewEnd - HostStart;
-		}		
-		if(DirStart != nullptr)
-		{
-			q->Path = LqHttpPrsEscapeDecode(DirStart, DirEnd, &NewEnd);
-			q->PathLen = NewEnd - DirStart;
-		}
-		if(QueryStart != nullptr)
-		{
-			q->Arg = LqHttpPrsEscapeDecode(QueryStart, QueryEnd, &NewEnd);
-			q->ArgLen = NewEnd - q->Arg;
-		}
-		if(FragmentStart != nullptr)
-		{
-			q->Fragment = LqHttpPrsEscapeDecode(FragmentStart, FragmentEnd, &NewEnd);
-			q->FragmentLen = NewEnd - FragmentStart;
-		}
+        if(UserInfoStart != nullptr)
+        {
+            q->UserInfo = LqHttpPrsEscapeDecode(UserInfoStart, UserInfoEnd, &NewEnd);
+            q->UserInfoLen = NewEnd - UserInfoStart;
+        }
+        if(HostStart != nullptr)
+        {
+            q->Host = LqHttpPrsEscapeDecode(HostStart, HostEnd, &NewEnd);
+            q->HostLen = NewEnd - HostStart;
+        }       
+        if(DirStart != nullptr)
+        {
+            q->Path = LqHttpPrsEscapeDecode(DirStart, DirEnd, &NewEnd);
+            q->PathLen = NewEnd - DirStart;
+        }
+        if(QueryStart != nullptr)
+        {
+            q->Arg = LqHttpPrsEscapeDecode(QueryStart, QueryEnd, &NewEnd);
+            q->ArgLen = NewEnd - q->Arg;
+        }
+        if(FragmentStart != nullptr)
+        {
+            q->Fragment = LqHttpPrsEscapeDecode(FragmentStart, FragmentEnd, &NewEnd);
+            q->FragmentLen = NewEnd - FragmentStart;
+        }
     }
     if(StartVer < EndVer)
     {
@@ -1977,7 +1977,7 @@ static void LqHttpParseHeader(LqHttpConn* c, LqHttpQuery* q, char* StartKey, cha
                 }
             }
         }
-		break;
+        break;
     }
 }
 

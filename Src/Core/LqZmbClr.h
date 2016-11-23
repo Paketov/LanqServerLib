@@ -1,3 +1,10 @@
+/*
+* Lanq(Lan Quick)
+* Solodov A. N. (hotSAN)
+* 2016
+* LqZmbClr (LanQ ZoMBie CLeaneR) - Timer event for clean zombie connections.
+*/
+
 #ifndef __LQ_ZMB_CLR_H_HAS_BEEN_DEFINED__
 #define __LQ_ZMB_CLR_H_HAS_BEEN_DEFINED__
 

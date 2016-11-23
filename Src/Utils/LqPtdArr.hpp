@@ -18,19 +18,16 @@
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
 template<typename TypeVal>
-class LqPtdArr
-{
+class LqPtdArr {
     friend class interator;
     static const bool IsDebug = false;
-    struct Arr
-    {
+    struct Arr {
         size_t        CountPointers;
         intptr_t      Count;
         TypeVal       Val[1];
     };
 
-    static void Del(Arr* Val)
-    {
+    static void Del(Arr* Val) {
         for(auto* i = Val->Val, *m = i + Val->Count; i < m; i++)
             i->~TypeVal();
         ___free(Val);
@@ -40,31 +37,26 @@ class LqPtdArr
     typedef LqShdPtr<Arr, Del, false, false> LocalPtr;
 
     GlobPtr Ptr;
-    static Arr* AllocNew()
-    {
+    static Arr* AllocNew() {
         struct _st { size_t CountPointers; intptr_t Count; };
         static _st __Empty = {5, 0};
         return (Arr*)&__Empty;
     }
 
-    static Arr* AllocNew(size_t Count)
-    {
+    static Arr* AllocNew(size_t Count) {
         Arr* Res;
-        if(Res = (Arr*)___malloc(Count * sizeof(TypeVal) + (sizeof(Arr) - sizeof(TypeVal))))
-        {
+        if(Res = (Arr*)___malloc(Count * sizeof(TypeVal) + (sizeof(Arr) - sizeof(TypeVal)))) {
             Res->Count = Count;
             Res->CountPointers = 0;
         }
         return Res;
     }
     template<typename _SetVal>
-    bool _AddByArr(const _SetVal* Val, size_t Count)
-    {
+    bool _AddByArr(const _SetVal* Val, size_t Count) {
         auto Cur = Ptr.NewStart();
         size_t NewCount = Cur->Count + Count;
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return false;
         }
@@ -77,13 +69,11 @@ class LqPtdArr
         return true;
     }
     template<typename _SetVal>
-    bool _SetByArr(const _SetVal* Val, size_t Count)
-    {
+    bool _SetByArr(const _SetVal* Val, size_t Count) {
         auto Cur = Ptr.NewStart();
         auto NewCount = Count;
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return false;
         }
@@ -93,20 +83,17 @@ class LqPtdArr
         return true;
     }
 
-    size_t _RmCount(size_t Count)
-    {
+    size_t _RmCount(size_t Count){
         size_t Res = 0;
         auto Cur = Ptr.NewStart();
         intptr_t NewCount = Cur->Count - Count;
-        if(NewCount <= 0)
-        {
+        if(NewCount <= 0){
             Res = Cur->Count;
             Ptr.NewFin(AllocNew());
             return Res;
         }
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr){
             Ptr.NewFin(Cur);
             return 0;
         }
@@ -143,14 +130,12 @@ public:
 
         inline interator& operator+=(size_t Add) { Index += Add; return (*this); }
         inline interator& operator-=(size_t Sub) { Index -= Sub; return (*this); }
-        inline bool operator!=(const interator& Another) const
-        {
+        inline bool operator!=(const interator& Another) const {
             if(Another.Index == size_t(-1))
                 return Index != Ptr->Count;
             return (Ptr != Another.Ptr) || (Index != Another.Index);
         }
-        inline bool operator==(const interator& Another) const
-        {
+        inline bool operator==(const interator& Another) const {
             if(Another.Index == size_t(-1))
                 return Index == Ptr->Count;
             return (Ptr == Another.Ptr) && (Index == Another.Index);
@@ -176,16 +161,14 @@ public:
 
     inline interator begin() const { return Ptr; }
     inline interator end() const { return interator(); }
+    inline interator back() const { interator i = Ptr; return i + (i.size() - 1); }
 
     template<typename InType, typename = decltype(std::declval<TypeVal>() == std::declval<InType>())>
-    interator search(InType&& SrchVal) const
-    {
+    interator search(InType&& SrchVal) const {
         interator LocPtr(Ptr, size_t(-1));
         auto* Val = LocPtr.Ptr->Val;
-        for(size_t i = 0, m = LocPtr.Ptr->Count; i < m; i++)
-        {
-            if(Val[i] == SrchVal)
-            {
+        for(size_t i = 0, m = LocPtr.Ptr->Count; i < m; i++){
+            if(Val[i] == SrchVal){
                 LocPtr.Index = i;
                 return LocPtr;
             }
@@ -193,15 +176,12 @@ public:
         return interator();
     }
 
-    interator search_next(interator Prev) const
-    {
+    interator search_next(interator Prev) const{
         interator LocPtr(Prev.Ptr);
         auto* Val = LocPtr.Ptr->Val;
         auto& v = Val[Prev.Index];
-        for(size_t i = Prev.Index + 1, m = LocPtr.Ptr->Count; i < m; i++)
-        {
-            if(Val[i] == v)
-            {
+        for(size_t i = Prev.Index + 1, m = LocPtr.Ptr->Count; i < m; i++){
+            if(Val[i] == v){
                 LocPtr.Index = i;
                 return LocPtr;
             }
@@ -209,10 +189,8 @@ public:
         return interator();
     }
 
-    int append(interator& Start, interator& End)
-    {
-        if(IsDebug)
-        {
+    int append(interator& Start, interator& End) {
+        if(IsDebug){
             if(Start.Ptr != End.Ptr)
                 throw "LqPtdArr::append(interator, interator): Interatrs points to different arrays. (Check threads race cond)\n";
         }
@@ -223,8 +201,7 @@ public:
     template<typename InType, typename = decltype(TypeVal(std::declval<InType>()))>
     int append(const std::initializer_list<InType> Start) { return _AddByArr(Start.begin(), Start.size())? Start.size(): 0; }
 
-    int append(interator& Start)
-    {
+    int append(interator& Start) {
         if(_AddByArr(&*Start, Start.Ptr->Count - Start.Index))
             return Start.Ptr->Count - Start.Index;
         return 0;
@@ -253,15 +230,13 @@ public:
     {
         auto Cur = Ptr.NewStart();
         for(size_t m = Cur->Count, i = 0; i < m; i++)
-            if(Cur->Val[i] == NewVal)
-            {
+            if(Cur->Val[i] == NewVal){
                 Ptr.NewFin(Cur);
                 return 0;
             }
         size_t NewCount = Cur->Count + 1;
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr){
             Ptr.NewFin(Cur);
             return -1;
         }
@@ -283,23 +258,19 @@ public:
     {
         auto Cur = Ptr.NewStart();
         intptr_t RmIndex = -1;
-        for(intptr_t i = 0, m = Cur->Count; i < m; i++)
-        {
-            if(Cur->Val[i] == PrevVal)
-            {
+        for(intptr_t i = 0, m = Cur->Count; i < m; i++){
+            if(Cur->Val[i] == PrevVal) {
                 RmIndex = i;
                 break;
             }
         }
-        if(RmIndex == -1)
-        {
+        if(RmIndex == -1){
             Ptr.NewFin(Cur);
             return 0;
         }
         size_t NewCount = Cur->Count;
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return -1;
         }
@@ -331,28 +302,23 @@ public:
     {
         auto Cur = Ptr.NewStart();
         intptr_t RmIndex = -1;
-        for(intptr_t i = 0, m = Cur->Count; i < m; i++)
-        {
-            if(Cur->Val[i] == RmVal)
-            {
+        for(intptr_t i = 0, m = Cur->Count; i < m; i++) {
+            if(Cur->Val[i] == RmVal) {
                 RmIndex = i;
                 break;
             }
         }
-        if(RmIndex == -1)
-        {
+        if(RmIndex == -1) {
             Ptr.NewFin(Cur);
             return false;
         }
         size_t NewCount = Cur->Count - 1;
-        if(NewCount <= 0)
-        {
+        if(NewCount <= 0){
             Ptr.NewFin(AllocNew());
             return true;
         }
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr){
             Ptr.NewFin(Cur);
             return false;
         }
@@ -374,25 +340,21 @@ public:
     {
         auto Cur = Ptr.NewStart();
         intptr_t RmCount = 0;
-        for(intptr_t i = 0, m = Cur->Count; i < m; i++)
-        {
+        for(intptr_t i = 0, m = Cur->Count; i < m; i++){
             if(Cur->Val[i] == RmVal)
                 RmCount++;
         }
-        if(RmCount == 0)
-        {
+        if(RmCount == 0){
             Ptr.NewFin(Cur);
             return 0;
         }
         size_t NewCount = Cur->Count - RmCount;
-        if(NewCount <= 0)
-        {
+        if(NewCount <= 0){
             Ptr.NewFin(AllocNew());
             return RmCount;
         }
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr){
             Ptr.NewFin(Cur);
             return 0;
         }
@@ -411,32 +373,26 @@ public:
         typename TypeGetVal,
         typename = decltype(TypeGetVal(std::declval<TypeVal>()))
     >
-    bool remove_by_compare_fn(std::function<bool(TypeVal&)> CompareFn, TypeGetVal* RemovedVal)
-    {
+    bool remove_by_compare_fn(std::function<bool(TypeVal&)> CompareFn, TypeGetVal* RemovedVal) {
         auto Cur = Ptr.NewStart();
         intptr_t RmIndex = -1;
-        for(intptr_t i = 0, m = Cur->Count; i < m; i++)
-        {
-            if(CompareFn(Cur->Val[i]))
-            {
+        for(intptr_t i = 0, m = Cur->Count; i < m; i++){
+            if(CompareFn(Cur->Val[i])){
                 RmIndex = i;
                 break;
             }
         }
-        if(RmIndex == -1)
-        {
+        if(RmIndex == -1){
             Ptr.NewFin(Cur);
             return false;
         }
         size_t NewCount = Cur->Count - 1;
-        if(NewCount <= 0)
-        {
+        if(NewCount <= 0){
             Ptr.NewFin(AllocNew());
             return true;
         }
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr){
             Ptr.NewFin(Cur);
             return false;
         }
@@ -451,18 +407,15 @@ public:
         return true;
     }
 
-    size_t remove_mult_by_compare_fn(std::function<bool(TypeVal&)> CompareFn)
-    {
+    size_t remove_mult_by_compare_fn(std::function<bool(TypeVal&)> CompareFn) {
         auto Cur = Ptr.NewStart();
         auto NewArr = AllocNew(Cur->Count);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return 0;
         }
         intptr_t i = 0, j = 0;
-        for(; j < Cur->Count; j++)
-        {
+        for(; j < Cur->Count; j++) {
             if(!CompareFn(Cur->Val[j]))
                 new(NewArr->Val + i++) TypeVal(Cur->Val[j]);
         }
@@ -471,15 +424,13 @@ public:
         return j - i;
     }
 
-    int clear()
-    {
+    int clear() {
         auto Res = Ptr.NewStart()->Count;
         Ptr.NewFin(AllocNew());
         return Res;
     }
 
-    size_t size() const
-    {
+    size_t size() const{
         const LocalPtr p = Ptr;
         return p->Count;
     }

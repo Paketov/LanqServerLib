@@ -14,6 +14,7 @@
 #include "LqOs.h"
 #include "LqConn.h"
 #include "LqTime.hpp"
+#include "LqFile.h"
 
 #define __METHOD_DECLS__
 #include "LqAlloc.hpp"
@@ -25,6 +26,57 @@
 #include <signal.h>
 #endif
 
+/* 
+  Use this macro if you want protect sync operations calling close handlers.
+    When this macro used, thread caller of sync methods, waits until worker thread leave r/w/c handler.
+	When close handler called by worker thread, thread-caller of sync kind method continue enum.
+  Disable this macro if you want to shift the entire responsibility of the user.
+ */
+#define LQWRK_ENABLE_RW_HNDL_PROTECT
+
+#define LqWrkCallConnHandler(Conn, Flags, Wrk)              \
+{                                                           \
+    auto Handler = ((LqConn*)(Conn))->Proto->Handler;       \
+    ((LqWrk*)(Wrk))->Unlock();                              \
+    Handler((LqConn*)(Conn), (Flags));                      \
+    ((LqWrk*)(Wrk))->Lock();                                \
+}
+
+#define LqWrkCallConnCloseHandler(Conn, Wrk)                \
+{                                                           \
+    auto Handler = ((LqConn*)(Conn))->Proto->CloseHandler;  \
+	((LqConn*)(Conn))->Flag |= _LQEVNT_FLAG_NOW_EXEC;       \
+    ((LqWrk*)(Wrk))->Unlock();                              \
+    Handler((LqConn*)(Conn));                               \
+    ((LqWrk*)(Wrk))->Lock();                                \
+}
+
+#define LqWrkCallEvntFdHandler(EvntHdr, Flags, Wrk)         \
+{                                                           \
+    auto Handler = ((LqEvntFd*)(EvntHdr))->Handler;         \
+    ((LqWrk*)(Wrk))->Unlock();                              \
+    Handler((LqEvntFd*)(EvntHdr), (Flags));                 \
+    ((LqWrk*)(Wrk))->Lock();                                \
+}
+
+#define LqWrkCallEvntFdCloseHandler(EvntHdr, Wrk)           \
+{                                                           \
+    auto Handler = ((LqEvntFd*)(EvntHdr))->CloseHandler;    \
+    ((LqEvntFd*)(EvntHdr))->Flag |= _LQEVNT_FLAG_NOW_EXEC;  \
+    ((LqWrk*)(Wrk))->Unlock();                              \
+    Handler((LqEvntFd*)(EvntHdr));                          \
+    ((LqWrk*)(Wrk))->Lock();                                \
+}
+
+#define LqWrkCallEvntHdrCloseHandler(Event, Wrk)            \
+{                                                           \
+    if(((LqEvntHdr*)(Event))->Flag & _LQEVNT_FLAG_CONN){    \
+        LqWrkCallConnCloseHandler(Event, Wrk);              \
+    }else{                                                  \
+       LqWrkCallEvntFdCloseHandler(Event, Wrk);}            \
+}
+
+
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
@@ -33,20 +85,7 @@ struct LqWrkCmdWaitEvnt
     void(*EventAct)(void* Data);
     void* UserData;
     inline LqWrkCmdWaitEvnt() {};
-    inline LqWrkCmdWaitEvnt(void(*NewEventProc)(void* Data), void* NewUserData):
-        EventAct(NewEventProc), UserData(NewUserData)
-    {}
-};
-
-
-struct LqWrkCmdTakeAllConn
-{
-    void(*TakeProc)(void* Data, LqListEvnt& Connection);
-    void* UserData;
-    inline LqWrkCmdTakeAllConn() {};
-    inline LqWrkCmdTakeAllConn(void(*TakeEventProc)(void* Data, LqListEvnt& Connection), void* NewUserData):
-        TakeProc(TakeEventProc), UserData(NewUserData)
-    {}
+    inline LqWrkCmdWaitEvnt(void(*NewEventProc)(void* Data), void* NewUserData): EventAct(NewEventProc), UserData(NewUserData) {}
 };
 
 struct LqWrkCmdCloseByTimeout
@@ -54,9 +93,7 @@ struct LqWrkCmdCloseByTimeout
     LqTimeMillisec TimeLive;
     const LqProto* Proto;
     inline LqWrkCmdCloseByTimeout() {};
-    inline LqWrkCmdCloseByTimeout(const LqProto* NewProto, LqTimeMillisec Millisec):
-        Proto(NewProto), TimeLive(Millisec)
-    {}
+    inline LqWrkCmdCloseByTimeout(const LqProto* NewProto, LqTimeMillisec Millisec): Proto(NewProto), TimeLive(Millisec) {}
 };
 
 #pragma pack(pop)
@@ -79,7 +116,7 @@ LqWrkPtr LqWrk::New(bool IsStart)
     return LqFastAlloc::New<LqWrk>(IsStart);
 }
 
-void LqWrkDelete(LqWrk* This)
+LQ_IMPORTEXPORT void LQ_CALL LqWrkDelete(LqWrk* This)
 {
     if(This->IsThisThread())
     {
@@ -92,7 +129,6 @@ void LqWrkDelete(LqWrk* This)
     LqFastAlloc::Delete(This);
 }
 
-
 void LqWrk::ExitHandlerFn(void * Data)
 {
     auto This = (LqWrk*)Data;
@@ -104,13 +140,18 @@ LqWrk::LqWrk(bool IsStart):
     CountPointers(0),
     LqThreadBase(([&] { Id = GenId();  LqString Str = "Worker #" + LqToString(Id); return Str; })().c_str())
 {
-    LqEvntInit(&EventChecker);
     TimeStart = LqTimeGetLocMillisec();
     CountConnectionsInQueue = 0;
 
     UserData = this;
     ExitHandler = ExitHandlerFn;
     IsDelete = false;
+    IsSyncAllFlags = 0;
+    auto NotifyFd = LqFileEventCreate(LQ_O_NOINHERIT);
+    LqEvntFdInit(&NotifyEvent, NotifyFd, LQEVNT_FLAG_RD);
+    LqEvntFdIgnoreHandler(&NotifyEvent);
+    LqEvntFdIgnoreCloseHandler(&NotifyEvent);
+    LqEvntInit(&EventChecker);
     if(IsStart)
         StartSync();
 }
@@ -120,11 +161,19 @@ LqWrk::~LqWrk()
     EndWorkSync();
     CloseAllEvntSync();
     LqEvntUninit(&EventChecker);
+    LqFileClose(NotifyEvent.Fd);
 }
 
 ullong LqWrk::GetId() const
 {
     return Id;
+}
+
+void LqWrk::DelProc(void* Data, LqEvntHdr* Hdr)
+{
+	if(Hdr->Flag & _LQEVNT_FLAG_NOW_EXEC)
+		return;
+    LqWrkCallEvntHdrCloseHandler(Hdr, Data);
 }
 
 void LqWrk::ParseInputCommands()
@@ -137,24 +186,36 @@ void LqWrk::ParseInputCommands()
         switch(Command.Type)
         {
             case LQWRK_CMD_ADD_CONN:
-                /*
-                Adding new connection.
+            {   
+				/*
+                * Adding new connection.
                 */
-            {
                 LqEvntHdr* Connection = Command.Val<LqEvntHdr*>();
                 Command.Pop<LqEvntHdr*>();
                 CountConnectionsInQueue--;
-                AddEvnt(Connection);
+                AddEvntSync(Connection);
             }
             break;
             case LQWRK_CMD_RM_CONN_ON_TIME_OUT:
-                /*
-                Remove zombie connections by time val.
+            {      
+				/*
+                * Remove zombie connections by time val.
                 */
-            {
                 auto TimeLiveMilliseconds = Command.Val<LqTimeMillisec>();
                 Command.Pop<LqTimeMillisec>();
-                RemoveConnOnTimeOut(TimeLiveMilliseconds);
+				auto CurTime = LqTimeGetLocMillisec();
+				Lock();
+				lqevnt_enum_do(EventChecker, i)
+				{
+					auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &i);
+					if(LqEvntIsConn(Evnt) && ((LqConn*)Evnt)->Proto->KickByTimeOutProc((LqConn*)Evnt, CurTime, TimeLiveMilliseconds))
+					{
+						LQ_LOG_USER("LqWrk::RemoveConnOnTimeOut()#%llu remove connection by timeout\n", Id);
+						LqEvntRemoveByInterator(&EventChecker, &i);
+						LqWrkCallConnCloseHandler(Evnt, this);
+					}
+				}lqevnt_enum_while(EventChecker);
+				Unlock();
             }
             break;
             case LQWRK_CMD_RM_CONN_ON_TIME_OUT_PROTO:
@@ -162,51 +223,68 @@ void LqWrk::ParseInputCommands()
                 auto TimeLiveMilliseconds = Command.Val<LqWrkCmdCloseByTimeout>().TimeLive;
                 auto Proto = Command.Val<LqWrkCmdCloseByTimeout>().Proto;
                 Command.Pop<LqWrkCmdCloseByTimeout>();
-                RemoveConnOnTimeOut(Proto, TimeLiveMilliseconds);
+
+				auto CurTime = LqTimeGetLocMillisec();
+				Lock();
+				lqevnt_enum_do(EventChecker, i)
+				{
+					auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &i);
+					if(LqEvntIsConn(Evnt) && (((LqConn*)Evnt)->Proto == Proto) && Proto->KickByTimeOutProc((LqConn*)Evnt, CurTime, TimeLiveMilliseconds))
+					{
+						LQ_LOG_USER("LqWrk::RemoveConnOnTimeOut()#%llu remove connection by timeout\n", Id);
+						LqEvntRemoveByInterator(&EventChecker, &i);
+						LqWrkCallConnCloseHandler(Evnt, this);
+					}
+				}lqevnt_enum_while(EventChecker);
+				Unlock();
             }
             break;
             case LQWRK_CMD_WAIT_EVENT:
-                /*
-                Call procedure for wait event.
-                */
-                Command.Val<LqWrkCmdWaitEvnt>().EventAct(Command.Val<LqWrkCmdWaitEvnt>().UserData);
-                Command.Pop<LqWrkCmdWaitEvnt>();
-                break;
+			{
+				/*
+				Call procedure for wait event.
+				*/
+				Command.Val<LqWrkCmdWaitEvnt>().EventAct(Command.Val<LqWrkCmdWaitEvnt>().UserData);
+				Command.Pop<LqWrkCmdWaitEvnt>();
+			}
+			break;
             case LQWRK_CMD_CLOSE_ALL_CONN:
-                /*
-                Close all waiting connections.
-                */
-                Command.Pop();
-                CloseAllEvnt();
-                break;
-            case LQWRK_CMD_CLOSE_CONN:
-                CloseEvnt(Command.Val<LqEvntHdr*>());
-                Command.Pop<LqEvntHdr*>();
-                break;
-            case LQWRK_CMD_TAKE_ALL_CONN:
-                TakeAllEvnt(Command.Val<LqWrkCmdTakeAllConn>().TakeProc,
-                            Command.Val<LqWrkCmdTakeAllConn>().UserData);
-                Command.Pop<LqWrkCmdTakeAllConn>();
-                break;
+			{
+				/*
+				Close all waiting connections.
+				*/
+				Command.Pop();
+				Lock();
+				lqevnt_enum_do(EventChecker, i)
+				{
+					auto Evnt = LqEvntRemoveByInterator(&EventChecker, &i);
+					LqWrkCallEvntHdrCloseHandler(Evnt, this);
+				}lqevnt_enum_while(EventChecker);
+				Unlock();
+			}
+            break;
             case LQWRK_CMD_RM_CONN_BY_IP:
-                RemoveConnByIp(&Command.Val<LqConnInetAddress>().Addr);
-                Command.Pop<LqWrkCmdTakeAllConn>();
-                break;
-            case LQWRK_CMD_SYNC_FLAG:
-                /*
-                * Unlock connection.
-                */
-                if(Command.Val<LqEvntHdr*>()->Flag & LQEVNT_FLAG_END)
-                    CloseEvnt(Command.Val<LqEvntHdr*>());
-                else
-                    LqEvntSetMaskByHdr(&EventChecker, Command.Val<LqEvntHdr*>());
-                Command.Pop<LqEvntHdr*>();
-                break;
+			{
+				CloseConnByIpSync(&Command.Val<LqConnInetAddress>().Addr);
+				Command.Pop<LqConnInetAddress>();
+			}
+            break;
             case LQWRK_CMD_CLOSE_CONN_BY_PROTO:
             {
                 auto Proto = Command.Val<const LqProto*>();
                 Command.Pop<const LqProto*>();
-                CloseConnByProto(Proto);
+				Lock();
+				lqevnt_enum_do(EventChecker, i)
+				{
+					auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &i);
+					if(LqEvntIsConn(Evnt) && (((LqConn*)Evnt)->Proto == Proto))
+					{
+						LQ_LOG_USER("LqWrk::CloseConnByProto()#%llu remove connection by protocol\n", Id);
+						LqEvntRemoveByInterator(&EventChecker, &i);
+						LqWrkCallConnCloseHandler(Evnt, this);
+					}
+				}lqevnt_enum_while(EventChecker);
+				Unlock();
             }
             break;
             default:
@@ -215,41 +293,7 @@ void LqWrk::ParseInputCommands()
                 */
                 Command.JustPop();
         }
-
     }
-}
-
-void LqWrk::RewindToEndForketCommandQueue(LqQueueCmd<uchar>::Interator& Command)
-{
-    while(Command)
-    {
-        switch(Command.Type)
-        {
-            case LQWRK_CMD_ADD_CONN:
-            {
-                auto Evnt = Command.Val<LqEvntHdr*>();
-                LqEvntHdrClose(Evnt);
-                Command.Pop<LqEvntHdr*>();
-                CountConnectionsInQueue--;
-            }
-            break;
-            default:
-                Command.JustPop();
-        }
-    }
-}
-
-size_t LqWrk::CloseAllEvnt()
-{
-    size_t Ret = 0;
-    lqevnt_enum_do(EventChecker, i)
-    {
-        auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &i);
-        LqEvntRemoveByInterator(&EventChecker, &i);
-        LqEvntHdrClose(Evnt);
-        Ret++;
-    }lqevnt_enum_while(EventChecker);
-    return Ret;
 }
 
 void LqWrk::ClearQueueCommands()
@@ -273,68 +317,38 @@ void LqWrk::ClearQueueCommands()
     }
 }
 
-void LqWrk::RemoveEvntInList(LqListEvnt& Dest)
-{
-    lqevnt_enum_do(EventChecker, i)
-    {
-        auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &i);
-        if(!Dest.Add(Evnt))
-        {
-            LqEvntHdrClose(Evnt);
-            LQ_ERR("LqWrk::RemoveEvntInList()#%llu not remove connection in list\n", Id);
-        }
-        LqEvntRemoveByInterator(&EventChecker, &i);
-    }lqevnt_enum_while(EventChecker);
-}
-
-void LqWrk::RemoveEvntInListFromCmd(LqListEvnt& Dest)
-{
-    for(auto Command = CommandQueue.SeparateBegin(); !CommandQueue.SeparateIsEnd(Command);)
-    {
-        switch(Command.Type)
-        {
-            case LQWRK_CMD_ADD_CONN:
-            {
-                /* Is command - adding connection, add this connection in List*/
-                auto Connection = Command.Val<LqEvntHdr*>();
-                if(!Dest.Add(Connection))
-                {
-                    LQ_ERR("LqWrk::RemoveEvntInListFromCmd()#%llu not alloc memory for list\n", Id);
-                    LqEvntHdrClose(Connection);
-                }
-                Command.Pop<LqEvntHdr*>();
-                CountConnectionsInQueue--;
-            }
-            break;
-            default:
-                /* Otherwise return current command in list*/
-                CommandQueue.SeparatePush(Command);
-        }
-    }
-}
-
-
 /*
  Main worker loop
 */
 void LqWrk::BeginThread()
 {
-    LQ_LOG_DEBUG("LqWrk::BeginThread()#llu start worker thread\n", Id);
+    LQ_LOG_DEBUG("LqWrk::BeginThread()#%llu start worker thread\n", Id);
 #if !defined(LQPLATFORM_WINDOWS)
     signal(SIGPIPE, SIG_IGN);
 #endif
-
+    Lock();
+    LqEvntThreadInit(&EventChecker);
+    LqEvntAddHdr(&EventChecker, (LqEvntHdr*)&NotifyEvent);
+    Unlock();
     while(true)
     {
-        if(LqEvntSignalCheckAndReset(&EventChecker))
+        if(LqFileEventReset(NotifyEvent.Fd))
         {
-            SafeReg.EnterSafeRegion();
             if(LqThreadBase::IsShouldEnd)
                 break;
             ParseInputCommands();
             if(LqThreadBase::IsShouldEnd)
                 break;
+            uintptr_t Expected = 1;
+            if(LqAtmCmpXchg(IsSyncAllFlags, Expected, (uintptr_t)0))
+            {
+                Lock();
+                LqEvntUpdateAllMask(&EventChecker, this, DelProc, false);
+                Unlock();
+            }
         }
+
+        Lock();
         lqevnt_enum_changes_do(EventChecker, Revent)
         {
             auto EvntHdr = LqEvntGetHdrByCurrent(&EventChecker);
@@ -342,41 +356,27 @@ void LqWrk::BeginThread()
             EvntHdr->Flag |= _LQEVNT_FLAG_NOW_EXEC;
             if(LqEvntIsConn(EvntHdr))
             {
-                if(Revent & LQEVNT_FLAG_WR)
+                if(Revent & (LQEVNT_FLAG_ERR | LQEVNT_FLAG_WR | LQEVNT_FLAG_RD | LQEVNT_FLAG_CONNECT | LQEVNT_FLAG_ACCEPT))
                 {
-                    ((LqConn*)EvntHdr)->Proto->WriteProc((LqConn*)EvntHdr);
+                    LqWrkCallConnHandler(EvntHdr, Revent, this);
                     //Is removed current connection in handler
-                    if(LqEvntGetHdrByCurrent(&EventChecker) == nullptr)
-                        continue;
-                }
-                if(Revent & LQEVNT_FLAG_RD)
-                {
-                    ((LqConn*)EvntHdr)->Proto->ReciveProc((LqConn*)EvntHdr);
-                    //Is removed current connection in handler
-                    if(LqEvntGetHdrByCurrent(&EventChecker) == nullptr)
-                        continue;
-                }
-                if(Revent & LQEVNT_FLAG_ERR)
-                {
-                    ((LqConn*)EvntHdr)->Proto->ErrorProc((LqConn*)EvntHdr);
-                    //Is removed current connection in handler
-                    if(LqEvntGetHdrByCurrent(&EventChecker) == nullptr)
+                    if(LqEvntGetHdrByCurrent(&EventChecker) != EvntHdr)
                         continue;
                 }
             } else
             {
-                if(Revent & (LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RD | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_ERR))
+                if(Revent & (LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RD | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_ERR | LQEVNT_FLAG_CONNECT | LQEVNT_FLAG_ACCEPT))
                 {
-                    ((LqEvntFd*)EvntHdr)->Handler((LqEvntFd*)EvntHdr, Revent);
+                    LqWrkCallEvntFdHandler(EvntHdr, Revent, this);
                     //Is removed current connection in handler
-                    if(LqEvntGetHdrByCurrent(&EventChecker) == nullptr)
+                    if(LqEvntGetHdrByCurrent(&EventChecker) != EvntHdr)
                         continue;
                 }
             }
             if((Revent & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_END)) || (EvntHdr->Flag & LQEVNT_FLAG_END))
             {
                 LqEvntRemoveCurrent(&EventChecker);
-                LqEvntHdrClose(EvntHdr);
+                LqWrkCallEvntHdrCloseHandler(EvntHdr, this);
             } else
             {
                 EvntHdr->Flag &= ~(_LQEVNT_FLAG_NOW_EXEC | _LQEVNT_FLAG_USER_SET);
@@ -385,196 +385,21 @@ void LqWrk::BeginThread()
                 LqEvntUnuseCurrent(&EventChecker);
             }
         }lqevnt_enum_changes_while(EventChecker);
+        Unlock();
 
         LqEvntCheck(&EventChecker, LqTimeGetMaxMillisec());
     }
 
-    ((LqWrkBoss*)LqWrkBossGet())->TransferAllEvnt(this);
-    CloseAllEvnt();
+    RemoveEvnt((LqEvntHdr*)&NotifyEvent);
+    LqWrkBoss::GetGlobal()->TransferAllEvnt(this);
+    CloseAllEvntSync();
     ClearQueueCommands();
-    LQ_LOG_DEBUG("LqWrk::BeginThread()#llu end worker thread\n", Id);
+    Lock();
+    LqEvntThreadUninit(&EventChecker);
+    Unlock();
+    LQ_LOG_DEBUG("LqWrk::BeginThread()#%llu end worker thread\n", Id);
 }
 
-bool LqWrk::AddEvnt(LqEvntHdr* Connection)
-{
-    if(Connection->Flag & LQEVNT_FLAG_END)
-    {
-        LqEvntHdrClose(Connection);
-        return true;
-    }
-    LQ_LOG_DEBUG("LqWrk::AddEvnt()#llu event {%i, %llx} recived\n", Id, Connection->Fd, (ullong)Connection->Flag);
-    return LqEvntAddHdr(&EventChecker, Connection);
-}
-
-void LqWrk::TakeAllEvnt(void(*TakeEventProc)(void *Data, LqListEvnt &Connection), void * NewUserData)
-{
-    LqListEvnt DestList;
-    RemoveEvntInList(DestList);
-    TakeEventProc(NewUserData, DestList);
-}
-
-size_t LqWrk::RemoveConnByIp(const sockaddr* Addr)
-{
-    size_t Res = 0;
-    switch(Addr->sa_family)
-    {
-        case AF_INET: case AF_INET6: break;
-        default: return Res;
-    }
-    lqevnt_enum_do(EventChecker, i)
-    {
-        auto Connection = LqEvntGetHdrByInterator(&EventChecker, &i);
-        if(LqEvntIsConn(Connection) && (((LqConn*)Connection)->Proto->CmpAddressProc((LqConn*)Connection, Addr)))
-        {
-            LqEvntRemoveByInterator(&EventChecker, &i);
-            ((LqConn*)Connection)->Proto->EndConnProc((LqConn*)Connection);
-            Res++;
-        }
-    }lqevnt_enum_while(EventChecker);
-
-    return Res;
-}
-
-int LqWrk::CloseEvnt(LqEvntHdr* Connection)
-{
-    int Res = 0;
-    lqevnt_enum_do(EventChecker, i)
-    {
-        auto Hdr = LqEvntGetHdrByInterator(&EventChecker, &i);
-        if(Connection == Hdr)
-        {
-            LqEvntRemoveByInterator(&EventChecker, &i);
-            LqEvntHdrClose(Hdr);
-            Res = 1;
-            break;
-        }
-    }lqevnt_enum_while(EventChecker);
-    if(Res == 0)
-        for(auto Command = CommandQueue.SeparateBegin(); !CommandQueue.SeparateIsEnd(Command);)
-        {
-            switch(Command.Type)
-            {
-                case LQWRK_CMD_ADD_CONN:
-                {
-                    auto Hdr = Command.Val<LqEvntHdr*>();
-                    if(Hdr == Connection)
-                    {
-                        LqEvntHdrClose(Hdr);
-                        Command.Pop<LqEvntHdr*>();
-                        Res++;
-                        CountConnectionsInQueue--;
-                    } else
-                    {
-                        CommandQueue.SeparatePush(Command);
-                    }
-                }
-                break;
-                default:
-                    /* Otherwise return current command in list*/
-                    CommandQueue.SeparatePush(Command);
-            }
-        }
-    return Res;
-}
-
-size_t LqWrk::AddEvnt(LqListEvnt& ConnectionList)
-{
-    size_t Res = 0;
-    for(size_t i = 0; i < ConnectionList.GetCount(); i++)
-    {
-        if(!AddEvnt(ConnectionList[i]))
-        {
-            LqEvntHdrClose(ConnectionList[i]);
-            LQ_ERR("LqWrk::AddEvnt()#%llu not adding #%u connection in  worker\n", Id, i);
-        } else
-        {
-            Res++;
-            ConnectionList[i] = nullptr;
-        }
-    }
-    return Res;
-}
-
-size_t LqWrk::RemoveConnOnTimeOut(LqTimeMillisec TimeLiveMilliseconds)
-{
-    size_t Res = 0;
-    auto CurTime = LqTimeGetLocMillisec();
-    lqevnt_enum_do(EventChecker, i)
-    {
-        auto c = LqEvntGetHdrByInterator(&EventChecker, &i);
-        if(LqEvntIsConn(c) && (((LqConn*)c)->Proto->KickByTimeOutProc((LqConn*)c, CurTime, TimeLiveMilliseconds)))
-        {
-            LQ_LOG_USER("LqWrk::RemoveConnOnTimeOut()#llu remove connection by timeout\n", Id);
-            LqEvntRemoveByInterator(&EventChecker, &i);
-            ((LqConn*)c)->Proto->EndConnProc((LqConn*)c);
-            Res++;
-        }
-    }lqevnt_enum_while(EventChecker);
-    return Res;
-}
-
-size_t LqWrk::RemoveConnOnTimeOut(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds)
-{
-    size_t Res = 0;
-    auto CurTime = LqTimeGetLocMillisec();
-    lqevnt_enum_do(EventChecker, i)
-    {
-        auto c = LqEvntGetHdrByInterator(&EventChecker, &i);
-        if(LqEvntIsConn(c) && (((LqConn*)c)->Proto == Proto) && (Proto->KickByTimeOutProc((LqConn*)c, CurTime, TimeLiveMilliseconds)))
-        {
-            LQ_LOG_USER("LqWrk::RemoveConnOnTimeOut()#llu remove connection by timeout\n", Id);
-            LqEvntRemoveByInterator(&EventChecker, &i);
-            ((LqConn*)c)->Proto->EndConnProc((LqConn*)c);
-            Res++;
-        }
-    }lqevnt_enum_while(EventChecker);
-    return Res;
-}
-
-size_t LqWrk::CloseConnByProto(const LqProto* Proto)
-{
-    size_t Res = 0;
-    lqevnt_enum_do(EventChecker, i)
-    {
-        auto c = LqEvntGetHdrByInterator(&EventChecker, &i);
-        if(LqEvntIsConn(c) && (((LqConn*)c)->Proto == Proto))
-        {
-            LQ_LOG_USER("LqWrk::CloseConnByProto()#llu remove connection by protocol\n", Id);
-            LqEvntRemoveByInterator(&EventChecker, &i);
-            ((LqConn*)c)->Proto->EndConnProc((LqConn*)c);
-            Res++;
-        }
-    }lqevnt_enum_while(EventChecker);
-    return Res;
-}
-
-size_t LqWrk::AddEvntListAsync(LqListEvnt& ConnectionList)
-{
-    size_t Res = 0;
-    for(size_t i = 0; i < ConnectionList.GetCount(); i++)
-    {
-        if(ConnectionList[i] == nullptr)
-            continue;
-        if(!AddEvntAsync(ConnectionList[i]))
-        {
-            LqEvntHdrClose(ConnectionList[i]);
-            LQ_ERR("LqWrk::AddEvntListAsync()#%llu not adding #%u event\n", Id, i);
-        } else
-        {
-            Res++;
-        }
-        ConnectionList[i] = nullptr;
-    }
-    return Res;
-}
-
-size_t LqWrk::AddEvntListSync(LqListEvnt& ConnectionList)
-{
-    LockWrite();
-    auto Res = AddEvnt(ConnectionList);
-    UnlockWrite();
-    return Res;
-}
 
 bool LqWrk::RemoveConnOnTimeOutAsync(LqTimeMillisec TimeLiveMilliseconds)
 {
@@ -586,9 +411,38 @@ bool LqWrk::RemoveConnOnTimeOutAsync(LqTimeMillisec TimeLiveMilliseconds)
 
 size_t LqWrk::RemoveConnOnTimeOutSync(LqTimeMillisec TimeLiveMilliseconds)
 {
-    LockWrite();
-    auto Res = RemoveConnOnTimeOut(TimeLiveMilliseconds);
-    UnlockWrite();
+    size_t Res = 0;
+    auto CurTime = LqTimeGetLocMillisec();
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+	const LqEvntFlag NowExec = IsThisThread() ? 0 : _LQEVNT_FLAG_NOW_EXEC;
+#endif
+    Lock();
+    lqevnt_enum_do(EventChecker, i)
+    {
+        auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &i);
+        if(LqEvntIsConn(Evnt))
+        {
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+			while(Evnt->Flag & NowExec)
+			{
+				Unlock();
+				LqThreadYield();
+				Lock();
+				if(LqEvntGetHdrByInterator(&EventChecker, &i) != Evnt)
+					goto lblContinue;
+			}
+#endif
+			if(((LqConn*)Evnt)->Proto->KickByTimeOutProc((LqConn*)Evnt, CurTime, TimeLiveMilliseconds))
+			{
+				LQ_LOG_USER("LqWrk::RemoveConnOnTimeOut()#%llu remove connection by timeout\n", Id);
+				LqEvntRemoveByInterator(&EventChecker, &i);
+				LqWrkCallConnCloseHandler(Evnt, this);
+				Res++;
+			}
+lblContinue:;
+        }
+    }lqevnt_enum_while(EventChecker);
+    Unlock();
     return Res;
 }
 
@@ -602,86 +456,142 @@ bool LqWrk::RemoveConnOnTimeOutAsync(const LqProto * Proto, LqTimeMillisec TimeL
 
 size_t LqWrk::RemoveConnOnTimeOutSync(const LqProto * Proto, LqTimeMillisec TimeLiveMilliseconds)
 {
-    LockWrite();
-    auto Res = RemoveConnOnTimeOut(Proto, TimeLiveMilliseconds);
-    UnlockWrite();
+    size_t Res = 0;
+    auto CurTime = LqTimeGetLocMillisec();
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+	const LqEvntFlag NowExec = IsThisThread() ? 0 : _LQEVNT_FLAG_NOW_EXEC;
+#endif
+    Lock();
+    lqevnt_enum_do(EventChecker, i)
+    {
+        auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &i);
+        if(LqEvntIsConn(Evnt) && (((LqConn*)Evnt)->Proto == Proto))
+        {		
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+			while(Evnt->Flag & NowExec)
+			{
+				Unlock();
+				LqThreadYield(); //Wait until worker thread leave read/write handler
+				Lock();
+				if(LqEvntGetHdrByInterator(&EventChecker, &i) != Evnt)
+					goto lblContinue;
+			}
+#endif
+			if(Proto->KickByTimeOutProc((LqConn*)Evnt, CurTime, TimeLiveMilliseconds))
+			{
+				LQ_LOG_USER("LqWrk::RemoveConnOnTimeOut()#%llu remove connection by timeout\n", Id);
+				LqEvntRemoveByInterator(&EventChecker, &i);
+				LqWrkCallConnCloseHandler(Evnt, this);
+				Res++;
+			}
+lblContinue:;
+        }
+    }lqevnt_enum_while(EventChecker);
+    Unlock();
     return Res;
 }
 
-bool LqWrk::AddEvntAsync(LqEvntHdr* Connection)
+bool LqWrk::AddEvntAsync(LqEvntHdr* EvntHdr)
 {
     if(IsThisThread())
-        return AddEvnt(Connection);
-    if(!CommandQueue.Push(LQWRK_CMD_ADD_CONN, Connection))
+        return AddEvntSync(EvntHdr);
+    if(!CommandQueue.Push(LQWRK_CMD_ADD_CONN, EvntHdr))
         return false;
     CountConnectionsInQueue++;
     NotifyThread();
     return true;
 }
 
-bool LqWrk::AddEvntSync(LqEvntHdr* Connection)
+bool LqWrk::AddEvntSync(LqEvntHdr* EvntHdr)
 {
-    LockWrite();
-    auto Res = AddEvnt(Connection);
-    UnlockWrite();
+    if(EvntHdr->Flag & LQEVNT_FLAG_END)
+    {
+        LqEvntHdrClose(EvntHdr);
+        return true;
+    }
+    LQ_LOG_DEBUG("LqWrk::AddEvnt()#%llu event {%i, %llx} recived\n", Id, EvntHdr->Fd, (ullong)EvntHdr->Flag);
+    Lock();
+    auto Res = LqEvntAddHdr(&EventChecker, EvntHdr);
+    Unlock();
     return Res;
 }
 
-bool LqWrk::SyncEvntFlagAsync(LqEvntHdr* Connection)
+bool LqWrk::RemoveEvnt(LqEvntHdr* EvntHdr)
 {
-    if(IsThisThread() && !(Connection->Flag & LQEVNT_FLAG_END))
-        return LqEvntSetMaskByHdr(&EventChecker, Connection);
-    if(!CommandQueue.PushBegin<LqEvntHdr*>(LQWRK_CMD_SYNC_FLAG, Connection))
-        return false;
+    bool Res = false;
+    Lock();
+    lqevnt_enum_do(EventChecker, i)
+    {
+        if(LqEvntGetHdrByInterator(&EventChecker, &i) == EvntHdr)
+        {
+            LqEvntRemoveByInterator(&EventChecker, &i);
+            Res = true;
+            break;
+        }
+    }lqevnt_enum_while(EventChecker);
+    Unlock();
+    return Res;
+}
+
+bool LqWrk::CloseEvnt(LqEvntHdr* EvntHdr)
+{
+	intptr_t Res = 0;
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+	const LqEvntFlag NowExec = IsThisThread() ? 0 : _LQEVNT_FLAG_NOW_EXEC;
+#endif
+	while(true)
+	{
+		Lock();
+		lqevnt_enum_do(EventChecker, i)
+		{
+			if(LqEvntGetHdrByInterator(&EventChecker, &i) == EvntHdr)
+			{
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+				if(EvntHdr->Flag & NowExec)
+				{
+					Res = -1;
+				} else
+#endif
+				{
+					LqEvntRemoveByInterator(&EventChecker, &i);
+					Res = 1;
+				}
+				break;
+			}
+		}lqevnt_enum_while(EventChecker);
+		Unlock();
+		if(Res == 1)
+		{
+			LqEvntHdrClose(EvntHdr);
+		} else if(Res == -1)
+		{
+			LqThreadYield();
+			continue;
+		}
+		break;
+	}
+	return Res == 1;
+}
+
+bool LqWrk::UpdateAllEvntFlagAsync()
+{
+    uintptr_t Expected = 0;
+    LqAtmCmpXchg(IsSyncAllFlags, Expected, (uintptr_t)1);
     NotifyThread();
     return true;
 }
 
-bool LqWrk::SyncEvntFlagSync(LqEvntHdr* Connection)
+int LqWrk::UpdateAllEvntFlagSync()
 {
-    bool Res;
-    LockWrite();
-    if(Connection->Flag & LQEVNT_FLAG_END)
-    {
-        CloseEvnt(Connection);
-        Res = false;
-    } else
-    {
-        Res = LqEvntSetMaskByHdr(&EventChecker, Connection);
-    }
-    UnlockWrite();
+    Lock();
+    auto Res = LqEvntUpdateAllMask(&EventChecker, this, DelProc, true);
+    Unlock();
     return Res;
 }
 
-bool LqWrk::CloseEvntAsync(LqEvntHdr * Connection)
+bool LqWrk::Wait(void(*WaitProc)(void* Data), void* UserData)
 {
-    if(IsThisThread())
-    {
-        CloseEvnt(Connection);
-        return true;
-    }
-    if(!CommandQueue.Push<LqEvntHdr*>(LQWRK_CMD_CLOSE_CONN, Connection))
-        return false;
-    NotifyThread();
-    return true;
-}
-
-int LqWrk::CloseEvntSync(LqEvntHdr * Connection)
-{
-    LockWrite();
-    auto Res = CloseEvnt(Connection);
-    UnlockWrite();
-    return Res;
-}
-
-bool LqWrk::WaitEvent(void(*NewEventProc)(void* Data), void* NewUserData)
-{
-    if(IsThisThread())
-    {
-        NewEventProc(NewUserData);
-        return true;
-    }
-    if(!CommandQueue.PushBegin<LqWrkCmdWaitEvnt>(LQWRK_CMD_WAIT_EVENT, LqWrkCmdWaitEvnt(NewEventProc, NewUserData)))
+    if(!CommandQueue.PushBegin<LqWrkCmdWaitEvnt>(LQWRK_CMD_WAIT_EVENT, LqWrkCmdWaitEvnt(WaitProc, UserData)))
         return false;
     NotifyThread();
     return true;
@@ -690,7 +600,7 @@ bool LqWrk::WaitEvent(void(*NewEventProc)(void* Data), void* NewUserData)
 int LqWrk::CloseAllEvntAsync()
 {
     if(IsThisThread())
-        return CloseAllEvnt();
+        return CloseAllEvntSync();
     if(!CommandQueue.PushBegin(LQWRK_CMD_CLOSE_ALL_CONN))
         return -1;
     NotifyThread();
@@ -699,42 +609,66 @@ int LqWrk::CloseAllEvntAsync()
 
 size_t LqWrk::CloseAllEvntSync()
 {
-    LockWrite();
-    auto Res = CloseAllEvnt();
-    UnlockWrite();
-    return Res;
-}
-
-bool LqWrk::TakeAllConnAsync(void(*TakeEventProc)(void *Data, LqListEvnt &ConnectionList), void * NewUserData)
-{
-    if(!CommandQueue.PushBegin<LqWrkCmdTakeAllConn>(LQWRK_CMD_TAKE_ALL_CONN, LqWrkCmdTakeAllConn(TakeEventProc, NewUserData)))
-        return false;
-    NotifyThread();
-    return true;
-}
-
-bool LqWrk::TakeAllEvnt(LqListEvnt & ConnectionList)
-{
-    LockWrite();
-    RemoveEvntInList(ConnectionList);
-    RemoveEvntInListFromCmd(ConnectionList);
-    UnlockWrite();
-    return true;
-}
-
-bool LqWrk::TakeAllConnSync(LqListEvnt& ConnectionList)
-{
-    LockWrite();
-    RemoveEvntInList(ConnectionList);
-    UnlockWrite();
-    return true;
+    size_t Ret = 0;
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+	const LqEvntFlag NowExec = IsThisThread() ? 0 : _LQEVNT_FLAG_NOW_EXEC;
+#endif
+    Lock();
+    lqevnt_enum_do(EventChecker, i)
+    {
+        auto Evnt = LqEvntRemoveByInterator(&EventChecker, &i);
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+		while(Evnt->Flag & NowExec)
+		{
+			Unlock();
+			LqThreadYield();
+			Lock();
+			if(LqEvntGetHdrByInterator(&EventChecker, &i) != Evnt)
+				goto lblContinue;
+		}
+#endif
+        LqWrkCallEvntHdrCloseHandler(Evnt, this);
+        Ret++;
+lblContinue:;
+    }lqevnt_enum_while(EventChecker);
+    Unlock();
+    return Ret;
 }
 
 size_t LqWrk::CloseConnByIpSync(const sockaddr* Addr)
 {
-    LockWrite();
-    auto Res = RemoveConnByIp(Addr);
-    UnlockWrite();
+    size_t Res = 0;
+    switch(Addr->sa_family)
+    {
+        case AF_INET: case AF_INET6: break;
+        default: return Res;
+    }
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+	const LqEvntFlag NowExec = IsThisThread() ? 0 : _LQEVNT_FLAG_NOW_EXEC;
+#endif
+    Lock();
+    lqevnt_enum_do(EventChecker, i)
+    {
+        auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &i);
+        if(LqEvntIsConn(Evnt) && (((LqConn*)Evnt)->Proto->CmpAddressProc((LqConn*)Evnt, Addr)))
+        {
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+			while(Evnt->Flag & NowExec)
+			{
+				Unlock();
+				LqThreadYield();
+				Lock();
+				if(LqEvntGetHdrByInterator(&EventChecker, &i) != Evnt)
+					goto lblContinue;
+			}
+#endif
+            LqEvntRemoveByInterator(&EventChecker, &i);
+            LqWrkCallConnCloseHandler(Evnt, this);
+            Res++;
+lblContinue:;
+        }
+    }lqevnt_enum_while(EventChecker);
+    Unlock();
     return Res;
 }
 
@@ -742,7 +676,7 @@ bool LqWrk::CloseConnByIpAsync(const sockaddr* Addr)
 {
     if(IsThisThread())
     {
-        RemoveConnByIp(Addr);
+        CloseConnByIpSync(Addr);
         return true;
     }
     StartThreadLocker.LockWriteYield();
@@ -777,67 +711,125 @@ bool LqWrk::CloseConnByIpAsync(const sockaddr* Addr)
     return true;
 }
 
-bool LqWrk::CloseConnByProtoAsync(const LqProto * Addr)
+bool LqWrk::CloseConnByProtoAsync(const LqProto * Proto)
 {
     if(IsThisThread())
     {
-        CloseConnByProto(Addr);
+        CloseConnByProtoSync(Proto);
         return true;
     }
     StartThreadLocker.LockWriteYield();
-    auto Res = CommandQueue.PushBegin<const LqProto*>(LQWRK_CMD_CLOSE_CONN_BY_PROTO, Addr);
+    auto Res = CommandQueue.PushBegin<const LqProto*>(LQWRK_CMD_CLOSE_CONN_BY_PROTO, Proto);
     StartThreadLocker.UnlockWrite();
     NotifyThread();
     return Res;
 }
 
-size_t LqWrk::CloseConnByProtoSync(const LqProto * Addr)
+size_t LqWrk::CloseConnByProtoSync(const LqProto * Proto)
 {
-    LockWrite();
-    auto Res = CloseConnByProto(Addr);
-    UnlockWrite();
-    return Res;
+	size_t Res = 0;
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+	const LqEvntFlag NowExec = IsThisThread() ? 0 : _LQEVNT_FLAG_NOW_EXEC;
+#endif
+	Lock();
+	lqevnt_enum_do(EventChecker, i)
+	{
+		auto Evnt = LqEvntGetHdrByInterator(&EventChecker, &i);
+		if(LqEvntIsConn(Evnt) && (((LqConn*)Evnt)->Proto == Proto))
+		{
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+			while(Evnt->Flag & NowExec)
+			{
+				Unlock();
+				LqThreadYield();
+				Lock();
+				if(LqEvntGetHdrByInterator(&EventChecker, &i) != Evnt)
+					goto lblContinue;
+			}
+#endif
+			LQ_LOG_USER("LqWrk::CloseConnByProto()#%llu remove connection by protocol\n", Id);
+			LqEvntRemoveByInterator(&EventChecker, &i);
+			LqWrkCallConnCloseHandler(Evnt, this);
+			Res++;
+lblContinue:;
+		}
+	}lqevnt_enum_while(EventChecker);
+	Unlock();
+	return Res;
 }
 
-size_t LqWrk::EnumDelEvnt(void* UserData, bool(*Proc)(void *UserData, LqEvntHdr* Conn))
+size_t LqWrk::EnumCloseRmEvnt(void* UserData, unsigned(*Proc)(void *UserData, LqEvntHdr* Conn))
 {
-    size_t Res = 0;
-    LockWrite();
-    lqevnt_enum_do(EventChecker, i)
-    {
-        auto Hdr = LqEvntGetHdrByInterator(&EventChecker, &i);
-        if(Proc(UserData, Hdr))
-        {
-            LqEvntRemoveByInterator(&EventChecker, &i);
-            LqEvntHdrClose(Hdr);
-            Res++;
-        }
-    }lqevnt_enum_while(EventChecker);
-    UnlockWrite();
-    return Res;
+	size_t Res = 0;
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+	const LqEvntFlag NowExec = IsThisThread() ? 0 : _LQEVNT_FLAG_NOW_EXEC;
+#endif
+	Lock();
+	lqevnt_enum_do(EventChecker, i)
+	{
+		auto Hdr = LqEvntGetHdrByInterator(&EventChecker, &i);
+		unsigned Act;
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+		while(Hdr->Flag & NowExec)
+		{
+			Unlock();
+			LqThreadYield();
+			Lock();
+			if(LqEvntGetHdrByInterator(&EventChecker, &i) != Hdr)
+				goto lblContinue;
+		}
+#endif
+		Act = Proc(UserData, Hdr); /* !! Not unlocket for safety !! in @Proc not call @LqEvntHdrClose (If you want, use async method or just return 2)*/
+		if(Act > 0)
+		{
+			Res++;
+			LqEvntRemoveByInterator(&EventChecker, &i);
+			if(Act > 1)
+				LqWrkCallEvntHdrCloseHandler(Hdr, this);
+		}
+lblContinue:;
+	}lqevnt_enum_while(EventChecker);
+	Unlock();
+	return Res;
 }
 
-size_t LqWrk::EnumDelEvntByProto(const LqProto * Proto, void * UserData, bool(*Proc)(void *UserData, LqEvntHdr *Conn))
+size_t LqWrk::EnumCloseRmEvntByProto(const LqProto * Proto, void * UserData, unsigned(*Proc)(void *UserData, LqEvntHdr *Conn))
 {
-    size_t Res = 0;
-    LockWrite();
-    lqevnt_enum_do(EventChecker, i)
-    {
-        auto Hdr = LqEvntGetHdrByInterator(&EventChecker, &i);
-        if(LqEvntIsConn(Hdr) && (((LqConn*)Hdr)->Proto == Proto))
-        {
-            if(Proc(UserData, Hdr))
-            {
-                LqEvntRemoveByInterator(&EventChecker, &i);
-                LqEvntHdrClose(Hdr);
-                Res++;
-            }
-        }
-    }lqevnt_enum_while(EventChecker);
-    UnlockWrite();
-    return Res;
+	size_t Res = 0;
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+	const LqEvntFlag NowExec = IsThisThread() ? 0 : _LQEVNT_FLAG_NOW_EXEC;
+#endif
+	Lock();
+	lqevnt_enum_do(EventChecker, i)
+	{
+		auto Hdr = LqEvntGetHdrByInterator(&EventChecker, &i);
+		if(LqEvntIsConn(Hdr) && (((LqConn*)Hdr)->Proto == Proto))
+		{
+			unsigned Act;
+#ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
+			while(Hdr->Flag & NowExec)
+			{
+				Unlock();
+				LqThreadYield();
+				Lock();
+				if(LqEvntGetHdrByInterator(&EventChecker, &i) != Hdr)
+					goto lblContinue;
+			}
+#endif
+			Act = Proc(UserData, Hdr); /* !! Not unlocket for safety !! in @Proc not call @LqEvntHdrClose (If you want, use async method or just return 2)*/
+			if(Act > 0)
+			{
+				Res++;
+				LqEvntRemoveByInterator(&EventChecker, &i);
+				if(Act > 1)
+					LqWrkCallConnCloseHandler(Hdr, this);
+			}
+lblContinue:;
+		}
+	}lqevnt_enum_while(EventChecker);
+	Unlock();
+	return Res;
 }
-
 
 LqString LqWrk::DebugInfo() const
 {
@@ -849,11 +841,12 @@ LqString LqWrk::DebugInfo() const
     sprintf
     (
         Buf,
-        "Worker Id: %llu\n"
-        "Time start: %s (%s)\n"
-        "Count connections in process: %u\n"
-        "Count connections in queue: %u\n"
-        "Common count connections: %u\n",
+        "--------------\n"
+		" Worker Id: %llu\n"
+        " Time start: %s (%s)\n"
+        " Count conn. & event obj. in process: %u\n"
+        " Count conn. & event obj. in queue: %u\n"
+        " Common conn. & event obj.: %u\n",
         Id,
         LqTimeLocSecToStlStr(CurrentTimeMillisec / 1000).c_str(),
         LqTimeDiffMillisecToStlStr(TimeStart, CurrentTimeMillisec).c_str(),
@@ -867,13 +860,12 @@ LqString LqWrk::DebugInfo() const
 LqString LqWrk::AllDebugInfo()
 {
     LqString r =
-        "---------\nCommon worker info\n" +
+        "~~~~~~~~~~~~~~\n Common worker info\n" +
         DebugInfo() +
-        "---------\nThread info\n" +
+        "--------------\n Thread info\n" +
         LqThreadBase::DebugInfo() +
-        "---------\n";
-    LockRead();
-
+        "--------------\n";
+    Lock();
     ullong CurTime = LqTimeGetLocMillisec();
     int k = 0;
     lqevnt_enum_do(EventChecker, i)
@@ -881,8 +873,8 @@ LqString LqWrk::AllDebugInfo()
         auto Conn = LqEvntGetHdrByInterator(&EventChecker, &i);
         if(LqEvntIsConn(Conn))
         {
-            r += "Conn #" + LqToString(k) + "\n";
-            char* DbgInf = ((LqConn*)Conn)->Proto->DebugInfoProc((LqConn*)Conn);
+            r += " Conn #" + LqToString(k) + "\n";
+            char* DbgInf = ((LqConn*)Conn)->Proto->DebugInfoProc((LqConn*)Conn); /*!!! Not call another worker methods in this function !!!*/
             if(DbgInf != nullptr)
             {
                 r += DbgInf;
@@ -892,52 +884,14 @@ LqString LqWrk::AllDebugInfo()
             k++;
         }
     }lqevnt_enum_while(EventChecker);
-    UnlockRead();
-    r += "---------\n";
+    Unlock();
+    r += "~~~~~~~~~~~~~~\n";
     return r;
 }
 
 size_t LqWrk::GetAssessmentBusy() const { return CountConnectionsInQueue + LqEvntCount(&EventChecker); }
 
-int LqWrk::LockWrite()
-{
-    if(IsThisThread())
-    {
-        SafeReg.EnterSafeRegionAndSwitchToWriteMode();
-        return 1;
-    }
-    SafeReg.OccupyWriteYield();
-    NotifyThread();
-    while(!SafeReg.TryWaitRegion())
-    {
-        if(IsThreadEnd())
-            return -1;
-        std::this_thread::yield();
-    }
-    return 0;
-}
+size_t LqWrk::CountEvnts() const { return LqEvntCount(&EventChecker); }
 
-int LqWrk::LockRead()
-{
-    if(IsThisThread())
-    {
-        SafeReg.EnterSafeRegionAndSwitchToReadMode();
-        return 1;
-    }
-    SafeReg.OccupyReadYield();
-    NotifyThread();
-    while(!SafeReg.TryWaitRegion())
-    {
-        if(IsThreadEnd())
-            return -1;
-        std::this_thread::yield();
-    }
-    return 0;
-}
-
-void LqWrk::UnlockRead() const { SafeReg.ReleaseRead(); }
-
-void LqWrk::UnlockWrite() const { SafeReg.ReleaseWrite(); }
-
-void LqWrk::NotifyThread() { LqEvntSignalSet(&EventChecker); }
+void LqWrk::NotifyThread() { LqFileEventSet(NotifyEvent.Fd); }
 

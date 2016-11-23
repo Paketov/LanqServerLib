@@ -8,7 +8,6 @@
 #ifndef __LQ_OS_H_HAS_INCLUDED__
 #define __LQ_OS_H_HAS_INCLUDED__
 
-
 #if defined(_WIN64) || defined(_WIN32)
 
 # define _CRT_SECURE_NO_WARNINGS
@@ -22,8 +21,10 @@
 # define LQ_EXPORT      __declspec(dllexport)
 # define LQ_IMPORT      __declspec(dllimport)
 # define LQ_PATH_SEPARATOR  '\\'
+# define LQ_WINEVNT_WAIT_WHEN_GR_64_OBJECTS 50 //millisec
 
 #else
+
 # define LQPLATFORM_POSIX
 # ifdef __ANDROID__
 #  define LQPLATFORM_ANDROID
@@ -130,7 +131,6 @@
 # define LQCOMPILER_ORACLE_SOLARIS_STUDIO
 #endif
 
-
 #if defined(LQCOMPILER_VC)
 #define LQ_NO_INLINE __declspec(noinline)
 #elif defined(LQCOMPILER_GCC_GPP)
@@ -162,6 +162,8 @@
 #define lqautf8                 /* LanQ Argument UTF-8 string */
 #define lqautf16                /* LanQ Argument UTF-16 string */
 #define lqacp                   /* LanQ Argument defined in LqCp ... code page */
+
+#define LqStructByField(TypeStruct, FieldName, AddressField) ((TypeStruct*)(((char*)(AddressField)) - ((uintptr_t)&((TypeStruct*)0)->FieldName)))
 
 #define LQ_GOLDEN_RATIO         1.61803398874989484820 
 

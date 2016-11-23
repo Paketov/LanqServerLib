@@ -1,3 +1,9 @@
+/*
+* Lanq(Lan Quick)
+* Solodov A. N. (hotSAN)
+* 2016
+* LqZmbClr (LanQ ZoMBie CLeaneR) - Timer event for clean zombie connections.
+*/
 
 #include "LqZmbClr.h"
 #include "LqFile.h"
@@ -29,7 +35,7 @@ static void LQ_CALL LqZmbClrHandler(LqEvntFd* Fd, LqEvntFlag RetFlags)
     LqFileTimerSet(Fd->Fd, TimeLive / 2);
 }
 
-static void LQ_CALL LqZmbClrHandlerClose(LqEvntFd* Fd, LqEvntFlag RetFlags)
+static void LQ_CALL LqZmbClrHandlerClose(LqEvntFd* Fd)
 {
     auto AddInfo = (LqZmbClrAdditionalInfo*)Fd->UserData;
     if((AddInfo->RemoveProc == nullptr) || (AddInfo->RemoveProc(Fd, AddInfo->UserData)))

@@ -20,6 +20,7 @@
 #include <Winternl.h>
 #include <ntstatus.h>
 #include "LqFile.h"
+#include "LqTime.hpp"
 
 #include "LqAlloc.hpp"
 
@@ -70,64 +71,110 @@ extern "C" NTSYSAPI NTSTATUS NTAPI NtWaitForMultipleObjects(
 
 extern "C" __kernel_entry NTSTATUS NTAPI NtClearEvent(IN HANDLE EventHandle);
 
-#define LQCONN_FLAG_RD_AGAIN _LQEVNT_FLAG_RESERVED_1
-#define LQCONN_FLAG_WR_AGAIN _LQEVNT_FLAG_RESERVED_2
+//#define LQCONN_FLAG_RD_AGAIN _LQEVNT_FLAG_RESERVED_1
+//#define LQCONN_FLAG_WR_AGAIN _LQEVNT_FLAG_RESERVED_2
 
 
-#define LqEvntSystemEventByConnEvents(Client)                           \
-    (((Client->Flag & LQEVNT_FLAG_RD)            ? (FD_ACCEPT | FD_READ) : 0)  | \
-    ((Client->Flag & LQEVNT_FLAG_WR)            ? (FD_WRITE | FD_CONNECT) : 0) |\
+#define LqEvntSystemEventByConnEvents(Client)               \
+    (((Client->Flag & LQEVNT_FLAG_RD)        ? FD_READ : 0)  | \
+    ((Client->Flag & LQEVNT_FLAG_WR)         ? FD_WRITE : 0) |\
+    ((Client->Flag & LQEVNT_FLAG_ACCEPT)    ? FD_ACCEPT : 0)  | \
+    ((Client->Flag & LQEVNT_FLAG_CONNECT)    ? FD_CONNECT : 0) |\
     ((Client->Flag & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP)) ? FD_CLOSE: 0))
 
 #define IsRdAgain(Client)  ((Client->Flag & (LQCONN_FLAG_RD_AGAIN | LQEVNT_FLAG_RD)) == (LQCONN_FLAG_RD_AGAIN | LQEVNT_FLAG_RD))
 #define IsWrAgain(Client)  ((Client->Flag & (LQCONN_FLAG_WR_AGAIN | LQEVNT_FLAG_WR)) == (LQCONN_FLAG_WR_AGAIN | LQEVNT_FLAG_WR))
 #define IsAgain(Client)    (IsRdAgain(Client) || IsWrAgain(Client))
 
+static LRESULT CALLBACK WindowProcedure(HWND window, UINT msg, WPARAM wp, LPARAM lp)
+{
+    return DefWindowProcW(window, msg, wp, lp);
+}
+
+static struct _wnd_class
+{
+    WNDCLASSEX* wc;
+    _wnd_class()
+    {
+        static WNDCLASSEX wndclass =
+        {
+            sizeof(WNDCLASSEX), CS_DBLCLKS, WindowProcedure,
+            0, 0, 0, 0,
+            0, 0,
+            0, TEXT("SockClass"), 0
+        };
+        RegisterClassEx(&wndclass);
+        wc = &wndclass;
+    }
+    ~_wnd_class()
+    {
+        UnregisterClass(wc->lpszClassName, 0);
+    }
+} wnd_class;
 
 bool LqEvntInit(LqEvnt* Dest)
 {
-    Dest->EventArr = nullptr;
-    Dest->ClientArr = nullptr;
-    Dest->EventArr = (HANDLE*)___malloc(sizeof(HANDLE));
-    if(Dest->EventArr == nullptr)
-        return false;
-    Dest->ClientArr = (LqEvntHdr**)___malloc(sizeof(LqEvntHdr*));
-    if(Dest->ClientArr == nullptr)
-        return false;
+    LqArr2Init(&Dest->ConnArr);
+    LqArr3Init(&Dest->EvntFdArr);
 
-    Dest->AllocCount = Dest->Count = 1;
-    Dest->SignalFd = LqFileEventCreate(LQ_O_NOINHERIT);
-    if(Dest->SignalFd == -1)
-    {
-        ___free(Dest->EventArr);
-        Dest->EventArr = nullptr;
-        ___free(Dest->ClientArr);
-        Dest->ClientArr = nullptr;
-        return false;
-    }
-    
-    Dest->EventArr[0] = (HANDLE)Dest->SignalFd;
-    Dest->ClientArr[0] = nullptr;
-    Dest->EventEnumIndex = 0;
+    Dest->EventObjectIndex = 0xffffff;
+    Dest->ConnIndex = 0;
     Dest->DeepLoop = 0;
-    Dest->IsRemoved = 0;
+    Dest->IsRemoved = false;
+    Dest->IsRemovedEvntFd = false;
+    Dest->CommonCount = 0;
+    Dest->WinHandle = (uintptr_t)-1;
     return true;
+}
+
+bool LqEvntThreadInit(LqEvnt* Dest)
+{
+    auto hSockWnd = CreateWindowEx(0, TEXT("SockClass"), TEXT(""), WS_POPUP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, 0, 0);
+    if(hSockWnd == NULL)
+        return false;
+    Dest->WinHandle = (uintptr_t)hSockWnd;
+    auto Conns = &LqArr2At(&Dest->ConnArr, LqConn*, 0);
+    for(intptr_t i = 0, m = Dest->ConnArr.AllocCount; i < m; i++)
+    {
+        if(Conns[i] != nullptr)
+        {
+            WSAAsyncSelect(Conns[i]->Fd, hSockWnd, WM_USER + i, LqEvntSystemEventByConnEvents(Conns[i]));
+            if(Conns[i]->Flag & LQEVNT_FLAG_RD)
+            {
+                u_long res = -1;
+                ioctlsocket(Conns[i]->Fd, FIONREAD, &res);
+                if(res > 0)
+                    PostMessage((HWND)Dest->WinHandle, WM_USER + i, Conns[i]->Fd, FD_READ);
+            }
+            if(Conns[i]->Flag & LQEVNT_FLAG_WR)
+            {
+                char t;
+                if(send(Conns[i]->Fd, &t, 0, 0) >= 0)
+                    PostMessage((HWND)Dest->WinHandle, WM_USER + i, Conns[i]->Fd, FD_WRITE);
+            }
+        }
+    }
+    return true;
+}
+
+void LqEvntThreadUninit(LqEvnt* Dest)
+{
+    CloseWindow((HWND)Dest->WinHandle);
+    Dest->WinHandle = (uintptr_t)-1;
 }
 
 void LqEvntUninit(LqEvnt* Dest)
 {
-    if(Dest->EventArr != nullptr)
+    if(Dest->EvntFdArr.Count > 0)
     {
-        LqFileClose((int)Dest->EventArr[0]);
-        for(size_t i = 1, m = Dest->Count; i < m; i++)
+        for(size_t i = 0, m = Dest->EvntFdArr.Count; i < m; i++)
         {
-            if(Dest->EventArr[i] != (HANDLE)Dest->ClientArr[i]->Fd)
-                LqFileClose((int)Dest->EventArr[i]); //close only events
+            if(LqArr3At_1(&Dest->EvntFdArr, HANDLE, i) != (HANDLE)LqArr3At_2(&Dest->EvntFdArr, LqEvntFd*, i)->Fd)
+                LqFileClose((int)LqArr3At_1(&Dest->EvntFdArr, HANDLE, i)); //close only events
         }
-        ___free(Dest->EventArr);
     }
-    if(Dest->ClientArr != nullptr)
-        ___free(Dest->ClientArr);
+    LqArr2Uninit(&Dest->ConnArr);
+    LqArr3Uninit(&Dest->EvntFdArr);
 }
 
 /*
@@ -135,22 +182,34 @@ void LqEvntUninit(LqEvnt* Dest)
 */
 bool LqEvntAddHdr(LqEvnt* Dest, LqEvntHdr* Client)
 {
-    int Event = -1;
     if(LqEvntIsConn(Client))
     {
-        if((Event = LqFileEventCreate(LQ_O_NOINHERIT)) == -1)
-            return false;
-        if(WSAEventSelect(Client->Fd, (HANDLE)Event, LqEvntSystemEventByConnEvents(Client)) == SOCKET_ERROR)
-            goto lblErrOut;
-        if(IsAgain(Client))
-            SetEvent(Client);
+        size_t InsertIndex;
+        LqArr2PushBack(&Dest->ConnArr, LqConn*, InsertIndex, nullptr);
+		LqArr2At(&Dest->ConnArr, LqConn*, InsertIndex) = (LqConn*)Client;
 
+        WSAAsyncSelect(Client->Fd, (HWND)Dest->WinHandle, WM_USER + InsertIndex, LqEvntSystemEventByConnEvents(Client));
+       
+        if(Client->Flag & LQEVNT_FLAG_RD)
+        {
+            u_long res = -1;
+            ioctlsocket(Client->Fd, FIONREAD, &res);
+            if(res > 0)
+                PostMessage((HWND)Dest->WinHandle, WM_USER + InsertIndex, Client->Fd, FD_READ);
+        }
+        if(Client->Flag & LQEVNT_FLAG_WR)
+        {
+            char t;
+            if(send(Client->Fd, &t, 0, 0) >= 0)
+                PostMessage((HWND)Dest->WinHandle, WM_USER + InsertIndex, Client->Fd, FD_WRITE);
+        }
+        Client->Flag &= ~_LQEVNT_FLAG_SYNC;
     } else
     {
         LARGE_INTEGER *ppl = nullptr, pl;
         auto EvntData = (LqEvntFd*)Client;
-        Event = LqFileEventCreate(LQ_O_NOINHERIT);
-        if(Client->Flag & LQEVNT_FLAG_RD)
+        int Event = LqFileEventCreate(LQ_O_NOINHERIT);
+        if(EvntData->Flag & LQEVNT_FLAG_RD)
         {
             static char Buf;
             ppl = nullptr;
@@ -191,7 +250,7 @@ lblErr:
         {
             EvntData->__Reserved1.Status = STATUS_NOT_SUPPORTED;
         }
-        if(Client->Flag & LQEVNT_FLAG_WR)
+        if(EvntData->Flag & LQEVNT_FLAG_WR)
         {
             static char Buf;
             ppl = nullptr;
@@ -236,84 +295,32 @@ lblErr2:
         {
             EvntData->__Reserved2.Status = STATUS_NOT_SUPPORTED;
         }
-    }
+		EvntData->Flag &= ~_LQEVNT_FLAG_SYNC;
+        LqArr3PushBack(&Dest->EvntFdArr, HANDLE, LqEvntHdr*);
 
-    Client->Flag &= ~_LQEVNT_FLAG_SYNC;
-    if(Dest->Count >= Dest->AllocCount)
-    {
-        size_t NewSize = (size_t)((decltype(LQEVNT_INCREASE_COEFFICIENT))Dest->Count * LQEVNT_INCREASE_COEFFICIENT) + 1;
-        auto NewEventArr = (HANDLE*)___realloc(Dest->EventArr, sizeof(HANDLE) * NewSize);
-        if(NewEventArr == nullptr)
-            goto lblErrOut;
-        Dest->EventArr = NewEventArr;
-        auto ClientArr = (LqEvntHdr**)___realloc(Dest->ClientArr, sizeof(LqEvntHdr*) * NewSize);
-        if(ClientArr == nullptr)
-            goto lblErrOut;
-        Dest->ClientArr = ClientArr;
-        Dest->AllocCount = NewSize;
+        LqArr3Back_1(&Dest->EvntFdArr, HANDLE) = (HANDLE)Event;
+        LqArr3Back_2(&Dest->EvntFdArr, LqEvntFd*) = EvntData;
     }
-    Dest->EventArr[Dest->Count] = (HANDLE)Event;
-    Dest->ClientArr[Dest->Count] = Client;
-    Dest->Count++;
+    Dest->CommonCount++;
     return true;
-lblErrOut:
-    if(Event != Client->Fd)
-        LqFileClose(Event);
-    return false;
 }
 
-LqEvntFlag LqEvntEnumEventBegin(LqEvnt* Events)
+LqEvntFlag __LqEvntEnumEventBegin(LqEvnt* Events)
 {
-    Events->EventEnumIndex = 0;
     Events->DeepLoop++;
-    return LqEvntEnumEventNext(Events);
+    return __LqEvntEnumEventNext(Events);
 }
 
-LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
+LqEvntFlag __LqEvntEnumEventNext(LqEvnt* Events)
 {
-    WSANETWORKEVENTS e = {0};
-    for(int i = Events->EventEnumIndex + 1, m = Events->Count; i < m; i++)
+    if(Events->EventObjectIndex < Events->EvntFdArr.Count)
     {
-        auto h = Events->ClientArr[i];
-        if(h == nullptr)
-            continue;
-        if(LqEvntIsConn(h))
+        for(intptr_t i = Events->EventObjectIndex + 1, m = Events->EvntFdArr.Count; i < m; i++)
         {
-            //Check socket connection
-            WSAEnumNetworkEvents(h->Fd, Events->EventArr[i], &e);
-            if((e.lNetworkEvents != 0) || IsAgain(h) || (h->Flag & LQEVNT_FLAG_END))
-            {
-                Events->EventEnumIndex = i;
-                LqEvntFlag r = 0;
-                if((e.lNetworkEvents & (FD_ACCEPT | FD_READ)) || IsRdAgain(h))
-                {
-                    if(((e.lNetworkEvents & FD_ACCEPT) && (e.iErrorCode[FD_ACCEPT_BIT] != 0)) ||
-                        ((e.lNetworkEvents & FD_READ) && (e.iErrorCode[FD_READ_BIT] != 0)))
-                        r |= LQEVNT_FLAG_ERR;
-                    r |= LQEVNT_FLAG_RD;
-                }
-                if((e.lNetworkEvents & (FD_WRITE | FD_CONNECT)) || IsWrAgain(h))
-                {
-                    if(((e.lNetworkEvents & FD_WRITE) && (e.iErrorCode[FD_WRITE_BIT] != 0)) ||
-                        ((e.lNetworkEvents & FD_CONNECT) && (e.iErrorCode[FD_CONNECT_BIT] != 0)))
-                        r |= LQEVNT_FLAG_ERR;
-                    r |= LQEVNT_FLAG_WR;
-                }
-                if(e.lNetworkEvents & FD_CLOSE)
-                {
-                    if(e.iErrorCode[FD_CLOSE_BIT] != 0)
-                        r |= LQEVNT_FLAG_ERR;
-                    r |= (h->Flag & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP));
-                }
-                if(h->Flag & LQEVNT_FLAG_END)
-                    r |= LQEVNT_FLAG_END;
-
-                h->Flag &= ~(LQCONN_FLAG_WR_AGAIN | LQCONN_FLAG_RD_AGAIN);
-                return r;
-            }
-        } else
-        {
-            auto Fd = (LqEvntFd*)h;
+            auto Fd = LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, i);
+            if(Fd == nullptr)
+                continue;
+            auto Event = LqArr3At_1(&Events->EvntFdArr, HANDLE, i);
             LqEvntFlag r = 0;
             static const LARGE_INTEGER TimeWait = {0};
             if(Fd->Flag & LQEVNT_FLAG_RD)
@@ -325,9 +332,9 @@ LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
                         r |= LQEVNT_FLAG_RD;
                         break;
                     case STATUS_OBJECT_TYPE_MISMATCH:
-                        switch(NtWaitForSingleObject((HANDLE)Events->EventArr[i], FALSE, (PLARGE_INTEGER)&TimeWait))
+                        switch(NtWaitForSingleObject(Event, FALSE, (PLARGE_INTEGER)&TimeWait))
                         {
-                            case STATUS_SUCCESS: 
+                            case STATUS_SUCCESS:
                                 r |= LQEVNT_FLAG_RD;
                             case STATUS_TIMEOUT:
                             case STATUS_ALERTED:
@@ -352,9 +359,9 @@ LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
                         r |= LQEVNT_FLAG_WR;
                         break;
                     case STATUS_OBJECT_TYPE_MISMATCH:
-                        switch(NtWaitForSingleObject((HANDLE)Events->EventArr[i], FALSE, (PLARGE_INTEGER)&TimeWait))
+                        switch(NtWaitForSingleObject(Event, FALSE, (PLARGE_INTEGER)&TimeWait))
                         {
-                            case STATUS_SUCCESS: 
+                            case STATUS_SUCCESS:
                                 r |= LQEVNT_FLAG_WR;
                             case STATUS_TIMEOUT:
                             case STATUS_ALERTED:
@@ -372,11 +379,39 @@ LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
             }
             if((Fd->Flag & LQEVNT_FLAG_HUP) && ((Fd->__Reserved1.Status == STATUS_PIPE_BROKEN) || (Fd->__Reserved2.Status == STATUS_PIPE_BROKEN)))
                 r |= LQEVNT_FLAG_HUP;
-            if(h->Flag & LQEVNT_FLAG_END)
-                r |= LQEVNT_FLAG_END;
             if(r == 0)
                 continue;
-            Events->EventEnumIndex = i;
+            Events->EventObjectIndex = i;
+            return r;
+        }
+        Events->EventObjectIndex = 0xffffff;
+    }
+    MSG Msg;
+    while(PeekMessage(&Msg, (HWND)Events->WinHandle, WM_USER, WM_USER + 0xffff, PM_REMOVE) == TRUE)
+    {
+        auto ConnIndex = Msg.message - WM_USER;
+        LqConn* Conn;
+        if((ConnIndex >= Events->ConnArr.AllocCount) ||
+            ((Conn = LqArr2At(&Events->ConnArr, LqConn*, ConnIndex)) == nullptr) ||
+           (Conn->Fd != Msg.wParam))
+            continue;
+
+        auto Event = WSAGETSELECTEVENT(Msg.lParam);
+        auto Error = WSAGETSELECTERROR(Msg.lParam);
+        LqEvntFlag r = 0;
+        switch(Event)
+        {
+            case FD_READ: r = LQEVNT_FLAG_RD; break;
+            case FD_WRITE: r = LQEVNT_FLAG_WR; break;
+            case FD_CONNECT: r = LQEVNT_FLAG_CONNECT; break;
+            case FD_ACCEPT: r = LQEVNT_FLAG_ACCEPT; break;
+            case FD_CLOSE: r = (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP); break;
+        }
+        if(Error != 0)
+            r |= LQEVNT_FLAG_ERR;
+        if(r != 0)
+        {
+            Events->ConnIndex = ConnIndex;
             return r;
         }
     }
@@ -385,315 +420,428 @@ LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
 
 void LqEvntRemoveCurrent(LqEvnt* Events)
 {
-    Events->ClientArr[Events->EventEnumIndex]->Flag &= ~_LQEVNT_FLAG_SYNC;
-    if(LqEvntIsConn(Events->ClientArr[Events->EventEnumIndex]))
+    if(Events->EventObjectIndex < Events->EvntFdArr.Count)
     {
-        LqFileClose((int)Events->EventArr[Events->EventEnumIndex]);
-    } else
-    {
-        auto Fd = (LqEvntFd*)Events->ClientArr[Events->EventEnumIndex];
-        if((HANDLE)Fd->Fd != Events->EventArr[Events->EventEnumIndex])
+        auto Fd = LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Events->EventObjectIndex);
+		LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Events->EventObjectIndex) = nullptr;
+        auto EventObject = LqArr3At_1(&Events->EvntFdArr, HANDLE, Events->EventObjectIndex);
+        if((HANDLE)Fd->Fd != EventObject)
         {
             if(Fd->__Reserved1.Status == STATUS_PENDING)
                 NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved1);
             if(Fd->__Reserved2.Status == STATUS_PENDING)
                 NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved2);
-            LqFileClose((int)Events->EventArr[Events->EventEnumIndex]);
+            LqFileClose((int)EventObject);
         }
+        Fd->Flag &= ~_LQEVNT_FLAG_SYNC;
+        Events->IsRemovedEvntFd = true;
+    } else
+    {
+        auto Conn = LqArr2At(&Events->ConnArr, LqConn*, Events->ConnIndex);
+		LqArr2RemoveAt(&Events->ConnArr, LqConn*, Events->ConnIndex, nullptr);
+        Conn->Flag &= ~_LQEVNT_FLAG_SYNC;
+        WSAAsyncSelect(Conn->Fd, (HWND)Events->WinHandle, 0, 0);
+        Events->IsRemoved = true;
     }
-    Events->ClientArr[Events->EventEnumIndex] = nullptr;
-    Events->IsRemoved = 1;
+    Events->CommonCount--;
 }
 
-void LqEvntRestructAfterRemoves(LqEvnt* Events)
+void __LqEvntRestructAfterRemoves(LqEvnt* Events)
 {
-    Events->DeepLoop--;
-    if((Events->DeepLoop > 0) || (Events->IsRemoved == 0))
+    if((--Events->DeepLoop) > 0)
         return;
-    Events->IsRemoved = 0;
-
-    register auto AllClients = Events->ClientArr;
-    register auto AllEvents = Events->EventArr;
-    for(register size_t i = 1; i < Events->Count; )
+    if(Events->IsRemoved)
     {
-        if(AllClients[i] == nullptr)
-        {
-            Events->Count--;
-            AllClients[i] = AllClients[Events->Count];
-            AllEvents[i] = AllEvents[Events->Count];
-        } else
-        {
-            i++;
-        }
+        Events->IsRemoved = false;
+        LqArr2AlignAfterRemove(&Events->ConnArr, LqConn*, nullptr);
     }
-
-    if((size_t)((decltype(LQEVNT_DECREASE_COEFFICIENT))Events->Count * LQEVNT_DECREASE_COEFFICIENT) < Events->AllocCount)
+    if(Events->IsRemovedEvntFd)
     {
-        size_t NewCount = lq_max(Events->Count, 1);
-        Events->EventArr = (HANDLE*)___realloc(Events->EventArr, NewCount * sizeof(HANDLE));
-        Events->ClientArr = (LqEvntHdr**)___realloc(Events->ClientArr, NewCount * sizeof(LqEvntHdr*));
-        Events->AllocCount = NewCount;
+        Events->IsRemovedEvntFd = false;
+        auto Fds = &LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, 0);
+        auto EventObjects = &LqArr3At_1(&Events->EvntFdArr, HANDLE, 0);
+        auto Count = Events->EvntFdArr.Count;
+        for(register intptr_t i = 0; i < Count;)
+        {
+            if(Fds[i] == nullptr)
+            {
+                Fds[i] = Fds[--Count];
+                EventObjects[i] = EventObjects[Count];
+            } else
+            {
+                i++;
+            }
+        }
+        Events->EvntFdArr.Count = Count;
+        LqArr3AlignAfterRemove(&Events->EvntFdArr, HANDLE, LqEvntFd*);
     }
 }
 
 LqEvntHdr* LqEvntGetHdrByCurrent(LqEvnt* Events)
 {
-    return Events->ClientArr[Events->EventEnumIndex];
+    if(Events->EventObjectIndex < Events->EvntFdArr.Count)
+        return (LqEvntHdr*)LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Events->EventObjectIndex);
+    return (LqEvntHdr*)LqArr2At(&Events->ConnArr, LqConn*, Events->ConnIndex);
 }
 
 void LqEvntUnuseCurrent(LqEvnt* Events)
 {
-    auto c = Events->ClientArr[Events->EventEnumIndex];
-    if(LqEvntIsConn(c))
+    if(Events->EventObjectIndex >= Events->EvntFdArr.Count)
     {
-        if(c->Flag & LQEVNT_FLAG_RD)
+        auto Conn = LqArr2At(&Events->ConnArr, LqConn*, Events->ConnIndex);
+        if(Conn->Flag & LQEVNT_FLAG_RD)
         {
             u_long res = -1;
-            ioctlsocket(c->Fd, FIONREAD, &res);
+            ioctlsocket(Conn->Fd, FIONREAD, &res);
             if(res > 0)
-                c->Flag |= LQCONN_FLAG_RD_AGAIN;
+                PostMessage((HWND)Events->WinHandle, WM_USER + Events->ConnIndex, Conn->Fd, FD_READ);
         }
-        if(c->Flag & LQEVNT_FLAG_WR)
+        if(Conn->Flag & LQEVNT_FLAG_WR)
         {
             char t;
-            if(send(c->Fd, &t, 0, 0) >= 0)
-                c->Flag |= LQCONN_FLAG_WR_AGAIN;
+            if(send(Conn->Fd, &t, 0, 0) >= 0)
+                PostMessage((HWND)Events->WinHandle, WM_USER + Events->ConnIndex, Conn->Fd, FD_WRITE);
         }
-        if(c->Flag & (LQCONN_FLAG_RD_AGAIN | LQCONN_FLAG_WR_AGAIN))
-            LqFileEventSet((int)Events->EventArr[Events->EventEnumIndex]);
-    } else
+        return;
+    }
+
+    auto Fd = LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Events->EventObjectIndex);
+    auto EventObject = LqArr3At_1(&Events->EvntFdArr, HANDLE, Events->EventObjectIndex);
+    if((HANDLE)Fd->Fd != EventObject)
     {
-        if((HANDLE)c->Fd != Events->EventArr[Events->EventEnumIndex])
+        LARGE_INTEGER *ppl = nullptr, pl;
+        NTSTATUS Stat;
+        if((Fd->Flag & LQEVNT_FLAG_RD) && (Fd->__Reserved1.Status != STATUS_PENDING))
         {
-            auto Fd = (LqEvntFd*)c;
-            auto Event = Events->EventArr[Events->EventEnumIndex];
-            LARGE_INTEGER *ppl = nullptr, pl;
-            NTSTATUS Stat;
-            if((Fd->Flag & LQEVNT_FLAG_RD) && (Fd->__Reserved1.Status != STATUS_PENDING))
-            {
-                LqFileEventReset((int)Event);
-                static char Buf;
-                ppl = nullptr;
+            LqFileEventReset((int)EventObject);
+            static char Buf;
+            ppl = nullptr;
 lblAgain:
-                Fd->__Reserved1.Status = STATUS_PENDING;
-                NTSTATUS Stat = NtReadFile((HANDLE)c->Fd, Event, NULL, NULL, (PIO_STATUS_BLOCK)&Fd->__Reserved1, &Buf, 0, ppl, NULL);
-                if((Stat == STATUS_INVALID_PARAMETER) && (ppl == nullptr))
-                {
-                    ppl = &pl;
-                    pl.QuadPart = LqFileTell(c->Fd);
-                    goto lblAgain;
-                } else if(Stat != STATUS_PENDING)
-                {
-                    Fd->__Reserved1.Status = Stat;
-                }
-            }
-            if((Fd->Flag & LQEVNT_FLAG_WR) && (Fd->__Reserved2.Status != STATUS_PENDING))
+            Fd->__Reserved1.Status = STATUS_PENDING;
+            NTSTATUS Stat = NtReadFile((HANDLE)Fd->Fd, EventObject, NULL, NULL, (PIO_STATUS_BLOCK)&Fd->__Reserved1, &Buf, 0, ppl, NULL);
+            if((Stat == STATUS_INVALID_PARAMETER) && (ppl == nullptr))
             {
-                if(!(Fd->Flag & LQEVNT_FLAG_RD))
-                    LqFileEventReset((int)Event);
-                static char Buf;
-                ppl = nullptr;
+                ppl = &pl;
+                pl.QuadPart = LqFileTell(Fd->Fd);
+                goto lblAgain;
+            } else if(Stat != STATUS_PENDING)
+            {
+                Fd->__Reserved1.Status = Stat;
+            }
+        }
+        if((Fd->Flag & LQEVNT_FLAG_WR) && (Fd->__Reserved2.Status != STATUS_PENDING))
+        {
+            if(!(Fd->Flag & LQEVNT_FLAG_RD))
+                LqFileEventReset((int)EventObject);
+            static char Buf;
+            ppl = nullptr;
 lblAgain2:
-                NTSTATUS Stat = NtWriteFile((HANDLE)c->Fd, Event, NULL, NULL, (PIO_STATUS_BLOCK)&Fd->__Reserved2, &Buf, 0, ppl, NULL);
-                if((Stat == STATUS_INVALID_PARAMETER) && (ppl == nullptr))
-                {
-                    ppl = &pl;
-                    pl.QuadPart = LqFileTell(c->Fd);
-                    goto lblAgain2;
-                } else if(Stat != STATUS_PENDING)
-                {
-                    Fd->__Reserved2.Status = Stat;
-                }
+            NTSTATUS Stat = NtWriteFile((HANDLE)Fd->Fd, EventObject, NULL, NULL, (PIO_STATUS_BLOCK)&Fd->__Reserved2, &Buf, 0, ppl, NULL);
+            if((Stat == STATUS_INVALID_PARAMETER) && (ppl == nullptr))
+            {
+                ppl = &pl;
+                pl.QuadPart = LqFileTell(Fd->Fd);
+                goto lblAgain2;
+            } else if(Stat != STATUS_PENDING)
+            {
+                Fd->__Reserved2.Status = Stat;
             }
         }
     }
-
+}
+static bool LqEvntSetMaskConn(LqEvnt* Events, size_t Index)
+{
+    auto Conn = LqArr2At(&Events->ConnArr, LqConn*, Index);
+    auto Res = WSAAsyncSelect(Conn->Fd, (HWND)Events->WinHandle, Index + WM_USER, LqEvntSystemEventByConnEvents(Conn)) != SOCKET_ERROR;
+    if(Conn->Flag & LQEVNT_FLAG_RD)
+    {
+        u_long res = -1;
+        ioctlsocket(Conn->Fd, FIONREAD, &res);
+        if(res > 0)
+            PostMessage((HWND)Events->WinHandle, WM_USER + Events->ConnIndex, Conn->Fd, FD_READ);
+    }
+    if(Conn->Flag & LQEVNT_FLAG_WR)
+    {
+        char t;
+        if(send(Conn->Fd, &t, 0, 0) >= 0)
+            PostMessage((HWND)Events->WinHandle, WM_USER + Events->ConnIndex, Conn->Fd, FD_WRITE);
+    }
+    Conn->Flag &= ~_LQEVNT_FLAG_SYNC;
+    return Res;
 }
 
-static bool LqEvntSetMask(LqEvnt* Events, size_t Index)
+static bool LqEvntSetMaskEventFd(LqEvnt* Events, size_t Index)
 {
-    auto h = Events->ClientArr[Index];
-    if(LqEvntIsConn(h))
+    auto h = LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Index);
+    auto EventObject = LqArr3At_1(&Events->EvntFdArr, HANDLE, Index);
+    if((HANDLE)h->Fd != EventObject)
     {
-        if(h->Flag & LQEVNT_FLAG_END)
-           LqFileEventSet((int)Events->EventArr[0]);
-        auto r = WSAEventSelect(h->Fd, Events->EventArr[Index], LqEvntSystemEventByConnEvents(h)) != SOCKET_ERROR;
-        h->Flag &= ~(LQCONN_FLAG_RD_AGAIN | LQCONN_FLAG_WR_AGAIN);
+        bool IsCleared = false;
+        LARGE_INTEGER *ppl = nullptr, pl;
         if(h->Flag & LQEVNT_FLAG_RD)
         {
-            u_long res = -1;
-            ioctlsocket(h->Fd, FIONREAD, &res);
-            if(res > 0)
-                h->Flag |= LQCONN_FLAG_RD_AGAIN;
+            if(h->__Reserved1.Status == STATUS_NOT_SUPPORTED)
+            {
+                static char Buf;
+                LqFileEventReset((int)EventObject);
+                IsCleared = true;
+                ppl = nullptr;
+lblAgain:
+                h->__Reserved1.Status = STATUS_PENDING;
+                NTSTATUS Stat = NtReadFile((HANDLE)h->Fd, EventObject, NULL, NULL, (PIO_STATUS_BLOCK)&h->__Reserved1, &Buf, 0, ppl, NULL);
+                if((Stat == STATUS_INVALID_PARAMETER) && (ppl == nullptr))
+                {
+                    ppl = &pl;
+                    pl.QuadPart = LqFileTell(h->Fd);
+                    goto lblAgain;
+                } else if(Stat != STATUS_PENDING)
+                {
+                    h->__Reserved1.Status = Stat;
+                }
+            }
+        } else
+        {
+            if((h->__Reserved1.Status != STATUS_NOT_SUPPORTED) && (h->__Reserved1.Status != STATUS_PENDING))
+                NtCancelIoFile((HANDLE)h->Fd, (PIO_STATUS_BLOCK)&h->__Reserved1);
+            h->__Reserved1.Status = STATUS_NOT_SUPPORTED;
         }
+
         if(h->Flag & LQEVNT_FLAG_WR)
         {
-            char t;
-            if(send(h->Fd, &t, 0, 0) >= 0)
-                h->Flag |= LQCONN_FLAG_WR_AGAIN;
-        }
-        if(h->Flag & (LQCONN_FLAG_RD_AGAIN | LQCONN_FLAG_WR_AGAIN))
-            LqFileEventSet((int)Events->EventArr[Index]);
-        h->Flag &= ~_LQEVNT_FLAG_SYNC;
-        return r;
-    } else
-    {
-        if((HANDLE)h->Fd != Events->EventArr[Index])
-        {
-            bool IsCleared = false;
-            auto Fd = (LqEvntFd*)h;
-            LARGE_INTEGER *ppl = nullptr, pl;
-            if(h->Flag & LQEVNT_FLAG_RD)
+            if(h->__Reserved2.Status == STATUS_NOT_SUPPORTED)
             {
-                if(Fd->__Reserved1.Status == STATUS_NOT_SUPPORTED)
-                {
-                    static char Buf;
-                    LqFileEventReset((int)Events->EventArr[Index]);
-                    IsCleared = true;
-                    ppl = nullptr;
-lblAgain:
-                    Fd->__Reserved1.Status = STATUS_PENDING;
-                    NTSTATUS Stat = NtReadFile((HANDLE)h->Fd, Events->EventArr[Index], NULL, NULL, (PIO_STATUS_BLOCK)&Fd->__Reserved1, &Buf, 0, ppl, NULL);
-                    if((Stat == STATUS_INVALID_PARAMETER) && (ppl == nullptr))
-                    {
-                        ppl = &pl;
-                        pl.QuadPart = LqFileTell(h->Fd);
-                        goto lblAgain;
-                    } else if(Stat != STATUS_PENDING)
-                    {
-                        Fd->__Reserved1.Status = Stat;
-                    }
-                }
-            } else
-            {
-                if((Fd->__Reserved1.Status != STATUS_NOT_SUPPORTED) && (Fd->__Reserved1.Status != STATUS_PENDING))
-                    NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved1);
-                Fd->__Reserved1.Status = STATUS_NOT_SUPPORTED;
-            }
-
-            if(h->Flag & LQEVNT_FLAG_WR)
-            {
-                if(Fd->__Reserved2.Status == STATUS_NOT_SUPPORTED)
-                {
-                    static char Buf;
-                    if(!IsCleared)
-                        LqFileEventReset((int)Events->EventArr[Index]);
-                    ppl = nullptr;
+                static char Buf;
+                if(!IsCleared)
+                    LqFileEventReset((int)EventObject);
+                ppl = nullptr;
 lblAgain2:
-                    Fd->__Reserved2.Status = STATUS_PENDING;
-                    NTSTATUS Stat = NtWriteFile((HANDLE)h->Fd, Events->EventArr[Index], NULL, NULL, (PIO_STATUS_BLOCK)&Fd->__Reserved2, &Buf, 0, ppl, NULL);
-                    if((Stat == STATUS_INVALID_PARAMETER) && (ppl == nullptr))
-                    {
-                        ppl = &pl;
-                        pl.QuadPart = LqFileTell(h->Fd);
-                        goto lblAgain2;
-                    } else if(Stat != STATUS_PENDING)
-                    {
-                        Fd->__Reserved2.Status = Stat;
-                    }
+                h->__Reserved2.Status = STATUS_PENDING;
+                NTSTATUS Stat = NtWriteFile((HANDLE)h->Fd, EventObject, NULL, NULL, (PIO_STATUS_BLOCK)&h->__Reserved2, &Buf, 0, ppl, NULL);
+                if((Stat == STATUS_INVALID_PARAMETER) && (ppl == nullptr))
+                {
+                    ppl = &pl;
+                    pl.QuadPart = LqFileTell(h->Fd);
+                    goto lblAgain2;
+                } else if(Stat != STATUS_PENDING)
+                {
+                    h->__Reserved2.Status = Stat;
                 }
-            } else
-            {
-                if((Fd->__Reserved2.Status != STATUS_NOT_SUPPORTED) && (Fd->__Reserved2.Status != STATUS_PENDING))
-                    NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved2);
-                Fd->__Reserved2.Status = STATUS_NOT_SUPPORTED;
             }
+        } else
+        {
+            if((h->__Reserved2.Status != STATUS_NOT_SUPPORTED) && (h->__Reserved2.Status != STATUS_PENDING))
+                NtCancelIoFile((HANDLE)h->Fd, (PIO_STATUS_BLOCK)&h->__Reserved2);
+            h->__Reserved2.Status = STATUS_NOT_SUPPORTED;
         }
-
-        if(h->Flag & LQEVNT_FLAG_END)
-            LqFileEventSet((int)Events->EventArr[0]);
     }
     return true;
 }
 
 bool LqEvntSetMaskByCurrent(LqEvnt* Events)
 {
-    return LqEvntSetMask(Events, Events->EventEnumIndex);
+    if(Events->EventObjectIndex < Events->EvntFdArr.Count)
+        return LqEvntSetMaskEventFd(Events, Events->EventObjectIndex);
+    return LqEvntSetMaskConn(Events, Events->ConnIndex);
 }
 
-bool LqEvntSetMaskByHdr(LqEvnt* Events, LqEvntHdr* Hdr)
-{
-    for(register size_t i = 1, m = Events->Count; i < m; i++)
-        if(Events->ClientArr[i] == Hdr)
-        {
-            return LqEvntSetMask(Events, i);
-        }
-    return false;
-}
-
-bool LqEvntEnumBegin(LqEvnt* Events, LqEvntInterator* Interator)
+int LqEvntUpdateAllMask(LqEvnt* Events, void* UserData, void(*DelProc)(void*, LqEvntHdr*), bool IsRestruct)
 {
     Events->DeepLoop++;
-    Interator->Index = 0;
-    return LqEvntEnumNext(Events, Interator);
+    for(register auto i = &LqArr2At(&Events->ConnArr, LqConn*, 0), m = i + Events->ConnArr.AllocCount; i < m; i++)
+        if((*i != nullptr) && ((*i)->Flag & _LQEVNT_FLAG_SYNC))
+        {
+            auto Index = ((uintptr_t)i - (uintptr_t)&LqArr2At(&Events->ConnArr, LqConn*, 0)) / sizeof(LqConn*);
+            if((*i)->Flag & LQEVNT_FLAG_END)
+            {
+                auto Conn = *i;
+				LqArr2RemoveAt(&Events->ConnArr, LqConn*, Index, nullptr);
+                WSAAsyncSelect(Conn->Fd, (HWND)Events->WinHandle, 0, 0);
+                Conn->Flag &= ~_LQEVNT_FLAG_SYNC;
+                Events->IsRemoved = true;
+				Events->CommonCount--;
+                DelProc(UserData, (LqEvntHdr*)Conn);
+                /* Update fast indexes */
+                i = &LqArr2At(&Events->ConnArr, LqConn*, Index);
+                m = &LqArr2At(&Events->ConnArr, LqConn*, Events->ConnArr.AllocCount);
+            } else
+            {
+                LqEvntSetMaskConn(Events, Index);
+            }
+        }
+	
+    for(register auto i = &LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, 0), m = i + Events->EvntFdArr.Count; i < m; i++)
+        if((*i != nullptr) && ((*i)->Flag & _LQEVNT_FLAG_SYNC))
+        {
+            auto Index = ((uintptr_t)i - (uintptr_t)&LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, 0)) / sizeof(LqEvntFd*);
+            if((*i)->Flag & LQEVNT_FLAG_END)
+            {
+                auto Fd = *i;
+                *i = nullptr;
+                Fd->Flag &= ~_LQEVNT_FLAG_SYNC;
+                auto EventObject = LqArr3At_1(&Events->EvntFdArr, HANDLE, Index);
+                if((HANDLE)Fd->Fd != EventObject)
+                {
+                    if(Fd->__Reserved1.Status == STATUS_PENDING)
+                        NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved1);
+                    if(Fd->__Reserved2.Status == STATUS_PENDING)
+                        NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved2);
+                    LqFileClose((int)EventObject);
+                }
+                Events->IsRemovedEvntFd = true;
+				Events->CommonCount--;
+                DelProc(UserData, (LqEvntHdr*)Fd);
+                /* Update fast indexes */
+                i = &LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Index);
+                m = &LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Events->EvntFdArr.Count);
+            } else
+            {
+                LqEvntSetMaskEventFd(Events, Index);
+            }
+        }
+    if(IsRestruct)
+        __LqEvntRestructAfterRemoves(Events);
+    else
+        Events->DeepLoop--;
+    return 1;
 }
 
-bool LqEvntEnumNext(LqEvnt* Events, LqEvntInterator* Interator)
+bool __LqEvntEnumBegin(LqEvnt* Events, LqEvntInterator* Interator)
 {
-    for(register int Index = Interator->Index + 1; Index < Events->Count; Index++)
-    {
-        if(Events->ClientArr[Index] != nullptr)
+    Events->DeepLoop++;
+    Interator->Index = -1;
+	Interator->IsEnumConn = true;
+    return __LqEvntEnumNext(Events, Interator);
+}
+
+bool __LqEvntEnumNext(LqEvnt* Events, LqEvntInterator* Interator)
+{
+    register intptr_t Index = Interator->Index + 1;
+	if(Interator->IsEnumConn)
+	{
+		for(auto m = Events->ConnArr.AllocCount; Index < m; Index++)
+			if(LqArr2At(&Events->ConnArr, LqConn*, Index) != nullptr)
+			{
+				Interator->Index = Index;
+				return true;
+			}
+		Index = 0;
+		Interator->IsEnumConn = false;
+	}
+    for(auto m = Events->EvntFdArr.Count; Index < m; Index++)
+        if(LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Index) != nullptr)
         {
             Interator->Index = Index;
             return true;
         }
-    }
     return false;
 }
 
-void LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator)
+LqEvntHdr* LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator)
 {
-    Events->ClientArr[Interator->Index]->Flag &= ~_LQEVNT_FLAG_SYNC;
-    if(LqEvntIsConn(Events->ClientArr[Interator->Index]))
+    LqEvntHdr* Ret;
+    if(Interator->IsEnumConn)  
+	{
+        auto Conn = LqArr2At(&Events->ConnArr, LqConn*, Interator->Index);
+		LqArr2RemoveAt(&Events->ConnArr, LqConn*, Interator->Index, nullptr);
+
+        WSAAsyncSelect(Conn->Fd, (HWND)Events->WinHandle, 0, 0);
+        Conn->Flag &= ~_LQEVNT_FLAG_SYNC;
+		Events->IsRemoved = true;
+        Ret = (LqEvntHdr*)Conn;
+    }else
     {
-        LqFileClose((int)Events->EventArr[Interator->Index]);
-    } else
-    {
-        auto Fd = (LqEvntFd*)Events->ClientArr[Interator->Index];
-        if((HANDLE)Fd->Fd != Events->EventArr[Interator->Index])
+        auto Fd = LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Interator->Index);
+        LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Interator->Index) = nullptr;
+
+        auto EventObject = LqArr3At_1(&Events->EvntFdArr, HANDLE, Interator->Index);
+
+        Fd->Flag &= ~_LQEVNT_FLAG_SYNC;
+        if((HANDLE)Fd->Fd != EventObject)
         {
             if(Fd->__Reserved1.Status == STATUS_PENDING)
                 NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved1);
             if(Fd->__Reserved2.Status == STATUS_PENDING)
                 NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved2);
-            LqFileClose((int)Events->EventArr[Interator->Index]);
+            LqFileClose((int)EventObject);
         }
+        Events->IsRemovedEvntFd = true;
+        Ret = (LqEvntHdr*)Fd;
     }
-    Events->ClientArr[Interator->Index] = nullptr;
-    Events->IsRemoved = 1;
+    Events->CommonCount--;
+    return Ret;
 }
 
 LqEvntHdr* LqEvntGetHdrByInterator(LqEvnt* Events, LqEvntInterator* Interator)
 {
-    return Events->ClientArr[Interator->Index];
-}
-
-bool LqEvntSignalCheckAndReset(LqEvnt* Events)
-{
-    return LqFileEventReset(Events->SignalFd) > 0;
-}
-
-void LqEvntSignalSet(LqEvnt* Events)
-{
-    LqFileEventSet(Events->SignalFd);
+    if(Interator->IsEnumConn)
+        return (LqEvntHdr*)LqArr2At(&Events->ConnArr, LqConn*, Interator->Index);
+    return (LqEvntHdr*)LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Interator->Index);
 }
 
 int LqEvntCheck(LqEvnt* Events, LqTimeMillisec WaitTime)
 {
-    LARGE_INTEGER WaitTimeOut;
-    WaitTimeOut.QuadPart = -WaitTime;
-    switch(NtWaitForMultipleObjects(Events->Count, Events->EventArr, WaitAny, FALSE, &WaitTimeOut))
+    if(Events->EvntFdArr.Count >= MAXIMUM_WAIT_OBJECTS)
     {
-        case STATUS_SUCCESS:
-            return 1;
-        case STATUS_TIMEOUT:
-            return  0;
+        /*On windows, when count event object greater then 64 is necessary check in parts :(*/
+        intptr_t StartIndex = 0;
+        intptr_t Count = MAXIMUM_WAIT_OBJECTS - 1;
+        auto StartTime = LqTimeGetLocMillisec();
+        for(;;)
+        {
+            auto Stat = MsgWaitForMultipleObjectsEx(Count, ((HANDLE*)Events->EvntFdArr.Data) + StartIndex, LQ_WINEVNT_WAIT_WHEN_GR_64_OBJECTS, QS_POSTMESSAGE, 0);
+            if(Stat != STATUS_TIMEOUT)
+            {
+                auto Index = Stat - STATUS_WAIT_0;
+                if((Index >= STATUS_WAIT_0) && (Index < Count))
+                {
+                    Events->EventObjectIndex = Index - 1 + StartIndex;
+                    return 1;
+                }
+				Events->EventObjectIndex = 0xffffff;
+                if(Index == Count)
+                    return 1;
+                //Have Error
+                return -1;
+            }
+            if((LqTimeGetLocMillisec() - StartTime) >= WaitTime)
+            {
+                //Is timeout
+                Events->EventObjectIndex = 0xffffff;
+                return 0;
+            }
+            StartIndex += Count;
+            Count = Events->EvntFdArr.Count - StartIndex;
+            if(Count > (MAXIMUM_WAIT_OBJECTS - 1))
+            {
+                Count = (MAXIMUM_WAIT_OBJECTS - 1);
+            } else if(Count <= 0)
+            {
+                Count = (MAXIMUM_WAIT_OBJECTS - 1);
+                StartIndex = 0;
+            }
+        }
     }
+    auto Stat = MsgWaitForMultipleObjectsEx(Events->EvntFdArr.Count, (HANDLE*)Events->EvntFdArr.Data, WaitTime, QS_POSTMESSAGE, 0);
+    if(Stat == STATUS_TIMEOUT)
+    {
+        Events->EventObjectIndex = 0xffffff;
+        return 0;
+    }
+    intptr_t Index = Stat - STATUS_WAIT_0;
+    if((Index >= STATUS_WAIT_0) && (Index < Events->EvntFdArr.Count))
+    {
+        Events->EventObjectIndex = Index - 1;
+        return 1;
+    }
+	Events->EventObjectIndex = 0xffffff;
+    if(Index == Events->EvntFdArr.Count)
+        return 1;
+    //When have error
     return -1;
 }
 
 size_t LqEvntCount(const LqEvnt* Events)
 {
-    return Events->Count - 1;
+    return Events->CommonCount;
 }
 

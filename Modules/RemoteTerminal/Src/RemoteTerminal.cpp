@@ -119,7 +119,7 @@ CmdSession::~CmdSession()
         LqFileClose(MasterFd);
 }
 
-void LQ_CALL CmdSession::TimerHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags)
+void LQ_CALL CmdSession::TimerHandlerClose(LqEvntFd* Instance)
 {
     auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
     Ob->LockWrite();
@@ -170,7 +170,7 @@ void CmdSession::EndRead(LqHttpConn* c)
     LqObPtrDereference<CmdSession, LqFastAlloc::Delete>(Ob);
 }
 
-void LQ_CALL CmdSession::ReadHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags)
+void LQ_CALL CmdSession::ReadHandlerClose(LqEvntFd* Instance)
 {
     auto Ob = (CmdSession*)((char*)Instance - Instance->UserData);
     LqObPtrDereference<CmdSession, LqFastAlloc::Delete>(Ob);
@@ -228,7 +228,7 @@ CmdSession* _Sessions::Get(size_t Index, LqString Key) const
 {
     CmdSession* Ret = nullptr;
     Lk.LockReadYield();
-    if((Index < Data.size()) && (Data[Index]->Key == Key))
+    if((Index < Data.size()) && (Data[Index] != nullptr) && (Data[Index]->Key == Key))
         Ret = Data[Index];
 
     if(Ret != nullptr)
@@ -600,12 +600,12 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     [](LqHttpMdl* This) -> uintptr_t
     {
 
-		LqWrkBossEnumDelEvnt(nullptr, 
-		[](void*, LqEvntHdr* Evnt)
+		LqWrkBossEnumCloseRmEvnt(nullptr, 
+		[](void*, LqEvntHdr* Evnt) -> unsigned
 		{
 			if(auto EvntFd = LqEvntToFd(Evnt))
-				return (EvntFd->Handler == CmdSession::TimerHandler) || (EvntFd->Handler == CmdSession::ReadHandler);
-			return false;
+				return ((EvntFd->Handler == CmdSession::TimerHandler) || (EvntFd->Handler == CmdSession::ReadHandler))?2: 0;
+			return 0;
 		});
 
         return This->Handle;

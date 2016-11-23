@@ -439,7 +439,8 @@ LqString LqThreadBase::DebugInfo() const
     sprintf
     (
         Buf,
-        "Thread id: %llu\n"
+        "--------------\n"
+		"Thread id: %llu\n"
         "Is work: %c\n"
         "Priority: %s\n"
         "Affinity mask: 0x%016llx\n",

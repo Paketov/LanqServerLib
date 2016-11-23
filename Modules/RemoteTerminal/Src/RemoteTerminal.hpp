@@ -96,7 +96,7 @@ struct CmdSession
 
     static void LQ_CALL TimerHandler(LqEvntFd* Instance, LqEvntFlag Flags);
 
-    static void LQ_CALL TimerHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags);
+    static void LQ_CALL TimerHandlerClose(LqEvntFd* Instance);
 
     bool StartRead(LqHttpConn* c);
 
@@ -104,7 +104,7 @@ struct CmdSession
 
     static void LQ_CALL ReadHandler(LqEvntFd* Instance, LqEvntFlag Flags);
 
-    static void LQ_CALL ReadHandlerClose(LqEvntFd* Instance, LqEvntFlag Flags);
+    static void LQ_CALL ReadHandlerClose(LqEvntFd* Instance);
 };
 
 struct ConnHandlers

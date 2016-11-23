@@ -3020,3 +3020,13 @@ LQ_EXTERN_C int LQ_CALL LqFileMakeSubdirs(const char* NewSubdirsDirName, int Acc
 }
 
 
+LQ_EXTERN_C short LQ_CALL LqFilePollCheckSingle(int Fd, short Events, LqTimeMillisec TimeoutMillisec)
+{
+	LqFilePoll Poll;
+	Poll.fd = Fd;
+	Poll.events = Events;
+	Poll.revents = 0;
+	if(LqFilePollCheck(&Poll, 1, TimeoutMillisec) == 1)
+		return Poll.revents;
+	return 0;
+}

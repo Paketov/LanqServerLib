@@ -34,10 +34,14 @@ LQ_EXTERN_C_END
 
 #  if defined(__sun__)
 #   define LQERR_IS_WOULD_BLOCK (uwsgi_is_again())
+#  elif defined(EWOULDBLOCK) && defined(EAGAIN) && defined(EINPROGRESS)
+#   define LQERR_IS_WOULD_BLOCK ((lq_errno == EWOULDBLOCK) || (lq_errno == EAGAIN) || (lq_errno == EINPROGRESS))
+#  elif defined(EWOULDBLOCK) && defined(EINPROGRESS)
+#   define LQERR_IS_WOULD_BLOCK ((lq_errno == EWOULDBLOCK) ||  (lq_errno == EINPROGRESS))
+#  elif defined(EAGAIN) && defined(EINPROGRESS)
+#   define LQERR_IS_WOULD_BLOCK ((lq_errno == EAGAIN) ||  (lq_errno == EINPROGRESS))
 #  elif defined(EWOULDBLOCK) && defined(EAGAIN)
-#   define LQERR_IS_WOULD_BLOCK ((lq_errno == EWOULDBLOCK) || (lq_errno == EAGAIN))
-#  elif defined(EWOULDBLOCK)
-#   define LQERR_IS_WOULD_BLOCK (lq_errno == EWOULDBLOCK)
+#   define LQERR_IS_WOULD_BLOCK ((lq_errno == EWOULDBLOCK) ||  (lq_errno == EAGAIN))
 #  else
 #   define LQERR_IS_WOULD_BLOCK (lq_errno == EAGAIN)
 #  endif

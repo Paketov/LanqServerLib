@@ -150,11 +150,11 @@ int ReadCommandLine(char* CommandBuf, LqString& Line, LqString& Flags)
 bool IsLoop = true;
 bool IsSuccess = true;
 
+
 int main(int argc, char* argv[])
 {
     OutFile = stdout;
     InFile = stdin;
-
 
     FILE* NullOut = fopen(LQ_NULLDEV, "wt");
 #if !defined(LQPLATFORM_WINDOWS)
@@ -249,8 +249,8 @@ lblAgain:
 
         LQSTR_SWITCH_N(CommandBuf, CommandLen)
         {
-			LQSTR_CASE("rem") /* Ignore line */
-				break;
+            LQSTR_CASE("rem") /* Ignore line */
+                break;
             LQSTR_CASE("lqcmd")
             {
                 if(InFiles.size() >= 200)
@@ -510,7 +510,7 @@ lblAgain:
                 }
                 if(Count < 0)
                     Count = std::thread::hardware_concurrency();
-                if(LqWrkBossAddWrks(Count, 1) == Count)
+                if(LqWrkBossAddWrks(Count, true) == Count)
                 {
                     fprintf(OutFile, " OK\n");
                 } else
@@ -655,7 +655,7 @@ lblAgain:
                     }
                     break;
                 }
-                if(LqHttpMdlSendCommandByName(Reg, ModuleName.c_str(), CommandData.c_str(), OutFile) >= 0)
+                if(LqHttpMdlSendCommandByName(Reg, ModuleName.c_str(), CommandData.c_str(), OutFile) > 0)
                     fprintf(OutFile, "\n OK\n");
                 else
                 {
@@ -1345,8 +1345,8 @@ lblAgain:
             LQSTR_CASE("connlist")
             {
 
-                LqWrkBossEnumDelEvntByProto(&Reg->Proto, OutFile,
-                 [](void* OutFile, LqEvntHdr* Conn) -> bool
+                LqWrkBossEnumCloseRmEvntByProto(&Reg->Proto, OutFile,
+                 [](void* OutFile, LqEvntHdr* Conn) -> unsigned
                 {
                     if(Conn->Flag & _LQEVNT_FLAG_CONN)
                     {
@@ -1354,7 +1354,7 @@ lblAgain:
                         LqHttpConnGetRemoteIpStr((LqHttpConn*)Conn, IpBuf, 255);
                         fprintf((FILE*)OutFile, " Host: %s, Port: %i\n", IpBuf, LqHttpConnGetRemotePort((LqHttpConn*)Conn));
                     }
-                    return false;
+                    return 0;
                 }
                 );
             }
@@ -1426,7 +1426,18 @@ lblAgain:
                 fprintf(OutFile, " OK\n");
             }
             break;
-
+            LQSTR_CASE("dbginfo")
+            {
+                LqString DbgInfo = LqWrkBoss::GetGlobal()->DebugInfo();
+                fprintf(OutFile, "%s", DbgInfo.c_str());
+            }
+            break;
+            LQSTR_CASE("fulldbginfo")
+            {
+                LqString DbgInfo = LqWrkBoss::GetGlobal()->AllDebugInfo();
+                fprintf(OutFile, "%s", DbgInfo.c_str());
+            }
+            break;
             LQSTR_SWITCH_DEFAULT
             {
                 fprintf(OutFile, " ERROR: Invalid command\n");
@@ -1456,7 +1467,7 @@ const char* PrintHlp()
         "   Commands:\n"
         "    ? or help - Show this help.\n"
         "    q or quit - Quit from server shell.\n"
-		"    rem <Some comments> - Ignore line (Primary used in lqcmd file)\n"
+        "    rem <Some comments> - Ignore line (Primary used in lqcmd file)\n"
         "    set [Name][=Value]- Set or get environment variable (When spec =, then setted, otherwise get)\n"
         "    unset [Name]- Unset environment variable\n"
         "    lqcmd <Path to lanq command file> - Execute command file\n"

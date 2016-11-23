@@ -4,7 +4,7 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-* LqWrk - Worker class.
+* LqWrk (LanQ WoRKer) - Worker class.
 *  Recive and handle command from LqWrkBoss.
 *  Work with connections, call protocol procedures.
 */
@@ -17,12 +17,12 @@ class LqWrkBoss;
 #include "LqLock.hpp"
 #include "LqQueueCmd.hpp"
 #include "LqThreadBase.hpp"
-#include "LqListConn.hpp"
 #include "LqShdPtr.hpp"
 #include "LqDef.hpp"
 #include "Lanq.h"
+#include "LqAlloc.hpp"
 
-void LqWrkDelete(LqWrk* This);
+LQ_IMPORTEXPORT void LQ_CALL LqWrkDelete(LqWrk* This);
 
 typedef LqShdPtr<LqWrk, LqWrkDelete, false, false> LqWrkPtr;
 
@@ -39,11 +39,8 @@ class LQ_IMPORTEXPORT LqWrk:
         LQWRK_CMD_RM_CONN_ON_TIME_OUT_PROTO,
         LQWRK_CMD_WAIT_EVENT,
         LQWRK_CMD_CLOSE_ALL_CONN,
-        LQWRK_CMD_TAKE_ALL_CONN,
         LQWRK_CMD_RM_CONN_BY_IP,
-        LQWRK_CMD_CLOSE_CONN_BY_PROTO,
-        LQWRK_CMD_SYNC_FLAG,
-        LQWRK_CMD_CLOSE_CONN
+        LQWRK_CMD_CLOSE_CONN_BY_PROTO
     };
 
     friend LqWrkBoss;
@@ -60,92 +57,84 @@ class LQ_IMPORTEXPORT LqWrk:
 
     LqQueueCmd<uchar>                                   CommandQueue;
     LqEvnt                                              EventChecker;
-    mutable LqSafeRegion<uintptr_t>                     SafeReg;
+    LqEvntFd                                            NotifyEvent;
+
+    mutable LqLocker<uintptr_t>                         Locker;
+
     ullong                                              Id;
     LqTimeMillisec                                      TimeStart;
     bool                                                IsDelete;
+    uintptr_t                                           IsSyncAllFlags;
 
     void ParseInputCommands();
     virtual void BeginThread();
     virtual void NotifyThread();
 
-    int LockRead();
-    void UnlockRead() const;
-    int LockWrite();
-    void UnlockWrite() const;
+    static void DelProc(void* Data, LqEvntHdr* Hdr);
+
+    inline void Unlock()
+    {
+        Locker.UnlockWrite();
+    }
+
+    inline void Lock()
+    {
+        Locker.LockWriteYield();
+    }
 
     void ClearQueueCommands();
-    void RemoveEvntInListFromCmd(LqListEvnt& Dest);
-
-    void RemoveEvntInList(LqListEvnt& Dest);
-
-    void RewindToEndForketCommandQueue(LqQueueCmd<uchar>::Interator& Command);
-
-    void TakeAllEvnt(void(*TakeEventProc)(void* Data, LqListEvnt& Connection), void* NewUserData);
-
-    bool AddEvnt(LqEvntHdr* Connection);
-    size_t CloseAllEvnt();
-    size_t RemoveConnOnTimeOut(LqTimeMillisec TimeLiveMilliseconds);
-    size_t RemoveConnOnTimeOut(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds);
-
-    size_t CloseConnByProto(const LqProto* Proto);
-
-    size_t AddEvnt(LqListEvnt& ConnectionList);
-    size_t RemoveConnByIp(const sockaddr* Addr);
-
-    int CloseEvnt(LqEvntHdr* Connection);
 
     static void ExitHandlerFn(void* Data);
-
     LqWrk(bool IsStart);
     ~LqWrk();
 public:
 
-    static LqWrkPtr New(bool IsStart = true);
+    static LqWrkPtr New(bool IsStart = false);
 
-    ullong GetId() const;
+    ullong   GetId() const;
 
     /*Получить загруженность потока-обработчика*/
-    size_t GetAssessmentBusy() const;
+    size_t   GetAssessmentBusy() const;
+    size_t   CountEvnts() const;
 
-    bool RemoveConnOnTimeOutAsync(LqTimeMillisec TimeLiveMilliseconds);
-    size_t RemoveConnOnTimeOutSync(LqTimeMillisec TimeLiveMilliseconds);
+    bool     RemoveConnOnTimeOutAsync(LqTimeMillisec TimeLiveMilliseconds);
+    size_t   RemoveConnOnTimeOutSync(LqTimeMillisec TimeLiveMilliseconds);
 
-    bool RemoveConnOnTimeOutAsync(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds);
-    size_t RemoveConnOnTimeOutSync(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds);
+    bool     RemoveConnOnTimeOutAsync(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds);
+    size_t   RemoveConnOnTimeOutSync(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds);
 
-    bool AddEvntAsync(LqEvntHdr* Connection);
-    bool AddEvntSync(LqEvntHdr* Connection);
+    bool     AddEvntAsync(LqEvntHdr* EvntHdr);
+    bool     AddEvntSync(LqEvntHdr* EvntHdr);
 
-    bool SyncEvntFlagAsync(LqEvntHdr* Connection);
-    bool SyncEvntFlagSync(LqEvntHdr* Connection);
+    /*
+      Remove event in strong async mode.
+    */
+    bool     RemoveEvnt(LqEvntHdr* EvntHdr);
+    bool     CloseEvnt(LqEvntHdr* EvntHdr);
 
-    bool CloseEvntAsync(LqEvntHdr* Connection);
-    int CloseEvntSync(LqEvntHdr* Connection);
+    bool     UpdateAllEvntFlagAsync();
+    int      UpdateAllEvntFlagSync();
 
-    size_t AddEvntListAsync(LqListEvnt& ConnectionList);
-    size_t AddEvntListSync(LqListEvnt& ConnectionList);
-
-    bool WaitEvent(void(*NewEventProc)(void* Data), void* NewUserData = nullptr);
+    bool     Wait(void(*WaitProc)(void* Data), void* UserData = nullptr);
 
     /*
     This method return all connection from this worker.
     */
-    bool TakeAllEvnt(LqListEvnt& ConnectionList);
-    bool TakeAllConnSync(LqListEvnt& ConnectionList);
-    bool TakeAllConnAsync(void(*TakeEventProc)(void* Data, LqListEvnt& ConnectionList), void* NewUserData = nullptr);
 
-    int CloseAllEvntAsync();
-    size_t CloseAllEvntSync();
+    int      CloseAllEvntAsync();
+    size_t   CloseAllEvntSync();
 
-    size_t CloseConnByIpSync(const sockaddr* Addr);
-    bool CloseConnByIpAsync(const sockaddr* Addr);
+    size_t   CloseConnByIpSync(const sockaddr* Addr);
+    bool     CloseConnByIpAsync(const sockaddr* Addr);
 
-    bool CloseConnByProtoAsync(const LqProto* Addr);
-    size_t CloseConnByProtoSync(const LqProto* Addr);
-
-    size_t EnumDelEvnt(void* UserData, bool(*Proc)(void* UserData, LqEvntHdr* Conn));
-    size_t EnumDelEvntByProto(const LqProto* Proto, void* UserData, bool(*Proc)(void* UserData, LqEvntHdr* Conn));
+    bool     CloseConnByProtoAsync(const LqProto* Proto);
+    size_t   CloseConnByProtoSync(const LqProto* Proto);
+    
+    /*
+      @Proc - In this proc must not call another worker methods.
+    */
+    size_t   EnumCloseRmEvnt(void* UserData, unsigned(*Proc)(void* UserData, LqEvntHdr* Conn));
+    size_t   EnumCloseRmEvntByProto(const LqProto* Proto, void* UserData, unsigned(*Proc)(void* UserData, LqEvntHdr* Conn));
 
     LqString DebugInfo() const;
     LqString AllDebugInfo();

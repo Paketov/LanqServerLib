@@ -9,7 +9,9 @@
 #ifndef __LQ_TIME_H_HAS_INCLUDED__
 #define __LQ_TIME_H_HAS_INCLUDED__
 
+#include "LqOs.h"
 #include "LqDef.h"
+
 #include <time.h>
 #include <sys/types.h>
 #include <wchar.h>

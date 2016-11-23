@@ -187,35 +187,35 @@ public:
                 public:  DISABLE_COPY_CONSTRUCT(_Arg)
 
                     inline operator ArgsType()
-                {
-                    ArgsType Res;
-                    char* c = Conn->Query.Arg, *m = c + Conn->Query.ArgLen;
-                    while(c < m)
-                    {
-                        char* a = c, *ea, *sv, *ev;
-                        for(; (*c != '&') && (*c != '=') && (c < m); c++);
-                        ea = c;
-                        if((*c == '=') && (c < m))
-                        {
-                            c++;
-                            sv = c;
-                            for(; (*c != '&') && (c < m); c++);
-                            ev = c;
-                        } else
-                        {
-                            sv = ev = c;
-                        }
-                        c++;
-                        Res.push_back(std::pair<LqString, LqString>(LqString(a, ea - a), LqString(sv, ev - sv)));
-                    }
-                    return Res;
-                }
+					{
+						ArgsType Res;
+						char* c = Conn->Query.Arg, *m = c + Conn->Query.ArgLen;
+						while(c < m)
+						{
+							char* a = c, *ea, *sv, *ev;
+							for(; (*c != '&') && (*c != '=') && (c < m); c++);
+							ea = c;
+							if((*c == '=') && (c < m))
+							{
+								c++;
+								sv = c;
+								for(; (*c != '&') && (c < m); c++);
+								ev = c;
+							} else
+							{
+								sv = ev = c;
+							}
+							c++;
+							Res.push_back(std::pair<LqString, LqString>(LqString(a, ea - a), LqString(sv, ev - sv)));
+						}
+						return Res;
+					}
 
-                         inline LqString operator[](const char* Index) const { return Inter(Index); }
-                         inline LqString operator[](const LqString& Index) const { return operator[](Index.c_str()); }
-                         inline bool IsHave(const LqString & Index) const { bool r;  Inter(Index.c_str(), r); return r; }
-                         inline bool IsHave(const char* Index) const { bool r;  Inter(Index, r); return r; }
-                         inline operator LqString() const { return LqString(Conn->Query.Arg, Conn->Query.ArgLen); }
+                    inline LqString operator[](const char* Index) const { return Inter(Index); }
+                    inline LqString operator[](const LqString& Index) const { return operator[](Index.c_str()); }
+                    inline bool IsHave(const LqString & Index) const { bool r;  Inter(Index.c_str(), r); return r; }
+                    inline bool IsHave(const char* Index) const { bool r;  Inter(Index, r); return r; }
+                    inline operator LqString() const { return LqString(Conn->Query.Arg, Conn->Query.ArgLen); }
                 } Args;
 
                 class _ContentLen

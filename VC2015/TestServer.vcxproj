@@ -20,7 +20,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Src\Core\LqEvnt.cpp" />
-    <ClCompile Include="..\Src\Core\LqListConn.cpp" />
     <ClCompile Include="..\Src\Core\LqLog.cpp" />
     <ClCompile Include="..\Src\Core\LqThreadBase.cpp" />
     <ClCompile Include="..\Src\Core\LqWrk.cpp" />
@@ -43,6 +42,7 @@
     <ClCompile Include="..\Src\Utils\LqFile.cpp" />
     <ClCompile Include="..\Src\Utils\LqFileTrd.cpp" />
     <ClCompile Include="..\Src\Utils\LqLib.cpp" />
+    <ClCompile Include="..\Src\Utils\LqPrtScan.cpp" />
     <ClCompile Include="..\Src\Utils\LqSbuf.cpp" />
     <ClCompile Include="..\Src\Utils\LqStr.cpp" />
     <ClCompile Include="..\Src\Utils\LqTime.cpp" />
@@ -54,7 +54,6 @@
     <ClInclude Include="..\Src\Core\LqEvntEpoll.hpp" />
     <ClInclude Include="..\Src\Core\LqEvntPoll.hpp" />
     <ClInclude Include="..\Src\Core\LqEvntWin.hpp" />
-    <ClInclude Include="..\Src\Core\LqListConn.hpp" />
     <ClInclude Include="..\Src\Core\LqLog.h" />
     <ClInclude Include="..\Src\Core\LqQueueCmd.hpp" />
     <ClInclude Include="..\Src\Core\LqThreadBase.hpp" />
@@ -88,6 +87,8 @@
     <ClInclude Include="..\Src\Utils\LqFile.h" />
     <ClInclude Include="..\Src\Utils\LqFileChe.hpp" />
     <ClInclude Include="..\Src\Utils\LqFileTrd.h" />
+    <ClInclude Include="..\Src\Utils\LqIpRow.hpp" />
+    <ClInclude Include="..\Src\Utils\LqPrtScan.hpp" />
     <ClInclude Include="..\Src\Utils\LqTbl.hpp" />
     <ClInclude Include="..\Src\Utils\LqHndls.hpp" />
     <ClInclude Include="..\Src\Utils\LqLib.h" />

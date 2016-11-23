@@ -19,29 +19,25 @@
 
 
 template<typename TypeVal, typename TypeCmp, typename TypeIndex = uint16_t>
-class LqPtdTbl
-{
+class LqPtdTbl {
     friend class interator;
 
     static const auto NullIndex = TypeIndex(-1);
     static const bool IsDebug = false;
 
-    struct TypeLine
-    {
+    struct TypeLine {
         TypeIndex     Start;
         TypeIndex     Next;
         TypeVal       Val;
     };
 
-    struct Arr
-    {
+    struct Arr {
         size_t        CountPointers;
         intptr_t      Count;
         TypeLine      Line[1];
     };
 
-    static void Del(Arr* Val)
-    {
+    static void Del(Arr* Val) {
         for(auto* i = Val->Line, *m = i + Val->Count; i < m; i++)
             i->Val.~TypeVal();
         ___free(Val);
@@ -51,18 +47,15 @@ class LqPtdTbl
     typedef LqShdPtr<Arr, Del, false, false> LocalPtr;
 
     GlobPtr Ptr;
-    static Arr* AllocNew()
-    {
+    static Arr* AllocNew() {
         struct _st { size_t CountPointers;  intptr_t Count; };
         static _st __Empty = {5, 0};
         return (Arr*)&__Empty;
     }
 
-    static Arr* AllocNew(size_t Count)
-    {
+    static Arr* AllocNew(size_t Count) {
         Arr* Res;
-        if(Res = (Arr*)___malloc(Count * sizeof(TypeLine) + (sizeof(Arr) - sizeof(TypeLine))))
-        {
+        if(Res = (Arr*)___malloc(Count * sizeof(TypeLine) + (sizeof(Arr) - sizeof(TypeLine)))) {
             for(auto* i = Res->Line, *m = i + Count; i < m; i++)
                 i->Start = NullIndex;
             Res->Count = Count;
@@ -72,14 +65,11 @@ class LqPtdTbl
     }
 
     template<typename InType>
-    TypeLine* _GetCell(Arr* Cur, InType&& Val)
-    {
-        if(Cur->Count > 0)
-        {
+    TypeLine* _GetCell(Arr* Cur, InType&& Val) {
+        if(Cur->Count > 0) {
             for(TypeIndex Index = Cur->Line[TypeCmp::IndexByKey(Val, Cur->Count)].Start;
                 Index != NullIndex;
-                Index = Cur->Line[Index].Next)
-            {
+                Index = Cur->Line[Index].Next) {
                 if(TypeCmp::Cmp(Cur->Line[Index].Val, Val))
                     return &Cur->Line[Index];
             }
@@ -88,14 +78,11 @@ class LqPtdTbl
     }
 
     template<typename InType>
-    TypeIndex _GetCellIndex(Arr* Cur, InType&& Val)
-    {
-        if(Cur->Count > 0)
-        {
+    TypeIndex _GetCellIndex(Arr* Cur, InType&& Val) {
+        if(Cur->Count > 0) {
             for(TypeIndex Index = Cur->Line[TypeCmp::IndexByKey(Val, Cur->Count)].Start;
                 Index != NullIndex;
-                Index = Cur->Line[Index].Next)
-            {
+                Index = Cur->Line[Index].Next){
                 if(TypeCmp::Cmp(Cur->Line[Index].Val, Val))
                     return Index;
             }
@@ -103,25 +90,21 @@ class LqPtdTbl
         return NullIndex;
     }
 
-    size_t _RmCount(size_t Count)
-    {
+    size_t _RmCount(size_t Count) {
         size_t Res = 0;
         auto Cur = Ptr.NewStart();
         intptr_t NewCount = Cur->Count - Count;
-        if(NewCount <= 0)
-        {
+        if(NewCount <= 0) {
             Res = Cur->Count;
             Ptr.NewFin(AllocNew());
             return Res;
         }
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return 0;
         }
-        for(TypeIndex i = 0; i < NewCount; i++)
-        {
+        for(TypeIndex i = 0; i < NewCount; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Cur->Line[i].Val);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
@@ -131,19 +114,17 @@ class LqPtdTbl
         Ptr.NewFin(NewArr);
         return Res;
     }
+
     template<typename _SetVal>
-    bool _SetByArr(const _SetVal* Val, size_t Count)
-    {
+    bool _SetByArr(const _SetVal* Val, size_t Count) {
         auto Cur = Ptr.NewStart();
         intptr_t NewCount = Count;
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return false;
         }
-        for(size_t i = 0; i < NewCount; i++)
-        {
+        for(size_t i = 0; i < NewCount; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Val[i]);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
@@ -154,26 +135,22 @@ class LqPtdTbl
     }
 
     template<typename _SetVal>
-    bool _AddByArr(const _SetVal* Val, size_t Count)
-    {
+    bool _AddByArr(const _SetVal* Val, size_t Count) {
         auto Cur = Ptr.NewStart();
         intptr_t NewCount = Cur->Count + Count;
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return false;
         }
         TypeIndex i = 0;
-        for(TypeIndex m = Cur->Count; i < m; i++)
-        {
+        for(TypeIndex m = Cur->Count; i < m; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Cur->Line[i].Val);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
             NewArr->Line[di].Start = i;
         }
-        for(TypeIndex j = 0; i < NewCount; i++)
-        {
+        for(TypeIndex j = 0; i < NewCount; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Val[j]);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
@@ -183,26 +160,22 @@ class LqPtdTbl
         return true;
     }
 
-    bool _AddByTbl(const TypeLine* Val, size_t Count)
-    {
+    bool _AddByTbl(const TypeLine* Val, size_t Count) {
         auto Cur = Ptr.NewStart();
         size_t NewCount = Cur->Count + Count;
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return false;
         }
         TypeIndex i = 0;
-        for(TypeIndex m = Cur->Count; i < m; i++)
-        {
+        for(TypeIndex m = Cur->Count; i < m; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Cur->Line[i].Val);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
             NewArr->Line[di].Start = i;
         }
-        for(TypeIndex j = 0; i < NewCount; i++)
-        {
+        for(TypeIndex j = 0; i < NewCount; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Val[j].Val);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
@@ -214,8 +187,7 @@ class LqPtdTbl
 
 public:
 
-    class interator
-    {
+    class interator {
         friend LqPtdTbl;
 
         LocalPtr Ptr;
@@ -240,14 +212,12 @@ public:
 
         inline interator& operator+=(TypeIndex Add) { Index += Add; return (*this); }
         inline interator& operator-=(TypeIndex Sub) { Index -= Sub; return (*this); }
-        inline bool operator!=(const interator& Another) const
-        {
+        inline bool operator!=(const interator& Another) const {
             if(Another.Index == TypeIndex(-1))
                 return Index != Ptr->Count;
             return (Ptr != Another.Ptr) || (Index != Another.Index);
         }
-        inline bool operator==(const interator& Another) const
-        {
+        inline bool operator==(const interator& Another) const {
             if(Another.Index == TypeIndex(-1))
                 return Index == Ptr->Count;
             return (Ptr == Another.Ptr) && (Index == Another.Index);
@@ -273,11 +243,10 @@ public:
 
     inline interator begin() const { return Ptr; }
     inline interator end() const { return interator(); }
+    inline interator back() const { interator i = Ptr; return i + (i.size() - 1); }
 
-    int append(interator& Start, interator& End)
-    {
-        if(IsDebug)
-        {
+    int append(interator& Start, interator& End) {
+        if(IsDebug) {
             if(Start.Ptr != End.Ptr)
                 throw "LqPtdArr::append(interator, interator): Interatrs points to different arrays. (Check threads race cond)\n";
         }
@@ -287,8 +256,7 @@ public:
     }
     template<typename InType, typename = decltype(TypeVal(std::declval<InType>()))>
     int append(const std::initializer_list<InType> Start) { return _AddByArr(Start.begin(), Start.size()) ? Start.size() : 0; }
-    int append(interator& Start)
-    {
+    int append(interator& Start) {
         if(_AddByTbl(Start.Ptr.Get() + Start.Index, Start.Ptr->Count - Start.Index))
             return Start.Ptr->Count - Start.Index;
         return 0;
@@ -311,24 +279,20 @@ public:
         typename InType, 
         typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(), std::declval<InType>()))
     >
-    int push_back_uniq(InType&& NewVal)
-    {
+    int push_back_uniq(InType&& NewVal) {
         auto Cur = Ptr.NewStart();
-        if(_GetCell(Cur, NewVal) != nullptr)
-        {
+        if(_GetCell(Cur, NewVal) != nullptr) {
             Ptr.NewFin(Cur);
             return 0;
         }
         intptr_t NewCount = Cur->Count + 1;
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return -1;
         }
         TypeIndex i = 0;
-        for(TypeIndex m = Cur->Count; i < m; i++)
-        {
+        for(TypeIndex m = Cur->Count; i < m; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Cur->Line[i].Val);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
@@ -348,25 +312,21 @@ public:
         typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(), std::declval<InType>())),
         typename = decltype(TypeVal(std::declval<InType2>()))
     >
-    int replace(InType&& PrevVal, InType2&& NewVal)
-    {
+    int replace(InType&& PrevVal, InType2&& NewVal) {
         auto Cur = Ptr.NewStart();
         auto RmIndex = _GetCellIndex(Cur, PrevVal);
-        if(RmIndex == NullIndex)
-        {
+        if(RmIndex == NullIndex) {
             Ptr.NewFin(Cur);
             return 0;
         }
         intptr_t NewCount = Cur->Count;
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return -1;
         }
         TypeIndex i = 0;
-        for(; i < RmIndex; i++)
-        {
+        for(; i < RmIndex; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Cur->Line[i].Val);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
@@ -377,8 +337,7 @@ public:
         NewArr->Line[i].Next = NewArr->Line[di].Start;
         NewArr->Line[di].Start = i;
         i++;
-        for(; i < NewCount; i++)
-        {
+        for(; i < NewCount; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Cur->Line[i].Val);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
@@ -394,16 +353,13 @@ public:
         typename InType,
         typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(), std::declval<InType>()))
     >
-    interator search(InType&& SrchVal) const
-    {
+    interator search(InType&& SrchVal) const {
         LocalPtr LocPtr(Ptr);
         auto* Line = LocPtr->Line;
-        if(LocPtr->Count > 0)
-        {
+        if(LocPtr->Count > 0) {
             for(TypeIndex Index = Line[TypeCmp::IndexByKey(SrchVal, LocPtr->Count)].Start;
                 Index != NullIndex;
-                Index = Line[Index].Next)
-            {
+                Index = Line[Index].Next) {
                 if(TypeCmp::Cmp(Line[Index].Val, SrchVal))
                     return interator(LocPtr, Index);
             }
@@ -411,17 +367,14 @@ public:
         return interator();
     }
 
-    interator search_next(interator Prev) const
-    {
+    interator search_next(interator Prev) const {
         LocalPtr LocPtr(Ptr);
         auto& v = *Prev;
         auto* Line = LocPtr->Line;
-        if(LocPtr->Count > 0)
-        {
+        if(LocPtr->Count > 0) {
             for(TypeIndex Index = Line[Prev.Index].Next;
                 Index != NullIndex;
-                Index = Line[Index].Next)
-            {
+                Index = Line[Index].Next) {
                 if(TypeCmp::Cmp(Line[Index].Val, v))
                     return interator(LocPtr, Index);
             }
@@ -440,32 +393,27 @@ public:
         typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(),std::declval<InType>())), 
         typename = decltype(TypeGetVal(std::declval<TypeVal>()))
     >
-    bool remove_by_val(InType&& RmVal, TypeGetVal* RemovedVal)
-    {
+    bool remove_by_val(InType&& RmVal, TypeGetVal* RemovedVal) {
         TypeIndex RmIndex;
         auto Cur = Ptr.NewStart();
-        if((Cur->Count <= 0) || ((RmIndex = _GetCellIndex(Cur, RmVal)) == NullIndex))
-        {
+        if((Cur->Count <= 0) || ((RmIndex = _GetCellIndex(Cur, RmVal)) == NullIndex)) {
             Ptr.NewFin(Cur);
             return false;
         }
         if(RemovedVal)
             *RemovedVal = Cur->Line[RmIndex].Val;
         intptr_t NewCount = Cur->Count - 1;
-        if(NewCount <= 0)
-        {
+        if(NewCount <= 0) {
             Ptr.NewFin(AllocNew());
             return true;
         }
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return false;
         }
         TypeIndex i = 0;
-        for(; i < RmIndex; i++)
-        {
+        for(; i < RmIndex; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Cur->Line[i].Val);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
@@ -473,8 +421,7 @@ public:
         }
         if(RemovedVal != nullptr)
             *RemovedVal = Cur->Line[i].Val;
-        for(; i < NewCount; i++)
-        {
+        for(; i < NewCount; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Cur->Line[i + 1].Val);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
@@ -488,36 +435,30 @@ public:
         typename InType,
         typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(), std::declval<InType>()))
     >
-    intptr_t remove_mult_by_val(InType&& RmVal)
-    {
+    intptr_t remove_mult_by_val(InType&& RmVal) {
         auto Cur = Ptr.NewStart();
         TypeLine* RmCell;
-        if((Cur->Count <= 0) || ((RmCell = _GetCell(Cur, RmVal)) == nullptr))
-        {
+        if((Cur->Count <= 0) || ((RmCell = _GetCell(Cur, RmVal)) == nullptr)) {
             Ptr.NewFin(Cur);
             return 0;
         }
         size_t CountDelete = 1;
-        for(auto i = RmCell.Next; i != NullIndex; i = Cur->Line[i].Next)
-        {
+        for(auto i = RmCell.Next; i != NullIndex; i = Cur->Line[i].Next) {
             if(TypeCmp::Cmp(Cur->Line[i].Val, RmVal))
                 CountDelete++;
         }
         intptr_t NewCount = Cur->Count - CountDelete;
-        if(NewCount <= 0)
-        {
+        if(NewCount <= 0) {
             Ptr.NewFin(AllocNew());
             return CountDelete;
         }
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return 0;
         }
         TypeIndex le = 0; //Last empty
-        for(auto* ci = Cur->Line, *cm = ci + Cur->Count; ci < cm; ci++)
-        {
+        for(auto* ci = Cur->Line, *cm = ci + Cur->Count; ci < cm; ci++) {
             if(TypeCmp::Cmp(ci->Val, RmVal))
                 continue;
             new(&NewArr->Line[le].Val) TypeVal(ci->Val);
@@ -536,38 +477,31 @@ public:
         typename TypeGetVal,
         typename = decltype(TypeGetVal(std::declval<TypeVal>()))
     >
-    bool remove_by_compare_fn(std::function<bool(TypeVal&)> CompareFn, TypeGetVal* RemovedVal)
-    {
+    bool remove_by_compare_fn(std::function<bool(TypeVal&)> CompareFn, TypeGetVal* RemovedVal) {
         auto Cur = Ptr.NewStart();
         TypeIndex RmIndex = NullIndex;
-        for(TypeIndex i = 0, m = Cur->Count; i < m; i++)
-        {
-            if(CompareFn(Cur->Line[i]->Val))
-            {
+        for(TypeIndex i = 0, m = Cur->Count; i < m; i++) {
+            if(CompareFn(Cur->Line[i]->Val)) {
                 RmIndex = i;
                 break;
             }
         }
-        if(RmIndex == NullIndex)
-        {
+        if(RmIndex == NullIndex) {
             Ptr.NewFin(Cur);
             return false;
         }
         size_t NewCount = Cur->Count - 1;
-        if(NewCount <= 0)
-        {
+        if(NewCount <= 0) {
             Ptr.NewFin(AllocNew());
             return true;
         }
         auto NewArr = AllocNew(NewCount);
-        if(NewArr == nullptr)
-        {
+        if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return false;
         }
         TypeIndex i = 0;
-        for(; i < RmIndex; i++)
-        {
+        for(; i < RmIndex; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Cur->Line[i]->Val);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
@@ -575,8 +509,7 @@ public:
         }
         if(RemovedVal != nullptr)
             *RemovedVal = Cur->Line[i]->Val;
-        for(; i < NewCount; i++)
-        {
+        for(; i < NewCount; i++) {
             new(&NewArr->Line[i].Val) TypeVal(Cur->Line[i + 1]->Val);
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
@@ -586,26 +519,22 @@ public:
         return true;
     }
 
-    size_t remove_mult_by_compare_fn(std::function<bool(TypeVal&)> CompareFn)
-    {
+    size_t remove_mult_by_compare_fn(std::function<bool(TypeVal&)> CompareFn) {
         auto Cur = Ptr.NewStart();
         Arr* NewArr;
-        if((Cur->Count <= 0) || ((NewArr = AllocNew(Cur->Count)) == nullptr))
-        {
+        if((Cur->Count <= 0) || ((NewArr = AllocNew(Cur->Count)) == nullptr)) {
             Ptr.NewFin(Cur);
             return 0;
         }
         TypeIndex NewCount = 0;
-        for(auto* ci = Cur->Line, *cm = ci + Cur->Count, *cj = NewArr->Line; ci < cm; ci++)
-        {
+        for(auto* ci = Cur->Line, *cm = ci + Cur->Count, *cj = NewArr->Line; ci < cm; ci++) {
             if(CompareFn(ci->Val))
                 continue;
             new(&cj->Val) TypeVal(ci->Val);
             cj++;
             NewCount++;
         }
-        for(TypeIndex i = 0; i < NewCount; i++)
-        {
+        for(TypeIndex i = 0; i < NewCount; i++) {
             TypeIndex di = TypeCmp::IndexByKey(NewArr->Line[i].Val, NewCount);
             NewArr->Line[i].Next = NewArr->Line[di].Start;
             NewArr->Line[di].Start = i;
@@ -616,15 +545,13 @@ public:
         return Res;
     }
 
-    int clear()
-    {
+    int clear() {
         int Res = Ptr.NewStart()->Count;
         Ptr.NewFin(AllocNew());
         return Res;
     }
 
-    size_t size() const
-    {
+    size_t size() const {
         const LocalPtr p = Ptr;
         return p->Count;
     }

@@ -3,7 +3,7 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-* LqWrkBoss - Accept clients and send him to workers.
+* LqWrkBoss (LanQ WoRKer BOSS)- Accept clients and send him to workers.
 *                +-----------+
 *                | LqWrkBoss |            +-------+
 *                |     =     |            |LqProto|
@@ -27,7 +27,6 @@ class LqWrk;
 #include "LqThreadBase.hpp"
 
 #include "Lanq.h"
-#include "LqListConn.hpp"
 #include "LqShdPtr.hpp"
 #include "LqDfltRef.hpp"
 #include "LqDef.h"
@@ -52,7 +51,7 @@ class LQ_IMPORTEXPORT LqWrkBoss
 
     static size_t MinBusy(const WrkArray::interator& AllWrks, size_t* MinCount = LqDfltPtr());
     static size_t MaxBusy(const WrkArray::interator& AllWrks, size_t* MaxCount = LqDfltPtr());
-    size_t      MinBusy(size_t* MinCount = LqDfltPtr());
+    size_t        MinBusy(size_t* MinCount = LqDfltPtr());
 
     size_t      TransferAllEvnt(LqWrk* Source) const;
 public:
@@ -67,9 +66,8 @@ public:
     bool        AddEvntAsync(LqEvntHdr* Evnt);
     bool        AddEvntSync(LqEvntHdr* Evnt);
 
-    bool        TransferEvnt(const LqListEvnt& ConnectionsList) const;
-
     size_t      CountWorkers() const;
+    size_t      CountEvnts() const;
 
     size_t      StartAllWorkersSync() const;
     size_t      StartAllWorkersAsync() const;
@@ -80,30 +78,80 @@ public:
     bool        CloseAllEvntAsync() const;
     size_t      CloseAllEvntSync() const;
 
-    size_t      CloseEventAsync(LqEvntHdr* Event) const;
-    bool        CloseEventSync(LqEvntHdr* Event) const;
-
-    size_t      CloseEventByTimeoutSync(LqTimeMillisec LiveTime) const;
-    bool        CloseEventByTimeoutAsync(LqTimeMillisec LiveTime) const;
-
-    size_t      CloseEventByTimeoutSync(const LqProto* Proto, LqTimeMillisec LiveTime) const;
-    bool        CloseEventByTimeoutAsync(const LqProto* Proto, LqTimeMillisec LiveTime) const;
-
+    /*
+      Close all connections by timeout.
+       @LiveTime: filter.
+       @return: true - on success, false - otherwise
+    */
+    size_t      CloseConnByTimeoutSync(LqTimeMillisec LiveTime) const;
+    bool        CloseConnByTimeoutAsync(LqTimeMillisec LiveTime) const;
+    
+    /*
+      Close all connection by ip.
+       @Addr: filter ip address.
+       @return: true - on success, false - otherwise
+    */
+    size_t      CloseConnByTimeoutSync(const LqProto* Proto, LqTimeMillisec LiveTime) const;
+    bool        CloseConnByTimeoutAsync(const LqProto* Proto, LqTimeMillisec LiveTime) const;
+    
+    /*
+      Close all connection by ip.
+       @Addr: filter ip address.
+       @return: true - on success, false - otherwise
+    */
     bool        CloseConnByIpAsync(const sockaddr* Addr) const;
     size_t      CloseConnByIpSync(const sockaddr* Addr) const;
 
+    /*
+      Close all connection by protocol.
+       @Proto: filter protocol.
+       @return: true - on success, false - otherwise
+    */
     bool        CloseConnByProtoAsync(const LqProto* Proto) const;
     size_t      CloseConnByProtoSync(const LqProto* Proto) const; 
     
-    bool        SyncEvntFlagAsync(LqEvntHdr* Conn) const;
-    bool        SyncEvntFlagSync(LqEvntHdr* Conn) const;
+    /*
+      Update event flags.
+       @Conn: target header.
+       @return: true - on success, false - otherwise
+    */
+    bool        UpdateAllEvntFlagAsync() const;
+    bool        UpdateAllEvntFlagSync() const;
+    /*
+      Enum and remove or close event header
+       @UserData: Use in @Proc  
+       @Proc: Callback function
+         @Conn: Event header
+         @return: 0 - just continue, 1 - remove, 2 - remove and close
+       @return: Count removed events.
+    */
+    size_t      EnumCloseRmEvnt(void* UserData, unsigned(*Proc)(void* UserData, LqEvntHdr* EvntHdr)) const;
 
-    size_t      EnumDelEvnt(void* UserData, bool(*Proc)(void* UserData, LqEvntHdr* Conn)) const; //Enum all events
-    size_t      EnumDelEvntByProto(const LqProto* Proto, void* UserData, bool(*Proc)(void* UserData, LqEvntHdr* Conn)) const; //Enum event by proto
+    /*
+      Enum and remove or close event header, use @Proto as filter
+       @Proto: Proto filter
+       @UserData: Use in @Proc
+       @Proc: Callback function
+         @Conn: Event header
+         @return: 0 - just continue, 1 - remove, 2 - remove and close
+       @return: Count removed events.
+    */
+    size_t      EnumCloseRmEvntByProto(const LqProto* Proto, void* UserData, unsigned(*Proc)(void* UserData, LqEvntHdr* EvntHdr)) const;
+
+    /*
+      Just remove event from workers. (In sync mode)
+        @EvntHdr: Target event
+        @return: true- when removed, false- otherwise
+    */
+    bool        RemoveEvnt(LqEvntHdr* EvntHdr) const;
+    bool        CloseEvnt(LqEvntHdr* EvntHdr) const;
 
     size_t      KickAllWorkers();
 
     size_t      SetWrkMinCount(size_t NewVal); 
+
+    LqString    DebugInfo();
+    LqString    AllDebugInfo();
 
     static LqWrkBoss* GetGlobal();
 

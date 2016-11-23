@@ -28,24 +28,25 @@
 # include <fcntl.h>
 #elif defined(LQPLATFORM_WINDOWS)
 
-# pragma comment(lib, "Ws2_32.lib")
-# pragma comment(lib, "Mswsock.lib")
-
 # ifndef WSA_VERSION
 #  define WSA_VERSION MAKEWORD(2, 2)
 # endif
 
 # include <io.h>
-static LPWSADATA ____f =
-(
-    []() -> LPWSADATA
+static struct _wsa_data
 {
-    static WSADATA wd;
-    if(WSAStartup(WSA_VERSION, &wd) == 0)
-        return &wd;
-    return nullptr;
-}
-)();
+	LPWSADATA wsa;
+	_wsa_data()
+	{
+		static WSADATA wd;
+		WSAStartup(WSA_VERSION, &wd);
+		wsa = &wd;
+	}
+	~_wsa_data()
+	{
+		WSACleanup();
+	}
+} wsa_data;
 #endif
 
 /*
@@ -54,15 +55,15 @@ static LPWSADATA ____f =
 
 
 
-LQ_EXTERN_C int LQ_CALL LqConnBind(const char* Host, const char* Port, int TransportProtoFamily, int MaxConnections)
+LQ_EXTERN_C int LQ_CALL LqConnBind(const char* Host, const char* Port, int RouteProto, int SockType, int TransportProto, int MaxConnections, bool IsNonBlock)
 {
     static const int True = 1;
     int s;
     addrinfo *Addrs = nullptr, HostInfo = {0};
-    HostInfo.ai_family = TransportProtoFamily;
-    HostInfo.ai_socktype = SOCK_STREAM;
+    HostInfo.ai_family = RouteProto;
+	HostInfo.ai_socktype = (SockType == -1) ? SOCK_STREAM : SockType; // SOCK_STREAM;
     HostInfo.ai_flags = AI_PASSIVE;//AI_ALL;
-    HostInfo.ai_protocol = IPPROTO_TCP;
+	HostInfo.ai_protocol = (TransportProto == -1)? IPPROTO_TCP: TransportProto; // IPPROTO_TCP;
     int res;
     if((res = getaddrinfo(((Host != nullptr) && (*Host != '\0')) ? Host : (const char*)nullptr, Port, &HostInfo, &Addrs)) != 0)
     {
@@ -83,13 +84,14 @@ LQ_EXTERN_C int LQ_CALL LqConnBind(const char* Host, const char* Port, int Trans
             LQ_ERR("LqConnBind() setsockopt(%i, SOL_SOCKET, SO_REUSEADDR, &1, sizeof(1)) failed \"%s\"\n", s, strerror(lq_errno));
             continue;
         }
-
-        if(LqConnSwitchNonBlock(s, 1))
-        {
-            LQ_ERR("LqConnBind() LqConnSwitchNonBlock(%i, 1) failed \"%s\"\n", s, strerror(lq_errno));
-            continue;
-        }
-
+		if(IsNonBlock)
+		{
+			if(LqConnSwitchNonBlock(s, 1))
+			{
+				LQ_ERR("LqConnBind() LqConnSwitchNonBlock(%i, 1) failed \"%s\"\n", s, strerror(lq_errno));
+				continue;
+			}
+		}
         if(i->ai_family == AF_INET6)
         {
             if(setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&True, sizeof(True)) == -1)
@@ -125,14 +127,15 @@ LQ_EXTERN_C int LQ_CALL LqConnBind(const char* Host, const char* Port, int Trans
     return s;
 }
 
-LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, void* IpPrtAddress, socklen_t* IpPrtAddressLen)
+LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, int RouteProto, int SockType, int TransportProto, void* IpPrtAddress, socklen_t* IpPrtAddressLen, bool IsNonBlock)
 {
     int s = -1;
     addrinfo hi = {0}, *ah = nullptr, *i;
-    hi.ai_socktype = SOCK_STREAM;
-    hi.ai_family = IPPROTO_TCP;
-    hi.ai_protocol = AF_UNSPEC;
-    hi.ai_flags = 0;                   //AI_PASSIVE
+
+	hi.ai_family = (RouteProto == -1)? AF_UNSPEC: RouteProto;
+	hi.ai_socktype = (SockType == -1) ? SOCK_STREAM : SockType; // SOCK_STREAM;
+	hi.ai_protocol = (TransportProto == -1) ? IPPROTO_TCP : TransportProto; // IPPROTO_TCP;
+	hi.ai_flags = 0;//AI_ALL;
 
     int res;
     if((res = getaddrinfo(((Address != nullptr) && (*Address != '\0')) ? Address : (const char*)nullptr, Port, &hi, &ah)) != 0)
@@ -148,8 +151,12 @@ LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, voi
     {
         if((s = socket(i->ai_family, i->ai_socktype, i->ai_protocol)) == -1)
             continue;
+		if(IsNonBlock)
+			LqConnSwitchNonBlock(s, 1);
         if(connect(s, i->ai_addr, i->ai_addrlen) != -1)
             break;
+		if(IsNonBlock && LQERR_IS_WOULD_BLOCK)
+			break;
         closesocket(s);
     }
     if(i == nullptr)
@@ -317,6 +324,10 @@ LQ_EXTERN_C void LQ_CALL __LqEvntFdDfltHandler(LqEvntFd * Instance, LqEvntFlag F
 {
 }
 
+LQ_EXTERN_C void LQ_CALL __LqEvntFdDfltCloseHandler(LqEvntFd*)
+{
+}
+
 /*
 * @return: count written in sock. Always >= 0.
 */
@@ -464,13 +475,13 @@ LQ_EXTERN_C int LQ_CALL LqEvntSetFlags(void* Conn, LqEvntFlag Flag, LqTimeMillis
     do
     {
         Expected = h->Flag;
-        New = (Expected & ~(LQEVNT_FLAG_RD | LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP)) | Flag;
-        if((IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC)) && (WaitTime > 0))
+        New = (Expected & ~(LQEVNT_FLAG_RD | LQEVNT_FLAG_WR | LQEVNT_FLAG_ACCEPT | LQEVNT_FLAG_CONNECT | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP)) | Flag;
+        if(IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC))
             New |= _LQEVNT_FLAG_SYNC;
     } while(!LqAtmCmpXchg(h->Flag, Expected, New));
     if(IsSync)
     {
-        LqWrkBossSyncEvntFlagAsync(h);
+		LqWrkBossUpdateAllEvntFlagAsync();
         if(WaitTime <= 0)
             return 1;
         auto Start = LqTimeGetLocMillisec();
@@ -493,10 +504,11 @@ LQ_EXTERN_C int LQ_CALL LqEvntSetClose(void* Conn)
     {
         Expected = h->Flag;
         New = Expected | LQEVNT_FLAG_END;
-        IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC);
+		if(IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC))
+			New |= _LQEVNT_FLAG_SYNC;
     } while(!LqAtmCmpXchg(h->Flag, Expected, New));
     if(IsSync)
-        LqWrkBossSyncEvntFlagAsync(h);
+		LqWrkBossUpdateAllEvntFlagAsync();
     return 0;
 }
 
@@ -509,18 +521,17 @@ LQ_EXTERN_C int LQ_CALL LqEvntSetClose2(void* Conn, LqTimeMillisec WaitTime)
     {
         Expected = h->Flag;
         New = Expected | LQEVNT_FLAG_END;
-        if((IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC)) && (WaitTime > 0))
+        if(IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC))
             New |= _LQEVNT_FLAG_SYNC;
     } while(!LqAtmCmpXchg(h->Flag, Expected, New));
     if(IsSync)
     {
-        LqWrkBossCloseEvntAsync(h);
+        LqWrkBossUpdateAllEvntFlagAsync();
         if(WaitTime <= 0)
             return 1;
         auto Start = LqTimeGetLocMillisec();
         while(h->Flag & _LQEVNT_FLAG_SYNC)
         {
-            LqThreadYield();
             if((LqTimeGetLocMillisec() - Start) > WaitTime)
                 return 1;
         }
@@ -528,7 +539,7 @@ LQ_EXTERN_C int LQ_CALL LqEvntSetClose2(void* Conn, LqTimeMillisec WaitTime)
     return 0;
 }
 
-LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose3(void * Conn)
+LQ_EXTERN_C int LQ_CALL LqEvntSetClose3(void * Conn)
 {
     auto h = (LqEvntHdr*)Conn;
     LqEvntFlag Expected, New;
@@ -537,7 +548,12 @@ LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose3(void * Conn)
         Expected = h->Flag;
         New = Expected | LQEVNT_FLAG_END;
     } while(!LqAtmCmpXchg(h->Flag, Expected, New));
-    return LqWrkBossCloseEvntSync(h);
+    return LqWrkBossCloseEvnt(h);
+}
+
+LQ_EXTERN_C int LQ_CALL LqEvntSetRemove3(void* Conn)
+{
+	return LqWrkBossRemoveEvnt((LqEvntHdr*)Conn);
 }
 
 LQ_EXTERN_C int LQ_CALL LqEvntFdAdd(LqEvntFd* Evnt)
@@ -750,7 +766,7 @@ size_t LqConnSkipSSL(LqConn* c, size_t Count, SSL* ssl)
 
 #endif
 
-int LqConnCountPendingData(LqConn* c)
+LQ_EXTERN_C int LQ_CALL LqConnCountPendingData(LqConn* c)
 {
 #ifdef LQPLATFORM_WINDOWS
     u_long res = -1;
@@ -764,7 +780,7 @@ int LqConnCountPendingData(LqConn* c)
     return res;
 }
 
-int LqConnSwitchNonBlock(int Fd, int IsNonBlock)
+LQ_EXTERN_C int LQ_CALL LqConnSwitchNonBlock(int Fd, int IsNonBlock)
 {
 #ifdef LQPLATFORM_WINDOWS
     u_long nonBlocking = IsNonBlock;

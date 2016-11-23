@@ -311,13 +311,13 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     [](LqHttpMdl* This) -> uintptr_t
     {
         LqHttpHndlsUnregisterQuery(Mod.Proto, QueryFn);
-        LqWrkBossEnumDelEvntByProto(
+        LqWrkBossEnumCloseRmEvntByProto(
             (LqProto*)This->Proto,
             nullptr,
-            [](void*, LqEvntHdr* Conn)
+            [](void*, LqEvntHdr* Conn) -> unsigned
             {
                 CloseFn((LqHttpConn*)Conn);
-                return false;
+                return 0;
             }
         );
         LqHttpHndlsUnregisterResponse(Mod.Proto, ResponseFn);

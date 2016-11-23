@@ -28,14 +28,14 @@ LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseAllEvntSync();
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossAddEvntAsync(LqEvntHdr* Conn);
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossAddEvntSync(LqEvntHdr* Conn);
 
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseEvntAsync(LqEvntHdr* Conn);
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseEvntSync(LqEvntHdr* Conn);
-
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossSyncEvntFlagAsync(LqEvntHdr* Conn);
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossSyncEvntFlagSync(LqEvntHdr* Conn);
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossUpdateAllEvntFlagAsync();
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossUpdateAllEvntFlagSync();
 
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseConnByIpAsync(const struct sockaddr* Addr);
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByIpSync(const struct sockaddr* Addr);
+
+LQ_IMPORTEXPORT bool LQ_CALL LqWrkBossRemoveEvnt(LqEvntHdr* Conn);
+LQ_IMPORTEXPORT bool LQ_CALL LqWrkBossCloseEvnt(LqEvntHdr* Conn);
 
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseConnByProtoAsync(const LqProto* Addr);
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByProtoSync(const LqProto* Addr);
@@ -46,8 +46,8 @@ LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByTimeoutSync(LqTimeMillisec Ti
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseConnByProtoTimeoutAsync(const LqProto* Proto, LqTimeMillisec TimeLive);
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByProtoTimeoutSync(const LqProto* Proto, LqTimeMillisec TimeLive);
 
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossEnumDelEvntByProto(const LqProto* Proto, void * UserData, bool(*Proc)(void *UserData, LqEvntHdr *Conn));
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossEnumDelEvnt(void * UserData, bool(*Proc)(void *UserData, LqEvntHdr *Conn));
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossEnumCloseRmEvntByProto(const LqProto* Proto, void * UserData, unsigned(*Proc)(void *UserData, LqEvntHdr *Conn));
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossEnumCloseRmEvnt(void * UserData, unsigned(*Proc)(void *UserData, LqEvntHdr *Conn));
 
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossSetMinWrkCount(size_t NewCount);
 

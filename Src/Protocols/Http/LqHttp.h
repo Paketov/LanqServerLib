@@ -296,7 +296,7 @@ struct LqHttpConn
     LqTimeMillisec              TimeLastExchangeMillisec;
     char*                       Buf;
     size_t                      BufSize;
-	unsigned short				UserDataCount;
+    unsigned short              UserDataCount;
     LqHttpUserData*             UserData;
     uintptr_t                   _Reserved;
     LqHttpEvntHandlerFn         EventAct;    /* Change action event*/
@@ -327,7 +327,7 @@ struct LqHttpPth
 {
     size_t                      CountPointers;
     char*                       WebPath;
-	uint32_t                    WebPathHash;
+    uint32_t                    WebPathHash;
     uintptr_t                   ModuleData;
     union
     {
@@ -340,8 +340,8 @@ struct LqHttpPth
         char*                   RealPath;
         LqHttpEvntHandlerFn     ExecQueryProc;
     };
-	LqHttpAtz*                  Atz;
-	uint16_t                    AtzPtrLk;
+    LqHttpAtz*                  Atz;
+    uint16_t                    AtzPtrLk;
     
     union
     {
@@ -431,10 +431,10 @@ struct LqHttpMdl
     /* Use for send command to module. If @Command[0] == '?', then the command came from the console and in Data FILE* descriptor for out*/
     void (LQ_CALL* ReciveCommandProc)(LqHttpMdl* This, const char* Command, void* Data);
 
-	/* Internally used in C++ part */
-	char						_Paths[sizeof(void*) * 3];
+    /* Internally used in C++ part */
+    char                        _Paths[sizeof(void*) * 3];
 
-	bool					    IsFree;
+    bool                        IsFree;
     uintptr_t                   UserData;
 };
 
@@ -456,7 +456,7 @@ struct LqHttpProtoBase
     size_t                      CountConnIgnored;
     uintptr_t                   LockerBind;
     bool                        IsRebind;
-    int                         TransportProtoFamily;
+    int                         RouteProtoFamily;
 
     LqTimeMillisec              TimeLive;
 
@@ -479,7 +479,7 @@ struct LqHttpProtoBase
     uintptr_t                   _InternalUsed2;
 #endif
 
-	LqHttpMdl					StartModule;
+    LqHttpMdl                   StartModule;
 
     LqEvntFd                    ZombieKiller;
     LqTimeMillisec              ZombieKillerTimeLiveConnMillisec;
@@ -534,7 +534,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoGetInfo
     size_t HostBufSize, 
     char* lqaout lqaopt Port,
     size_t PortBufSize,
-    int* lqaout lqaopt TransportProtoFamily,
+    int* lqaout lqaopt RouteProtoFamily,
     int* lqaout lqaopt MaxConnections,
     LqTimeMillisec* lqaout lqaopt TimeLive
 );
@@ -544,7 +544,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoSetInfo
     LqHttpProtoBase* lqaio Reg, 
     const char* lqain lqaopt Host, 
     const char* lqain lqaopt Port, 
-    const int* lqain lqaopt TransportProtoFamily,
+    const int* lqain lqaopt RouteProtoFamily,
     const int* lqain lqaopt MaxConnections, 
     const LqTimeMillisec* lqain lqaopt TimeLive
 );

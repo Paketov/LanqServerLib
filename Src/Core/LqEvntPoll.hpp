@@ -22,88 +22,55 @@
 #include "LqFile.h"
 
 #define LqEvntSystemEventByConnEvents(Client)               \
-    (((Client->Flag & LQEVNT_FLAG_RD) ? POLLIN : 0) |       \
-    ((Client->Flag & LQEVNT_FLAG_WR) ?  POLLOUT : 0) |      \
-    ((Client->Flag & LQEVNT_FLAG_HUP) ? POLLHUP: 0) |       \
-    ((Client->Flag & LQEVNT_FLAG_ERR) ? POLLERR : 0))
+    ((((Client)->Flag & LQEVNT_FLAG_RD) ? POLLIN : 0) |       \
+    (((Client)->Flag & LQEVNT_FLAG_WR) ?  POLLOUT : 0) |      \
+    (((Client)->Flag & LQEVNT_FLAG_HUP) ? POLLHUP: 0) |       \
+    (((Client)->Flag & LQEVNT_FLAG_ERR) ? POLLERR : 0))
 
 
 bool LqEvntInit(LqEvnt* Dest)
 {
-    Dest->ClientArr = nullptr;
-    Dest->EventArr = malloc(sizeof(pollfd));
-    if(Dest->EventArr == nullptr)
-        return false;
-    Dest->ClientArr = (LqEvntHdr**)malloc(sizeof(LqEvntHdr*));
-    if(Dest->ClientArr == nullptr)
-        return false;
-    Dest->ClientArr[0] = nullptr;
-    if((((pollfd*)Dest->EventArr)[0].fd = LqFileEventCreate(LQ_O_NOINHERIT)) == -1)
-    {
-        free(Dest->ClientArr);
-        return false;
-    }
-    Dest->SignalFd = ((pollfd*)Dest->EventArr)[0].fd;
-    ((pollfd*)Dest->EventArr)[0].events = POLLIN;
-    ((pollfd*)Dest->EventArr)[0].revents = 0;
-    Dest->AllocCount = Dest->Count = 1;
+    LqArr3Init(&Dest->EvntFdArr);
     Dest->EventEnumIndex = 0;
     Dest->DeepLoop = 0;
-    Dest->IsRemoved = 0;
+    Dest->IsRemoved = false;
+	Dest->CommonCount = 0;
     return true;
 }
 
 void LqEvntUninit(LqEvnt* Dest)
 {
-    if(Dest->EventArr != nullptr)
-    {
-        if(((pollfd*)Dest->EventArr)[0].fd != -1)
-            close(((pollfd*)Dest->EventArr)[0].fd);
-        free(Dest->EventArr);
-    }
-    if(Dest->ClientArr != nullptr)
-        free(Dest->ClientArr);
+    LqArr3Uninit(&Dest->EvntFdArr);
 }
 
 bool LqEvntAddHdr(LqEvnt* Dest, LqEvntHdr* Client)
 {
-    if(Dest->Count >= Dest->AllocCount)
-    {
-        size_t NewSize = (size_t)((decltype(LQEVNT_INCREASE_COEFFICIENT))Dest->Count * LQEVNT_INCREASE_COEFFICIENT) + 1;
-        auto NewEventArr = (pollfd*)realloc(Dest->EventArr, sizeof(pollfd) * NewSize);
-        auto ClientArr = (LqEvntHdr**)realloc(Dest->ClientArr, sizeof(LqEvntHdr*) * NewSize);
-        if(NewEventArr == nullptr)
-            return false;
-        Dest->EventArr = NewEventArr;
-        if(ClientArr == nullptr)
-            return false;
-        Dest->ClientArr = ClientArr;
-        Dest->AllocCount = NewSize;
-    }
-    ((pollfd*)Dest->EventArr)[Dest->Count].fd = Client->Fd;
-    ((pollfd*)Dest->EventArr)[Dest->Count].events = LqEvntSystemEventByConnEvents(Client);
-    ((pollfd*)Dest->EventArr)[Dest->Count].revents = 0;
+    LqArr3PushBack(&Dest->EvntFdArr, pollfd, LqEvntHdr*);
+    auto El = &LqArr3Back_1(&Dest->EvntFdArr, pollfd);
+    LqArr3Back_2(&Dest->EvntFdArr, LqEvntHdr*) = Client;
     Client->Flag &= ~_LQEVNT_FLAG_SYNC;
-    Dest->ClientArr[Dest->Count] = Client;
-    Dest->Count++;
+    El->fd = Client->Fd;
+    El->events = LqEvntSystemEventByConnEvents(Client);
+    El->revents = 0;
+	Dest->CommonCount++;
     return true;
 }
 
-LqEvntFlag LqEvntEnumEventBegin(LqEvnt* Events)
+LqEvntFlag __LqEvntEnumEventBegin(LqEvnt* Events)
 {
-    Events->EventEnumIndex = 0; //Set start index
+    Events->EventEnumIndex = -1; //Set start index
     Events->DeepLoop++;
-    return LqEvntEnumEventNext(Events);
+    return __LqEvntEnumEventNext(Events);
 }
 
-LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
+LqEvntFlag __LqEvntEnumEventNext(LqEvnt* Events)
 {
-    for(register int i = Events->EventEnumIndex + 1, m = Events->Count; i < m; i++)
+    for(register intptr_t i = Events->EventEnumIndex + 1, m = Events->EvntFdArr.Count; i < m; i++)
     {
-        if(Events->ClientArr[i] == nullptr)
+        if(LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, i) == nullptr)
             continue;
-        auto e = ((pollfd*)Events->EventArr)[i].revents;
-        if((e & (POLLIN | POLLOUT | POLLHUP | POLLERR)) || (Events->ClientArr[i]->Flag & LQEVNT_FLAG_END))
+        auto e = LqArr3At_1(&Events->EvntFdArr, pollfd, i).revents;
+        if(e & (POLLIN | POLLOUT | POLLHUP | POLLERR))
         {
             Events->EventEnumIndex = i;
             LqEvntFlag r = 0;
@@ -111,8 +78,8 @@ LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
             {
                 int res = -1;
                 if(
-                    (Events->ClientArr[i]->Flag & LQEVNT_FLAG_RDHUP) &&
-                    (ioctl(Events->ClientArr[i]->Fd, FIONREAD, &res) >= 0) &&
+                    (LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, i)->Flag & LQEVNT_FLAG_RDHUP) &&
+                    (ioctl(LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, i)->Fd, FIONREAD, &res) >= 0) &&
                     (res <= 0)
                     )
                     r |= LQEVNT_FLAG_RDHUP;
@@ -124,8 +91,6 @@ LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
                 r |= LQEVNT_FLAG_HUP;
             if(e & POLLERR)
                 r |= LQEVNT_FLAG_ERR;
-            if(Events->ClientArr[i]->Flag & LQEVNT_FLAG_END)
-                r |= LQEVNT_FLAG_END;
             return r;
         }
     }
@@ -134,120 +99,122 @@ LqEvntFlag LqEvntEnumEventNext(LqEvnt* Events)
 
 void LqEvntRemoveCurrent(LqEvnt* Events)
 {
-    Events->ClientArr[Events->EventEnumIndex]->Flag &= ~_LQEVNT_FLAG_SYNC;
-    Events->ClientArr[Events->EventEnumIndex] = nullptr;
-    Events->IsRemoved = 1;
+    LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Events->EventEnumIndex)->Flag &= ~_LQEVNT_FLAG_SYNC;
+    LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Events->EventEnumIndex) = nullptr;
+	Events->CommonCount--;
+    Events->IsRemoved = true;
 }
 
-void LqEvntRestructAfterRemoves(LqEvnt* Events)
+void __LqEvntRestructAfterRemoves(LqEvnt* Events)
 {
     Events->DeepLoop--;
-    if((Events->DeepLoop > 0) || (Events->IsRemoved == 0))
+    if((Events->DeepLoop > 0) || !Events->IsRemoved)
         return;
-    Events->IsRemoved = 0;
+    Events->IsRemoved = false;
 
-    register auto AllClients = Events->ClientArr;
-    register auto AllEvents = (pollfd*)Events->EventArr;
-    for(register size_t i = 1; i < Events->Count;)
+    register auto AllClients = &LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, 0);
+    register auto AllEvents = &LqArr3At_1(&Events->EvntFdArr, pollfd, 0);
+    register auto Count = Events->EvntFdArr.Count;
+    for(register intptr_t i = 0; i < Count;)
     {
         if(AllClients[i] == nullptr)
         {
-            Events->Count--;
-            AllClients[i] = AllClients[Events->Count];
-            AllEvents[i] = AllEvents[Events->Count];
+            AllClients[i] = AllClients[--Count];
+            AllEvents[i] = AllEvents[Count];
         } else
         {
             i++;
         }
     }
-    if((size_t)((decltype(LQEVNT_DECREASE_COEFFICIENT))Events->Count * LQEVNT_DECREASE_COEFFICIENT) < Events->AllocCount)
-    {
-        size_t NewCount = lq_max(Events->Count, 1);
-        Events->EventArr = (pollfd*)realloc(Events->EventArr, NewCount * sizeof(pollfd));
-        Events->ClientArr = (LqEvntHdr**)realloc(Events->ClientArr, NewCount * sizeof(LqEvntHdr*));
-        Events->AllocCount = NewCount;
-    }
+    Events->EvntFdArr.Count = Count;
+    LqArr3AlignAfterRemove(&Events->EvntFdArr, pollfd, LqEvntHdr*);
 }
 
 LqEvntHdr* LqEvntGetHdrByCurrent(LqEvnt* Events)
 {
-    return Events->ClientArr[Events->EventEnumIndex];
+    return LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Events->EventEnumIndex);
 }
 
 bool LqEvntSetMaskByCurrent(LqEvnt* Events)
 {
-    auto c = Events->ClientArr[Events->EventEnumIndex];
-    if(c->Flag & LQEVNT_FLAG_END)
-        LqEvntSignalSet(Events);
-    ((pollfd*)Events->EventArr)[Events->EventEnumIndex].events = LqEvntSystemEventByConnEvents(c);
+    auto c = LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Events->EventEnumIndex);
+    LqArr3At_1(&Events->EvntFdArr, pollfd, Events->EventEnumIndex).events = LqEvntSystemEventByConnEvents(c);
     c->Flag &= ~_LQEVNT_FLAG_SYNC;
     return true;
 }
 
-bool LqEvntSetMaskByHdr(LqEvnt* Events, LqEvntHdr* Conn)
-{
-    for(size_t i = 1; i < Events->Count; i++)
-        if(Events->ClientArr[i] == Conn)
-        {
-            if(Conn->Flag & LQEVNT_FLAG_END)
-                LqEvntSignalSet(Events);
-
-            ((pollfd*)Events->EventArr)[i].events = LqEvntSystemEventByConnEvents(Conn);
-            Conn->Flag &= ~_LQEVNT_FLAG_SYNC;
-            return true;
-        }
-    return false;
-}
-
-bool LqEvntEnumBegin(LqEvnt* Events, LqEvntInterator* Interator)
+int LqEvntUpdateAllMask(LqEvnt* Events, void* UserData, void(*DelProc)(void*, LqEvntHdr*), bool IsRestruct)
 {
     Events->DeepLoop++;
-    Interator->Index = 0;
-    return LqEvntEnumNext(Events, Interator);
+    for(register auto i = &LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, 0), m = i + Events->EvntFdArr.Count; i < m; i++)
+        if((*i != nullptr) && ((*i)->Flag & _LQEVNT_FLAG_SYNC))
+        {
+            auto Index = ((uintptr_t)i - (uintptr_t)&LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, 0)) / sizeof(LqEvntHdr*);
+            if((*i)->Flag & LQEVNT_FLAG_END)
+            {
+                auto Hdr = *i;
+                *i = nullptr;
+                Hdr->Flag &= ~_LQEVNT_FLAG_SYNC;
+				Events->CommonCount--;
+                Events->IsRemoved = true;
+				
+                DelProc(UserData, Hdr);
+                i = &LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Index);
+                m = &LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Events->EvntFdArr.Count);
+            } else
+            {
+                LqArr3At_1(&Events->EvntFdArr, pollfd, Index).events = LqEvntSystemEventByConnEvents(*i);
+                (*i)->Flag &= ~_LQEVNT_FLAG_SYNC;
+            }
+        }
+
+    if(IsRestruct)
+        __LqEvntRestructAfterRemoves(Events);
+    else
+        Events->DeepLoop--;
+    return 1;
 }
 
-bool LqEvntEnumNext(LqEvnt* Events, LqEvntInterator* Interator)
+bool __LqEvntEnumBegin(LqEvnt* Events, LqEvntInterator* Interator)
 {
-    for(register int Index = Interator->Index + 1; Index < Events->Count; Index++)
-    {
-        if(Events->ClientArr[Index] != nullptr)
+    Events->DeepLoop++;
+    Interator->Index = -1;
+    return __LqEvntEnumNext(Events, Interator);
+}
+
+bool __LqEvntEnumNext(LqEvnt* Events, LqEvntInterator* Interator)
+{
+    for(register intptr_t i = Interator->Index + 1, m = Events->EvntFdArr.Count; i < m; i++)
+        if(LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, i) != nullptr)
         {
-            Interator->Index = Index;
+            Interator->Index = i;
             return true;
         }
-    }
     return false;
 }
 
-void LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator)
+LqEvntHdr* LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator)
 {
-    Events->ClientArr[Interator->Index]->Flag &= ~_LQEVNT_FLAG_SYNC;
-    Events->ClientArr[Interator->Index] = nullptr;
-    Events->IsRemoved = 1;
+    Events->IsRemoved = true;
+    auto Conn = LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Interator->Index);
+    LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Interator->Index) = nullptr;
+    Conn->Flag &= ~_LQEVNT_FLAG_SYNC;
+	Events->CommonCount--;
+    return Conn;
 }
 
 LqEvntHdr* LqEvntGetHdrByInterator(LqEvnt* Events, LqEvntInterator* Interator)
 {
-    return Events->ClientArr[Interator->Index];
-}
-
-bool LqEvntSignalCheckAndReset(LqEvnt* Events)
-{
-    return LqFileEventReset(Events->SignalFd) > 0;
-}
-
-void LqEvntSignalSet(LqEvnt* Events)
-{
-    LqFileEventSet(Events->SignalFd);
+    return LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Interator->Index);
 }
 
 int LqEvntCheck(LqEvnt* Events, LqTimeMillisec WaitTime)
 {
-    return poll((pollfd*)Events->EventArr, Events->Count, WaitTime);
+    return poll(&LqArr3At_1(&Events->EvntFdArr, pollfd, 0), Events->EvntFdArr.Count, WaitTime);
 }
 
 size_t LqEvntCount(const LqEvnt* Events)
 {
-    return Events->Count - 1;
+    return Events->CommonCount;
 }
 

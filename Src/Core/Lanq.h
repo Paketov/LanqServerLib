@@ -26,20 +26,33 @@ typedef struct LqConn LqConn;
 typedef struct LqEvntFd LqEvntFd;
 typedef struct LqProto LqProto;
 
-#define LQEVNT_FLAG_RD                          ((LqEvntFlag)1)         /*Ready for read*/
-#define LQEVNT_FLAG_WR                          ((LqEvntFlag)2)         /*Ready for write*/
-#define LQEVNT_FLAG_HUP                         ((LqEvntFlag)4)         /*Connection lost or can been closed by client*/
-#define LQEVNT_FLAG_RDHUP                       ((LqEvntFlag)8)         /*Connection lost or can been closed by client*/
-#define LQEVNT_FLAG_END                         ((LqEvntFlag)16)        /*Want end session*/
-#define LQEVNT_FLAG_ERR                         ((LqEvntFlag)32)        /*Have error in event descriptor*/
+#if defined(LQPLATFORM_WINDOWS)
 
-#define _LQEVNT_FLAG_SYNC                       ((LqEvntFlag)64)        /*Use for check sync*/
-#define _LQEVNT_FLAG_NOW_EXEC                   ((LqEvntFlag)128)       /*Exec by protocol handles*/
-#define _LQEVNT_FLAG_USER_SET                   ((LqEvntFlag)256)       /*Is set by user*/
-#define _LQEVNT_FLAG_CONN                       ((LqEvntFlag)1024)      /*Use for check sync*/
+#define LQEVNT_FLAG_CONNECT                     ((LqEvntFlag)8192)       /*Ready for read*/
+#define LQEVNT_FLAG_ACCEPT                      ((LqEvntFlag)16384)      /*Ready for write*/
 
-#define _LQEVNT_FLAG_RESERVED_1                 ((LqEvntFlag)2048)      /*Use only for windows internal*/
-#define _LQEVNT_FLAG_RESERVED_2                 ((LqEvntFlag)4096)      /*Use only for windows internal*/
+#define LQEVNT_FLAG_RD                          ((LqEvntFlag)1)          /*Ready for read*/
+#define LQEVNT_FLAG_WR                          ((LqEvntFlag)2)          /*Ready for write*/
+#else
+#define LQEVNT_FLAG_RD                          ((LqEvntFlag)1)          /*Ready for read*/
+#define LQEVNT_FLAG_WR                          ((LqEvntFlag)2)          /*Ready for write*/
+
+#define LQEVNT_FLAG_CONNECT                     LQEVNT_FLAG_WR           /*Ready for read*/
+#define LQEVNT_FLAG_ACCEPT                      LQEVNT_FLAG_RD           /*Ready for write*/
+#endif
+
+#define LQEVNT_FLAG_HUP                         ((LqEvntFlag)4)          /*Connection lost or can been closed by client*/
+#define LQEVNT_FLAG_RDHUP                       ((LqEvntFlag)8)          /*Connection lost or can been closed by client*/
+#define LQEVNT_FLAG_END                         ((LqEvntFlag)16)         /*Want end session*/
+#define LQEVNT_FLAG_ERR                         ((LqEvntFlag)32)         /*Have error in event descriptor*/
+
+#define _LQEVNT_FLAG_SYNC                       ((LqEvntFlag)64)         /*Use for check sync*/
+#define _LQEVNT_FLAG_NOW_EXEC                   ((LqEvntFlag)128)        /*Exec by protocol handles*/
+#define _LQEVNT_FLAG_USER_SET                   ((LqEvntFlag)256)        /*Is set by user*/
+#define _LQEVNT_FLAG_CONN                       ((LqEvntFlag)1024)       /*Use for check sync*/
+
+#define _LQEVNT_FLAG_RESERVED_1                 ((LqEvntFlag)2048)       /*Use only for windows internal*/
+#define _LQEVNT_FLAG_RESERVED_2                 ((LqEvntFlag)4096)       /*Use only for windows internal*/
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
@@ -64,8 +77,6 @@ struct LqConn
     LqProto*            Proto;      /*Server registration*/
 };
 
-typedef void (LQ_CALL *LqEvntFdHandlerFn)(LqEvntFd* Fd, LqEvntFlag RetFlags);
-
 
 /*
 * Use this structure for different type of handles
@@ -73,8 +84,8 @@ typedef void (LQ_CALL *LqEvntFdHandlerFn)(LqEvntFd* Fd, LqEvntFlag RetFlags);
 struct LqEvntFd
 {
     LQ_CONN_COMMON_EVNT_HDR;
-    LqEvntFdHandlerFn   Handler;
-    LqEvntFdHandlerFn   CloseHandler;
+    void (LQ_CALL      *Handler)(LqEvntFd* Fd, LqEvntFlag RetFlags);
+    void (LQ_CALL      *CloseHandler)(LqEvntFd* Fd);
     uintptr_t           UserData;
 #if defined(LQPLATFORM_WINDOWS)
     struct
@@ -111,39 +122,31 @@ struct LqProto
     LqFileSz MaxReciveInSingleTime;
 
     /*
-    * Read notification.
+    * Read, Write and Error notification.
     */
-    void (LQ_CALL *ReciveProc)(LqConn* Connection);
-    /*
-    * Write notification.
-    */
-    void (LQ_CALL *WriteProc)(LqConn* Connection);
+    void(LQ_CALL  *Handler)(LqConn* Connection, LqEvntFlag RetFlags);
 
-    /*
-    * Error notification.
-    */
-    void (LQ_CALL *ErrorProc)(LqConn* Connection);
     /*
     * Close and delete connection
     */
-    void (LQ_CALL *EndConnProc)(LqConn* Connection);
+    void(LQ_CALL  *CloseHandler)(LqConn* Conn);
 
-    bool (LQ_CALL *CmpAddressProc)(LqConn* Connection, const void* Address);
+    bool (LQ_CALL *CmpAddressProc)(LqConn* Conn, const void* Address);
     /*
-            Close connection on time out.
-            If returned true, remove connection from worker list
+    * Close connection on time out.
+    * If returned true, remove connection from worker list
     */
     bool (LQ_CALL *KickByTimeOutProc)
     (
-        LqConn* Connection,
+        LqConn*        Connection,
         LqTimeMillisec CurrentTimeMillisec/*Use fast get current time in millisec*/,
         LqTimeMillisec EstimatedLiveTime /*Otional input parametr*/
     );
     /*
-    This procedure must return pointer on dynamic string or NULL.
-    !!! Function-receiver delete this string herself. !!!
+    * This procedure must return pointer on dynamic string or NULL.
+    * !!! Function-receiver delete this string herself. !!!
     */
-    char* (LQ_CALL *DebugInfoProc)(LqConn* Connection);
+    char* (LQ_CALL *DebugInfoProc)(LqConn* Conn);
 
 };
 

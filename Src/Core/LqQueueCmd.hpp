@@ -235,11 +235,11 @@ template<typename TypeCommand>
 bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand)
 {
     auto NewCommand = LqFastAlloc::New<ElementHeader>();
-	if(NewCommand == nullptr)
-	{
-		LQ_ERR("LqQueueCmd<TypeCommand>::Push() not alloc memory\n");
-		return false;
-	}
+    if(NewCommand == nullptr)
+    {
+        LQ_ERR("LqQueueCmd<TypeCommand>::Push() not alloc memory\n");
+        return false;
+    }
     NewCommand->Next = nullptr;
     NewCommand->Type = tCommand;
 
@@ -258,11 +258,11 @@ template<typename ValType>
 bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand, ValType Val)
 {
     auto NewCommand = LqFastAlloc::New<Element<ValType>>();
-	if(NewCommand == nullptr)
-	{
-		LQ_ERR("LqQueueCmd<TypeCommand>::Push<ValType>() not alloc memory\n");
-		return false;
-	}
+    if(NewCommand == nullptr)
+    {
+        LQ_ERR("LqQueueCmd<TypeCommand>::Push<ValType>() not alloc memory\n");
+        return false;
+    }
     NewCommand->Header.Next = nullptr;
     NewCommand->Header.Type = tCommand;
     NewCommand->Value = Val;
@@ -283,11 +283,11 @@ template<typename ValType>
 bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand, ValType Val)
 {
     auto NewCommand = LqFastAlloc::New<Element<ValType>>();
-	if(NewCommand == nullptr)
-	{
-		LQ_ERR("LqQueueCmd<TypeCommand>::PushBegin<ValType>() not alloc memory\n");
-		return false;
-	}
+    if(NewCommand == nullptr)
+    {
+        LQ_ERR("LqQueueCmd<TypeCommand>::PushBegin<ValType>() not alloc memory\n");
+        return false;
+    }
     NewCommand->Header.Type = tCommand;
     NewCommand->Value = Val;
 
@@ -304,11 +304,11 @@ template<typename TypeCommand>
 bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand)
 {
     auto NewCommand = LqFastAlloc::New<ElementHeader>();
-	if(NewCommand == nullptr)
-	{
-		LQ_ERR("LqQueueCmd<TypeCommand>::PushBegin() not alloc memory\n");
-		return false;
-	}
+    if(NewCommand == nullptr)
+    {
+        LQ_ERR("LqQueueCmd<TypeCommand>::PushBegin() not alloc memory\n");
+        return false;
+    }
     NewCommand->Type = tCommand;
 
     Locker.LockWriteYield();

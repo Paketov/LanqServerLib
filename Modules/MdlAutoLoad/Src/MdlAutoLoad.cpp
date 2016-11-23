@@ -369,7 +369,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     LqEvntFdInit(&Task.TimerFd, NewTimer, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
     Task.TimerFd.UserData = (uintptr_t)&Task;
     Task.TimerFd.Handler = Task.WorkingMethod;
-    Task.TimerFd.CloseHandler = [](LqEvntFd* Fd, LqEvntFlag RetFlags)
+    Task.TimerFd.CloseHandler = [](LqEvntFd* Fd)
     {
         LqFileClose(Fd->Fd);
         Fd->Fd = -1;

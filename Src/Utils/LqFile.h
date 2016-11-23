@@ -344,6 +344,8 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileFlush(int Fd);
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFilePollCheck(LqFilePoll* Fds, size_t CountFds, LqTimeMillisec TimeoutMillisec);
 
+LQ_IMPORTEXPORT short LQ_CALL LqFilePollCheckSingle(int Fd, short Events, LqTimeMillisec TimeoutMillisec);
+
 /*
 *Event
 * This event can be pass in to LqFilePollCheck for intterupt waiting.
