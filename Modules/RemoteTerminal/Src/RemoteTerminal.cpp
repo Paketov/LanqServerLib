@@ -145,9 +145,9 @@ bool CmdSession::StartRead(LqHttpConn* c)
         LqObPtrReference(this);
         LqObPtrReference(this);
 
-		/////////////
-		LqHttpConnInterface Conn(c);
-		Conn.UserData[&ModUnique] = this;
+        /////////////
+        LqHttpConnInterface Conn(c);
+        Conn.UserData[&ModUnique] = this;
         LastAct = LqTimeGetLocMillisec();
         Res = true;
     }
@@ -156,8 +156,8 @@ bool CmdSession::StartRead(LqHttpConn* c)
 
 void CmdSession::EndRead(LqHttpConn* c)
 {
-	LqHttpConnInterface Conn(c);
-	CmdSession* Ob = Conn.UserData[&ModUnique];
+    LqHttpConnInterface Conn(c);
+    CmdSession* Ob = Conn.UserData[&ModUnique];
     Ob->LockWrite();
 
     Ob->LastAct = LqTimeGetLocMillisec();
@@ -600,13 +600,13 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     [](LqHttpMdl* This) -> uintptr_t
     {
 
-		LqWrkBossEnumCloseRmEvnt(nullptr, 
-		[](void*, LqEvntHdr* Evnt) -> unsigned
-		{
-			if(auto EvntFd = LqEvntToFd(Evnt))
-				return ((EvntFd->Handler == CmdSession::TimerHandler) || (EvntFd->Handler == CmdSession::ReadHandler))?2: 0;
-			return 0;
-		});
+        LqWrkBossEnumCloseRmEvnt(nullptr, 
+        [](void*, LqEvntHdr* Evnt) -> unsigned
+        {
+            if(auto EvntFd = LqEvntToFd(Evnt))
+                return ((EvntFd->Handler == CmdSession::TimerHandler) || (EvntFd->Handler == CmdSession::ReadHandler))?2: 0;
+            return 0;
+        });
 
         return This->Handle;
     };

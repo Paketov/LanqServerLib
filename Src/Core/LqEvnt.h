@@ -29,7 +29,7 @@ typedef struct LqEvntInterator
     intptr_t Index;
 #endif
 #ifdef LQEVNT_WIN_EVENT
-	bool  IsEnumConn;
+    bool  IsEnumConn;
 #endif
 } LqEvntInterator;
 
@@ -39,6 +39,7 @@ typedef struct __LqArr
     void* Data;
     intptr_t Count;
     intptr_t AllocCount;
+    bool     IsRemoved;
 } __LqArr;
 
 typedef struct __LqArr2
@@ -46,6 +47,8 @@ typedef struct __LqArr2
     void* Data;
     intptr_t AllocCount;
     intptr_t MinEmpty;
+    intptr_t MaxUsed;
+    bool     IsRemoved;
 } __LqArr2;
 
 typedef struct __LqArr3
@@ -54,13 +57,13 @@ typedef struct __LqArr3
     void* Data2;
     intptr_t Count;
     intptr_t AllocCount;
+    bool     IsRemoved;
 } __LqArr3;
 
 typedef struct LqEvnt
 {   
-    bool                IsRemoved;
     intptr_t            DeepLoop;
-	intptr_t            CommonCount;
+    intptr_t            CommonCount;
 #if defined(LQEVNT_WIN_EVENT)
     __LqArr2            ConnArr;
     __LqArr3            EvntFdArr;
@@ -69,9 +72,7 @@ typedef struct LqEvnt
 
     intptr_t            EventObjectIndex;
     intptr_t            ConnIndex;
-    bool                IsRemovedEvntFd;
-    
-    
+     
 #elif defined(LQEVNT_KEVENT)
 #elif defined(LQEVNT_EPOLL)
     __LqArr             ClientArr;
@@ -164,7 +165,7 @@ bool LqEvntSetMaskByCurrent(LqEvnt* Events);
 * Set new mask for onnection or object, by header
 *  @return - true - is mask setted, otherwise - false.
 */
-int LqEvntUpdateAllMask(LqEvnt* Events, void* UserData, void(*DelProc)(void*, LqEvntHdr*), bool IsRestruct);
+int LqEvntUpdateAllMask(LqEvnt* Events, void* UserData, void(*DelProc)(void*, LqEvntInterator*), bool IsRestruct);
 
 /*
 * Start enumerate connections.

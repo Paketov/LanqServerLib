@@ -33,8 +33,7 @@ bool LqEvntInit(LqEvnt* Dest)
     LqArr3Init(&Dest->EvntFdArr);
     Dest->EventEnumIndex = 0;
     Dest->DeepLoop = 0;
-    Dest->IsRemoved = false;
-	Dest->CommonCount = 0;
+    Dest->CommonCount = 0;
     return true;
 }
 
@@ -52,7 +51,7 @@ bool LqEvntAddHdr(LqEvnt* Dest, LqEvntHdr* Client)
     El->fd = Client->Fd;
     El->events = LqEvntSystemEventByConnEvents(Client);
     El->revents = 0;
-	Dest->CommonCount++;
+    Dest->CommonCount++;
     return true;
 }
 
@@ -100,34 +99,15 @@ LqEvntFlag __LqEvntEnumEventNext(LqEvnt* Events)
 void LqEvntRemoveCurrent(LqEvnt* Events)
 {
     LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Events->EventEnumIndex)->Flag &= ~_LQEVNT_FLAG_SYNC;
-    LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Events->EventEnumIndex) = nullptr;
-	Events->CommonCount--;
-    Events->IsRemoved = true;
+    LqArr3RemoveAt(&Events->EvntFdArr, pollfd, LqEvntHdr*, Events->EventEnumIndex, nullptr);
+    Events->CommonCount--;
 }
 
 void __LqEvntRestructAfterRemoves(LqEvnt* Events)
 {
-    Events->DeepLoop--;
-    if((Events->DeepLoop > 0) || !Events->IsRemoved)
+    if((--Events->DeepLoop) > 0)
         return;
-    Events->IsRemoved = false;
-
-    register auto AllClients = &LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, 0);
-    register auto AllEvents = &LqArr3At_1(&Events->EvntFdArr, pollfd, 0);
-    register auto Count = Events->EvntFdArr.Count;
-    for(register intptr_t i = 0; i < Count;)
-    {
-        if(AllClients[i] == nullptr)
-        {
-            AllClients[i] = AllClients[--Count];
-            AllEvents[i] = AllEvents[Count];
-        } else
-        {
-            i++;
-        }
-    }
-    Events->EvntFdArr.Count = Count;
-    LqArr3AlignAfterRemove(&Events->EvntFdArr, pollfd, LqEvntHdr*);
+    LqArr3AlignAfterRemove(&Events->EvntFdArr, pollfd, LqEvntHdr*, nullptr);
 }
 
 LqEvntHdr* LqEvntGetHdrByCurrent(LqEvnt* Events)
@@ -143,7 +123,7 @@ bool LqEvntSetMaskByCurrent(LqEvnt* Events)
     return true;
 }
 
-int LqEvntUpdateAllMask(LqEvnt* Events, void* UserData, void(*DelProc)(void*, LqEvntHdr*), bool IsRestruct)
+int LqEvntUpdateAllMask(LqEvnt* Events, void* UserData, void(*DelProc)(void*, LqEvntInterator*), bool IsRestruct)
 {
     Events->DeepLoop++;
     for(register auto i = &LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, 0), m = i + Events->EvntFdArr.Count; i < m; i++)
@@ -152,13 +132,9 @@ int LqEvntUpdateAllMask(LqEvnt* Events, void* UserData, void(*DelProc)(void*, Lq
             auto Index = ((uintptr_t)i - (uintptr_t)&LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, 0)) / sizeof(LqEvntHdr*);
             if((*i)->Flag & LQEVNT_FLAG_END)
             {
-                auto Hdr = *i;
-                *i = nullptr;
-                Hdr->Flag &= ~_LQEVNT_FLAG_SYNC;
-				Events->CommonCount--;
-                Events->IsRemoved = true;
-				
-                DelProc(UserData, Hdr);
+                LqEvntInterator Iter;
+                Iter.Index = Index;
+                DelProc(UserData, &Iter);
                 i = &LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Index);
                 m = &LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Events->EvntFdArr.Count);
             } else
@@ -195,11 +171,10 @@ bool __LqEvntEnumNext(LqEvnt* Events, LqEvntInterator* Interator)
 
 LqEvntHdr* LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator)
 {
-    Events->IsRemoved = true;
     auto Conn = LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Interator->Index);
-    LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Interator->Index) = nullptr;
+    LqArr3RemoveAt(&Events->EvntFdArr, pollfd, LqEvntHdr*, Interator->Index, nullptr);
     Conn->Flag &= ~_LQEVNT_FLAG_SYNC;
-	Events->CommonCount--;
+    Events->CommonCount--;
     return Conn;
 }
 

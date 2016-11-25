@@ -32,16 +32,6 @@ typedef LqShdPtr<LqWrk, LqWrkDelete, false, false> LqWrkPtr;
 class LQ_IMPORTEXPORT LqWrk:
     public LqThreadBase
 {
-    enum
-    {
-        LQWRK_CMD_ADD_CONN,                     /*Add connection to work*/
-        LQWRK_CMD_RM_CONN_ON_TIME_OUT,      /*Signal for close all time out connections*/
-        LQWRK_CMD_RM_CONN_ON_TIME_OUT_PROTO,
-        LQWRK_CMD_WAIT_EVENT,
-        LQWRK_CMD_CLOSE_ALL_CONN,
-        LQWRK_CMD_RM_CONN_BY_IP,
-        LQWRK_CMD_CLOSE_CONN_BY_PROTO
-    };
 
     friend LqWrkBoss;
     friend LqConn;
@@ -60,6 +50,7 @@ class LQ_IMPORTEXPORT LqWrk:
     LqEvntFd                                            NotifyEvent;
 
     mutable LqLocker<uintptr_t>                         Locker;
+    mutable LqLocker<uintptr_t>                         WaitLocker;
 
     ullong                                              Id;
     LqTimeMillisec                                      TimeStart;
@@ -70,18 +61,27 @@ class LQ_IMPORTEXPORT LqWrk:
     virtual void BeginThread();
     virtual void NotifyThread();
 
-    static void DelProc(void* Data, LqEvntHdr* Hdr);
+    static void DelProc(void* Data, LqEvntInterator* Hdr);
 
-    inline void Unlock()
+    inline void Unlock() { Locker.UnlockWrite(); }
+    inline void Lock() { Locker.LockWriteYield(); }
+
+
+    inline void WaiterLockMain() { WaitLocker.LockWrite(); }
+    inline void WaiterLock() 
     {
-        Locker.UnlockWrite();
+        while(!WaitLocker.TryLockWrite())
+        {
+            NotifyThread();
+            for(uintptr_t i = 0; i < 50; i++)
+                if(WaitLocker.TryLockWrite())
+                    return;
+            if(IsThreadEnd())
+                break;
+        }
     }
-
-    inline void Lock()
-    {
-        Locker.LockWriteYield();
-    }
-
+    inline void WaiterUnlock() { WaitLocker.UnlockWrite(); }
+    
     void ClearQueueCommands();
 
     static void ExitHandlerFn(void* Data);
@@ -115,7 +115,8 @@ public:
     bool     UpdateAllEvntFlagAsync();
     int      UpdateAllEvntFlagSync();
 
-    bool     Wait(void(*WaitProc)(void* Data), void* UserData = nullptr);
+    bool     AsyncCall(void(*WaitProc)(void* Data), void* UserData = nullptr);
+    size_t   RemoveAsyncCall(void(*WaitProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
 
     /*
     This method return all connection from this worker.

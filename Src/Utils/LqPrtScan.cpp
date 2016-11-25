@@ -129,7 +129,7 @@ lblWaitAgain:
             {
                 AddrLoc.AddrInet6.sin6_port = htons(j);
             }
-			auto Res = connect(Fd, &AddrLoc.Addr, sizeof(AddrLoc));
+            auto Res = connect(Fd, &AddrLoc.Addr, sizeof(AddrLoc));
             if(Res == 0)
             {
                 Proto.OpenedPorts.push_back(j);

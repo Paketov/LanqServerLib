@@ -30,82 +30,11 @@
 
 static LqWrkBoss Boss;
 
-LqWrkBoss::LqWrkBoss(): MinCount(0){}
+LqWrkBoss::LqWrkBoss(): MinCount(0) { }
 
 LqWrkBoss::LqWrkBoss(size_t CountWorkers) : MinCount(0) { AddWorkers(CountWorkers); }
 
 LqWrkBoss::~LqWrkBoss() { }
-
-size_t LqWrkBoss::TransferAllEvnt(LqWrk* Source) const
-{
-    size_t Res = 0;
-    std::vector<LqEvntHdr*> RmHdrs;
-    Source->Lock();
-    const auto LocalWrks = Wrks.begin();
-    lqevnt_enum_do(Source->EventChecker, i)
-    {
-        auto Hdr = LqEvntGetHdrByInterator(&Source->EventChecker, &i);
-
-        intptr_t Min = std::numeric_limits<intptr_t>::max(), Index = -1;
-        for(size_t i = 0, m = LocalWrks.size(); i < m; i++)
-        {
-            if(LocalWrks[i] == Source)
-                continue;
-            size_t l = LocalWrks[i]->GetAssessmentBusy();
-            if(l < Min)
-                Min = l, Index = i;
-        }
-        LqEvntRemoveByInterator(&Source->EventChecker, &i);
-        if((Index != -1) && LocalWrks[Index]->AddEvntAsync(Hdr))
-        {
-            Res++;
-        } else
-        {
-            RmHdrs.push_back(Hdr);
-            LQ_ERR("LqWrkBoss::TransferAllEvnt() not adding event to list\n");
-        }
-    }lqevnt_enum_while(Source->EventChecker);
-
-    for(auto Command = Source->CommandQueue.SeparateBegin(); !Source->CommandQueue.SeparateIsEnd(Command);)
-    {
-        switch(Command.Type)
-        {
-            case LqWrk::LQWRK_CMD_ADD_CONN:
-            {
-                auto Hdr = Command.Val<LqEvntHdr*>();
-                Command.Pop<LqEvntHdr*>();
-                Source->CountConnectionsInQueue--;
-
-                intptr_t Min = std::numeric_limits<intptr_t>::max(), Index;
-                for(size_t i = 0, m = LocalWrks.size(); i < m; i++)
-                {
-                    if(LocalWrks[i] == Source)
-                        continue;
-                    size_t l = LocalWrks[i]->GetAssessmentBusy();
-                    if(l < Min)
-                        Min = l, Index = i;
-                }
-               
-                if((Index != -1) && LocalWrks[Index]->AddEvntAsync(Hdr))
-                {
-                    Res++;
-                } else
-                {
-                    RmHdrs.push_back(Hdr);
-                    LQ_ERR("LqWrkBoss::TransferAllEvnt() not adding event to list\n");
-                }
-            }
-            break;
-            default:
-                /* Otherwise return current command in list*/
-                Source->CommandQueue.SeparatePush(Command);
-        }
-    }
-    Source->Unlock();
-    for(auto i : RmHdrs)
-        LqEvntHdrClose(i);
-    return Res;
-}
 
 int LqWrkBoss::AddWorkers(size_t Count, bool IsStart)
 {
@@ -226,14 +155,91 @@ size_t LqWrkBoss::StartAllWorkersAsync() const
     return Ret;
 }
 
-
-bool LqWrkBoss::KickWorker(ullong IdWorker)
+size_t LqWrkBoss::TransferAllEvntFromWrkList(WrkArray& SourceWrks)
 {
-    /*Lock operation remove from array*/
-    return Wrks.remove_by_compare_fn([&](LqWrkPtr& Wrk) { return Wrk->GetId() == IdWorker; });
+    struct AsyncData
+    {
+        int Fd;
+        LqWrkBoss* This;
+        LqWrk* Wrk;
+        size_t Res;
+        static void Handler(void* Data)
+        {
+            auto v = (AsyncData*)Data;
+            v->Res = v->This->TransferAllEvnt(v->Wrk);
+            LqFileEventSet(v->Fd);
+        }
+    };
+    size_t Res = 0;
+    size_t CountTryng = 0;
+    AsyncData v;
+    v.Fd = LqFileEventCreate(LQ_O_NOINHERIT);
+    v.This = this;
+    for(auto & i : SourceWrks)
+    {
+        if(i->IsThisThread() || i->IsThreadEnd())
+        {
+            TransferAllEvnt(i.Get());
+        } else
+        {
+            v.Wrk = i.Get();
+            v.Res = 0;
+            i->AsyncCall(AsyncData::Handler, &v);
+            CountTryng = 0;
+lblWaitAgain:
+            if(LqFilePollCheckSingle(v.Fd, LQ_POLLIN, 700) == 0)
+            {
+                if(((++CountTryng) >= 3) || i->IsThreadEnd())
+                {
+                    i->RemoveAsyncCall(AsyncData::Handler, &v, false);
+                    Res += TransferAllEvnt(i.Get());
+                } else
+                {
+                    goto lblWaitAgain;
+                }
+            } else
+            {
+                Res += v.Res;
+            }
+            LqFileEventReset(v.Fd);
+        }
+    }
+    LqFileClose(v.Fd);
+    return Res;
 }
 
-size_t LqWrkBoss::KickWorkers(uintptr_t Count) { return Wrks.unappend(Count); }
+bool LqWrkBoss::KickWorker(ullong IdWorker, bool IsTransferAllEvnt)
+{
+    /*Lock operation remove from array*/
+    if(!IsTransferAllEvnt)
+        return Wrks.remove_by_compare_fn([&](LqWrkPtr& Wrk) { return Wrk->GetId() == IdWorker; });
+    WrkArray DelArr;
+    auto Res = Wrks.remove_by_compare_fn([&](LqWrkPtr& Wrk)
+    {
+        if(Wrk->GetId() != IdWorker)
+            return false;
+        DelArr.push_back(Wrk);
+        return true;
+    }); 
+    TransferAllEvntFromWrkList(DelArr);
+    return Res;
+}
+
+size_t LqWrkBoss::TransferAllEvnt(LqWrkBoss & Source)
+{
+    return TransferAllEvntFromWrkList(Source.Wrks);
+}
+
+size_t LqWrkBoss::KickWorkers(uintptr_t Count, bool IsTransferAllEvnt)
+{
+    if(!IsTransferAllEvnt)
+        return Wrks.unappend(Count, MinCount);
+
+    WrkArray DelWrks;
+    auto Res = Wrks.unappend(Count, MinCount, DelWrks);
+    TransferAllEvntFromWrkList(DelWrks);
+    return Res;
+}
 
 bool LqWrkBoss::CloseAllEvntAsync() const
 {
@@ -370,12 +376,12 @@ LqString LqWrkBoss::DebugInfo()
 {
     LqString DbgStr;
     auto i = Wrks.begin();
-    DbgStr += "============\n";
+    DbgStr += "=========================\n";
     DbgStr += " Count workers " + std::to_string(i.size()) + "\n";
 
     for(; !i.is_end(); i++)
     {
-        DbgStr.append("============\n");
+        DbgStr.append("=========================\n");
         DbgStr.append((*i)->DebugInfo());
     }
     return DbgStr;
@@ -385,12 +391,12 @@ LqString LqWrkBoss::AllDebugInfo()
 {
     LqString DbgStr;
     auto i = Wrks.begin();
-    DbgStr += "============\n";
+    DbgStr += "=========================\n";
     DbgStr += " Count workers " + std::to_string(i.size()) + "\n";
 
     for(; !i.is_end(); i++)
     {
-        DbgStr.append("============\n");
+        DbgStr.append("=========================\n");
         DbgStr.append((*i)->AllDebugInfo());
     }
     return DbgStr;

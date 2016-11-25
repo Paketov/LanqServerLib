@@ -1041,7 +1041,7 @@ LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrResize(LqHttpConn* c, size_t Size)
         if(!LqHttpConnBufferRealloc(c, NewLen))
             return nullptr;
     }
-    c->Response.HeadersEnd = Size;
+    c->Response.HeadersEnd = NewLen;
     return c->Buf + c->Response.HeadersStart;
 }
 

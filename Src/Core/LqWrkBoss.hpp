@@ -53,7 +53,8 @@ class LQ_IMPORTEXPORT LqWrkBoss
     static size_t MaxBusy(const WrkArray::interator& AllWrks, size_t* MaxCount = LqDfltPtr());
     size_t        MinBusy(size_t* MinCount = LqDfltPtr());
 
-    size_t      TransferAllEvnt(LqWrk* Source) const;
+    size_t TransferAllEvntFromWrkList(WrkArray& SourceWrks);
+
 public:
 
     LqWrkBoss();
@@ -72,8 +73,8 @@ public:
     size_t      StartAllWorkersSync() const;
     size_t      StartAllWorkersAsync() const;
 
-    bool        KickWorker(ullong IdWorker);
-    size_t      KickWorkers(uintptr_t Count);
+    bool        KickWorker(ullong IdWorker, bool IsTransferAllEvnt = true);
+    size_t      KickWorkers(uintptr_t Count, bool IsTransferAllEvnt = true);
 
     bool        CloseAllEvntAsync() const;
     size_t      CloseAllEvntSync() const;
@@ -145,6 +146,14 @@ public:
     */
     bool        RemoveEvnt(LqEvntHdr* EvntHdr) const;
     bool        CloseEvnt(LqEvntHdr* EvntHdr) const;
+
+    /*
+       Transfer all events follovers to other workers.
+        @Source - Source worker or worker list(Boss).
+        @return - count transfered events
+    */
+    size_t      TransferAllEvnt(LqWrk* Source);
+    size_t      TransferAllEvnt(LqWrkBoss& Source);
 
     size_t      KickAllWorkers();
 

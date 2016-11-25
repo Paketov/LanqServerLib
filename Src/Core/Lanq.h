@@ -28,8 +28,8 @@ typedef struct LqProto LqProto;
 
 #if defined(LQPLATFORM_WINDOWS)
 
-#define LQEVNT_FLAG_CONNECT                     ((LqEvntFlag)8192)       /*Ready for read*/
-#define LQEVNT_FLAG_ACCEPT                      ((LqEvntFlag)16384)      /*Ready for write*/
+#define LQEVNT_FLAG_CONNECT                     ((LqEvntFlag)2048)       /*Ready for read*/
+#define LQEVNT_FLAG_ACCEPT                      ((LqEvntFlag)4096)       /*Ready for write*/
 
 #define LQEVNT_FLAG_RD                          ((LqEvntFlag)1)          /*Ready for read*/
 #define LQEVNT_FLAG_WR                          ((LqEvntFlag)2)          /*Ready for write*/
@@ -50,9 +50,6 @@ typedef struct LqProto LqProto;
 #define _LQEVNT_FLAG_NOW_EXEC                   ((LqEvntFlag)128)        /*Exec by protocol handles*/
 #define _LQEVNT_FLAG_USER_SET                   ((LqEvntFlag)256)        /*Is set by user*/
 #define _LQEVNT_FLAG_CONN                       ((LqEvntFlag)1024)       /*Use for check sync*/
-
-#define _LQEVNT_FLAG_RESERVED_1                 ((LqEvntFlag)2048)       /*Use only for windows internal*/
-#define _LQEVNT_FLAG_RESERVED_2                 ((LqEvntFlag)4096)       /*Use only for windows internal*/
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)

@@ -152,6 +152,8 @@
 # define LQSTRUCT_ALIGN_MEM 1
 #endif
 
+#define __STDINT_LIMITS
+
 #define lqaopt                  /* LanQ Argument Optional */
 #define lqain                   /* LanQ Argument Input */
 #define lqaio                   /* LanQ Argument Input, output */
