@@ -764,7 +764,7 @@ bool LqWrk::AsyncCall(void(*WaitProc)(void* Data), void* UserData)
     return true;
 }
 
-size_t LqWrk::RemoveAsyncCall(void(*WaitProc)(void *Data), void* UserData, bool IsAll)
+size_t LqWrk::CancelAsyncCall(void(*WaitProc)(void *Data), void* UserData, bool IsAll)
 {
     size_t Res = 0;
     for(auto Command = CommandQueue.SeparateBegin(); !CommandQueue.SeparateIsEnd(Command);)

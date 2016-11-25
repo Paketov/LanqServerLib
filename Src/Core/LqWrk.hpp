@@ -116,7 +116,7 @@ public:
     int      UpdateAllEvntFlagSync();
 
     bool     AsyncCall(void(*WaitProc)(void* Data), void* UserData = nullptr);
-    size_t   RemoveAsyncCall(void(*WaitProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
+    size_t   CancelAsyncCall(void(*WaitProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
 
     /*
     This method return all connection from this worker.

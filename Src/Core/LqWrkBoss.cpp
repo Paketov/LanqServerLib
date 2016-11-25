@@ -191,7 +191,7 @@ lblWaitAgain:
             {
                 if(((++CountTryng) >= 3) || i->IsThreadEnd())
                 {
-                    i->RemoveAsyncCall(AsyncData::Handler, &v, false);
+                    i->CancelAsyncCall(AsyncData::Handler, &v, false);
                     Res += TransferAllEvnt(i.Get());
                 } else
                 {
