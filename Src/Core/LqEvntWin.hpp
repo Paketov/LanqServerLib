@@ -153,7 +153,7 @@ bool LqEvntThreadInit(LqEvnt* Dest)
 
 void LqEvntThreadUninit(LqEvnt* Dest)
 {
-    CloseWindow((HWND)Dest->WinHandle);
+	DestroyWindow((HWND)Dest->WinHandle);
     Dest->WinHandle = (uintptr_t)-1;
 }
 
