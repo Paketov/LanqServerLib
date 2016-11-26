@@ -111,9 +111,7 @@
         if(a[i] == (EmptyVal))\
             break;\
      ((__LqArr2*)(Arr))->MinEmpty = n = i;\
- }else{\
-     (NewIndex) = n = ++(((__LqArr2*)(Arr))->MaxUsed);\
- }\
+ }else{ (NewIndex) = n = ++(((__LqArr2*)(Arr))->MaxUsed); }\
  if(n >= ((__LqArr2*)(Arr))->AllocCount){\
         size_t NewSize = (size_t)(((decltype(LQEVNT_INCREASE_COEFFICIENT))((__LqArr2*)(Arr))->AllocCount) * LQEVNT_INCREASE_COEFFICIENT) + 1; \
         auto NewArr = (TypeVal*)___realloc(((__LqArr2*)(Arr))->Data, sizeof(TypeVal) * NewSize); \
@@ -182,8 +180,8 @@
 #define LqArr3At_2(Arr, TypeVal, Index) (((TypeVal*)(((__LqArr3*)(Arr))->Data2))[Index])
 
 #define LqArr3RemoveAt(Arr, TypeVal1, TypeVal2, Index, EmptyValForTypeVal2) {\
-       LqArr3At_2(Arr, TypeVal2, Index) = (EmptyValForTypeVal2);\
-       ((__LqArr3*)(Arr))->IsRemoved = true;\
+   LqArr3At_2(Arr, TypeVal2, Index) = (EmptyValForTypeVal2);\
+   ((__LqArr3*)(Arr))->IsRemoved = true;\
 }
 
 #define LqArr3AlignAfterRemove(Arr, TypeVal1, TypeVal2, EmptyValForTypeVal2) {\

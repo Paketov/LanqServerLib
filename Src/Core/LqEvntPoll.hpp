@@ -105,8 +105,6 @@ void LqEvntRemoveCurrent(LqEvnt* Events)
 
 void __LqEvntRestructAfterRemoves(LqEvnt* Events)
 {
-    if((--Events->DeepLoop) > 0)
-        return;
     LqArr3AlignAfterRemove(&Events->EvntFdArr, pollfd, LqEvntHdr*, nullptr);
 }
 

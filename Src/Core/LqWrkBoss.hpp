@@ -117,7 +117,7 @@ public:
        @return: true - on success, false - otherwise
     */
     bool        UpdateAllEvntFlagAsync() const;
-    bool        UpdateAllEvntFlagSync() const;
+    size_t      UpdateAllEvntFlagSync() const;
     /*
       Enum and remove or close event header
        @UserData: Use in @Proc  

@@ -264,8 +264,7 @@ lblAgain2:
                 case STATUS_PENDING:
                     break;
                 case STATUS_INVALID_PARAMETER:
-                    if(ppl == nullptr)
-                    {
+                    if(ppl == nullptr) {
                         ppl = &pl;
                         pl.QuadPart = LqFileTell(EvntData->Fd);
                         goto lblAgain2;
@@ -275,8 +274,9 @@ lblAgain2:
                     EvntData->__Reserved2.Status = STATUS_OBJECT_TYPE_MISMATCH;
                     if(WaitForSingleObject((HANDLE)EvntData->Fd, 0) != WAIT_FAILED)
                     {
-                        if(Event != EvntData->Fd)
-                            LqFileClose(Event), Event = EvntData->Fd;
+                        if(Event != EvntData->Fd){
+                            LqFileClose(Event); Event = EvntData->Fd;
+                        }
                         break;
                     }
 lblErr2:
@@ -315,7 +315,7 @@ LqEvntFlag __LqEvntEnumEventNext(LqEvnt* Events)
             if(Fd == nullptr)
                 continue;
             auto Event = LqArr3At_1(&Events->EvntFdArr, HANDLE, i);
-            LqEvntFlag r = 0;
+            LqEvntFlag ResFlag = 0;
             static const LARGE_INTEGER TimeWait = {0};
             if(Fd->Flag & LQEVNT_FLAG_RD)
             {
@@ -323,25 +323,25 @@ LqEvntFlag __LqEvntEnumEventNext(LqEvnt* Events)
                 {
                     case STATUS_MORE_PROCESSING_REQUIRED:
                     case STATUS_SUCCESS:
-                        r |= LQEVNT_FLAG_RD;
+                        ResFlag |= LQEVNT_FLAG_RD;
                         break;
                     case STATUS_OBJECT_TYPE_MISMATCH:
                         switch(NtWaitForSingleObject(Event, FALSE, (PLARGE_INTEGER)&TimeWait))
                         {
                             case STATUS_SUCCESS:
-                                r |= LQEVNT_FLAG_RD;
+                                ResFlag |= LQEVNT_FLAG_RD;
                             case STATUS_TIMEOUT:
                             case STATUS_ALERTED:
                                 break;
                             default:
-                                r |= LQEVNT_FLAG_ERR; break;
+                                ResFlag |= LQEVNT_FLAG_ERR; break;
                         }
                         break;
                     case STATUS_PIPE_BROKEN:
                     case STATUS_PENDING:
                         break;
                     default:
-                        r |= LQEVNT_FLAG_ERR;
+                        ResFlag |= LQEVNT_FLAG_ERR;
                 }
             }
             if(Fd->Flag & LQEVNT_FLAG_WR)
@@ -350,33 +350,33 @@ LqEvntFlag __LqEvntEnumEventNext(LqEvnt* Events)
                 {
                     case STATUS_MORE_PROCESSING_REQUIRED:
                     case STATUS_SUCCESS:
-                        r |= LQEVNT_FLAG_WR;
+                        ResFlag |= LQEVNT_FLAG_WR;
                         break;
                     case STATUS_OBJECT_TYPE_MISMATCH:
                         switch(NtWaitForSingleObject(Event, FALSE, (PLARGE_INTEGER)&TimeWait))
                         {
                             case STATUS_SUCCESS:
-                                r |= LQEVNT_FLAG_WR;
+                                ResFlag |= LQEVNT_FLAG_WR;
                             case STATUS_TIMEOUT:
                             case STATUS_ALERTED:
                                 break;
                             default:
-                                r |= LQEVNT_FLAG_ERR; break;
+                                ResFlag |= LQEVNT_FLAG_ERR; break;
                         }
                         break;
                     case STATUS_PIPE_BROKEN:
                     case STATUS_PENDING:
                         break;
                     default:
-                        r |= LQEVNT_FLAG_ERR;
+                        ResFlag |= LQEVNT_FLAG_ERR;
                 }
             }
             if((Fd->Flag & LQEVNT_FLAG_HUP) && ((Fd->__Reserved1.Status == STATUS_PIPE_BROKEN) || (Fd->__Reserved2.Status == STATUS_PIPE_BROKEN)))
-                r |= LQEVNT_FLAG_HUP;
-            if(r == 0)
+                ResFlag |= LQEVNT_FLAG_HUP;
+            if(ResFlag == 0)
                 continue;
             Events->EventObjectIndex = i;
-            return r;
+            return ResFlag;
         }
         Events->EventObjectIndex = INTPTR_MAX;
     }
@@ -440,8 +440,6 @@ void LqEvntRemoveCurrent(LqEvnt* Events)
 
 void __LqEvntRestructAfterRemoves(LqEvnt* Events)
 {
-    if((--Events->DeepLoop) > 0)
-        return;
     LqArr2AlignAfterRemove(&Events->ConnArr, LqConn*, nullptr);
     LqArr3AlignAfterRemove(&Events->EvntFdArr, HANDLE, LqEvntFd*, nullptr);
 }
@@ -703,8 +701,9 @@ LqEvntHdr* LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator)
         Ret = (LqEvntHdr*)Conn;
     }else
     {
-        auto Fd = LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Interator->Index);
         auto EventObject = LqArr3At_1(&Events->EvntFdArr, HANDLE, Interator->Index);
+        auto Fd = LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Interator->Index);
+        Ret = (LqEvntHdr*)Fd;
         LqArr3RemoveAt(&Events->EvntFdArr, HANDLE, LqEvntFd*, Interator->Index, nullptr);
         Fd->Flag &= ~_LQEVNT_FLAG_SYNC;
         if((HANDLE)Fd->Fd != EventObject)
@@ -715,7 +714,6 @@ LqEvntHdr* LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator)
                 NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved2);
             LqFileClose((int)EventObject);
         }
-        Ret = (LqEvntHdr*)Fd;
     }
     Events->CommonCount--;
     return Ret;

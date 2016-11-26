@@ -4,7 +4,7 @@
 * 2016
 * LqEvnt... - Multiplatform abstracted event follower.
 * This part of server support:
-*       +Windows native events objects.
+*       +Windows WSAAsyncSelect (Creates window in each worker thread).
 *       +linux epoll.
 *       +kevent for BSD like systems.(*But not yet implemented)
 *       +poll for others unix systems.
@@ -36,7 +36,7 @@ typedef struct LqEvntInterator
 
 typedef struct __LqArr
 {
-    void* Data;
+    void*    Data;
     intptr_t Count;
     intptr_t AllocCount;
     bool     IsRemoved;
@@ -44,7 +44,7 @@ typedef struct __LqArr
 
 typedef struct __LqArr2
 {
-    void* Data;
+    void*    Data;
     intptr_t AllocCount;
     intptr_t MinEmpty;
     intptr_t MaxUsed;
@@ -53,8 +53,8 @@ typedef struct __LqArr2
 
 typedef struct __LqArr3
 {
-    void* Data;
-    void* Data2;
+    void*    Data;
+    void*    Data2;
     intptr_t Count;
     intptr_t AllocCount;
     bool     IsRemoved;
@@ -88,11 +88,24 @@ typedef struct LqEvnt
 
 #pragma pack(pop)
 
-#define lqevnt_enum_changes_do(EventFollower, EventFlags) for(LqEvntFlag EventFlags = __LqEvntEnumEventBegin(&(EventFollower)); EventFlags != 0; EventFlags = __LqEvntEnumEventNext(&(EventFollower)))
-#define lqevnt_enum_changes_while(EventFollower)  __LqEvntRestructAfterRemoves(&(EventFollower))
+#if defined(LQEVNT_WIN_EVENT)
+#define __LqEvntIsRestruct(EventFollower)  (((--(EventFollower)->DeepLoop) <= 0) && ((EventFollower)->EvntFdArr.IsRemoved || (EventFollower)->ConnArr.IsRemoved))
+#elif defined(LQEVNT_KEVENT)
+
+#elif defined(LQEVNT_EPOLL)
+#define __LqEvntIsRestruct(EventFollower)  (((--(EventFollower)->DeepLoop) <= 0) && (EventFollower)->ClientArr.IsRemoved)
+#elif defined(LQEVNT_POLL)
+#define __LqEvntIsRestruct(EventFollower)  (((--(EventFollower)->DeepLoop) <= 0) && (EventFollower)->EvntFdArr.IsRemoved)
+#endif
+
+
+
+
+#define lqevnt_enum_changes_do(EventFollower, EventFlags) {for(LqEvntFlag EventFlags = __LqEvntEnumEventBegin(&(EventFollower)); EventFlags != 0; EventFlags = __LqEvntEnumEventNext(&(EventFollower)))
+#define lqevnt_enum_changes_while(EventFollower)  if(__LqEvntIsRestruct(&(EventFollower))) __LqEvntRestructAfterRemoves(&(EventFollower));}
 
 #define lqevnt_enum_do(EventFollower, IndexName) {LqEvntInterator IndexName; for(auto __r = __LqEvntEnumBegin(&EventFollower, &IndexName); __r; __r = __LqEvntEnumNext(&EventFollower, &IndexName))
-#define lqevnt_enum_while(EventFollower)  __LqEvntRestructAfterRemoves(&(EventFollower));}
+#define lqevnt_enum_while(EventFollower)  if(__LqEvntIsRestruct(&(EventFollower))) __LqEvntRestructAfterRemoves(&(EventFollower));}
 
 /*
 * Init LqEvnt struct.

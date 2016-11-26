@@ -1348,7 +1348,7 @@ lblAgain:
                 LqWrkBossEnumCloseRmEvntByProto(&Reg->Proto, OutFile,
                  [](void* OutFile, LqEvntHdr* Conn) -> unsigned
                 {
-                    if(Conn->Flag & _LQEVNT_FLAG_CONN)
+                    if(LqEvntIsConn(Conn))
                     {
                         char IpBuf[256];
                         LqHttpConnGetRemoteIpStr((LqHttpConn*)Conn, IpBuf, 255);

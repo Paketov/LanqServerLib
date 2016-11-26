@@ -52,15 +52,15 @@ class LqPtdArr {
         return Res;
     }
     template<typename _SetVal>
-    bool _AddByArr(const _SetVal* Val, size_t Count) {
+    bool _AddByArr(const _SetVal* Val, intptr_t Count) {
         auto Cur = Ptr.NewStart();
-        size_t NewCount = Cur->Count + Count;
+        intptr_t NewCount = Cur->Count + Count;
         auto NewArr = AllocNew(NewCount);
         if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
             return false;
         }
-        size_t i = 0;
+        intptr_t i = 0;
         for(auto m = Cur->Count; i < m; i++)
             new(NewArr->Val + i) TypeVal(Cur->Val[i]);
         for(size_t j = 0; i < NewCount; i++, j++)
@@ -69,7 +69,7 @@ class LqPtdArr {
         return true;
     }
     template<typename _SetVal>
-    bool _SetByArr(const _SetVal* Val, size_t Count) {
+    bool _SetByArr(const _SetVal* Val, intptr_t Count) {
         auto Cur = Ptr.NewStart();
         auto NewCount = Count;
         auto NewArr = AllocNew(NewCount);
@@ -83,7 +83,7 @@ class LqPtdArr {
         return true;
     }
 
-    size_t _RmCount(size_t MinCount, size_t Count, LqPtdArr& Dest)
+    size_t _RmCount(intptr_t MinCount, intptr_t Count, LqPtdArr& Dest)
     {
         size_t Res = 0;
         auto Cur = Ptr.NewStart();
@@ -115,7 +115,7 @@ class LqPtdArr {
         return Res;
     }
 
-    size_t _RmCount(size_t MinCount, size_t Count)
+    size_t _RmCount(intptr_t MinCount, intptr_t Count)
     {
         size_t Res = 0;
         auto Cur = Ptr.NewStart();
@@ -144,7 +144,7 @@ class LqPtdArr {
         return Res;
     }
 
-    size_t _RmCount(size_t MinCount, size_t Count, std::function<void(TypeVal* Rest, size_t RestCount, TypeVal* Removed, size_t RemovedCount)> LockedFunc)
+    size_t _RmCount(intptr_t MinCount, intptr_t Count, std::function<void(TypeVal* Rest, size_t RestCount, TypeVal* Removed, size_t RemovedCount)> LockedFunc)
     {
         size_t Res = 0;
         auto Cur = Ptr.NewStart();
@@ -261,7 +261,7 @@ public:
         return interator();
     }
 
-    int append(interator& Start, interator& End) {
+	size_t append(interator& Start, interator& End) {
         if(IsDebug){
             if(Start.Ptr != End.Ptr)
                 throw "LqPtdArr::append(interator, interator): Interatrs points to different arrays. (Check threads race cond)\n";
@@ -271,22 +271,22 @@ public:
         return 0;
     }
     template<typename InType, typename = decltype(TypeVal(std::declval<InType>()))>
-    int append(const std::initializer_list<InType> Start) { return _AddByArr(Start.begin(), Start.size())? Start.size(): 0; }
+	size_t append(const std::initializer_list<InType> Start) { return _AddByArr(Start.begin(), Start.size())? Start.size(): 0; }
 
-    int append(interator& Start) {
+	size_t append(interator& Start) {
         if(_AddByArr(&*Start, Start.Ptr->Count - Start.Index))
             return Start.Ptr->Count - Start.Index;
         return 0;
     }
     template<typename InType, typename = decltype(TypeVal(std::declval<InType>()))>
-    inline int append(const std::vector<InType>& Val) { return _AddByArr(Val.data(), Val.size())? Val.size(): 0; }
-    inline int append(const LqPtdArr& Val) { return append(Val.begin()); }
+    inline size_t append(const std::vector<InType>& Val) { return _AddByArr(Val.data(), Val.size())? Val.size(): 0; }
+    inline size_t append(const LqPtdArr& Val) { return append(Val.begin()); }
     template<typename InType, typename = decltype(TypeVal(std::declval<InType>()))>
-    inline int append(const InType* Val, size_t Count) { return _AddByArr(Val, Count)? Count: 0; }
+    inline size_t append(const InType* Val, size_t Count) { return _AddByArr(Val, Count)? Count: 0; }
 
-    inline int unappend(size_t Count, size_t MinCount = 0) { return _RmCount(MinCount, Count); }
-    inline int unappend(size_t Count, size_t MinCount, LqPtdArr& Dest) { return _RmCount(MinCount, Count, Dest); }
-    inline int unappend(size_t Count, size_t MinCount, std::function<void(TypeVal* Rest, size_t RestCount, TypeVal* Removed, size_t RemovedCount)> LockedFunc)
+    inline size_t unappend(size_t Count, size_t MinCount = 0) { return _RmCount(MinCount, Count); }
+    inline size_t unappend(size_t Count, size_t MinCount, LqPtdArr& Dest) { return _RmCount(MinCount, Count, Dest); }
+    inline size_t unappend(size_t Count, size_t MinCount, std::function<void(TypeVal* Rest, size_t RestCount, TypeVal* Removed, size_t RemovedCount)> LockedFunc)
         { return _RmCount(MinCount, Count, LockedFunc); }
     inline void swap(LqPtdArr& AnotherVal) { Ptr.Swap(AnotherVal.Ptr); }
 
@@ -309,13 +309,13 @@ public:
                 Ptr.NewFin(Cur);
                 return 0;
             }
-        size_t NewCount = Cur->Count + 1;
+        intptr_t NewCount = Cur->Count + 1;
         auto NewArr = AllocNew(NewCount);
         if(NewArr == nullptr){
             Ptr.NewFin(Cur);
             return -1;
         }
-        size_t i = 0;
+        intptr_t i = 0;
         for(auto m = Cur->Count; i < m; i++)
             new(NewArr->Val + i) TypeVal(Cur->Val[i]);
         new(NewArr->Val + i) TypeVal(NewVal);
@@ -343,7 +343,7 @@ public:
             Ptr.NewFin(Cur);
             return 0;
         }
-        size_t NewCount = Cur->Count;
+        intptr_t NewCount = Cur->Count;
         auto NewArr = AllocNew(NewCount);
         if(NewArr == nullptr) {
             Ptr.NewFin(Cur);
@@ -387,7 +387,7 @@ public:
             Ptr.NewFin(Cur);
             return false;
         }
-        size_t NewCount = Cur->Count - 1;
+        intptr_t NewCount = Cur->Count - 1;
         if(NewCount <= 0){
             Ptr.NewFin(AllocNew());
             return true;
@@ -397,7 +397,7 @@ public:
             Ptr.NewFin(Cur);
             return false;
         }
-        size_t i = 0;
+        intptr_t i = 0;
         for(; i < RmIndex; i++)
             new(NewArr->Val + i) TypeVal(Cur->Val[i]);
         if(RemovedVal != nullptr)
@@ -423,7 +423,7 @@ public:
             Ptr.NewFin(Cur);
             return 0;
         }
-        size_t NewCount = Cur->Count - RmCount;
+        intptr_t NewCount = Cur->Count - RmCount;
         if(NewCount <= 0){
             Ptr.NewFin(AllocNew());
             return RmCount;
@@ -461,7 +461,7 @@ public:
             Ptr.NewFin(Cur);
             return false;
         }
-        size_t NewCount = Cur->Count - 1;
+        intptr_t NewCount = Cur->Count - 1;
         if(NewCount <= 0){
             Ptr.NewFin(AllocNew());
             return true;
@@ -471,7 +471,7 @@ public:
             Ptr.NewFin(Cur);
             return false;
         }
-        size_t i = 0;
+        intptr_t i = 0;
         for(; i < RmIndex; i++)
             new(NewArr->Val + i) TypeVal(Cur->Val[i]);
         if(RemovedVal != nullptr)

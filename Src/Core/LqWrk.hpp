@@ -61,11 +61,8 @@ class LQ_IMPORTEXPORT LqWrk:
     virtual void BeginThread();
     virtual void NotifyThread();
 
-    static void DelProc(void* Data, LqEvntInterator* Hdr);
-
     inline void Unlock() { Locker.UnlockWrite(); }
     inline void Lock() { Locker.LockWriteYield(); }
-
 
     inline void WaiterLockMain() { WaitLocker.LockWrite(); }
     inline void WaiterLock() 
@@ -85,6 +82,8 @@ class LQ_IMPORTEXPORT LqWrk:
     void ClearQueueCommands();
 
     static void ExitHandlerFn(void* Data);
+    static void DelProc(void* Data, LqEvntInterator* Hdr);
+
     LqWrk(bool IsStart);
     ~LqWrk();
 public:
@@ -93,7 +92,9 @@ public:
 
     ullong   GetId() const;
 
-    /*Получить загруженность потока-обработчика*/
+    /*
+    * Get busy info
+    */
     size_t   GetAssessmentBusy() const;
     size_t   CountEvnts() const;
 
@@ -122,14 +123,14 @@ public:
     This method return all connection from this worker.
     */
 
-    int      CloseAllEvntAsync();
     size_t   CloseAllEvntSync();
+    bool     CloseAllEvntAsync();
 
     size_t   CloseConnByIpSync(const sockaddr* Addr);
     bool     CloseConnByIpAsync(const sockaddr* Addr);
 
-    bool     CloseConnByProtoAsync(const LqProto* Proto);
     size_t   CloseConnByProtoSync(const LqProto* Proto);
+    bool     CloseConnByProtoAsync(const LqProto* Proto);
     
     /*
       @Proc - In this proc must not call another worker methods.
