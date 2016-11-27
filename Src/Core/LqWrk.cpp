@@ -1067,7 +1067,7 @@ LqString LqWrk::DebugInfo() const
         " Count conn. & event obj. in queue: %u\n"
         " Common conn. & event obj.: %u\n",
         Id,
-        LqTimeLocSecToStlStr(CurrentTimeMillisec / 1000).c_str(),
+        LqTimeLocSecToStlStr(TimeStart / 1000).c_str(),
         LqTimeDiffMillisecToStlStr(TimeStart, CurrentTimeMillisec).c_str(),
         (uint)ccip,
         (uint)cciq,
