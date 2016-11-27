@@ -321,19 +321,19 @@ size_t LqWrkBoss::CloseConnByProtoSync(const LqProto* Proto) const
     return Res;
 }
 
-size_t LqWrkBoss::EnumCloseRmEvnt(void * UserData, unsigned(*Proc)(void *UserData, LqEvntHdr* EvntHdr)) const
+size_t LqWrkBoss::EnumCloseRmEvnt(unsigned(*Proc)(void *UserData, LqEvntHdr* EvntHdr), void * UserData) const
 {
     size_t Res = 0;
     for(auto i = Wrks.begin(); !i.is_end(); i++)
-        Res += (*i)->EnumCloseRmEvnt(UserData, Proc);
+        Res += (*i)->EnumCloseRmEvnt(Proc, UserData);
     return Res;
 }
 
-size_t LqWrkBoss::EnumCloseRmEvntByProto(const LqProto* Proto, void * UserData, unsigned(*Proc)(void *UserData, LqEvntHdr *EvntHdr)) const
+size_t LqWrkBoss::EnumCloseRmEvntByProto(unsigned(*Proc)(void *UserData, LqEvntHdr *EvntHdr), const LqProto* Proto, void * UserData) const
 {
     size_t Res = 0;
     for(auto i = Wrks.begin(); !i.is_end(); i++)
-        Res += (*i)->EnumCloseRmEvntByProto(Proto, UserData, Proc);
+        Res += (*i)->EnumCloseRmEvntByProto(Proc, Proto, UserData);
     return Res;
 }
 
@@ -365,6 +365,34 @@ size_t LqWrkBoss::UpdateAllEvntFlagSync() const
     size_t Res = 0;
     for(auto i = Wrks.begin(); !i.is_end(); i++)
         Res += (*i)->UpdateAllEvntFlagSync();
+    return Res;
+}
+
+bool LqWrkBoss::AsyncCall(void(*AsyncProc)(void* Data), void* UserData)
+{
+    bool Res = true;
+    auto LocalWrks = Wrks.begin();
+    if(LocalWrks.size() <= 0)
+    {
+        if(!AddWorkers(1))
+        {
+            return false;
+        } else
+        {
+            LocalWrks = Wrks.begin();
+            if(LocalWrks.size() <= 0)
+                return false;
+        }
+    }
+    auto IndexMinUsed = MinBusy(LocalWrks);
+    return LocalWrks[IndexMinUsed]->AsyncCall(AsyncProc, UserData);
+}
+
+size_t LqWrkBoss::CancelAsyncCall(void(*AsyncProc)(void* Data), void* UserData, bool IsAll)
+{
+    size_t Res = 0;
+    for(auto i = Wrks.begin(); !i.is_end() && (IsAll || (Res <= 0)); i++)
+        Res += (*i)->CancelAsyncCall(AsyncProc, UserData, IsAll);
     return Res;
 }
 
@@ -452,12 +480,16 @@ LQ_EXTERN_C int LQ_CALL LqWrkBossCloseConnByProtoTimeoutAsync(const LqProto * Pr
 
 LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseConnByProtoTimeoutSync(const LqProto * Proto, LqTimeMillisec TimeLive) { return Boss.CloseConnByTimeoutSync(Proto, TimeLive) ? 0 : -1; }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossEnumCloseRmEvntByProto(const LqProto* Proto, void * UserData, unsigned(*Proc)(void *UserData, LqEvntHdr *Conn)) 
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossEnumCloseRmEvntByProto(unsigned(*Proc)(void *UserData, LqEvntHdr *Conn), const LqProto* Proto, void* UserData) 
 { 
-    return Boss.EnumCloseRmEvntByProto(Proto, UserData, Proc);
+    return Boss.EnumCloseRmEvntByProto(Proc, Proto, UserData);
 }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossEnumCloseRmEvnt(void * UserData, unsigned(*Proc)(void *UserData, LqEvntHdr *Conn)) { return Boss.EnumCloseRmEvnt(UserData, Proc); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossEnumCloseRmEvnt(unsigned(*Proc)(void *UserData, LqEvntHdr *Conn), void * UserData) { return Boss.EnumCloseRmEvnt(Proc, UserData); }
+
+LQ_EXTERN_C int LQ_CALL LqWrkBossAsyncCall(void(*AsyncProc)(void* Data), void* UserData) { return Boss.AsyncCall(AsyncProc, UserData) ? 0 : -1; }
+
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCancelAsyncCall(void(*AsyncProc)(void* Data), void* UserData, bool IsAll) { return Boss.CancelAsyncCall(AsyncProc, UserData, IsAll); }
 
 LQ_EXTERN_C size_t LQ_CALL LqWrkBossSetMinWrkCount(size_t NewCount) { return Boss.SetWrkMinCount(NewCount); }
 

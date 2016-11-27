@@ -1345,17 +1345,19 @@ lblAgain:
             LQSTR_CASE("connlist")
             {
 
-                LqWrkBossEnumCloseRmEvntByProto(&Reg->Proto, OutFile,
-                 [](void* OutFile, LqEvntHdr* Conn) -> unsigned
-                {
-                    if(LqEvntIsConn(Conn))
-                    {
-                        char IpBuf[256];
-                        LqHttpConnGetRemoteIpStr((LqHttpConn*)Conn, IpBuf, 255);
-                        fprintf((FILE*)OutFile, " Host: %s, Port: %i\n", IpBuf, LqHttpConnGetRemotePort((LqHttpConn*)Conn));
-                    }
-                    return 0;
-                }
+                LqWrkBossEnumCloseRmEvntByProto(
+					[](void* OutFile, LqEvntHdr* Conn) -> unsigned
+					{
+						if(LqEvntIsConn(Conn))
+						{
+							char IpBuf[256];
+							LqHttpConnGetRemoteIpStr((LqHttpConn*)Conn, IpBuf, 255);
+							fprintf((FILE*)OutFile, " Host: %s, Port: %i\n", IpBuf, LqHttpConnGetRemotePort((LqHttpConn*)Conn));
+						}
+						return 0;
+					},
+					&Reg->Proto, 
+					OutFile
                 );
             }
             break;

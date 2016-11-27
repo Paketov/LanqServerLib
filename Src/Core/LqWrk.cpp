@@ -802,15 +802,15 @@ int LqWrk::UpdateAllEvntFlagSync()
     return Res;
 }
 
-bool LqWrk::AsyncCall(void(*WaitProc)(void* Data), void* UserData)
+bool LqWrk::AsyncCall(void(*AsyncProc)(void* Data), void* UserData)
 {
-    if(!CommandQueue.PushBegin<LqWrkCmdWaitEvnt>(LQWRK_CMD_WAIT_EVENT, LqWrkCmdWaitEvnt(WaitProc, UserData)))
+    if(!CommandQueue.PushBegin<LqWrkCmdWaitEvnt>(LQWRK_CMD_WAIT_EVENT, LqWrkCmdWaitEvnt(AsyncProc, UserData)))
         return false;
     NotifyThread();
     return true;
 }
 
-size_t LqWrk::CancelAsyncCall(void(*WaitProc)(void *Data), void* UserData, bool IsAll)
+size_t LqWrk::CancelAsyncCall(void(*AsyncProc)(void *Data), void* UserData, bool IsAll)
 {
     size_t Res = 0;
     for(auto Command = CommandQueue.SeparateBegin(); !CommandQueue.SeparateIsEnd(Command);)
@@ -819,7 +819,7 @@ size_t LqWrk::CancelAsyncCall(void(*WaitProc)(void *Data), void* UserData, bool 
         {
             case LQWRK_CMD_ADD_CONN:
             {
-                if((IsAll || (Res == 0)) && (Command.Val<LqWrkCmdWaitEvnt>().EventAct == WaitProc) && (Command.Val<LqWrkCmdWaitEvnt>().UserData == UserData))
+                if((IsAll || (Res == 0)) && (Command.Val<LqWrkCmdWaitEvnt>().EventAct == AsyncProc) && (Command.Val<LqWrkCmdWaitEvnt>().UserData == UserData))
                 {
                     Command.Pop<LqWrkCmdWaitEvnt>();
                     Res++;
@@ -981,7 +981,7 @@ lblContinue:;
     return Res;
 }
 
-size_t LqWrk::EnumCloseRmEvnt(void* UserData, unsigned(*Proc)(void *UserData, LqEvntHdr* Conn))
+size_t LqWrk::EnumCloseRmEvnt(unsigned(*Proc)(void *UserData, LqEvntHdr* Conn), void* UserData)
 {
     size_t Res = 0;
 #ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
@@ -1014,7 +1014,7 @@ lblContinue:;
     return Res;
 }
 
-size_t LqWrk::EnumCloseRmEvntByProto(const LqProto * Proto, void * UserData, unsigned(*Proc)(void *UserData, LqEvntHdr *Conn))
+size_t LqWrk::EnumCloseRmEvntByProto(unsigned(*Proc)(void *UserData, LqEvntHdr *Conn), const LqProto* Proto, void* UserData)
 {
     size_t Res = 0;
 #ifdef LQWRK_ENABLE_RW_HNDL_PROTECT

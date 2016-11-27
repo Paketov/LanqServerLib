@@ -1023,14 +1023,14 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 			break;
 			LQSTR_CASE("clear_bind_range")
 			{
-				LqWrkBossEnumCloseRmEvnt(
-					nullptr,
+				LqWrkBossEnumCloseRmEvnt(					
 					[](void*, LqEvntHdr* Conn) -> unsigned
-				{
-					if(LqEvntIsConn(Conn) && (((LqConn*)Conn)->Proto == &BindedProto))
-						return 2;
-					return 0;
-				}
+					{
+						if(LqEvntIsConn(Conn) && (((LqConn*)Conn)->Proto == &BindedProto))
+							return 2;
+						return 0;
+					},
+					nullptr
 				);
 			}
 			break;
@@ -1069,7 +1069,6 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 		[](LqHttpMdl* This) -> uintptr_t
 		{
 			LqWrkBossEnumCloseRmEvnt(
-				nullptr,
 				[](void*, LqEvntHdr* Conn) -> unsigned
 				{
 					if(LqEvntIsConn(Conn) && ((((LqConn*)Conn)->Proto == &PktProto) || (((LqConn*)Conn)->Proto == &ClientProto) || (((LqConn*)Conn)->Proto == &BindedProto)))
@@ -1080,7 +1079,8 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 						return 2;
 					}
 					return 0;
-				}
+				},
+				nullptr
 			);
 			for(auto& i : PortRange)
 			{

@@ -116,8 +116,8 @@ public:
     bool     UpdateAllEvntFlagAsync();
     int      UpdateAllEvntFlagSync();
 
-    bool     AsyncCall(void(*WaitProc)(void* Data), void* UserData = nullptr);
-    size_t   CancelAsyncCall(void(*WaitProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
+    bool     AsyncCall(void(*AsyncProc)(void* Data), void* UserData = nullptr);
+    size_t   CancelAsyncCall(void(*AsyncProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
 
     /*
     This method return all connection from this worker.
@@ -135,8 +135,8 @@ public:
     /*
       @Proc - In this proc must not call another worker methods.
     */
-    size_t   EnumCloseRmEvnt(void* UserData, unsigned(*Proc)(void* UserData, LqEvntHdr* Conn));
-    size_t   EnumCloseRmEvntByProto(const LqProto* Proto, void* UserData, unsigned(*Proc)(void* UserData, LqEvntHdr* Conn));
+    size_t   EnumCloseRmEvnt(unsigned(*Proc)(void* UserData, LqEvntHdr* Conn), void* UserData = nullptr);
+    size_t   EnumCloseRmEvntByProto(unsigned(*Proc)(void* UserData, LqEvntHdr* Conn), const LqProto* Proto, void* UserData = nullptr);
 
     LqString DebugInfo() const;
     LqString AllDebugInfo();

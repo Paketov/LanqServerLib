@@ -126,7 +126,7 @@ public:
          @return: 0 - just continue, 1 - remove, 2 - remove and close
        @return: Count removed events.
     */
-    size_t      EnumCloseRmEvnt(void* UserData, unsigned(*Proc)(void* UserData, LqEvntHdr* EvntHdr)) const;
+    size_t      EnumCloseRmEvnt(unsigned(*Proc)(void* UserData, LqEvntHdr* EvntHdr), void* UserData = nullptr) const;
 
     /*
       Enum and remove or close event header, use @Proto as filter
@@ -137,7 +137,7 @@ public:
          @return: 0 - just continue, 1 - remove, 2 - remove and close
        @return: Count removed events.
     */
-    size_t      EnumCloseRmEvntByProto(const LqProto* Proto, void* UserData, unsigned(*Proc)(void* UserData, LqEvntHdr* EvntHdr)) const;
+    size_t      EnumCloseRmEvntByProto(unsigned(*Proc)(void* UserData, LqEvntHdr* EvntHdr), const LqProto* Proto, void* UserData = nullptr) const;
 
     /*
       Just remove event from workers. (In sync mode)
@@ -146,6 +146,23 @@ public:
     */
     bool        RemoveEvnt(LqEvntHdr* EvntHdr) const;
     bool        CloseEvnt(LqEvntHdr* EvntHdr) const;
+
+
+	/*
+	  Make async call procedure in in one of worker.
+	    @AsyncProc - Target procedure
+		@UserData - User data for procedure
+		@return - true is async task added
+	*/
+    bool         AsyncCall(void(*AsyncProc)(void* Data), void* UserData = nullptr);
+	/*
+	  Remove async task from worker(s) queue
+		@AsyncProc - Target procedure
+		@UserData - User data for procedure
+		@IsAll - Is remove all added tasks
+		@return - count removed tasks
+	*/
+    size_t       CancelAsyncCall(void(*AsyncProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
 
     /*
        Transfer all events follovers to other workers.
