@@ -88,8 +88,17 @@ LQ_EXTERN_C uint32_t LQ_CALL LqStrCharRead(FILE* FileBuf)
     HANDLE h = (HANDLE)_get_osfhandle(_fileno(FileBuf));
     uint8_t Buf2[5] = {0};
 
-    if(ReadConsoleW(h, Buf1, 1, LqDfltPtr(), nullptr) == FALSE)
-        return -1;
+	if(ReadConsoleW(h, Buf1, 1, LqDfltPtr(), nullptr) == FALSE)
+	{
+		if(GetLastError() == ERROR_INVALID_FUNCTION)
+		{
+			if(ReadFile(h, Buf1, 1, LqDfltPtr(), nullptr) == FALSE)
+				return -1;
+		} else
+		{
+			return -1;
+		}
+	}
 
     if(LqStrUtf16Count(Buf1[0]) >= 2)
     {

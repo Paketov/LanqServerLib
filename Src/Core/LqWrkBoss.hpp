@@ -148,20 +148,20 @@ public:
     bool        CloseEvnt(LqEvntHdr* EvntHdr) const;
 
 
-	/*
-	  Make async call procedure in in one of worker.
-	    @AsyncProc - Target procedure
-		@UserData - User data for procedure
-		@return - true is async task added
-	*/
+    /*
+      Make async call procedure in in one of worker.
+        @AsyncProc - Target procedure
+        @UserData - User data for procedure
+        @return - true is async task added
+    */
     bool         AsyncCall(void(*AsyncProc)(void* Data), void* UserData = nullptr);
-	/*
-	  Remove async task from worker(s) queue
-		@AsyncProc - Target procedure
-		@UserData - User data for procedure
-		@IsAll - Is remove all added tasks
-		@return - count removed tasks
-	*/
+    /*
+      Remove async task from worker(s) queue
+        @AsyncProc - Target procedure
+        @UserData - User data for procedure
+        @IsAll - Is remove all added tasks
+        @return - count removed tasks
+    */
     size_t       CancelAsyncCall(void(*AsyncProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
 
     /*
