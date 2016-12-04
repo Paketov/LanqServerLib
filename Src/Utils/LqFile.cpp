@@ -832,7 +832,8 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessCreate
     int StdIn,
     int StdOut,
     int StdErr,
-    int* EventKill
+    int* EventKill,
+	bool IsOwnerGroup
 )
 {
     STARTUPINFOW siStartInfo = {sizeof(STARTUPINFOW), 0};
@@ -881,7 +882,7 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessCreate
        NULL,
        NULL,
        TRUE,
-       CREATE_UNICODE_ENVIRONMENT,
+       CREATE_UNICODE_ENVIRONMENT | (IsOwnerGroup? CREATE_NEW_PROCESS_GROUP: 0),
        (Envp != nullptr) ? (LPVOID)Environ.c_str() : NULL,
        (WorkingDir != nullptr) ? Buf : NULL,
        &siStartInfo,
@@ -2121,7 +2122,8 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessCreate
     int StdIn,
     int StdOut,
     int StdErr,
-    int* EventKill
+    int* EventKill,
+	bool IsOwnerGroup
 )
 {
     int EventParent = -1, EventChild = -1;
@@ -2155,9 +2157,14 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessCreate
     Pid = fork();
     if(Pid == 0)
     {
+		auto ThisPid = getpid();
         close(TestPipe[0]);
         lq_errno_set(0);
         setsid();
+		if(IsOwnerGroup)
+			setpgid(ThisPid, ThisPid);
+
+
         if(StdIn != -1)
         {
             if(LqFileDescrDupToStd(StdIn, STDIN_FILENO) == -1)

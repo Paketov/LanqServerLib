@@ -419,7 +419,8 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileProcessCreate(
     int StdIn,
     int StdOut,
     int StdErr,
-    int* lqaopt lqaout EventKill
+    int* lqaopt lqaout EventKill,
+	bool IsOwnerGroup
 );
 /*
 * LqFileProcessKill

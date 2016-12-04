@@ -317,7 +317,7 @@ lblBreak:
 			for(auto f = 1; f < i->__Args.size(); f++ )
 				Args.push_back((char*)i->__Args[f].c_str());
 			Args.push_back((char*)nullptr);
-			if(LqFileProcessCreate(i->__Args[0].c_str(), Args.data(), Envs.data(), nullptr, Rd, Dev, Dev, nullptr) != -1)
+			if(LqFileProcessCreate(i->__Args[0].c_str(), Args.data(), Envs.data(), nullptr, Rd, Dev, Dev, nullptr, false) != -1)
 			{
 				LqFileWrite(Wr, Data, DataSize);
 			}
@@ -461,7 +461,7 @@ lblContinue2:
 			for(auto f = 1; f < i->__Args.size(); f++)
 				Args.push_back((char*)i->__Args[f].c_str());
 			Args.push_back((char*)nullptr);
-			if(LqFileProcessCreate(i->__Args[0].c_str(), Args.data(), Envs.data(), nullptr, Rd, Dev, Dev, nullptr) != -1)
+			if(LqFileProcessCreate(i->__Args[0].c_str(), Args.data(), Envs.data(), nullptr, Rd, Dev, Dev, nullptr, false) != -1)
 			{
 				LqFileWrite(Wr, Data, DataSize);
 			}
@@ -538,7 +538,7 @@ static void LQ_CALL BindedReciveProc(LqConn* Conn, LqEvntFlag)
 	if((BConn->RspData != nullptr) && (BConn->RspData->IsProc))
 	{
 		LqString Str = BConn->RspData->Data;
-		std::vector<std::string> __Args;
+		std::vector<LqString> __Args;
 		std::vector<char*> Args, Envs;
 		ParseArgsProc(Str, __Args);
 		for(auto& i : __Args)
@@ -569,7 +569,7 @@ static void LQ_CALL BindedReciveProc(LqConn* Conn, LqEvntFlag)
 		int Dev = LqFileOpen(LQ_NULLDEV, LQ_O_WR, 0);
 
 		LqConnSwitchNonBlock(fd, 1);
-		LqFileProcessCreate(Args[0], Args.data() + 1, Envs.data(), nullptr, fd, fd, Dev, nullptr);
+		LqFileProcessCreate(Args[0], Args.data() + 1, Envs.data(), nullptr, fd, fd, Dev, nullptr, false);
 		closesocket(fd);
 		LqFileClose(Dev);
 		return;
@@ -723,7 +723,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 				for(; i < FullCommand.length(); i++)
 				{
 					for(; (FullCommand[i] == ' ') || (FullCommand[i] == '\n') || (FullCommand[i] == '\t'); i++);
-					std::string Alias;
+					LqString Alias;
 					for(; ((FullCommand[i] >= 'A') && (FullCommand[i] <= 'Z')) || ((FullCommand[i] >= 'a') && (FullCommand[i] <= 'z')); i++)
 						Alias.append(1, FullCommand[i]);
 					LQSTR_SWITCH_I(Alias.c_str())
@@ -769,9 +769,9 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 				/*
 				--logfile="<name log file>"
 				*/
-				std::vector<std::pair<std::string, std::string>> Args;
+				std::vector<std::pair<LqString, LqString>> Args;
 				ParseArgs(FullCommand, Args);
-				std::string LogFileName;
+				LqString LogFileName;
 				int StartPrt, EndPrt;
 				LqFileSz Loop = 0xffffffffffff;
 				for(auto& i : Args)
@@ -831,7 +831,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 			break;
 			LQSTR_CASE("add_prt_range_proc")
 			{
-				std::vector<std::string> Args;
+				LqString Args;
 				ParseArgsProc(FullCommand, Args);
 				int StartPrt, EndPrt;
 				if(Args.empty())
@@ -870,9 +870,9 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 				   --recvln=<len>
 				   --live=<timelive>
 				*/
-				std::vector<std::pair<std::string, std::string>> Args;
+				std::vector<std::pair<LqString, LqString>> Args;
 				ParseArgs(FullCommand, Args);
-				std::string ResponseFileName;
+				LqString ResponseFileName;
 				int RecvLen = 0;
 				int TimeLive = 0;
 				int StartPrt, EndPrt;
@@ -1035,7 +1035,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 			}
 			break;
 			LQSTR_CASE("?")
-				LQSTR_CASE("help")
+			LQSTR_CASE("help")
 			{
 				if(OutBuffer)
 					fprintf

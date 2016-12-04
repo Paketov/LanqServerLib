@@ -260,7 +260,7 @@ void LQ_CALL ConnHandlers::NewTerminal(LqHttpConn* c)
     const char* TerminalShell = "sh";
     char * Arg[] = {"-", nullptr};
 #endif
-    int Pid = LqFileProcessCreate(TerminalShell, Arg, nullptr, nullptr, SlaveFd, SlaveFd, SlaveFd, nullptr);
+    int Pid = LqFileProcessCreate(TerminalShell, Arg, nullptr, nullptr, SlaveFd, SlaveFd, SlaveFd, nullptr, false);
     LqFileClose(SlaveFd);
     if(Pid == -1)
     {
