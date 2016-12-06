@@ -516,6 +516,7 @@ lblAgain2:
         }
     }
 }
+
 static bool LqEvntSetMaskConn(LqEvnt* Events, size_t Index)
 {
     auto Conn = LqArr2At(&Events->ConnArr, LqConn*, Index);

@@ -28,27 +28,6 @@
 #include <vector>
 #include <thread>
 #include <stack>
-#include <regex>
-
-static bool ParseArgs(LqString& Source, std::pair<LqString, LqString>& Res)
-{
-	static std::regex Regex("(?:[\t ]*)(?:(?:\"([^\"]*)\")|([^ \t=]*))(?:=(?:(?:\"([^\"]*)\")|([^ \t]*)))?(.*)");
-	std::cmatch Match;
-	std::regex_match(Source.c_str(), Match, Regex);
-	if(Match.empty())
-		return false;
-
-	LqString Name;
-	LqString Val;
-	Name = (Match[1].matched) ? Match[1].str() : Match[2].str();
-	if(Match[3].matched)
-		Val = Match[3].str();
-	else if(Match[4].matched)
-		Val = Match[4].str();
-	Res.first = Name;
-	Res.second = Val;
-	return true;
-}
 
 
 int main(int argc, char* argv[])
@@ -70,35 +49,20 @@ int main(int argc, char* argv[])
 	LqString StrAddr;
 	bool IsOutEmpty = false;
 
-
+	char Next = '\0';
 	for(int i = 1; i < argc; i++)
 	{
-		LqString Name, Value;
-		for(char* c = argv[i]; *c != '\0'; c++)
+		switch(Next)
 		{
-			if(*c == '=')
+			case 'a':
 			{
-				Value = c + 1;
-				*c = '\0';
-				Name = argv[i];
-				*c = '=';
-				break;
-			}
-		}
-		if(Name.empty())
-			Name = argv[i];
-
-		LQSTR_SWITCH_I(Name.c_str())
-		{
-			LQSTR_CASE_I("--addr")
-			{
-				addrinfo hi = {0}, *ah = nullptr, *i;
+				addrinfo hi = {0}, *ah = nullptr;
 				hi.ai_socktype = SOCK_STREAM;
 				hi.ai_family = IPPROTO_IP;
 				hi.ai_protocol = AF_UNSPEC;
 				hi.ai_flags = 0;                   //AI_PASSIVE
-				StrAddr = Value;
-				int res = getaddrinfo(Value.c_str(), nullptr, &hi, &ah);
+				StrAddr = argv[i];
+				int res = getaddrinfo(argv[i], nullptr, &hi, &ah);
 				if(res == 0)
 				{
 					memcpy(&Addr, ah->ai_addr, ah->ai_addrlen);
@@ -110,15 +74,10 @@ int main(int argc, char* argv[])
 				}
 			}
 			break;
-			LQSTR_CASE_I("--outempty")
-			{
-				IsOutEmpty = true;
-			}
-			break;
-			LQSTR_CASE_I("--prt")
+			case 'p':
 			{
 				int StartRange = 0, EndRange = 0;
-				auto Readed = sscanf(Value.c_str(), "%i-%i", &StartRange, &EndRange);
+				auto Readed = sscanf(argv[i], "%i-%i", &StartRange, &EndRange);
 				if(Readed == 1)
 				{
 					EndRange = StartRange;
@@ -135,10 +94,10 @@ int main(int argc, char* argv[])
 				Ports.push_back(std::pair<uint16_t, uint16_t>(StartRange, EndRange));
 			}
 			break;
-			LQSTR_CASE_I("--beep")
+			case 'b':
 			{
 				int TmpFreg, TmpLen;
-				auto Readed = sscanf(Value.c_str(), "%i,%i", &TmpFreg, &TmpLen);
+				auto Readed = sscanf(argv[i], "%i,%i", &TmpFreg, &TmpLen);
 				if(Readed == 1)
 				{
 					BeepFreg = TmpFreg;
@@ -147,7 +106,7 @@ int main(int argc, char* argv[])
 				{
 					BeepFreg = TmpFreg;
 					BeepLen = TmpLen;
-				}else if(Readed < 1)
+				} else if(Readed < 1)
 				{
 					fprintf(stderr, "ERROR: Invalid beep params\n");
 					return -1;
@@ -159,16 +118,9 @@ int main(int argc, char* argv[])
 				}
 			}
 			break;
-			LQSTR_CASE_I("--log")
+			case 'l':
 			{
-				LqString Str = argv[i];
-				std::pair<LqString, LqString> Res;
-				if(!ParseArgs(Str, Res))
-				{
-					fprintf(stderr, "ERROR: Invalid log filename\n");
-					return -1;
-				}
-				LogFileName = Res.second;
+				LogFileName = argv[i];
 				LqFileStat Stat;
 				auto StatRes = LqFileGetStat(LogFileName.c_str(), &Stat);
 				if((StatRes >= 0) && !(Stat.Type & LQ_F_REG))
@@ -178,9 +130,9 @@ int main(int argc, char* argv[])
 				}
 			}
 			break;
-			LQSTR_CASE_I("--wait")
+			case 'w':
 			{
-				WaitMillisec = LqParseInt(Value);
+				WaitMillisec = LqParseInt(argv[i]);
 				if(WaitMillisec < 30)
 				{
 					fprintf(stderr, "ERROR: Invalid wait time\n");
@@ -188,31 +140,44 @@ int main(int argc, char* argv[])
 				}
 			}
 			break;
-			LQSTR_CASE_I("--wrkcount")
+			case 'c':
 			{
-				CountWorkers = LqParseInt(Value);
+				CountWorkers = LqParseInt(argv[i]);
 				if(CountWorkers < 0)
 					CountWorkers = std::thread::hardware_concurrency();
 			}
 			break;
-			LQSTR_CASE_I("--help")
+			case 'h':
 			{
 				printf(
 					"Lanq Port Scanner\n"
 					"hotSAN 2016\n"
+					" Only for TCP\n"
 					" Arguments: \n"
-					"  --addr=<ip address or host> - Scan host or ip address\n"
-					"  --outempty - Print in log file only host name when not found open ports\n"
-					"  --prt=<StartPort[-EndPort]> - Add port range to scan\n"
-					"  --beep=<Freg,Len> - Beep when foun open ports\n"
-					"  --log=<Log file name or ?stdout> - Out file name\n"
-					"  --wait=<Millisec> - Connect wait time\n"
-					"  --wrkcount=<Count> - Worker count\n"
+					"  -a <ip address or host> - Scan host or ip address\n"
+					"  -e - Print in log file only host name when not found open ports\n"
+					"  -p <StartPort[-EndPort]> - Add port range to scan\n"
+					"  -b <Freg,Len> - Beep when foun open ports\n"
+					"  -l <Log file name or ?stdout> - Out file name\n"
+					"  -w <Millisec> - Connect wait time\n"
+					"  -c <Worker_Count> - Worker count\n"
 				);
 				return 0;
 			}
-			break;
+			default:
+				if(argv[i][0] == '-')
+				{
+					switch(argv[i][1])
+					{
+						case 'e': IsOutEmpty = true; break;
+						case 'a': case 'p': case 'b':
+						case 'l': case 'w': case 'c':
+						case 'h': Next = argv[i][1]; break;
+					}
+				}
+				continue;
 		}
+		Next = '\0';
 	}
 	if(Addr.Addr.sa_family == 0)
 	{
@@ -251,11 +216,10 @@ int main(int argc, char* argv[])
 			}
 
 			LqString OutStr;
-			OutStr = StrAddr + ": ";
+			OutStr = StrAddr + ":";
 			for(auto i: OpenPorts)
-				OutStr += (" " + std::to_string(i) + ",");
-			OutStr.pop_back();
-			OutStr += "\r\n";
+				OutStr += (" " + std::to_string(i));
+			OutStr += "\n";
 			LqFileWrite(LogFd, OutStr.c_str(), OutStr.length());
 			if(LogFileName != "?stdout")
 				LqFileClose(LogFd);

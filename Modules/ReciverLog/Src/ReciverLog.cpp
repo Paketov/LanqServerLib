@@ -831,7 +831,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 			break;
 			LQSTR_CASE("add_prt_range_proc")
 			{
-				LqString Args;
+				std::vector<LqString> Args;
 				ParseArgsProc(FullCommand, Args);
 				int StartPrt, EndPrt;
 				if(Args.empty())
