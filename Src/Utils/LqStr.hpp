@@ -9,62 +9,38 @@
 
 #include "LqStr.h"
 #include "LqDef.hpp"
+#include "LqSbuf.h"
 
-
-template<typename TypeNumber>
-int LqStrToInt(TypeNumber * Dest, const char * Str)
-{
-    TypeNumber Negative = (TypeNumber)1;
-    int CountReaded = 0;
-    if(std::is_signed<TypeNumber>::value)
-        switch(Str[CountReaded])
-        {
-            case '-':
-                Negative = -1;
-            case '+':
-                CountReaded++;
-        }
-    TypeNumber Ret = (TypeNumber)0;
-    size_t t = CountReaded;
-    if((Str[CountReaded] > '9') || (Str[CountReaded] < '0')) return 0;
-    for(; ; CountReaded++)
-    {
-        unsigned char Digit = Str[CountReaded] - '0';
-        if(Digit > 9)
-            break;
-        Ret = Ret * 10 + Digit;
-    }
-    *Dest = Ret * Negative;
-    return CountReaded;
-}
-
-class LqParseInt
-{
+class LqParseInt {
     const char* Str;
 public:
-    inline LqParseInt(const char* Val): Str(Val){}
-    inline LqParseInt(const LqString& Val): Str(Val.c_str()) {}
+    inline LqParseInt(const char* Val): Str(Val) {}
+    inline LqParseInt(const LqString& Val) : Str(Val.c_str()) {}
 
     template<typename TypeNumber>
-    inline operator TypeNumber() const
-    {
-        TypeNumber Res = 0;
-        LqStrToInt(&Res, Str);
+    inline operator TypeNumber() const {
+        if(((TypeNumber)-1) < 0) {
+            long long Res = 0;
+            LqStrToLl(&Res, Str, 10);
+            return Res;
+        }
+        unsigned long long Res = 0;
+        LqStrToUll(&Res, Str, 10);
         return Res;
     }
 };
 
-class LqParseFloat
-{
+class LqParseFloat {
     const char* Str;
 public:
     inline LqParseFloat(const char* Val): Str(Val) {}
-    inline LqParseFloat(const LqString& Val): Str(Val.c_str()) {}
+    inline LqParseFloat(const LqString& Val) : Str(Val.c_str()) {}
 
     template<typename TypeNumber>
-    inline operator TypeNumber() const
-    {
-        return atof(Str);
+    inline operator TypeNumber() const {
+        double Res;
+        LqStrToDouble(&Res, Str, 10);
+        return Res;
     }
 };
 
@@ -75,12 +51,10 @@ LQ_IMPORTEXPORT int LQ_CALL LqStrUtf16ToUtf8Stl(const wchar_t* lqautf8 SourceStr
 
 LQ_EXTERN_CPP_END
 
-inline int LqStrUtf8ToUtf16Stl(LqString& SourceStr, LqString16& DestStr)
-{
+inline int LqStrUtf8ToUtf16Stl(LqString& SourceStr, LqString16& DestStr) {
     return LqStrUtf8ToUtf16Stl(SourceStr.c_str(), DestStr);
 }
 
-inline int LqStrUtf16ToUtf8Stl(LqString16& SourceStr, LqString& DestStr)
-{
+inline int LqStrUtf16ToUtf8Stl(LqString16& SourceStr, LqString& DestStr) {
     return LqStrUtf16ToUtf8Stl(SourceStr.c_str(), DestStr);
 }

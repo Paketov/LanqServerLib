@@ -16,7 +16,6 @@
 #include "LqCp.h"
 #include "LqLib.h"
 #include "LqStr.hpp"
-#include "LqBse64.hpp"
 #include "LqStr.hpp"
 #include "LqDef.hpp"
 #include "LqTime.hpp"
@@ -27,8 +26,7 @@
 #include <type_traits>
 #include <vector>
 
-struct ConnScan
-{
+struct ConnScan {
     LqConn Conn;
     LqEvntFd LiveTime;
     uint16_t Port;
@@ -36,8 +34,7 @@ struct ConnScan
     LqLocker<uint8_t>    Locker;
 };
 
-struct ProtoScan
-{
+struct ProtoScan {
     LqProto  Proto;
 
     std::atomic<uintptr_t> CountConn;
@@ -45,27 +42,23 @@ struct ProtoScan
     LqPtdArr<uint16_t> OpenedPorts;
 };
 
-static void LQ_CALL ConnScanHandler(LqConn* Conn, LqEvntFlag Flag)
-{
+static void LQ_CALL ConnScanHandler(LqConn* Conn, LqEvntFlag Flag) {
     if(!(Flag & LQEVNT_FLAG_ERR))
         ((ProtoScan*)Conn->Proto)->OpenedPorts.push_back(((ConnScan*)Conn)->Port);
     LqEvntSetClose(Conn);
 }
 
-static void LQ_CALL TimerHandler(LqEvntFd* Fd, LqEvntFlag Flag)
-{
+static void LQ_CALL TimerHandler(LqEvntFd* Fd, LqEvntFlag Flag) {
     LqEvntSetClose(Fd);
 }
 
-static void LQ_CALL TimerEnd(LqEvntFd* TimerFd)
-{
+static void LQ_CALL TimerEnd(LqEvntFd* TimerFd) {
     auto Conn = LqStructByField(ConnScan, LiveTime, TimerFd);
     Conn->Locker.LockWrite();
     if(Conn->CountPtr == 2)
         LqEvntSetClose(Conn);
     Conn->CountPtr--;
-    if(Conn->CountPtr <= 0)
-    {
+    if(Conn->CountPtr <= 0) {
         auto Proto = ((ProtoScan*)Conn->Conn.Proto);
         closesocket(Conn->Conn.Fd);
         LqFastAlloc::Delete(Conn);
@@ -76,15 +69,13 @@ static void LQ_CALL TimerEnd(LqEvntFd* TimerFd)
     Conn->Locker.UnlockWrite();
 }
 
-static void LQ_CALL EndProc(LqConn* Connection)
-{
+static void LQ_CALL EndProc(LqConn* Connection) {
     auto Conn = (ConnScan*)Connection;
     Conn->Locker.LockWrite();
     if(Conn->CountPtr == 2)
         LqEvntSetClose(&Conn->LiveTime);
     Conn->CountPtr--;
-    if(Conn->CountPtr <= 0)
-    {
+    if(Conn->CountPtr <= 0) {
         auto Proto = ((ProtoScan*)Conn->Conn.Proto);
         closesocket(Conn->Conn.Fd);
         LqFastAlloc::Delete(Conn);
@@ -95,8 +86,7 @@ static void LQ_CALL EndProc(LqConn* Connection)
     Conn->Locker.UnlockWrite();
 }
 
-LQ_EXTERN_CPP bool LQ_CALL LqPrtScanDo(LqConnInetAddress* Addr, std::vector<std::pair<uint16_t, uint16_t>>& PortRanges, int MaxScanConn, LqTimeMillisec ConnWait, std::vector<uint16_t>& OpenPorts)
-{
+LQ_EXTERN_CPP bool LQ_CALL LqPrtScanDo(LqConnInetAddress* Addr, std::vector<std::pair<uint16_t, uint16_t>>& PortRanges, int MaxScanConn, LqTimeMillisec ConnWait, std::vector<uint16_t>& OpenPorts) {
     ProtoScan Proto;
     LqProtoInit(&Proto.Proto);
     Proto.Proto.Handler = ConnScanHandler;
@@ -105,12 +95,9 @@ LQ_EXTERN_CPP bool LQ_CALL LqPrtScanDo(LqConnInetAddress* Addr, std::vector<std:
     if(Proto.WaitEvent == -1)
         return -1;
     Proto.CountConn = 0;
-    for(auto& i : PortRanges)
-    {
-        for(auto j = i.first; j <= i.second; j++)
-        {
-            if(Proto.CountConn >= MaxScanConn)
-            {
+    for(auto& i : PortRanges) {
+        for(auto j = i.first; j <= i.second; j++) {
+            if(Proto.CountConn >= MaxScanConn) {
 lblWaitAgain:
                 LqFilePollCheckSingle(Proto.WaitEvent, LQ_POLLIN | LQ_POLLOUT, 60 * 2 * 1000);
                 LqFileEventReset(Proto.WaitEvent);
@@ -122,20 +109,16 @@ lblWaitAgain:
                 continue;
             LqConnSwitchNonBlock(Fd, 1);
             LqConnInetAddress AddrLoc = *Addr;
-            if(AddrLoc.Addr.sa_family == AF_INET)
-            {
+            if(AddrLoc.Addr.sa_family == AF_INET) {
                 AddrLoc.AddrInet.sin_port = htons(j);
-            } else if(AddrLoc.Addr.sa_family == AF_INET6)
-            {
+            } else if(AddrLoc.Addr.sa_family == AF_INET6) {
                 AddrLoc.AddrInet6.sin6_port = htons(j);
             }
             auto Res = connect(Fd, &AddrLoc.Addr, sizeof(AddrLoc));
-            if(Res == 0)
-            {
+            if(Res == 0) {
                 Proto.OpenedPorts.push_back(j);
                 closesocket(Fd);
-            } else if(LQERR_IS_WOULD_BLOCK)
-            {
+            } else if(LQERR_IS_WOULD_BLOCK) {
                 auto Conn = LqFastAlloc::New<ConnScan>();
                 LqConnInit(Conn, Fd, &Proto.Proto, LQEVNT_FLAG_CONNECT | LQEVNT_FLAG_HUP);
                 auto TimerFd = LqFileTimerCreate(LQ_O_NOINHERIT);
@@ -148,14 +131,12 @@ lblWaitAgain:
                 Proto.CountConn++;
                 LqWrkBossAddEvntAsync((LqEvntHdr*)&Conn->LiveTime);
                 LqWrkBossAddEvntAsync((LqEvntHdr*)Conn);
-            } else
-            {
+            } else {
                 closesocket(Fd);
             }
         }
     }
-    while(Proto.CountConn > 0)
-    {
+    while(Proto.CountConn > 0) {
         LqFilePollCheckSingle(Proto.WaitEvent, LQ_POLLIN | LQ_POLLOUT, 60 * 2 * 1000);
         LqFileEventReset(Proto.WaitEvent);
     }

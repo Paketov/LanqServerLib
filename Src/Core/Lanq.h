@@ -60,16 +60,14 @@ typedef struct LqProto LqProto;
     int                 Fd      /*Sock descriptor*/
 
 
-struct LqEvntHdr
-{
+struct LqEvntHdr {
     LQ_CONN_COMMON_EVNT_HDR;
 };
 
 /*
 * Use this structure basically with sockets
 */
-struct LqConn
-{
+struct LqConn {
     LQ_CONN_COMMON_EVNT_HDR;
     LqProto*            Proto;      /*Server registration*/
 };
@@ -78,17 +76,14 @@ struct LqConn
 /*
 * Use this structure for different type of handles
 */
-struct LqEvntFd
-{
+struct LqEvntFd {
     LQ_CONN_COMMON_EVNT_HDR;
     void (LQ_CALL      *Handler)(LqEvntFd* Fd, LqEvntFlag RetFlags);
     void (LQ_CALL      *CloseHandler)(LqEvntFd* Fd);
     uintptr_t           UserData;
 #if defined(LQPLATFORM_WINDOWS)
-    struct
-    {
-        union
-        {
+    struct {
+        union {
             long        Status;
             void*       Pointer;
         };
@@ -110,8 +105,7 @@ struct LqEvntFd
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-struct LqProto
-{
+struct LqProto {
     void* UserData;
 
     LqFileSz MaxSendInTact;
@@ -133,8 +127,7 @@ struct LqProto
     * Close connection on time out.
     * If returned true, remove connection from worker list
     */
-    bool (LQ_CALL *KickByTimeOutProc)
-    (
+    bool (LQ_CALL *KickByTimeOutProc)(
         LqConn*        Connection,
         LqTimeMillisec CurrentTimeMillisec/*Use fast get current time in millisec*/,
         LqTimeMillisec EstimatedLiveTime /*Otional input parametr*/

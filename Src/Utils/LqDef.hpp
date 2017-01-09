@@ -8,7 +8,6 @@
 
 
 #include <string>
-#include <mutex>
 #include <atomic>
 #include <condition_variable>
 #include <thread>
@@ -17,9 +16,7 @@
 
 typedef std::basic_string<char>                 LqString;
 typedef std::basic_string<wchar_t>              LqString16;
-typedef std::mutex                              LqMutex;
 typedef std::condition_variable                 LqCondVar;
-typedef std::unique_lock<LqMutex>               LqUniqueLock;
 typedef std::thread                             LqSystemThread;
 template<typename Type>
 using LqAtomic = std::atomic<Type>;

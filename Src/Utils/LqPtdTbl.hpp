@@ -82,7 +82,7 @@ class LqPtdTbl {
         if(Cur->Count > 0) {
             for(TypeIndex Index = Cur->Line[TypeCmp::IndexByKey(Val, Cur->Count)].Start;
                 Index != NullIndex;
-                Index = Cur->Line[Index].Next){
+                Index = Cur->Line[Index].Next) {
                 if(TypeCmp::Cmp(Cur->Line[Index].Val, Val))
                     return Index;
             }
@@ -262,7 +262,7 @@ public:
         return 0;
     }
     template<typename InType, typename = decltype(TypeVal(std::declval<InType>()))>
-    inline int append(const std::vector<InType>& Val) { return _AddByArr(Val.data(), Val.size())? Val.size(): 0; }
+    inline int append(const std::vector<InType>& Val) { return _AddByArr(Val.data(), Val.size()) ? Val.size() : 0; }
     inline int append(const LqPtdTbl& Val) { return append(Val.begin()); }
     template<typename InType, typename = decltype(TypeVal(std::declval<InType>()))>
     inline int append(const InType* Val, size_t Count) { return _AddByArr(Val, Count) ? Count : 0; }
@@ -270,16 +270,16 @@ public:
     inline void swap(LqPtdTbl& AnotherVal) { Ptr.Swap(AnotherVal.Ptr); }
 
     template<
-        typename InType, 
+        typename InType,
         typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(), std::declval<InType>()))
     >
-    bool push_back(InType&& NewVal) { return _AddByArr(&NewVal, 1); }
+        bool push_back(InType&& NewVal) { return _AddByArr(&NewVal, 1); }
 
     template<
-        typename InType, 
+        typename InType,
         typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(), std::declval<InType>()))
     >
-    int push_back_uniq(InType&& NewVal) {
+        int push_back_uniq(InType&& NewVal) {
         auto Cur = Ptr.NewStart();
         if(_GetCell(Cur, NewVal) != nullptr) {
             Ptr.NewFin(Cur);
@@ -307,12 +307,12 @@ public:
     }
 
     template<
-        typename InType, 
+        typename InType,
         typename InType2,
         typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(), std::declval<InType>())),
         typename = decltype(TypeVal(std::declval<InType2>()))
     >
-    int replace(InType&& PrevVal, InType2&& NewVal) {
+        int replace(InType&& PrevVal, InType2&& NewVal) {
         auto Cur = Ptr.NewStart();
         auto RmIndex = _GetCellIndex(Cur, PrevVal);
         if(RmIndex == NullIndex) {
@@ -353,7 +353,7 @@ public:
         typename InType,
         typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(), std::declval<InType>()))
     >
-    interator search(InType&& SrchVal) const {
+        interator search(InType&& SrchVal) const {
         LocalPtr LocPtr(Ptr);
         auto* Line = LocPtr->Line;
         if(LocPtr->Count > 0) {
@@ -382,18 +382,18 @@ public:
         return interator();
     }
     template<
-        typename InType, 
+        typename InType,
         typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(), std::declval<InType>()))
     >
-    inline bool remove_by_val(InType&& RmVal) { return remove_by_val<TypeVal>(RmVal, nullptr); }
+        inline bool remove_by_val(InType&& RmVal) { return remove_by_val<TypeVal>(RmVal, nullptr); }
 
     template<
         typename TypeGetVal,
-        typename InType, 
-        typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(),std::declval<InType>())), 
+        typename InType,
+        typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(), std::declval<InType>())),
         typename = decltype(TypeGetVal(std::declval<TypeVal>()))
     >
-    bool remove_by_val(InType&& RmVal, TypeGetVal* RemovedVal) {
+        bool remove_by_val(InType&& RmVal, TypeGetVal* RemovedVal) {
         TypeIndex RmIndex;
         auto Cur = Ptr.NewStart();
         if((Cur->Count <= 0) || ((RmIndex = _GetCellIndex(Cur, RmVal)) == NullIndex)) {
@@ -435,7 +435,7 @@ public:
         typename InType,
         typename = decltype(TypeCmp::Cmp(std::declval<TypeVal>(), std::declval<InType>()))
     >
-    intptr_t remove_mult_by_val(InType&& RmVal) {
+        intptr_t remove_mult_by_val(InType&& RmVal) {
         auto Cur = Ptr.NewStart();
         TypeLine* RmCell;
         if((Cur->Count <= 0) || ((RmCell = _GetCell(Cur, RmVal)) == nullptr)) {
@@ -477,7 +477,7 @@ public:
         typename TypeGetVal,
         typename = decltype(TypeGetVal(std::declval<TypeVal>()))
     >
-    bool remove_by_compare_fn(std::function<bool(TypeVal&)> CompareFn, TypeGetVal* RemovedVal) {
+        bool remove_by_compare_fn(std::function<bool(TypeVal&)> CompareFn, TypeGetVal* RemovedVal) {
         auto Cur = Ptr.NewStart();
         TypeIndex RmIndex = NullIndex;
         for(TypeIndex i = 0, m = Cur->Count; i < m; i++) {

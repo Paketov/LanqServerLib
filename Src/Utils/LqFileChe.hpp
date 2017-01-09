@@ -34,8 +34,7 @@ void Uncache(const char* Path, void* Buf, size_t SizeBuf, time_t LastModifTime)
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-struct DefaultCacheData
-{
+struct DefaultCacheData {
     void Cache(const char* Path, void* Buf, size_t SizeBuf, LqTimeSec LastModifTime, const LqFileStat* Stat) const {}
     void Recache(const char* Path, void* Buf, size_t SizeBuf, LqTimeSec LastModifTime, const LqFileStat* Stat) const {}
     void Uncache(const char* Path, void* Buf, size_t SizeBuf, LqTimeSec LastModifTime) const {}
@@ -43,11 +42,9 @@ struct DefaultCacheData
 
 
 template<typename CachedHdr = DefaultCacheData>
-class LqFileChe
-{
+class LqFileChe {
 public:
-    typedef enum
-    {
+    typedef enum {
         OK,
         NOT_HAVE_FILE,
         NOT_ALLOC_MEM,
@@ -62,19 +59,16 @@ private:
 
     typedef LqTbl<CachedFile, size_t>         TableType;
 
-    struct FileDescriptor
-    {
+    struct FileDescriptor {
         int    Descriptor;
 
         inline FileDescriptor(): Descriptor(-1) {}
-        inline ~FileDescriptor()
-        {
+        inline ~FileDescriptor() {
             if(Descriptor != -1)
                 LqFileClose(Descriptor);
         }
 
-        bool Open(const char* Name, LqFileStat* s)
-        {
+        bool Open(const char* Name, LqFileStat* s) {
             if(Descriptor != -1)
                 LqFileClose(Descriptor);
             if(((Descriptor = LqFileOpen(Name, LQ_O_RD | LQ_O_BIN, 0)) == -1) || (LqFileGetStatByFd(Descriptor, s) != 0))
@@ -83,31 +77,27 @@ private:
         }
     };
 public:
-    struct CachedFile: public CachedHdr
-    {
+    struct CachedFile: public CachedHdr {
     private:
         friend LqFileChe;
         friend TableType;
         friend LqFastAlloc;
         friend CachedHdr;
 
-        CachedFile()
-        {
+        CachedFile() {
             CountReaded = 1;
             Path = nullptr;
             Buf = nullptr;
         }
 
-        ~CachedFile()
-        {
+        ~CachedFile() {
             if(Buf != nullptr)
                 ___free(Buf);
             if(Path != nullptr)
                 free(Path);
         }
 
-        bool SetKey(const char* Name)
-        {
+        bool SetKey(const char* Name) {
             Path = LqStrDuplicate(Name);
             size_t h = 0;
             for(const char* k = Path; *k != '\0'; k++)
@@ -116,8 +106,7 @@ public:
             return true;
         }
 
-        static size_t IndexByKey(const char* Key, size_t MaxCount)
-        {
+        static size_t IndexByKey(const char* Key, size_t MaxCount) {
             size_t h = 0;
             for(const char* k = Key; *k != '\0'; k++)
                 h = 31 * h + *k;
@@ -128,11 +117,9 @@ public:
         size_t IndexInBound(size_t MaxCount) const { return PathHash % MaxCount; }
         bool CmpKey(const char* Key) const { return LqStrSame(Key, Path); }
 
-        void RatingUp(LqFileChe* Cache)
-        {
+        void RatingUp(LqFileChe* Cache) {
             auto n = Next;
-            if(n != &Cache->RatingList)
-            {
+            if(n != &Cache->RatingList) {
                 auto p = Prev;
                 n->Prev = p;
                 Next = n->Next;
@@ -147,8 +134,7 @@ public:
                 Cache->CachedListEnd = Prev;
         }
 
-        void RemoveFromList(LqFileChe* Cache)
-        {
+        void RemoveFromList(LqFileChe* Cache) {
             Next->Prev = Prev;
             Prev->Next = Next;
             if(Cache->CachedListEnd == this)
@@ -159,8 +145,7 @@ public:
                 Cache->CurSize -= (SizeFile + sizeof(CachedFile));
         }
 
-        bool UpdateInfo(LqFileStat* s)
-        {
+        bool UpdateInfo(LqFileStat* s) {
             if(LqFileGetStat(Path, s) != 0)
                 return false;
             SizeFile = s->Size;
@@ -168,20 +153,17 @@ public:
             return true;
         }
 
-        void AddInList(LqFileChe* Cache)
-        {
+        void AddInList(LqFileChe* Cache) {
             Next = Cache->RatingList.Next;
             Next->Prev = Cache->RatingList.Next = this;
             Prev = &Cache->RatingList;
             Cache->CountInUncached++;
         }
 
-        StatEnm DoCache(FileDescriptor* File, LqFileStat* Stat)
-        {
+        StatEnm DoCache(FileDescriptor* File, LqFileStat* Stat) {
             if((Buf = ___malloc((SizeFile == 0) ? 1 : SizeFile)) == nullptr)
                 return StatEnm::NOT_ALLOC_MEM;
-            if(SizeFile > 0)
-            {
+            if(SizeFile > 0) {
                 auto Readed = LqFileRead(File->Descriptor, Buf, SizeFile);
                 if(Readed < SizeFile)
                     return StatEnm::NOT_FULL_READ_FROM_FILE;
@@ -190,14 +172,12 @@ public:
             return StatEnm::OK;
         }
 
-        StatEnm Recache(FileDescriptor* File, LqFileStat* Stat)
-        {
+        StatEnm Recache(FileDescriptor* File, LqFileStat* Stat) {
             void* NewPlace = ___realloc(Buf, (SizeFile == 0) ? 1 : SizeFile);
             if(NewPlace == nullptr)
                 return StatEnm::NOT_ALLOC_MEM;
             Buf = NewPlace;
-            if(SizeFile > 0)
-            {
+            if(SizeFile > 0) {
                 auto Readed = LqFileRead(File->Descriptor, Buf, SizeFile);
                 if(Readed < SizeFile)
                     return StatEnm::NOT_FULL_READ_FROM_FILE;
@@ -206,10 +186,8 @@ public:
             return StatEnm::OK;
         }
 
-        bool UpdateStat(LqTimeMillisec CurTimeMillisec, LqFileChe* Cache)
-        {
-            if((LastTestTime + Cache->PeriodUpdateStatMillisec) < CurTimeMillisec)
-            {
+        bool UpdateStat(LqTimeMillisec CurTimeMillisec, LqFileChe* Cache) {
+            if((LastTestTime + Cache->PeriodUpdateStatMillisec) < CurTimeMillisec) {
                 LastTestTime = CurTimeMillisec;
                 CountReaded = 1;
                 return true;
@@ -224,8 +202,7 @@ public:
         intptr_t            CountReaded;
         LqTimeMillisec      LastTestTime;
     public:
-        float CountReadPerSec(LqTimeMillisec CurTimeMillisec) const
-        {
+        float CountReadPerSec(LqTimeMillisec CurTimeMillisec) const {
             if(Path == nullptr)
                 return std::numeric_limits<float>::max();
             double TimePassed = (double)(CurTimeMillisec - LastTestTime);
@@ -255,31 +232,26 @@ private:
     LqLocker<uintptr_t> Locker;
 
     template<typename T>
-    CachedFile* InsertInTable(T arg)
-    {
+    CachedFile* InsertInTable(T arg) {
         if(Table.IsFull()) Table.ResizeBeforeInsert((Table.Count() < 3) ? 3 : (typename TableType::IndexType)(Table.Count() * 1.61803398875f));
         return Table.Insert(arg);
     }
 
     template<typename T>
-    void RemoveFromTable(T arg)
-    {
-        if(Table.RemoveRow(arg) != nullptr)
-        {
+    void RemoveFromTable(T arg) {
+        if(Table.RemoveRow(arg) != nullptr) {
             if((typename TableType::IndexType)(Table.Count() * 1.7f) < Table.AllocCount())
                 Table.ResizeAfterRemove();
         }
     }
 
-    bool AddFile(const char* Path, LqTimeMillisec CurTime, LqFileStat* s)
-    {
+    bool AddFile(const char* Path, LqTimeMillisec CurTime, LqFileStat* s) {
         if(LqFileGetStat(Path, s) != 0)
             return false;
         if((s->Size > MaxSizeFile) || (s->Size >= MaxSizeBuff))
             return false;
         decltype(InsertFile(Path)) NewFileReg;
-        if(CountInUncached >= MaxInPreparedList)
-        {
+        if(CountInUncached >= MaxInPreparedList) {
             if(
                 ((RatingList.Next->LastTestTime + 1000) >= CurTime) ||
                 (RatingList.Next->CountReadPerSec(CurTime) >= PerSecReadAdding)
@@ -287,8 +259,7 @@ private:
                 return false;
             RemoveFile(RatingList.Next);
             NewFileReg = InsertFile(Path);
-        } else
-        {
+        } else {
             NewFileReg = InsertFile(Path);
         }
         if(NewFileReg == nullptr)
@@ -301,11 +272,9 @@ private:
         return true;
     }
 
-    bool BeforeRead(CachedFile* CachFile, LqTimeMillisec CurTime, LqFileStat* s)
-    {
+    bool BeforeRead(CachedFile* CachFile, LqTimeMillisec CurTime, LqFileStat* s) {
         float CachFileReadPerSec = CachFile->CountReadPerSec(CurTime);
-        if(CachFile->Buf == nullptr)
-        {
+        if(CachFile->Buf == nullptr) {
             if(
                 (CachFile->Next != CachedListEnd) ||
                 ((CachFile->SizeFile + CurSize + sizeof(CachedFile)) >= MaxSizeBuff) &&
@@ -319,8 +288,7 @@ private:
             Locker.UnlockWrite(); //Unlock all cache for longer time descriptor opening.
 
             FileDescriptor File;
-            if(!File.Open(CachFile->Path, s))
-            {
+            if(!File.Open(CachFile->Path, s)) {
 
                 Locker.LockWriteYield();
                 CachFile->CachingLocker.UnlockWrite();
@@ -330,10 +298,8 @@ private:
 
             Locker.LockWriteYield();   //Again lock for internal processing.
             CachFile->LastModifTime = s->ModifTime;
-            if(((CachFile->SizeFile = s->Size) + CurSize + sizeof(CachedFile)) >= MaxSizeBuff)
-            {
-                if(!ClearPlaceForFirstInUncached(CurTime))
-                {
+            if(((CachFile->SizeFile = s->Size) + CurSize + sizeof(CachedFile)) >= MaxSizeBuff) {
+                if(!ClearPlaceForFirstInUncached(CurTime)) {
                     CachFile->CachingLocker.UnlockWrite();
                     return true;
                 }
@@ -343,8 +309,7 @@ private:
             CountInUncached--;
             Locker.UnlockWrite();  //Unlock all cache for longer time reading.
 
-            if(CachFile->DoCache(&File, s) != StatEnm::OK)
-            {
+            if(CachFile->DoCache(&File, s) != StatEnm::OK) {
                 Locker.LockWriteYield();
                 CachFile->CachingLocker.UnlockWrite();
                 RemoveFile(CachFile);
@@ -361,15 +326,13 @@ private:
         return true;
     }
 
-    bool ClearPlaceForFirstInUncached(ullong CurTime)
-    {
+    bool ClearPlaceForFirstInUncached(ullong CurTime) {
         intptr_t CommonDelSize = MaxSizeBuff - CurSize;
         CachedFile * CachFile = CachedListEnd->Prev;
         float CachFileReadPerSec = CachFile->CountReadPerSec(CurTime);
 
         auto c = CachedListEnd;
-        for(; c != &RatingList; c = c->Next)
-        {
+        for(; c != &RatingList; c = c->Next) {
             if(CachFile->SizeFile <= CommonDelSize)
                 break;
             if((c->CountRef <= 1) && (c->CountReadPerSec(CurTime) < CachFileReadPerSec))
@@ -377,31 +340,24 @@ private:
             else
                 break;
         }
-        if(CachFile->SizeFile <= CommonDelSize)
-        {
-            for(CachedFile* i = CachedListEnd, *t; i != c; i = t)
-            {
-                if((i->CountRef <= 1) && (i->CountReadPerSec(CurTime) < CachFileReadPerSec))
-                {
+        if(CachFile->SizeFile <= CommonDelSize) {
+            for(CachedFile* i = CachedListEnd, *t; i != c; i = t) {
+                if((i->CountRef <= 1) && (i->CountReadPerSec(CurTime) < CachFileReadPerSec)) {
                     t = i->Next;
                     RemoveFile(i);
-                } else
-                {
+                } else {
                     t = i->Next;
                 }
             }
-        } else
-        {
+        } else {
             return false;
         }
         return true;
     }
 
-    bool RemoveFile(CachedFile* CachFile)
-    {
+    bool RemoveFile(CachedFile* CachFile) {
         RemoveFromTable(CachFile);
-        if(CachFile->CountRef <= 1)
-        {
+        if(CachFile->CountRef <= 1) {
             CachFile->CachedHdr::Uncache(CachFile->Path, CachFile->Buf, CachFile->SizeFile, CachFile->LastModifTime);
             CachFile->RemoveFromList(this);
             LqFastAlloc::Delete(TableType::GetCellByElement(CachFile));
@@ -411,23 +367,20 @@ private:
         return false;
     }
 
-    CachedFile* SearchFile(const char* Name)
-    {
+    CachedFile* SearchFile(const char* Name) {
 #if defined(LQPLATFORM_WINDOWS)
         if((Name[0] == '\\') && (Name[1] == '\\') && (Name[2] == '?') && (Name[3] == '\\'))
             Name += 4;
         size_t l = LqStrLen(Name);
-        if(l < 256)
-        {
+        if(l < 230) {
             char Buf[256];
-            LqStrCopyMax(Buf, Name, sizeof(Buf));
-            strlwr(Buf);
+            LqStrUtf8ToLower(Buf, sizeof(Buf), Name, -1);
             return Table.Search(Buf);
         }//// !!!!!!!!!!!!! C:ddd
-        char* SearchStr = LqStrDuplicate(Name);
+        char* SearchStr = (char*)malloc(l + 70);
         if(SearchStr == nullptr)
             return Table.Search(Name);
-        strlwr(SearchStr);
+        LqStrUtf8ToLower(SearchStr, l + 60, Name, -1);
         auto r = Table.Search(SearchStr);
         free(SearchStr);
         return r;
@@ -436,26 +389,23 @@ private:
 #endif
     }
 
-    CachedFile* InsertFile(const char* Name)
-    {
+    CachedFile* InsertFile(const char* Name) {
 #if defined(LQPLATFORM_WINDOWS)
         if((Name[0] == '\\') && (Name[1] == '\\') && (Name[2] == '?') && (Name[3] == '\\'))
             Name += 4;
         size_t l = LqStrLen(Name);
-        if(l < 256)
-        {
+        if(l < 230) {
             char Buf[256];
-            LqStrCopyMax(Buf, Name, sizeof(Buf));
-            strlwr(Buf);
+            LqStrUtf8ToLower(Buf, sizeof(Buf), Name, -1);
             auto NewFileReg = InsertInTable(Buf);
             if(NewFileReg != nullptr)
                 NewFileReg->AddInList(this);
             return NewFileReg;
         }
-        char* SearchStr = LqStrDuplicate(Name);
+        char* SearchStr = (char*)malloc(l + 70);
         if(SearchStr == nullptr)
             return nullptr;
-        strlwr(SearchStr);
+        LqStrUtf8ToLower(SearchStr, l + 60, Name, -1);
         auto NewFileReg = InsertInTable(SearchStr);
         if(NewFileReg != nullptr)
             NewFileReg->AddInList(this);
@@ -469,42 +419,34 @@ private:
 #endif
     }
 
-    bool UpdateFile(CachedFile* CachFile, LqFileStat* s)
-    {
-        if(CachFile->Buf == nullptr)
-        {
+    bool UpdateFile(CachedFile* CachFile, LqFileStat* s) {
+        if(CachFile->Buf == nullptr) {
             if(!CachFile->UpdateInfo(s))
                 RemoveFile(CachFile);
-        } else
-        {
+        } else {
             CachFile->CachingLocker.LockWrite(); //Lock only file
             Locker.UnlockWrite(); //Unlock all cache for longer time descriptor opening.
             FileDescriptor File;
-            if(!File.Open(CachFile->Path, s))
-            {
+            if(!File.Open(CachFile->Path, s)) {
                 Locker.LockWriteYield();
                 CachFile->CachingLocker.UnlockWrite();
                 RemoveFile(CachFile);
-            } else if((CachFile->LastModifTime != s->ModifTime) || (CachFile->SizeFile != s->Size))
-            {
+            } else if((CachFile->LastModifTime != s->ModifTime) || (CachFile->SizeFile != s->Size)) {
                 intptr_t Diffr = s->Size - CachFile->SizeFile;
                 CachFile->SizeFile = s->Size;
                 CachFile->LastModifTime = s->ModifTime;
 
-                if(((Diffr + CurSize) >= MaxSizeBuff) || (s->Size > MaxSizeFile) || !((CachFile->CountRef == 1) && (CachFile->Recache(&File, s) == StatEnm::OK)))
-                {
+                if(((Diffr + CurSize) >= MaxSizeBuff) || (s->Size > MaxSizeFile) || !((CachFile->CountRef == 1) && (CachFile->Recache(&File, s) == StatEnm::OK))) {
                     Locker.LockWriteYield(); //Lock again for internal operations.
                     CachFile->CachingLocker.UnlockWrite();
                     RemoveFile(CachFile);
-                } else
-                {
+                } else {
                     Locker.LockWriteYield();
                     CurSize += Diffr;
                     CachFile->CachingLocker.UnlockWrite();
                     return true;
                 }
-            } else
-            {
+            } else {
                 Locker.LockWriteYield(); //Lock again for internal operations.
                 CachFile->CachingLocker.UnlockWrite();
                 return true;
@@ -513,19 +455,14 @@ private:
         return false;
     }
 
-    bool CheckRatingList()
-    {
-        for(auto i = CachedListEnd; i != &RatingList; i = i->Next)
-        {
-            if(i->Buf == nullptr)
-            {
+    bool CheckRatingList() {
+        for(auto i = CachedListEnd; i != &RatingList; i = i->Next) {
+            if(i->Buf == nullptr) {
                 throw "Rating list has been corrupted!";
             }
         }
-        for(auto i = CachedListEnd->Prev; i != &RatingList; i = i->Prev)
-        {
-            if(i->Buf != nullptr)
-            {
+        for(auto i = CachedListEnd->Prev; i != &RatingList; i = i->Prev) {
+            if(i->Buf != nullptr) {
                 throw "Rating list has been corrupted!";
             }
         }
@@ -534,10 +471,8 @@ private:
 
     inline void AssignCachedFile(CachedFile* f) { f->CountRef++; }
 
-    bool WaitCachedFile(CachedFile* f)
-    {
-        if(f->CachingLocker.IsLockWrite())
-        {
+    bool WaitCachedFile(CachedFile* f) {
+        if(f->CachingLocker.IsLockWrite()) {
             AssignCachedFile(f);
             Locker.UnlockWrite();
             f->CachingLocker.LockWriteYield();
@@ -550,8 +485,7 @@ private:
     }
 public:
 
-    LqFileChe()
-    {
+    LqFileChe() {
         CachedListEnd = &RatingList;
         CurSize = 0;
         MaxSizeBuff = 1024 * 1024 * 100; //100 mb
@@ -567,25 +501,21 @@ public:
         RatingList.Prev = RatingList.Next = &RatingList;
     }
 
-    ~LqFileChe()
-    {
+    ~LqFileChe() {
         Clear();
         if(!((RatingList.Prev == RatingList.Next) && (RatingList.Prev == &RatingList)))
             throw "class LqFileChe: Cache have file with ex. ref!";
     }
 
     inline size_t GetMaxSizeFile() const { return MaxSizeFile; }
-    inline void SetMaxSizeFile(size_t NewSize)
-    {
+    inline void SetMaxSizeFile(size_t NewSize) {
         Locker.LockWriteYield();
-        if(MaxSizeFile >= NewSize)
-        {
+        if(MaxSizeFile >= NewSize) {
             MaxSizeFile = NewSize;
             Locker.UnlockWrite();
             return;
         }
-        for(auto i = CachedListEnd; i != &RatingList; )
-        {
+        for(auto i = CachedListEnd; i != &RatingList; ) {
             auto t = i->Next;
             if(i->SizeFile > NewSize)
                 RemoveFile(i);
@@ -596,17 +526,14 @@ public:
     }
     size_t GetEmployedSize() const { return CurSize; }
     size_t GetMaxSize() const { return MaxSizeBuff; }
-    void SetMaxSize(size_t NewSize)
-    {
+    void SetMaxSize(size_t NewSize) {
         Locker.LockWriteYield();
-        if(NewSize >= MaxSizeBuff)
-        {
+        if(NewSize >= MaxSizeBuff) {
             MaxSizeBuff = NewSize;
             Locker.UnlockWrite();
             return;
         }
-        for(auto i = CachedListEnd; i != &RatingList; )
-        {
+        for(auto i = CachedListEnd; i != &RatingList; ) {
             if(CurSize <= NewSize) break;
             auto t = i->Next;
             RemoveFile(i);
@@ -617,8 +544,7 @@ public:
     }
 
     LqTimeMillisec GetPeriodUpdateStat() const { return PeriodUpdateStatMillisec; }
-    void SetPeriodUpdateStat(LqTimeMillisec NewPeriodMillisec)
-    {
+    void SetPeriodUpdateStat(LqTimeMillisec NewPeriodMillisec) {
         Locker.LockWriteYield();
         PeriodUpdateStatMillisec = NewPeriodMillisec;
         Locker.UnlockWrite();
@@ -636,30 +562,24 @@ public:
     * @Stat: Used for optimise. If you need file statistics, transfer pointer.
     * @return: pointer on target cached file.
     */
-    CachedFile* Read(const char* Path, LqFileStat* Stat = nullptr)
-    {
+    CachedFile* Read(const char* Path, LqFileStat* Stat = nullptr) {
         Locker.LockWriteYield();
         auto r = SearchFile(Path);
         auto CurTime = LqTimeGetLocMillisec();
         LqFileStat LocalStat;
         if(Stat == nullptr)
             Stat = &LocalStat;
-        if(r == nullptr)
-        {
+        if(r == nullptr) {
             AddFile(Path, CurTime, Stat);
-        } else
-        {
+        } else {
             r->UpdateStat(CurTime, this);
             r->CountReaded++;
-            if(r->CachingLocker.IsLockWrite())
-            {
+            if(r->CachingLocker.IsLockWrite()) {
                 Locker.UnlockWrite();
                 return nullptr;
             }
-            if(BeforeRead(r, CurTime, Stat))
-            {
-                if(r->Buf != nullptr)
-                {
+            if(BeforeRead(r, CurTime, Stat)) {
+                if(r->Buf != nullptr) {
                     AssignCachedFile(r);
                     Locker.UnlockWrite();
                     return r;
@@ -676,30 +596,24 @@ public:
     * @Stat: Used for optimise. If you need file statistics, transfer pointer.
     * @return: pointer on target cached file.
     */
-    CachedFile* UpdateAndRead(const char* Path, LqFileStat* Stat = nullptr)
-    {
+    CachedFile* UpdateAndRead(const char* Path, LqFileStat* Stat = nullptr) {
         Locker.LockWriteYield();
         auto r = SearchFile(Path);
         auto CurTime = LqTimeGetLocMillisec();
         LqFileStat LocalStat;
         if(Stat == nullptr)
             Stat = &LocalStat;
-        if(r == nullptr)
-        {
+        if(r == nullptr) {
             AddFile(Path, CurTime, Stat);
-        } else
-        {
+        } else {
             auto UpdateStatRes = r->UpdateStat(CurTime, this);
             r->CountReaded++;
-            if(r->CachingLocker.IsLockWrite())
-            {
+            if(r->CachingLocker.IsLockWrite()) {
                 Locker.UnlockWrite();
                 return nullptr;
             }
-            if(UpdateStatRes && (r->Buf != nullptr))
-            {
-                if(!UpdateFile(r, Stat))
-                {
+            if(UpdateStatRes && (r->Buf != nullptr)) {
+                if(!UpdateFile(r, Stat)) {
                     Locker.UnlockWrite();
                     return nullptr;
                 }
@@ -709,10 +623,8 @@ public:
                 AssignCachedFile(r);
                 Locker.UnlockWrite();
                 return r;
-            } else if(BeforeRead(r, CurTime, Stat))
-            {
-                if(r->Buf != nullptr)
-                {
+            } else if(BeforeRead(r, CurTime, Stat)) {
+                if(r->Buf != nullptr) {
                     AssignCachedFile(r);
                     Locker.UnlockWrite();
                     return r;
@@ -728,18 +640,15 @@ public:
     * @FileInRam: pointer on target file.
     * @return: true - is file removed from RAM, false - is only decrement count ref.
     */
-    bool Release(CachedFile* FileInRam)
-    {
-        if(FileInRam->CountRef <= 1)
-        {
+    bool Release(CachedFile* FileInRam) {
+        if(FileInRam->CountRef <= 1) {
             Locker.LockWriteYield();
             FileInRam->CachedHdr::Uncache(FileInRam->Path, FileInRam->Buf, FileInRam->SizeFile, FileInRam->LastModifTime);
             FileInRam->RemoveFromList(this);
             LqFastAlloc::Delete(TableType::GetCellByElement(FileInRam));
             Locker.UnlockWrite();
             return true;
-        } else
-        {
+        } else {
             FileInRam->CountRef--;
         }
         return false;
@@ -748,12 +657,10 @@ public:
     /*
     *Upadetes all cached files.
     */
-    void UpdateAllCache()
-    {
+    void UpdateAllCache() {
         LqFileStat LocalStat;
         Locker.LockWriteYield();
-        for(auto i = RatingList.Next; i != &RatingList; )
-        {
+        for(auto i = RatingList.Next; i != &RatingList; ) {
             auto t = i->Next;
             if(!i->CachingLocker.IsLockWrite())
                 UpdateFile(i, &LocalStat);
@@ -769,15 +676,13 @@ public:
     * @Stat: Used for optimise. If you need file statistics, transfer pointer.
     * @return: -1 - if file not found, 0 - file updated, 1 - file removed.
     */
-    int Update(const char* Path, LqFileStat* Stat = nullptr)
-    {
+    int Update(const char* Path, LqFileStat* Stat = nullptr) {
         LqFileStat LocalStat;
         if(Stat == nullptr)
             Stat = &LocalStat;
         Locker.LockWriteYield();
         int r = -1;
-        if(auto f = SearchFile(Path))
-        {
+        if(auto f = SearchFile(Path)) {
             if(!f->CachingLocker.IsLockWrite())
                 r = (UpdateFile(f, Stat)) ? 0 : 1;
             else
@@ -792,15 +697,12 @@ public:
     *Removes all file from RAM. If file have external refs, not remove.
     * @return: count removed file from RAM.
     */
-    size_t Clear()
-    {
+    size_t Clear() {
         Locker.LockWriteYield();
         size_t CountFree = 0;
-        for(auto i = RatingList.Next; i != &RatingList; )
-        {
+        for(auto i = RatingList.Next; i != &RatingList; ) {
             auto t = i->Next;
-            if(WaitCachedFile(i))
-            {
+            if(WaitCachedFile(i)) {
                 i = RatingList.Next;
                 continue;
             }
@@ -818,12 +720,10 @@ public:
     * @Path: Target file path
     * @return: true - is file removed from RAM, false - is file not found or file have references.
     */
-    bool Uncache(const char* Path)
-    {
+    bool Uncache(const char* Path) {
         Locker.LockWriteYield();
         bool IsFree = false;
-        if(auto f = SearchFile(Path))
-        {
+        if(auto f = SearchFile(Path)) {
             WaitCachedFile(f);
             IsFree = RemoveFile(f);
         }

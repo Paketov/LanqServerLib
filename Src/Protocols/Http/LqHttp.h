@@ -87,8 +87,7 @@ typedef uint8_t LqHttpActState;
 typedef uint16_t LqHttpActResult;
 
 
-typedef enum LqHttpActResultEnm
-{
+typedef enum LqHttpActResultEnm {
     LQHTTPACT_RES_BEGIN,
     LQHTTPACT_RES_OK,
     LQHTTPACT_RES_PARTIALLY,
@@ -117,40 +116,37 @@ typedef enum LqHttpActResultEnm
 } LqHttpActResultEnm;
 
 //Action classes
-typedef enum LqHttpActClassEnm
-{
+typedef enum LqHttpActClassEnm {
     LQHTTPACT_CLASS_QER = 0 << (sizeof(LqHttpActState) * 8 - 2),    /*Query field used*/
     LQHTTPACT_CLASS_RSP = 1 << (sizeof(LqHttpActState) * 8 - 2),    /*Response field used*/
     LQHTTPACT_CLASS_CLS = 2 << (sizeof(LqHttpActState) * 8 - 2)     /*Response and Query filed not used*/
 } LqHttpActClassEnm;
 
 //All actions
-typedef enum LqHttpActEnm
-{
-    LQHTTPACT_STATE_GET_HDRS =                  LQHTTPACT_CLASS_QER | 1,
-    LQHTTPACT_STATE_RCV_INIT_HANDLE =           LQHTTPACT_CLASS_QER | 2,
-    LQHTTPACT_STATE_RCV_FILE =                  LQHTTPACT_CLASS_QER | 3,                //Get file from user
-    LQHTTPACT_STATE_RCV_STREAM =                LQHTTPACT_CLASS_QER | 4,                //Get file from user
-    LQHTTPACT_STATE_MULTIPART_SKIP_TO_HDRS =    LQHTTPACT_CLASS_QER | 5,
-    LQHTTPACT_STATE_MULTIPART_SKIP_AND_GET_HDRS=LQHTTPACT_CLASS_QER | 6,
-    LQHTTPACT_STATE_MULTIPART_RCV_HDRS =        LQHTTPACT_CLASS_QER | 7,
-    LQHTTPACT_STATE_MULTIPART_RCV_FILE =        LQHTTPACT_CLASS_QER | 8,
-    LQHTTPACT_STATE_MULTIPART_RCV_STREAM =      LQHTTPACT_CLASS_QER | 9,
-    LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS =   LQHTTPACT_CLASS_QER | 10,
-    LQHTTPACT_STATE_QUERY_HANDLE_PROCESS =      LQHTTPACT_CLASS_RSP | 11,
-    LQHTTPACT_STATE_QUERY_SSL_HANDSHAKE =       LQHTTPACT_CLASS_QER | 12,
-    LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE =    LQHTTPACT_CLASS_RSP | 13,
-    LQHTTPACT_STATE_RSP_INIT_HANDLE =           LQHTTPACT_CLASS_RSP | 14,
-    LQHTTPACT_STATE_SKIP_QUERY_BODY =           LQHTTPACT_CLASS_QER | 15,
-    LQHTTPACT_STATE_RSP =                       LQHTTPACT_CLASS_RSP | 16,
-    LQHTTPACT_STATE_RSP_CACHE =                 LQHTTPACT_CLASS_RSP | 17,
-    LQHTTPACT_STATE_RSP_FD =                    LQHTTPACT_CLASS_RSP | 18,
-    LQHTTPACT_STATE_RSP_STREAM =                LQHTTPACT_CLASS_RSP | 19,
-    LQHTTPACT_STATE_CLS_CONNECTION =            LQHTTPACT_CLASS_CLS | 20
+typedef enum LqHttpActEnm {
+    LQHTTPACT_STATE_GET_HDRS = LQHTTPACT_CLASS_QER | 1,
+    LQHTTPACT_STATE_RCV_INIT_HANDLE = LQHTTPACT_CLASS_QER | 2,
+    LQHTTPACT_STATE_RCV_FILE = LQHTTPACT_CLASS_QER | 3,                //Get file from user
+    LQHTTPACT_STATE_RCV_STREAM = LQHTTPACT_CLASS_QER | 4,                //Get file from user
+    LQHTTPACT_STATE_MULTIPART_SKIP_TO_HDRS = LQHTTPACT_CLASS_QER | 5,
+    LQHTTPACT_STATE_MULTIPART_SKIP_AND_GET_HDRS = LQHTTPACT_CLASS_QER | 6,
+    LQHTTPACT_STATE_MULTIPART_RCV_HDRS = LQHTTPACT_CLASS_QER | 7,
+    LQHTTPACT_STATE_MULTIPART_RCV_FILE = LQHTTPACT_CLASS_QER | 8,
+    LQHTTPACT_STATE_MULTIPART_RCV_STREAM = LQHTTPACT_CLASS_QER | 9,
+    LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS = LQHTTPACT_CLASS_QER | 10,
+    LQHTTPACT_STATE_QUERY_HANDLE_PROCESS = LQHTTPACT_CLASS_RSP | 11,
+    LQHTTPACT_STATE_QUERY_SSL_HANDSHAKE = LQHTTPACT_CLASS_QER | 12,
+    LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE = LQHTTPACT_CLASS_RSP | 13,
+    LQHTTPACT_STATE_RSP_INIT_HANDLE = LQHTTPACT_CLASS_RSP | 14,
+    LQHTTPACT_STATE_SKIP_QUERY_BODY = LQHTTPACT_CLASS_QER | 15,
+    LQHTTPACT_STATE_RSP = LQHTTPACT_CLASS_RSP | 16,
+    LQHTTPACT_STATE_RSP_CACHE = LQHTTPACT_CLASS_RSP | 17,
+    LQHTTPACT_STATE_RSP_FD = LQHTTPACT_CLASS_RSP | 18,
+    LQHTTPACT_STATE_RSP_STREAM = LQHTTPACT_CLASS_RSP | 19,
+    LQHTTPACT_STATE_CLS_CONNECTION = LQHTTPACT_CLASS_CLS | 20
 } LqHttpActEnm;
 
-typedef enum LqHttpPthResultEnm
-{
+typedef enum LqHttpPthResultEnm {
     LQHTTPPTH_RES_OK,
     LQHTTPPTH_RES_ALREADY_HAVE,
     LQHTTPPTH_RES_NOT_ALLOC_MEM,
@@ -164,14 +160,12 @@ typedef enum LqHttpPthResultEnm
     LQHTTPPTH_RES_INVALID_NAME
 } LqHttpPthResultEnm;
 
-typedef enum LqHttpPthFlagEnm
-{
+typedef enum LqHttpPthFlagEnm {
     LQHTTPPTH_FLAG_SUBDIR = 8,
     LQHTTPPTH_FLAG_CHILD = 16
 } LqHttpPthFlagEnm;
 
-typedef enum LqHttpPthTypeEnm
-{
+typedef enum LqHttpPthTypeEnm {
     LQHTTPPTH_TYPE_DIR = 0,
     LQHTTPPTH_TYPE_FILE = 1,
     LQHTTPPTH_TYPE_EXEC_DIR = 2,
@@ -180,15 +174,13 @@ typedef enum LqHttpPthTypeEnm
     LQHTTPPTH_TYPE_DIR_REDIRECTION = 5
 } LqHttpPthTypeEnm;
 
-typedef enum LqHttpAtzTypeEnm
-{
+typedef enum LqHttpAtzTypeEnm {
     LQHTTPATZ_TYPE_NONE,
     LQHTTPATZ_TYPE_BASIC,
     LQHTTPATZ_TYPE_DIGEST
 } LqHttpAtzTypeEnm;
 
-typedef enum LqHttpAuthorizPermissionEnm
-{
+typedef enum LqHttpAuthorizPermissionEnm {
     LQHTTPATZ_PERM_READ = 1,
     LQHTTPATZ_PERM_WRITE = 2,
     LQHTTPATZ_PERM_CHECK = 4,
@@ -203,8 +195,7 @@ typedef enum LqHttpAuthorizPermissionEnm
 #define LQ_MAX_CONTENT_LEN 0xffffffffff
 
 
-typedef enum LqHttpQurRspFlagsEnm
-{
+typedef enum LqHttpQurRspFlagsEnm {
     LQHTTPCONN_FLAG_CLOSE = 1,
     LQHTTPCONN_FLAG_NO_BODY = 2
 } LqHttpQurRspFlagsEnm;
@@ -212,8 +203,7 @@ typedef enum LqHttpQurRspFlagsEnm
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-struct LqHttpQuery
-{
+struct LqHttpQuery {
     char*                       Method;
     size_t                      MethodLen;
     char*                       Host;
@@ -234,18 +224,15 @@ struct LqHttpQuery
     LqFileSz                    ContentLen;
     LqHttpMultipartHeaders*     MultipartHeaders;
     size_t                      HeadersEnd;
-    union
-    {
+    union {
         int                     OutFd;
         LqSbuf                  Stream;
     };
     LqFileSz                    PartLen;
 };
 
-struct LqHttpMultipartHeaders
-{
-    struct
-    {
+struct LqHttpMultipartHeaders {
+    struct {
         LqFileSz                ReadedBodySize;
         LqHttpQuery             Query;
     };
@@ -255,22 +242,17 @@ struct LqHttpMultipartHeaders
 
 #define LQHTTPRSP_MAX_RANGES 4
 
-struct LqHttpResponse
-{
+struct LqHttpResponse {
     size_t                      HeadersStart;
     size_t                      HeadersEnd;
     LqFileSz                    CountNeedRecive;
-    union
-    {
-        struct
-        {
-            union
-            {
+    union {
+        struct {
+            union {
                 int             Fd;
                 void*           CacheInterator;
             };
-            struct
-            {
+            struct {
                 LqFileSz        Start;
                 LqFileSz        End;
             } Ranges[LQHTTPRSP_MAX_RANGES];
@@ -283,14 +265,12 @@ struct LqHttpResponse
     uint8_t                     CurRange;
 };
 
-struct LqHttpUserData
-{
-     void* Name;
-     void* Data;
+struct LqHttpUserData {
+    void* Name;
+    void* Data;
 };
 
-struct LqHttpConn
-{
+struct LqHttpConn {
     LqConn                      CommonConn;
     LqTimeMillisec              TimeStartMillisec;
     LqTimeMillisec              TimeLastExchangeMillisec;
@@ -306,11 +286,9 @@ struct LqHttpConn
     LqHttpActResult             ActionResult;
     uint8_t                     Flags;
     LqFileSz                    WrittenBodySize;
-    struct
-    {
+    struct {
         LqFileSz                ReadedBodySize;
-        union
-        {
+        union {
             LqHttpQuery         Query;
             LqHttpResponse      Response;
         };
@@ -323,16 +301,13 @@ struct LqHttpConn
 #endif
 };
 
-struct LqHttpPth
-{
+struct LqHttpPth {
     size_t                      CountPointers;
     char*                       WebPath;
     uint32_t                    WebPathHash;
     uintptr_t                   ModuleData;
-    union
-    {
-        struct
-        {
+    union {
+        struct {
             char*               Location;
             short               StatusCode;
         };
@@ -342,9 +317,8 @@ struct LqHttpPth
     };
     LqHttpAtz*                  Atz;
     uint16_t                    AtzPtrLk;
-    
-    union
-    {
+
+    union {
         LqHttpPth*              Parent;
         LqHttpMdl*              ParentModule;
     };
@@ -360,8 +334,7 @@ struct LqHttpPth
 /*
 * Module defenition for http protocol
 */
-struct LqHttpMdl
-{
+struct LqHttpMdl {
     LqHttpProtoBase*            Proto;
 
     char*                       Name;
@@ -370,7 +343,7 @@ struct LqHttpMdl
     uintptr_t                   Handle;
 
     void (LQ_CALL* BeforeFreeNotifyProc)(LqHttpMdl* This);
-    uintptr_t (LQ_CALL* FreeNotifyProc)(LqHttpMdl* This);  //ret != 0, then unload module. If ret == 0, then the module remains in the memory
+    uintptr_t(LQ_CALL* FreeNotifyProc)(LqHttpMdl* This);  //ret != 0, then unload module. If ret == 0, then the module remains in the memory
 
     /* Create and delete path proc */
     void (LQ_CALL* DeletePathProc)(LqHttpPth* lqaio Pth);
@@ -379,8 +352,7 @@ struct LqHttpMdl
     bool (LQ_CALL* RegisterPathInDomenProc)(LqHttpPth* lqaio Pth, const char* lqain lqautf8 DomenName);
     void (LQ_CALL* UnregisterPathFromDomenProc)(LqHttpPth* lqaio Pth, const char* lqain lqautf8 DomenName);
 
-    void (LQ_CALL* GetMimeProc)
-    (
+    void (LQ_CALL* GetMimeProc) (
         const char* lqain lqautf8 Path,
         LqHttpConn* lqain lqaout Connection,
 
@@ -390,8 +362,7 @@ struct LqHttpMdl
         LqFileStat const* lqain lqaopt Stat/*(Something sends for optimizing)*/
     );
 
-    void (LQ_CALL* GetCacheInfoProc)
-    (
+    void (LQ_CALL* GetCacheInfoProc)(
         const char* lqain Path,
         LqHttpConn* lqain lqaopt Connection,
 
@@ -406,7 +377,7 @@ struct LqHttpMdl
         LqTimeSec* lqaout lqaopt Expires,
 
         LqFileStat const* lqain lqaopt Stat /*(Something sends for optimizing)*/
-    );
+        );
     /* Use for response error to client*/
     int (LQ_CALL* RspErrorProc)(LqHttpConn* lqain c, int lqain Code);
     /* Use for set status in start line*/
@@ -440,8 +411,7 @@ struct LqHttpMdl
 
 #define LqHttpProtoGetByConn(Conn) ((LqHttpProtoBase*)((LqConn*)Conn)->Proto)
 
-struct LqHttpProtoBase
-{
+struct LqHttpProtoBase {
     LqProto                     Proto;
     LqProto                     BindProto;
     LqConn                      Conn;
@@ -489,22 +459,19 @@ struct LqHttpProtoBase
 
 /*
 */
-struct LqHttpAtz
-{
+struct LqHttpAtz {
     size_t                      CountPointers;
     uintptr_t                   Locker;
     char*                       Realm;
     uint8_t                     AuthType;                       /*AUTHORIZATION_... */
     size_t                      CountAuthoriz;
-    union
-    {
-        struct
-        {
+    union {
+        struct {
             uint8_t             AccessMask;
             char*               LoginPassword;
         } *Basic;
-        struct
-        {
+
+        struct {
             uint8_t             AccessMask;
             char*               UserName;
             char                DigestLoginPassword[16 * 2 + 1];
@@ -527,11 +494,10 @@ LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoBind(LqHttpProtoBase* Reg);
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpProtoIsBind(LqHttpProtoBase* Reg);
 LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoUnbind(LqHttpProtoBase* Reg);
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoGetInfo
-(
-    LqHttpProtoBase* lqaio Reg, 
+LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoGetInfo(
+    LqHttpProtoBase* lqaio Reg,
     char* lqaout lqaopt Host,
-    size_t HostBufSize, 
+    size_t HostBufSize,
     char* lqaout lqaopt Port,
     size_t PortBufSize,
     int* lqaout lqaopt RouteProtoFamily,
@@ -539,18 +505,16 @@ LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoGetInfo
     LqTimeMillisec* lqaout lqaopt TimeLive
 );
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoSetInfo
-(
-    LqHttpProtoBase* lqaio Reg, 
-    const char* lqain lqaopt Host, 
-    const char* lqain lqaopt Port, 
+LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoSetInfo(
+    LqHttpProtoBase* lqaio Reg,
+    const char* lqain lqaopt Host,
+    const char* lqain lqaopt Port,
     const int* lqain lqaopt RouteProtoFamily,
-    const int* lqain lqaopt MaxConnections, 
+    const int* lqain lqaopt MaxConnections,
     const LqTimeMillisec* lqain lqaopt TimeLive
 );
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoCreateSSL
-(
+LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoCreateSSL(
     LqHttpProtoBase*lqaio Reg,
     const void*lqain MethodSSL, /* Example SSLv23_method()*/
     const char*lqain CertFile, /* Example: "server.pem"*/
@@ -561,8 +525,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoCreateSSL
     const char*lqain lqaopt DhpFile
 );
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoSetSSL
-(
+LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoSetSSL(
     LqHttpProtoBase* Reg,
     void* SSL_Ctx
 );

@@ -12,8 +12,6 @@
 #include "LqOs.h"
 #include "LqDef.h"
 
-
-
 #define LQCP_UTF_8                  1
 #define LQCP_UTF_7                  2
 #define LQCP_UTF_16                 3

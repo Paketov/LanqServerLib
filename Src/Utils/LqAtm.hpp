@@ -11,22 +11,19 @@
 #include <thread>
 
 template<typename T>
-inline bool LqAtmCmpXchg(volatile T& Val, T& Expected, T NewVal)
-{
+inline bool LqAtmCmpXchg(volatile T& Val, T& Expected, T NewVal) {
     static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
     return ((std::atomic<T>&)Val).compare_exchange_strong(Expected, NewVal);
 }
 
 template<typename T, typename T2>
-inline void LqAtmIntrlkAdd(volatile T& Val, T2 AddVal)
-{
+inline void LqAtmIntrlkAdd(volatile T& Val, T2 AddVal) {
     static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
     ((std::atomic<T>&)Val) += AddVal;
 }
 
 template<typename T, typename T2>
-inline void LqAtmIntrlkSub(volatile T& Val, T2 SubVal)
-{
+inline void LqAtmIntrlkSub(volatile T& Val, T2 SubVal) {
     static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
     ((std::atomic<T>&)Val) -= SubVal;
 }
@@ -36,8 +33,7 @@ inline void LqAtmIntrlkSub(volatile T& Val, T2 SubVal)
 #include <Windows.h>
 
 template<typename T>
-inline typename std::enable_if<sizeof(T) == 1>::type LqAtmIntrlkInc(volatile T& Val) 
-{ 
+inline typename std::enable_if<sizeof(T) == 1>::type LqAtmIntrlkInc(volatile T& Val) {
     static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
     ++((std::atomic<T>&)Val);
 }
@@ -50,8 +46,7 @@ inline typename std::enable_if<sizeof(T) == 8>::type LqAtmIntrlkInc(volatile T& 
 
 
 template<typename T>
-inline typename std::enable_if<sizeof(T) == 1>::type LqAtmIntrlkDec(volatile T& Val) 
-{ 
+inline typename std::enable_if<sizeof(T) == 1>::type LqAtmIntrlkDec(volatile T& Val) {
     static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
     ++((std::atomic<T>&)Val);
 }
@@ -65,15 +60,13 @@ inline typename std::enable_if<sizeof(T) == 8>::type LqAtmIntrlkDec(volatile T& 
 #else
 
 template<typename T>
-inline void LqAtmIntrlkInc(volatile T& Val)
-{
+inline void LqAtmIntrlkInc(volatile T& Val) {
     static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
     ++((std::atomic<T>&)Val);
 }
 
 template<typename T>
-inline void LqAtmIntrlkDec(volatile T& Val)
-{
+inline void LqAtmIntrlkDec(volatile T& Val) {
     static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
     --((std::atomic<T>&)Val);
 }

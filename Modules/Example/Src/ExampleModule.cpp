@@ -37,14 +37,13 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
             const char * Cmd = Command;
             if(Command[0] == '?')
             {
-                fprintf((FILE*)Data, "Hello to console shell from module !");
+				LqFbuf_printf((LqFbuf*)Data, "Hello to console shell from module !");
             }
         };
 
     Mod.FreeNotifyProc =
         [](LqHttpMdl* This) -> uintptr_t
         {
-            printf("Unload notification\n");
             return This->Handle;
         };
 

@@ -10,6 +10,7 @@
 #include "LqThreadBase.hpp"
 #include "LqDfltRef.hpp"
 #include "LqStr.h"
+#include "LqSbuf.h"
 
 #include <string>
 #include <sstream>
@@ -19,10 +20,8 @@
 #if defined(LQPLATFORM_WINDOWS)
 #include <Windows.h>
 
-static int __GetRealPrior(LqThreadPriorEnm p)
-{
-    switch(p)
-    {
+static int __GetRealPrior(LqThreadPriorEnm p) {
+    switch(p) {
         case LQTHREAD_PRIOR_IDLE:           return THREAD_PRIORITY_IDLE;
         case LQTHREAD_PRIOR_LOWER:          return THREAD_PRIORITY_LOWEST;
         case LQTHREAD_PRIOR_LOW:            return THREAD_PRIORITY_BELOW_NORMAL;
@@ -34,10 +33,8 @@ static int __GetRealPrior(LqThreadPriorEnm p)
     }
 }
 
-static LqThreadPriorEnm __GetPrior(int Code)
-{
-    switch(Code)
-    {
+static LqThreadPriorEnm __GetPrior(int Code) {
+    switch(Code) {
         case THREAD_PRIORITY_IDLE:          return LQTHREAD_PRIOR_IDLE;
         case THREAD_PRIORITY_LOWEST:        return LQTHREAD_PRIOR_LOWER;
         case THREAD_PRIORITY_BELOW_NORMAL:  return LQTHREAD_PRIOR_LOW;
@@ -51,12 +48,10 @@ static LqThreadPriorEnm __GetPrior(int Code)
 
 thread_local char* NameThread = nullptr;
 
-static int pthread_setname_np(DWORD dwThreadID, const char* threadName)
-{
+static int pthread_setname_np(DWORD dwThreadID, const char* threadName) {
     static const DWORD MS_VC_EXCEPTION = 0x406D1388;
 #pragma pack(push,8)
-    typedef struct tagTHREADNAME_INFO
-    {
+    typedef struct tagTHREADNAME_INFO {
         DWORD dwType; // Must be 0x1000.
         LPCSTR szName; // Pointer to name (in user addr space).
         DWORD dwThreadID; // Thread ID (-1=caller thread).
@@ -71,8 +66,7 @@ static int pthread_setname_np(DWORD dwThreadID, const char* threadName)
     info.dwFlags = 0;
 #pragma warning(push)
 #pragma warning(disable: 6320 6322)
-    __try
-    {
+    __try {
         RaiseException(MS_VC_EXCEPTION, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
     } __except(EXCEPTION_EXECUTE_HANDLER) {}
 #pragma warning(pop)
@@ -80,8 +74,7 @@ static int pthread_setname_np(DWORD dwThreadID, const char* threadName)
     return 0;
 }
 
-static int pthread_getname_np(DWORD dwThreadID, char* StrBufDest, size_t Len)
-{
+static int pthread_getname_np(DWORD dwThreadID, char* StrBufDest, size_t Len) {
     if(NameThread != nullptr)
         LqStrCopyMax(StrBufDest, NameThread, Len);
     else
@@ -97,10 +90,8 @@ static int pthread_getname_np(DWORD dwThreadID, char* StrBufDest, size_t Len)
 #include <sys/time.h>
 #include <string.h>
 
-static int __GetRealPrior(LqThreadPriorEnm p)
-{
-    switch(p)
-    {
+static int __GetRealPrior(LqThreadPriorEnm p) {
+    switch(p) {
         case LQTHREAD_PRIOR_IDLE: return 45;
         case LQTHREAD_PRIOR_LOWER: return 51;
         case LQTHREAD_PRIOR_LOW: return 57;
@@ -112,10 +103,8 @@ static int __GetRealPrior(LqThreadPriorEnm p)
     }
 }
 
-static LqThreadPriorEnm __GetPrior(int Code)
-{
-    switch(Code)
-    {
+static LqThreadPriorEnm __GetPrior(int Code) {
+    switch(Code) {
         case 45: return LQTHREAD_PRIOR_IDLE;
         case 51: return LQTHREAD_PRIOR_LOWER;
         case 57: return LQTHREAD_PRIOR_LOW;
@@ -133,23 +122,21 @@ thread_local char* NameThread = nullptr;
 
 #endif
 
-LqThreadBase::LqThreadBase(const char* NewName): 
-    IsShouldEnd(true), 
-    Priority(LQTHREAD_PRIOR_NONE), 
-    AffinMask(0), 
-    IsOut(true), 
-    UserData(nullptr), 
+LqThreadBase::LqThreadBase(const char* NewName):
+    IsShouldEnd(true),
+    Priority(LQTHREAD_PRIOR_NONE),
+    AffinMask(0),
+    IsOut(true),
+    UserData(nullptr),
     ExitHandler([](void*) {}),
-    EnterHandler([](void*) {})
-{
+    EnterHandler([](void*) {}) {
     if(NewName != nullptr)
         Name = LqStrDuplicate(NewName);
     else
         Name = nullptr;
 }
 
-LqThreadBase::~LqThreadBase()
-{
+LqThreadBase::~LqThreadBase() {
     if(Name != nullptr)
         free(Name);
     EndWorkSync();
@@ -157,49 +144,39 @@ LqThreadBase::~LqThreadBase()
         this->thread::detach();
 }
 
-LqThreadPriorEnm LqThreadBase::GetPriority() const
-{
+LqThreadPriorEnm LqThreadBase::GetPriority() const {
     return Priority;
 }
 
-void LqThreadBase::SetPriority(LqThreadPriorEnm New)
-{
+void LqThreadBase::SetPriority(LqThreadPriorEnm New) {
     ThreadParamLocker.LockWrite();
-    if(Priority != New)
-    {
+    if(Priority != New) {
         Priority = New;
-        if(!IsOut)
-        {
-            try
-            {
+        if(!IsOut) {
+            try {
 #if defined(LQPLATFORM_WINDOWS)
-            SetThreadPriority(native_handle(), __GetRealPrior(Priority));
+                SetThreadPriority(native_handle(), __GetRealPrior(Priority));
 #else
-            sched_param schedparams;
-            schedparams.sched_priority = __GetRealPrior(Priority);
-            pthread_setschedparam(native_handle(), SCHED_OTHER, &schedparams);
+                sched_param schedparams;
+                schedparams.sched_priority = __GetRealPrior(Priority);
+                pthread_setschedparam(native_handle(), SCHED_OTHER, &schedparams);
 #endif
-            } catch(...)
-            {
+            } catch(...) {
             }
         }
     }
     ThreadParamLocker.UnlockWrite();
 }
 
-ullong LqThreadBase::GetAffinity() const
-{
+ullong LqThreadBase::GetAffinity() const {
     return AffinMask;
 }
 
-void LqThreadBase::SetAffinity(ullong Mask)
-{
+void LqThreadBase::SetAffinity(ullong Mask) {
     ThreadParamLocker.LockWrite();
-    if(AffinMask != Mask)
-    {
+    if(AffinMask != Mask) {
         AffinMask = Mask;
-        if(!IsOut)
-        {
+        if(!IsOut) {
 #if defined(LQPLATFORM_WINDOWS)
             SetThreadAffinityMask(native_handle(), Mask);
 #elif !defined(LQPLATFORM_ANDROID)
@@ -211,16 +188,12 @@ void LqThreadBase::SetAffinity(ullong Mask)
     ThreadParamLocker.UnlockWrite();
 }
 
-void LqThreadBase::WaitEnd()
-{
-    if(!this->IsOut)
-    {
+void LqThreadBase::WaitEnd() {
+    if(!this->IsOut) {
         bool IsCallHandler = false;
-        try
-        {
+        try {
             this->join();
-        } catch(...)
-        {
+        } catch(...) {
             /*Is thread killed by system (Actual for Windows)*/
             IsOut = true;
             IsCallHandler = true;
@@ -230,8 +203,7 @@ void LqThreadBase::WaitEnd()
     }
 }
 
-void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
-{
+void LqThreadBase::BeginThreadHelper(LqThreadBase* This) {
     while(!This->joinable())
         LqThreadYield();
 
@@ -245,8 +217,7 @@ void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
     pthread_setname_np(This->Name);
 #endif
 
-    if(This->Priority == LQTHREAD_PRIOR_NONE)
-    {
+    if(This->Priority == LQTHREAD_PRIOR_NONE) {
 #if defined(LQPLATFORM_WINDOWS)
         This->Priority = __GetPrior(GetThreadPriority(GetCurrentThread()));
 #else
@@ -254,8 +225,7 @@ void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
         pthread_getschedparam(pthread_self(), LqDfltPtr(), &schedparams);
         This->Priority = __GetPrior(schedparams.sched_priority);
 #endif
-    } else
-    {
+    } else {
 #if defined(LQPLATFORM_WINDOWS)
         SetThreadPriority(GetCurrentThread(), __GetRealPrior(This->Priority));
 #else
@@ -266,8 +236,7 @@ void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
     }
 
 
-    if(This->AffinMask == 0)
-    {
+    if(This->AffinMask == 0) {
 #if defined(LQPLATFORM_WINDOWS)
         GROUP_AFFINITY ga = {0};
         GetThreadGroupAffinity(GetCurrentThread(), &ga);
@@ -275,8 +244,7 @@ void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
 #elif !defined(LQPLATFORM_ANDROID)
         pthread_getaffinity_np(pthread_self(), sizeof(This->AffinMask), (cpu_set_t*)&This->AffinMask);
 #endif
-    } else
-    {
+    } else {
 #if defined(LQPLATFORM_WINDOWS)
         SetThreadAffinityMask(GetCurrentThread(), This->AffinMask);
 #elif !defined(LQPLATFORM_ANDROID)
@@ -294,8 +262,7 @@ void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
 
 
 #ifdef LQPLATFORM_WINDOWS
-    if(NameThread != nullptr)
-    {
+    if(NameThread != nullptr) {
         free(NameThread);
         NameThread = nullptr;
     }
@@ -306,8 +273,7 @@ void LqThreadBase::BeginThreadHelper(LqThreadBase* This)
     This->ExitHandler(This->UserData);
 }
 
-int LqThreadBase::GetName(intptr_t Id, char* DestBuf, size_t Len)
-{
+int LqThreadBase::GetName(intptr_t Id, char* DestBuf, size_t Len) {
 #if !defined(LQPLATFORM_ANDROID)
     return pthread_getname_np(Id, DestBuf, Len);
 #else
@@ -315,11 +281,9 @@ int LqThreadBase::GetName(intptr_t Id, char* DestBuf, size_t Len)
 #endif
 }
 
-bool LqThreadBase::StartAsync()
-{
+bool LqThreadBase::StartAsync() {
     StartThreadLocker.LockWrite();
-    if(this->IsOut)
-    {
+    if(this->IsOut) {
         this->IsShouldEnd = true;
         this->IsOut = false;
         if(joinable())
@@ -332,11 +296,9 @@ bool LqThreadBase::StartAsync()
     return false;
 }
 
-bool LqThreadBase::StartSync()
-{
+bool LqThreadBase::StartSync() {
     StartThreadLocker.LockWrite();
-    if(this->IsOut)
-    {
+    if(this->IsOut) {
         this->IsShouldEnd = true;
         this->IsOut = false;
         if(joinable())
@@ -352,27 +314,22 @@ bool LqThreadBase::StartSync()
     return false;
 }
 
-bool LqThreadBase::IsThreadEnd() const
-{
+bool LqThreadBase::IsThreadEnd() const {
     return this->IsOut;
 }
 
-bool LqThreadBase::IsJoinable() const
-{
+bool LqThreadBase::IsJoinable() const {
     return this->joinable();
 }
 
-bool LqThreadBase::IsThisThread()
-{
+bool LqThreadBase::IsThisThread() {
     return std::this_thread::get_id() == this->get_id();
 }
 
-bool LqThreadBase::EndWorkAsync()
-{
+bool LqThreadBase::EndWorkAsync() {
     bool r = false;
     StartThreadLocker.LockWrite();
-    if(!LqThreadBase::IsOut)
-    {
+    if(!LqThreadBase::IsOut) {
         r = LqThreadBase::IsShouldEnd = true;
         if(!IsThisThread())
             NotifyThread();
@@ -381,24 +338,18 @@ bool LqThreadBase::EndWorkAsync()
     return r;
 }
 
-bool LqThreadBase::EndWorkSync()
-{
+bool LqThreadBase::EndWorkSync() {
     bool r = false;
     bool IsCallHandler = false;
     StartThreadLocker.LockWrite();
-    if(!LqThreadBase::IsOut)
-    {
+    if(!LqThreadBase::IsOut) {
         r = LqThreadBase::IsShouldEnd = true;
-        if(!IsThisThread())
-        {
+        if(!IsThisThread()) {
             NotifyThread();
-            while(!IsOut)
-            {
-                try
-                {
+            while(!IsOut) {
+                try {
                     this->join();
-                } catch(...)
-                {
+                } catch(...) {
                     IsOut = true;
                     IsCallHandler = true;
                 }
@@ -411,8 +362,7 @@ bool LqThreadBase::EndWorkSync()
     return r;
 }
 
-intptr_t LqThreadBase::ThreadId() const
-{
+intptr_t LqThreadBase::ThreadId() const {
     std::basic_stringstream<char> r;
     r << get_id();
     intptr_t id = 0;
@@ -420,11 +370,9 @@ intptr_t LqThreadBase::ThreadId() const
     return id;
 }
 
-LqString LqThreadBase::DebugInfo() const
-{
+LqString LqThreadBase::DebugInfo() const {
     const char* Prior;
-    switch(Priority)
-    {
+    switch(Priority) {
         case LQTHREAD_PRIOR_IDLE: Prior = "idle"; break;
         case LQTHREAD_PRIOR_LOWER: Prior = "lower"; break;
         case LQTHREAD_PRIOR_LOW:Prior = "low"; break;
@@ -436,11 +384,11 @@ LqString LqThreadBase::DebugInfo() const
         default: Prior = "unknown";
     }
     char Buf[1024];
-    sprintf
-    (
+    LqFwbuf_snprintf (
         Buf,
+        sizeof(Buf),
         "--------------\n"
-		"Thread id: %llu\n"
+        "Thread id: %llu\n"
         "Is work: %c\n"
         "Priority: %s\n"
         "Affinity mask: 0x%016llx\n",

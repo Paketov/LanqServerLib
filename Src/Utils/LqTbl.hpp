@@ -67,8 +67,7 @@ template
     typename TIndex = decltype(std::declval<TElementStruct>().IndexInBound(0)),
     TIndex NothingIndex = TIndex(-1)
 >
-class LqTbl
-{
+class LqTbl {
 public:
     typedef TIndex      IndexType, *LpIndexType;
     typedef TElementStruct      Element, *LpElement;
@@ -80,8 +79,7 @@ public:
 
     static inline void CopyElement(Cell& Dest, const Cell& Source) { *(TElementStruct*)((LpHeadCell)&Dest + 1) = *(TElementStruct*)((LpHeadCell)&Source + 1); }
 
-    static inline LpCell GetCellByElement(TElementStruct* v)
-    {/*Oh noo!!! His used offsets in C++ code! - Trust me, I known better =))*/
+    static inline LpCell GetCellByElement(TElementStruct* v) {/*Oh noo!!! His used offsets in C++ code! - Trust me, I known better =))*/
         return LpCell((char*)v - ((intptr_t)(TElementStruct*)((Cell*)1000) - 1000));
     }
 
@@ -111,8 +109,7 @@ public:
 
 protected:
 
-    bool ReallocAndClear(IndexType NewAllocCount)
-    {
+    bool ReallocAndClear(IndexType NewAllocCount) {
         if(NewAllocCount <= 0)
             NewAllocCount = 1;
         LpCell* Res = (LpCell*)___realloc(Table, sizeof(LpCell) * NewAllocCount);
@@ -122,8 +119,7 @@ protected:
         return true;
     }
 
-    bool Realloc(IndexType NewAllocCount)
-    {
+    bool Realloc(IndexType NewAllocCount) {
         IndexType c = NewAllocCount;
         if(NewAllocCount <= 0)
             c = 1;
@@ -141,20 +137,16 @@ public:
     /*
             After call this constructor AllocCount = NewAllocCount.
     */
-    LqTbl(IndexType NewAllocCount = 1)
-    {
+    LqTbl(IndexType NewAllocCount = 1) {
         Table = nullptr;
         alloc_count = count = 0;
         ReallocAndClear(NewAllocCount);
     }
 
-    inline ~LqTbl()
-    {
-        if(Table != nullptr)
-        {
+    inline ~LqTbl() {
+        if(Table != nullptr) {
             for(LpCell *s = Table, *m = s + alloc_count; s < m; s++)
-                for(LpCell i = *s; i != nullptr; )
-                {
+                for(LpCell i = *s; i != nullptr; ) {
                     LpCell DelElem = i;
                     i = DelElem->HeadCell::Next;
                     LqFastAlloc::Delete(DelElem);
@@ -167,11 +159,9 @@ public:
             Insert with checkin have element
     */
     template<typename T>
-    inline TElementStruct* Insert(T SearchKey)
-    {
+    inline TElementStruct* Insert(T SearchKey) {
         LpCell *lpStart = ElementByKey(SearchKey);
-        for(; *lpStart != nullptr; lpStart = &(*lpStart)->HeadCell::Next)
-        {
+        for(; *lpStart != nullptr; lpStart = &(*lpStart)->HeadCell::Next) {
             if((*lpStart)->CmpKey(SearchKey))
                 return *lpStart;
         }
@@ -188,8 +178,7 @@ public:
             In case collision for read multiple values use NextCollision function.
     */
     template<typename T>
-    inline TElementStruct* OnlyInsert(T SearchKey)
-    {
+    inline TElementStruct* OnlyInsert(T SearchKey) {
         LpCell *lpStart = ElementByKey(SearchKey), NewElem;
         if((NewElem = LqFastAlloc::New<Cell>()) == nullptr)
             return nullptr;
@@ -203,10 +192,8 @@ public:
             Simple search element by various type key
     */
     template<typename T>
-    inline TElementStruct* Search(T SearchKey) const
-    {
-        for(LpCell lpStart = GetTable()[TElementStruct::IndexByKey(SearchKey, alloc_count)]; lpStart != nullptr; lpStart = lpStart->HeadCell::Next)
-        {
+    inline TElementStruct* Search(T SearchKey) const {
+        for(LpCell lpStart = GetTable()[TElementStruct::IndexByKey(SearchKey, alloc_count)]; lpStart != nullptr; lpStart = lpStart->HeadCell::Next) {
             if(lpStart->CmpKey(SearchKey))
                 return lpStart;
         }
@@ -218,18 +205,15 @@ public:
             Caution! You can not change the table between Search and NextCollision.
     */
     template<typename T>
-    inline TElementStruct* NextCollision(TElementStruct* CurElem, T SearchKey) const
-    {
-        for(LpCell lpNext = GetCellByElement(CurElem)->HeadCell::Next; lpNext != nullptr; lpNext = lpNext->HeadCell::Next)
-        {
+    inline TElementStruct* NextCollision(TElementStruct* CurElem, T SearchKey) const {
+        for(LpCell lpNext = GetCellByElement(CurElem)->HeadCell::Next; lpNext != nullptr; lpNext = lpNext->HeadCell::Next) {
             if(lpNext->CmpKey(SearchKey))
                 return lpNext;
         }
         return nullptr;
     }
 
-    void DeleteRetPointer(TElementStruct* Pointer)
-    {
+    void DeleteRetPointer(TElementStruct* Pointer) {
         LqFastAlloc::Delete(GetCellByElement(Pointer));
     }
 
@@ -238,12 +222,9 @@ public:
             Return address element in table.
     */
     template<typename T>
-    TElementStruct* RemoveAndRetPointer(T SearchKey)
-    {
-        for(LpCell *lpStart = ElementByKey(SearchKey); *lpStart != nullptr; lpStart = &(*lpStart)->HeadCell::Next)
-        {
-            if((*lpStart)->CmpKey(SearchKey))
-            {
+    TElementStruct* RemoveAndRetPointer(T SearchKey) {
+        for(LpCell *lpStart = ElementByKey(SearchKey); *lpStart != nullptr; lpStart = &(*lpStart)->HeadCell::Next) {
+            if((*lpStart)->CmpKey(SearchKey)) {
                 auto DelElem = *lpStart;
                 *lpStart = DelElem->HeadCell::Next;
                 count--;
@@ -258,12 +239,9 @@ public:
             Return address element in table.
     */
     template<typename T>
-    bool Remove(T SearchKey)
-    {
-        for(LpCell *lpStart = ElementByKey(SearchKey); *lpStart != nullptr; lpStart = &(*lpStart)->HeadCell::Next)
-        {
-            if((*lpStart)->CmpKey(SearchKey))
-            {
+    bool Remove(T SearchKey) {
+        for(LpCell *lpStart = ElementByKey(SearchKey); *lpStart != nullptr; lpStart = &(*lpStart)->HeadCell::Next) {
+            if((*lpStart)->CmpKey(SearchKey)) {
                 auto DelElem = *lpStart;
                 *lpStart = DelElem->HeadCell::Next;
                 count--;
@@ -280,12 +258,9 @@ public:
             In case call this method you must call LqFastAlloc::Delete for correct delete element;
     */
     template<typename T>
-    LpCell RemoveRow(T SearchKey)
-    {
-        for(LpCell *lpStart = ElementByKey(SearchKey); *lpStart != nullptr; lpStart = &(*lpStart)->HeadCell::Next)
-        {
-            if((*lpStart)->CmpKey(SearchKey))
-            {
+    LpCell RemoveRow(T SearchKey) {
+        for(LpCell *lpStart = ElementByKey(SearchKey); *lpStart != nullptr; lpStart = &(*lpStart)->HeadCell::Next) {
+            if((*lpStart)->CmpKey(SearchKey)) {
                 LpCell DelElem = *lpStart;
                 *lpStart = DelElem->HeadCell::Next;
                 count--;
@@ -300,12 +275,9 @@ public:
             To find out the number of deleted items, check property GetCount.
     */
     template<typename T>
-    void RemoveAllCollision(T SearchKey)
-    {
-        for(LpCell *i = ElementByKey(SearchKey); *i != nullptr; )
-        {
-            if((*i)->CmpKey(SearchKey))
-            {
+    void RemoveAllCollision(T SearchKey) {
+        for(LpCell *i = ElementByKey(SearchKey); *i != nullptr; ) {
+            if((*i)->CmpKey(SearchKey)) {
                 LpCell DelElem = *i;
                 *i = DelElem->HeadCell::Next;
                 LqFastAlloc::Delete(DelElem);
@@ -319,11 +291,9 @@ public:
             Clear all table.
             Deletes all element from table.
     */
-    void Clear()
-    {
+    void Clear() {
         for(LpCell *s = GetTable(), *m = s + alloc_count; s < m; s++)
-            for(LpCell i = *s; i != nullptr; )
-            {
+            for(LpCell i = *s; i != nullptr; ) {
                 LpCell DelElem = i;
                 i = DelElem->HeadCell::Next;
                 LqFastAlloc::Delete(DelElem);
@@ -336,22 +306,18 @@ public:
             Enumerate all elements in the table with the EnumFunc.
             Caution! When you call this function, you can not change the contents of the table!
     */
-    inline bool EnumValues(bool(*EnumFunc)(void* UserData, TElementStruct* Element), void* UserData = nullptr) const
-    {
+    inline bool EnumValues(bool(*EnumFunc)(void* UserData, TElementStruct* Element), void* UserData = nullptr) const {
         for(LpCell *s = GetTable(), *m = s + alloc_count; s < m; s++)
-            for(LpCell i = *s; i != nullptr; i = i->HeadCell::Next)
-            {
+            for(LpCell i = *s; i != nullptr; i = i->HeadCell::Next) {
                 if(!EnumFunc(UserData, i))
                     return false;
             }
         return true;
     }
 
-    inline bool EnumValues2(std::function<bool(TElementStruct*)> EnumFunc) const
-    {
+    inline bool EnumValues2(std::function<bool(TElementStruct*)> EnumFunc) const {
         for(LpCell *s = GetTable(), *m = s + alloc_count; s < m; s++)
-            for(LpCell i = *s; i != nullptr; i = i->HeadCell::Next)
-            {
+            for(LpCell i = *s; i != nullptr; i = i->HeadCell::Next) {
                 if(!EnumFunc(i))
                     return false;
             }
@@ -362,11 +328,9 @@ public:
             Enumerate all elements in the table with the EnumFunc.
             Caution! When you call this function, you can not change the contents of the table!
     */
-    inline bool EnumValues(bool(*EnumFunc)(TElementStruct* Element))
-    {
+    inline bool EnumValues(bool(*EnumFunc)(TElementStruct* Element)) {
         for(LpCell *s = GetTable(), *m = s + alloc_count; s < m; s++)
-            for(LpCell i = *s; i != nullptr; i = i->HeadCell::Next)
-            {
+            for(LpCell i = *s; i != nullptr; i = i->HeadCell::Next) {
                 if(!EnumFunc(i))
                     return false;
             }
@@ -378,13 +342,10 @@ public:
             Is function return true element will be removed.
             Caution! When you call this function, you can not change the contents of the table!
     */
-    inline void EnumDelete(bool(*IsDeleteProc)(void* UserData, TElementStruct* Element), void* UserData = nullptr)
-    {
+    inline void EnumDelete(bool(*IsDeleteProc)(void* UserData, TElementStruct* Element), void* UserData = nullptr) {
         for(LpCell *s = GetTable(), *m = s + alloc_count; s < m; s++)
-            for(LpCell *i = s; *i != nullptr; )
-            {
-                if(IsDeleteProc(UserData, *i))
-                {
+            for(LpCell *i = s; *i != nullptr; ) {
+                if(IsDeleteProc(UserData, *i)) {
                     LpCell DelElem = *i;
                     *i = (*i)->HeadCell::Next;
                     LqFastAlloc::Delete(DelElem);
@@ -399,13 +360,10 @@ public:
             Is function return true element will be removed.
             Caution! When you call this function, you can not change the contents of the table!
     */
-    inline void EnumDelete(bool(*IsDeleteProc)(TElementStruct* Element))
-    {
+    inline void EnumDelete(bool(*IsDeleteProc)(TElementStruct* Element)) {
         for(LpCell *s = GetTable(), *m = s + alloc_count; s < m; s++)
-            for(LpCell* i = s; *i != nullptr; )
-            {
-                if(IsDeleteProc(*i))
-                {
+            for(LpCell* i = s; *i != nullptr; ) {
+                if(IsDeleteProc(*i)) {
                     LpCell DelElem = *i;
                     *i = DelElem->HeadCell::Next;
                     LqFastAlloc::Delete(DelElem);
@@ -415,13 +373,10 @@ public:
             }
     }
 
-    inline void EnumDelete2(std::function<bool(TElementStruct*)> IsDeleteProc)
-    {
+    inline void EnumDelete2(std::function<bool(TElementStruct*)> IsDeleteProc) {
         for(LpCell *s = GetTable(), *m = s + alloc_count; s < m; s++)
-            for(LpCell* i = s; *i != nullptr; )
-            {
-                if(IsDeleteProc(*i))
-                {
+            for(LpCell* i = s; *i != nullptr; ) {
+                if(IsDeleteProc(*i)) {
                     LpCell DelElem = *i;
                     *i = DelElem->HeadCell::Next;
                     LqFastAlloc::Delete(DelElem);
@@ -441,10 +396,8 @@ public:
     */
     inline bool ResizeAfterRemove() { return ResizeAfterRemove(count); }
 
-    bool ResizeAfterRemove(IndexType NewCount)
-    {
-        if(NewCount <= 0)
-        {
+    bool ResizeAfterRemove(IndexType NewCount) {
+        if(NewCount <= 0) {
             Clear();
             return true;
         } else
@@ -458,12 +411,10 @@ public:
             To verify the necessity of calling this function, use the property IsFull, next
             calculate NewCount and call this function.
     */
-    bool ResizeBeforeInsert(IndexType NewCount)
-    {
+    bool ResizeBeforeInsert(IndexType NewCount) {
         LpCell UsedList = nullptr;
         for(LpCell *s = GetTable(), *m = s + alloc_count; s < m; s++)
-            for(LpCell i = *s; i != nullptr; )
-            {
+            for(LpCell i = *s; i != nullptr; ) {
                 LpCell j = UsedList;
                 UsedList = i;
                 i = i->HeadCell::Next;
@@ -471,8 +422,7 @@ public:
             }
         bool r = ReallocAndClear(NewCount);
         LpCell *t = GetTable();
-        while(UsedList != nullptr)
-        {
+        while(UsedList != nullptr) {
             LpCell* j = t + UsedList->IndexInBound(alloc_count), c = *j;
             UsedList = (*j = UsedList)->HeadCell::Next;
             (*j)->HeadCell::Next = c;
@@ -485,26 +435,21 @@ public:
     /*
             Clone this table to another
     */
-    bool Clone(LqTbl<TElementStruct, TIndex, NothingIndex>& Dest) const
-    {
+    bool Clone(LqTbl<TElementStruct, TIndex, NothingIndex>& Dest) const {
         LpCell UsedList = nullptr;
-        if(Dest.count >= 0)
-        {
+        if(Dest.count >= 0) {
             for(LpCell *s = Dest.GetTable(), *m = s + Dest.alloc_count; s < m; s++)
-                for(LpCell i = *s; i != nullptr; )
-                {
+                for(LpCell i = *s; i != nullptr; ) {
                     LpCell j = UsedList;
                     UsedList = i;
                     i = i->HeadCell::Next;
                     UsedList->HeadCell::Next = j;
                 }
         }
-        if(!Dest.ReallocAndClear(alloc_count))
-        {
+        if(!Dest.ReallocAndClear(alloc_count)) {
             /*If not alloc memory, then return all back*/
             LpCell* dt = Dest.GetTable();
-            for(; UsedList != nullptr;)
-            {
+            for(; UsedList != nullptr;) {
                 LpCell* j = dt + UsedList->IndexInBound(Dest.alloc_count);
                 LpCell c = *j;
                 *j = UsedList;
@@ -515,15 +460,11 @@ public:
         }
         LpCell *st = GetTable(), *dt = Dest.GetTable();
         for(IndexType k = 0, m = alloc_count; k < m; k++)
-            for(LpCell i = st[k]; i != nullptr; i = i->HeadCell::Next)
-            {
-                if(UsedList == nullptr)
-                {
+            for(LpCell i = st[k]; i != nullptr; i = i->HeadCell::Next) {
+                if(UsedList == nullptr) {
                     /*If used list == null, then for faster jump to cilcle without checkin*/
-                    while(true)
-                    {
-                        for(; i != nullptr; i = i->HeadCell::Next)
-                        {
+                    while(true) {
+                        for(; i != nullptr; i = i->HeadCell::Next) {
                             LpCell n = LqFastAlloc::New<Cell>();
                             CopyElement(*n, *i);
                             n->HeadCell::Next = dt[k];
@@ -541,8 +482,7 @@ public:
                 n->HeadCell::Next = dt[k];
                 dt[k] = n;
             }
-        while(UsedList != nullptr)
-        {
+        while(UsedList != nullptr) {
             LpCell DelElem = UsedList;
             UsedList = UsedList->HeadCell::Next;
             LqFastAlloc::Delete(DelElem);
@@ -555,8 +495,7 @@ lblOut:
             Move this table to another.
             After call GetCount == 0.
     */
-    bool Move(LqTbl<TElementStruct, TIndex, NothingIndex>& Dest)
-    {
+    bool Move(LqTbl<TElementStruct, TIndex, NothingIndex>& Dest) {
         if(!Dest.ReallocAndClear(1))
             return false;
         LpCell* t = Dest.Table;
@@ -581,14 +520,11 @@ lblOut:
     /*
             Interator type
     */
-    typedef struct Iterator
-    {
+    typedef struct Iterator {
         friend LqTbl;
     public:
-        union
-        {
-            class
-            {
+        union {
+            class {
                 friend Iterator;
                 friend LqTbl;
                 IndexType CurStartList;
@@ -604,17 +540,14 @@ lblOut:
     /*
             Start or continue interate table.
     */
-    bool Interate(Iterator& SetInterator) const
-    {
+    bool Interate(Iterator& SetInterator) const {
         IndexType p;
         LpCell *t = GetTable();
-        if(SetInterator.IsShouldEnd)
-        {
+        if(SetInterator.IsShouldEnd) {
             p = 0;
 lblSearchStart:
             for(IndexType m = alloc_count; p < m; p++)
-                if(t[p] != nullptr)
-                {
+                if(t[p] != nullptr) {
                     SetInterator.IsShouldEnd.CurStartList = p;
                     SetInterator.IsShouldEnd.CurElementInList = t[p];
                     return true;
@@ -622,8 +555,7 @@ lblSearchStart:
             SetInterator.IsShouldEnd.CurStartList = EmptyElement;
             return false;
         }
-        if(SetInterator.IsShouldEnd.CurElementInList->Next != nullptr)
-        {
+        if(SetInterator.IsShouldEnd.CurElementInList->Next != nullptr) {
             SetInterator.IsShouldEnd.CurElementInList = SetInterator.IsShouldEnd.CurElementInList->Next;
             return true;
         }
@@ -634,8 +566,7 @@ lblSearchStart:
     /*
             Check interator is correct.
     */
-    inline bool InteratorCheck(const Iterator& Interator) const
-    {
+    inline bool InteratorCheck(const Iterator& Interator) const {
         if(Interator.IsShouldEnd)
             return false;
         return true;
@@ -649,13 +580,11 @@ lblSearchStart:
             Search key and set interator to key position.
     */
     template<typename TKey>
-    bool InteratorByKey(TKey SearchKey, Iterator& Interator)
-    {
+    bool InteratorByKey(TKey SearchKey, Iterator& Interator) {
         LpCell *t = GetTable();
         IndexType s = TElementStruct::IndexByKey(SearchKey, alloc_count);
         for(LpCell i = t[s]; i != nullptr; i = i->HeadCell::Next)
-            if(i->CmpKey(SearchKey))
-            {
+            if(i->CmpKey(SearchKey)) {
                 Interator.IsShouldEnd.CurStartList = s;
                 Interator.IsShouldEnd.CurElementInList = i;
                 return true;
@@ -665,12 +594,9 @@ lblSearchStart:
     /*
             Remove by interator.
     */
-    TElementStruct* RemoveByInteratorRetPointer(Iterator& Interator)
-    {
-        for(LpCell *DelElem = GetTable() + Interator.IsShouldEnd.CurStartList; *DelElem != nullptr; DelElem = &(*DelElem)->HeadCell::Next)
-        {
-            if(*DelElem == Interator.IsShouldEnd.CurElementInList)
-            {
+    TElementStruct* RemoveByInteratorRetPointer(Iterator& Interator) {
+        for(LpCell *DelElem = GetTable() + Interator.IsShouldEnd.CurStartList; *DelElem != nullptr; DelElem = &(*DelElem)->HeadCell::Next) {
+            if(*DelElem == Interator.IsShouldEnd.CurElementInList) {
                 Interate(Interator);
                 auto El2 = *DelElem;
                 *DelElem = El2->HeadCell::Next;
@@ -681,12 +607,9 @@ lblSearchStart:
         return nullptr;
     }
 
-    bool RemoveByInterator(Iterator& Interator)
-    {
-        for(LpCell *DelElem = GetTable() + Interator.IsShouldEnd.CurStartList; *DelElem != nullptr; DelElem = &(*DelElem)->HeadCell::Next)
-        {
-            if(*DelElem == Interator.IsShouldEnd.CurElementInList)
-            {
+    bool RemoveByInterator(Iterator& Interator) {
+        for(LpCell *DelElem = GetTable() + Interator.IsShouldEnd.CurStartList; *DelElem != nullptr; DelElem = &(*DelElem)->HeadCell::Next) {
+            if(*DelElem == Interator.IsShouldEnd.CurElementInList) {
                 Interate(Interator);
                 auto El2 = *DelElem;
                 *DelElem = El2->HeadCell::Next;
@@ -699,11 +622,9 @@ lblSearchStart:
     }
     /*========================================================*/
     /*Interate by key val*/
-    inline TElementStruct* GetStartCell() const
-    {
+    inline TElementStruct* GetStartCell() const {
         for(LpCell *p = GetTable(), *m = p + alloc_count; p < m; p++)
-            if(*p != nullptr)
-            {
+            if(*p != nullptr) {
                 return *p;
             }
         return nullptr;
@@ -714,13 +635,10 @@ lblSearchStart:
             Use only for not collision values! To do this, use only Insert function.
     */
     template<typename TKey>
-    TElementStruct* GetNextCellByKey(TKey SearchKey) const
-    {
+    TElementStruct* GetNextCellByKey(TKey SearchKey) const {
         const LpCell *t = GetTable(), *i = ElementByKey(SearchKey);
-        for(LpCell e = *i; e != nullptr; e = e->HeadCell::Next)
-        {
-            if(e->CmpKey(SearchKey))
-            {
+        for(LpCell e = *i; e != nullptr; e = e->HeadCell::Next) {
+            if(e->CmpKey(SearchKey)) {
                 if(e->HeadCell::Next != nullptr)
                     return e->HeadCell::Next;
                 i++;
@@ -735,10 +653,9 @@ lblSearchStart:
 
     /*========================================================*/
     /*For debug*/
-    unsigned QualityInfo(char * Buf, unsigned LenBuf)
-    {
+    unsigned QualityInfo(char * Buf, unsigned LenBuf) {
         unsigned CurLen = LenBuf, Len2, CurIndex = 0;
-        Len2 = sprintf_s(
+        Len2 = LqFwbuf_snprintf(
             Buf,
             CurLen,
             "Count elements: %u\nAlloc count elements: %u\nSize(in bytes): %u\nHash quality:\n",
@@ -749,13 +666,12 @@ lblSearchStart:
             Len2 = 0;
         CurLen -= Len2;
         Buf += Len2;
-        for(LpCell* c = GetTable(), *m = c + alloc_count; c < m; c++)
-        {
+        for(LpCell* c = GetTable(), *m = c + alloc_count; c < m; c++) {
             unsigned CountInCurIndex = 0;
             for(LpCell p = *c; p != nullptr; p = p->HeadCell::Next)
                 CountInCurIndex++;
 
-            Len2 = snprintf(Buf, CurLen, "%u:%u,", CurIndex, CountInCurIndex);
+            Len2 = LqFwbuf_snprintf(Buf, CurLen, "%u:%u,", CurIndex, CountInCurIndex);
             if(Len2 < 0)
                 Len2 = 0;
             CurLen -= Len2;

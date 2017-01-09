@@ -20,7 +20,6 @@
 #include "LqStr.hpp"
 #include "LqHttpPth.h"
 #include "LqHttpAtz.h"
-#include "LqBse64.hpp"
 #include "LqStr.hpp"
 #include "LqDef.hpp"
 
@@ -42,135 +41,123 @@ LqString Port;
 
 const char* PrintHlp();
 LqString PermToString(uint8_t Perm);
-void PrintAuth(FILE* Dest, LqHttpAtz* Auth);
+void PrintAuth(LqFbuf* Dest, LqHttpAtz* Auth);
 LqString ReadPath(LqString& Source);
 LqString ReadParams(LqString& Source, const char * Params);
-void PrintPthRegisterResult(FILE* Dest, LqHttpPthResultEnm Res);
+void PrintPthRegisterResult(LqFbuf* Dest, LqHttpPthResultEnm Res);
 uint8_t ReadPermissions(LqString& Source);
-std::stack<FILE*> InFiles;
-FILE* OutFile;
-FILE* InFile;
+std::stack<LqFbuf*> InFiles;
 
 template<typename TypeNumber>
-typename std::enable_if<std::is_same<TypeNumber, float>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest)
-{
-    int n = -1; sscanf(Source.c_str(), "%f%n", Dest, &n); if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
+typename std::enable_if<std::is_same<TypeNumber, float>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
+    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%g%n", Dest, &n);
+    if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 template<typename TypeNumber>
-typename std::enable_if<std::is_same<TypeNumber, double>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest)
-{
-    int n = -1; sscanf(Source.c_str(), "%e%n", Dest, &n); if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
+typename std::enable_if<std::is_same<TypeNumber, double>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
+    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%lg%n", Dest, &n);
+    if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 template<typename TypeNumber>
-typename std::enable_if<std::is_same<TypeNumber, int>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest)
-{
-    int n = -1; sscanf(Source.c_str(), "%i%n", Dest, &n); if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
+typename std::enable_if<std::is_same<TypeNumber, int>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
+    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%i%n", Dest, &n);
+    if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 template<typename TypeNumber>
-typename std::enable_if<std::is_same<TypeNumber, uint>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest)
-{
-    int n = -1; sscanf(Source.c_str(), "%u%n", Dest, &n); if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
+typename std::enable_if<std::is_same<TypeNumber, uint>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
+    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%u%n", Dest, &n);
+    if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 template<typename TypeNumber>
-typename std::enable_if<std::is_same<TypeNumber, ulong>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest)
-{
-    int n = -1; sscanf(Source.c_str(), "%u%n", Dest, &n); if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
+typename std::enable_if<std::is_same<TypeNumber, ulong>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
+    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%lu%n", Dest, &n);
+    if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 
 template<typename TypeNumber>
-typename std::enable_if<std::is_same<TypeNumber, llong>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest)
-{
-    int n = -1; sscanf(Source.c_str(), "%lli%n", Dest, &n); if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
+typename std::enable_if<std::is_same<TypeNumber, llong>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
+    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%lli%n", Dest, &n);
+    if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 template<typename TypeNumber>
-typename std::enable_if<std::is_same<TypeNumber, ullong>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest)
-{
-    int n = -1; sscanf(Source.c_str(), "%llu%n", Dest, &n); if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
+typename std::enable_if<std::is_same<TypeNumber, ullong>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
+    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%llu%n", Dest, &n);
+    if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 
-uint32_t ReadChar()
-{
-    if(InFiles.size() <= 1)
-        return LqStrCharRead(InFiles.top());
-    auto Res = LqStrCharReadUtf8File(InFiles.top());
-    if((Res == (uint32_t)-1) && feof(InFiles.top()))
-    {
-        fclose(InFiles.top());
+int ReadCommandLine(char* CommandBuf, LqString& Line, LqString& Flags) {
+    int Flags1, Flags2, EndCommand, StartArguments, EndArguments;
+    Line.clear();
+    Flags.clear();
+    Flags1 = -1, Flags2 = -1, EndCommand = -1, StartArguments = -1, EndArguments = -1;
+    /* Peek string */
+    LqFbuf_scanf(InFiles.top(), LQFRBUF_SCANF_PEEK, "%?*[\n\r ]%n%?*[+@-]%n%*[^ \n\r]%n%?*[ ]%n%?*[^\n\r]%n", &Flags1, &Flags2, &EndCommand, &StartArguments, &EndArguments);
+    if((EndCommand == -1) && (InFiles.top()->InBuf.Flags & LQFRBUF_READ_EOF)) {
+        LqFbuf_close(InFiles.top());
         InFiles.pop();
         return -1;
     }
-    return Res;
-}
 
-
-int ReadCommandLine(char* CommandBuf, LqString& Line, LqString& Flags)
-{
-    Line.clear();
-    Flags.clear();
-    uint32_t c;
-
-    char* s = CommandBuf;
-    while(((c = ReadChar()) == '\r') || (c == '\n') || (c == '\t') || (c == ' '));
-    if(c == -1)
-        return -1;
-    while((c == '@') || (c == '+') || (c == '-'))
-    {
-        Flags.append(1, (char)c);
-        c = ReadChar();
-    }
-    do
-    {
-        s = LqStrUtf8CharToStr(s, c);
-        if((s - CommandBuf) > 120)
-            return -2;
-    } while(((c = ReadChar()) != ' ') && (c != '\t') && (c != '\n') && (c != '\r'));
-    *s = '\0';
-    int CommandLen = s - CommandBuf;
-    if((c != '\n') && (c != '\r'))
-    {
-        while(((c = ReadChar()) != '\n') && (c != '\r'))
-        {
-            if(Line.empty() && ((c == '\t') || (c == ' ')))
-                continue;
-            char Buf[5] = {0};
-            auto s = LqStrUtf8CharToStr(Buf, c);
-            Line.append(Buf, s - Buf);
-        }
-    }
-    return CommandLen;
+    if(EndArguments < 0)
+        EndArguments = StartArguments;
+    Line.resize(EndArguments - StartArguments);
+    Flags.resize(Flags2 - Flags1);
+    LqFbuf_scanf(InFiles.top(), 0, "%?*[\n\r ]%?[+@-]%[^ \n\r]%?*[ ]%?[^\n\r]", Flags.data(), CommandBuf, Line.data());
+    return EndCommand - Flags2;
 }
 
 bool IsLoop = true;
 bool IsSuccess = true;
+LqFbuf StdIn;
+LqFbuf StdOut;
+LqFbuf StdErr;
+LqFbuf NullOut;
 
+LqFbuf* InFile = &StdIn;
+LqFbuf* OutFile = &StdOut;
+LqFbuf InCmd;
 
-int main(int argc, char* argv[])
-{
-    OutFile = stdout;
-    InFile = stdin;
+int main(int argc, char* argv[]) {
 
-    FILE* NullOut = fopen(LQ_NULLDEV, "wt");
+    int StdFd = LqFileDescrDup(LQ_STDIN, 0);
+    fclose(stdin);
+    LqFileDescrDupToStd(StdFd, LQ_STDIN);
+    LqFileClose(StdFd);
+    StdFd = LqFileDescrDup(LQ_STDOUT, 0);
+
+    fclose(stdout);
+    LqFileDescrDupToStd(StdFd, LQ_STDOUT);
+    LqFileClose(StdFd);
+    StdFd = LqFileDescrDup(LQ_STDERR, 0);
+
+    fclose(stderr);
+    LqFileDescrDupToStd(StdFd, LQ_STDERR);
+    LqFileClose(StdFd);
+
+    LqFbuf_fdopen(&StdIn, LQFWBUF_PRINTF_FLUSH | LQFWBUF_PUT_FLUSH | LQFRWBUF_FAST_LK, LQ_STDIN, 0, 50, 4096, 2);
+    LqFbuf_fdopen(&StdOut, LQFWBUF_PRINTF_FLUSH | LQFWBUF_PUT_FLUSH | LQFRWBUF_FAST_LK, LQ_STDOUT, 0, 50, 4096, 20);
+    LqFbuf_fdopen(&StdErr, LQFWBUF_PRINTF_FLUSH | LQFWBUF_PUT_FLUSH | LQFRWBUF_FAST_LK, LQ_STDERR, 0, 50, 4096, 20);
+    LqFbuf_open(&NullOut, LQ_NULLDEV, LQ_O_WR, 0666, '.', 50, 4096, 20);
+
 #if !defined(LQPLATFORM_WINDOWS)
     signal(SIGTERM, [](int) -> void { IsLoop = false; });
 #endif
     LqCpSet(LQCP_UTF_8);
 
-    fprintf(OutFile,
-            " Name: LanQ (Lan Quick) Server Shell\n"
-            " hotSAN 2016\n\n"
+    LqFbuf_printf(OutFile,
+                  "Name: LanQ (Lan Quick) Server Shell\n"
+                  " hotSAN 2016\n\n"
     );
-
     auto Reg = LqHttpProtoCreate();
-    if(Reg == nullptr)
-    {
-        fprintf(OutFile, "ERROR: Not alloc memory for protocol struct\n");
+    if(Reg == nullptr) {
+        LqFbuf_printf(OutFile, "ERROR: Not alloc memory for protocol struct\n");
         return -1;
     }
 
@@ -183,61 +170,50 @@ int main(int argc, char* argv[])
     LqString CommandData;
     LqString CommandFlags;
 
-    if(argc > 1)
-    {
-        FILE* InCmd = fopen(argv[1], "rb");
-        if(InCmd == nullptr)
-        {
-            fprintf(OutFile, " ERROR: Not open lqcmd file\n");
+    if(argc > 1) {
+        if(LqFbuf_open(&InCmd, argv[1], LQ_O_RD, 0666, 0, 50, 4096, 20) < 0) {
+            LqFbuf_printf(OutFile, " ERROR: Not open lqcmd file\n");
             return -1;
         }
-        InFiles.push(InCmd);
+        InFiles.push(&InCmd);
     }
 
-    while(IsLoop)
-    {
+    while(IsLoop) {
 lblAgain:
-        OutFile = stdout;
+        OutFile = &StdOut;
         CommandData.clear();
         if(InFiles.size() <= 1)
-            fprintf(OutFile, "LQ>");
+            LqFbuf_printf(OutFile, "LQ>");
         CommandLen = ReadCommandLine(CommandBuf, CommandData, CommandFlags);
         if(CommandLen == -1)
             goto lblAgain;
-        if(InFiles.size() > 1)
-        {
+        if(InFiles.size() > 1) {
             for(int i = 0, m = InFiles.size(); i < m; i++)
-                fprintf(OutFile, ">");
-            fprintf(OutFile, "%s%s %s\n", CommandFlags.c_str(), CommandBuf, CommandData.c_str());
+                LqFbuf_printf(OutFile, ">");
+            LqFbuf_printf(OutFile, "%s%s %s\n", CommandFlags.c_str(), CommandBuf, CommandData.c_str());
         }
 
-        if(CommandLen == -2)
-        {
-            fprintf(OutFile, " ERROR: Invalid command\n");
+        if(CommandLen == -2) {
+            LqFbuf_printf(OutFile, " ERROR: Invalid command\n");
             goto lblAgain;
         }
-        if((CommandFlags.find_first_of('+') != LqString::npos) && !IsSuccess)
-        {
+        if((CommandFlags.find_first_of('+') != LqString::npos) && !IsSuccess) {
             continue;
-        } else if((CommandFlags.find_first_of('-') != LqString::npos) && IsSuccess)
-        {
+        } else if((CommandFlags.find_first_of('-') != LqString::npos) && IsSuccess) {
             continue;
         }
 
         if(CommandFlags.find_first_of('@') != LqString::npos)
-            OutFile = NullOut;
+            OutFile = &NullOut;
         IsSuccess = true;
 
         size_t LastIndex = 0;
-        while(LastIndex != LqString::npos)
-        {
+        while(LastIndex != LqString::npos) {
             auto VarIndex = CommandData.find("$<", LastIndex);
             LastIndex = LqString::npos;
-            if(VarIndex != LqString::npos)
-            {
+            if(VarIndex != LqString::npos) {
                 auto EndIndex = CommandData.find('>', VarIndex);
-                if(EndIndex != LqString::npos)
-                {
+                if(EndIndex != LqString::npos) {
                     char Buf[32768];
                     Buf[0] = '\0';
                     if(LqFileGetEnv(CommandData.substr(VarIndex + 2, EndIndex - (VarIndex + 2)).c_str(), Buf, 32767) != -1)
@@ -247,285 +223,234 @@ lblAgain:
             }
         }
 
-        LQSTR_SWITCH_N(CommandBuf, CommandLen)
-        {
+        LQSTR_SWITCH_N(CommandBuf, CommandLen) {
             LQSTR_CASE("rem") /* Ignore line */
                 break;
-            LQSTR_CASE("lqcmd")
-            {
-                if(InFiles.size() >= 200)
-                {
-                    fprintf(OutFile, " ERROR: Over 200 recursive lqcmd called\n");
+            LQSTR_CASE("lqcmd") {
+                if(InFiles.size() >= 200) {
+                    LqFbuf_printf(OutFile, " ERROR: Over 200 recursive lqcmd called\n");
                     IsSuccess = false;
                     break;
                 }
                 LqString Path = ReadPath(CommandData);
-                if(Path[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid lqcmd file path\n");
+                if(Path[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid lqcmd file path\n");
                     IsSuccess = false;
                     break;
                 }
+                auto InCmd = LqFastAlloc::New<LqFbuf>();
 
-                FILE* InCmd = fopen(Path.c_str(), "rb");
-                if(InCmd == NULL)
-                {
-                    fprintf(OutFile, " ERROR: Not open lqcmd file\n");
+                if(LqFbuf_open(InCmd, Path.c_str(), LQ_O_RD, 0666, 0, 50, 4096, 20) < 0) {
+                    LqFbuf_printf(OutFile, " ERROR: Not open lqcmd file\n");
                     IsSuccess = false;
                     break;
                 }
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
                 InFiles.push(InCmd);
             }
             break;
-            LQSTR_CASE("exitlqcmd")
-            {
-                if(InFiles.size() > 1)
-                {
-                    fclose(InFiles.top());
+            LQSTR_CASE("exitlqcmd") {
+                if(InFiles.size() > 1) {
+                    LqFbuf_close(InFiles.top());
+                    LqFastAlloc::Delete(InFiles.top());
                     InFiles.pop();
-                    fprintf(OutFile, " OK\n");
-                } else
-                {
-                    fprintf(OutFile, " ERROR: Not exit from stdin\n");
+                    LqFbuf_printf(OutFile, " OK\n");
+                } else {
+                    LqFbuf_printf(OutFile, " ERROR: Not exit from stdin\n");
                     IsSuccess = false;
                 }
             }
             break;
-            LQSTR_CASE("cd")
-            {
+            LQSTR_CASE("cd") {
                 LqString Path = ReadPath(CommandData);
-                if(Path[0] == '\0')
-                {
+                if(Path[0] == '\0') {
                     char Buf[LQ_MAX_PATH];
                     LqFileGetCurDir(Buf, LQ_MAX_PATH - 1);
-                    fprintf(OutFile, " %s\n", Buf);
+                    LqFbuf_printf(OutFile, " %s\n", Buf);
                     break;
                 }
-                if(LqFileSetCurDir(Path.c_str()) == -1)
-                {
-                    fprintf(OutFile, " ERROR: Not change current dir (%s)\n", strerror(lq_errno));
+                if(LqFileSetCurDir(Path.c_str()) == -1) {
+                    LqFbuf_printf(OutFile, " ERROR: Not change current dir (%s)\n", strerror(lq_errno));
                     IsSuccess = false;
-                } else
-                {
-                    fprintf(OutFile, " OK\n");
+                } else {
+                    LqFbuf_printf(OutFile, " OK\n");
                 }
             }
             break;
-            LQSTR_CASE("set")
-            {
-                if(CommandData[0] == '\0')
-                {
+            LQSTR_CASE("set") {
+                if(CommandData[0] == '\0') {
                     char Buf[32768];
                     char *s = Buf;
                     Buf[0] = Buf[1] = '\0';
                     auto Count = LqFileGetEnvs(Buf, 32767);
-                    for(; *s != '\0'; )
-                    {
-                        printf("%s\n", s);
+                    for(; *s != '\0'; ) {
+                        LqFbuf_printf(OutFile, "%s\n", s);
                         s += (LqStrLen(s) + 1);
                     }
                     break;
                 }
                 auto i = CommandData.find('=');
-                if(i == LqString::npos)
-                {
+                if(i == LqString::npos) {
                     char Buf[32768];
                     Buf[0] = '\0';
                     LqFileGetEnv(CommandData.c_str(), Buf, 32767);
-                    fprintf(OutFile, " %s\n", Buf);
+                    LqFbuf_printf(OutFile, " %s\n", Buf);
                     break;
                 }
                 LqString Name = CommandData.substr(0, i);
                 LqString Value = CommandData.substr(i + 1);
-                if(LqFileSetEnv(Name.c_str(), Value.c_str()) == -1)
-                {
-                    fprintf(OutFile, " ERROR: Not setted env. arg. (%s)\n", strerror(lq_errno));
+                if(LqFileSetEnv(Name.c_str(), Value.c_str()) == -1) {
+                    LqFbuf_printf(OutFile, " ERROR: Not setted env. arg. (%s)\n", strerror(lq_errno));
                     IsSuccess = false;
-                } else
-                {
-                    fprintf(OutFile, " OK\n");
+                } else {
+                    LqFbuf_printf(OutFile, " OK\n");
                 }
             }
             break;
-            LQSTR_CASE("unset")
-            {
-                if(LqFileSetEnv(CommandData.c_str(), nullptr) == -1)
-                {
-                    fprintf(OutFile, " ERROR: Not unsetted env. arg. (%s)\n", strerror(lq_errno));
+            LQSTR_CASE("unset") {
+                if(LqFileSetEnv(CommandData.c_str(), nullptr) == -1) {
+                    LqFbuf_printf(OutFile, " ERROR: Not unsetted env. arg. (%s)\n", strerror(lq_errno));
                     IsSuccess = false;
-                } else
-                {
-                    fprintf(OutFile, " OK\n");
+                } else {
+                    LqFbuf_printf(OutFile, " OK\n");
                 }
             }
             break;
             LQSTR_CASE("?")
-            LQSTR_CASE("help")
-            {
-                fprintf(OutFile, PrintHlp());
+                LQSTR_CASE("help") {
+                LqFbuf_printf(OutFile, PrintHlp());
             }
             break;
             LQSTR_CASE("q")
-            LQSTR_CASE("quit")
-            {
+                LQSTR_CASE("quit") {
                 IsLoop = false;
             }
             break;
-            LQSTR_CASE("prt")
-            {
+            LQSTR_CASE("prt") {
                 char PortName[255];
                 PortName[0] = '\0';
-                if(sscanf(CommandData.c_str(), "%254[a-zA-Z0-9]", PortName) < 1)
-                {
+                if(LqFrbuf_snscanf(CommandData.c_str(), CommandData.length(), "%[a-zA-Z0-9]", PortName) < 1) {
                     LqHttpProtoGetInfo(Reg, nullptr, 0, PortName, sizeof(PortName) - 1, nullptr, nullptr, nullptr);
-                    fprintf(OutFile, " %s\n", PortName);
+                    LqFbuf_printf(OutFile, " %s\n", PortName);
                     break;
                 }
                 LqHttpProtoSetInfo(Reg, nullptr, PortName, nullptr, nullptr, nullptr);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("hst")
-            {
-                if(CommandData[0] == '\0')
-                {
+            LQSTR_CASE("hst") {
+                if(CommandData[0] == '\0') {
                     char Buf[16000];
                     LqHttpProtoGetInfo(Reg, Buf, sizeof(Buf) - 1, nullptr, 0, nullptr, nullptr, nullptr);
-                    fprintf(OutFile, " %s\n", Buf);
+                    LqFbuf_printf(OutFile, " %s\n", Buf);
                     break;
                 }
 
                 LqString Path = ReadPath(CommandData);
                 LqHttpProtoSetInfo(Reg, Path.c_str(), nullptr, nullptr, nullptr, nullptr);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("gmtcorr")
-            {
+            LQSTR_CASE("gmtcorr") {
                 int Corr = 0;
-                if(sscanf(CommandData.c_str(), "%i", &Corr) < 1)
-                {
-                    fprintf(OutFile, " %i\n", (int)LqTimeGetGmtCorrection());
+                if(LqFrbuf_snscanf(CommandData.c_str(), CommandData.length(), "%i", &Corr) < 1) {
+                    LqFbuf_printf(OutFile, " %i\n", (int)LqTimeGetGmtCorrection());
                     continue;
                 }
                 LqTimeSetGmtCorrection(Corr);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("protofamily")
-            {
+            LQSTR_CASE("protofamily") {
                 LqString Param = ReadParams(CommandData, "64u");
-                if(Param.find_first_of("6") != LqString::npos)
-                {
+                if(Param.find_first_of("6") != LqString::npos) {
                     int v = AF_INET6;
                     LqHttpProtoSetInfo(Reg, nullptr, nullptr, &v, nullptr, nullptr);
-                } else if(Param.find_first_of("4") != LqString::npos)
-                {
+                } else if(Param.find_first_of("4") != LqString::npos) {
                     int v = AF_INET;
                     LqHttpProtoSetInfo(Reg, nullptr, nullptr, &v, nullptr, nullptr);
-                } else if(Param.find_first_of("u") != LqString::npos)
-                {
+                } else if(Param.find_first_of("u") != LqString::npos) {
                     int v = AF_UNSPEC;
                     LqHttpProtoSetInfo(Reg, nullptr, nullptr, &v, nullptr, nullptr);
-                } else
-                {
+                } else {
                     int Proto;
                     LqHttpProtoGetInfo(Reg, nullptr, 0, nullptr, 0, &Proto, nullptr, nullptr);
                     const char * NameProto = "Unspec";
-                    switch(Proto)
-                    {
+                    switch(Proto) {
                         case AF_INET: NameProto = "IPv4"; break;
                         case AF_INET6: NameProto = "IPv6"; break;
                     }
-                    fprintf(OutFile, " %s\n", NameProto);
+                    LqFbuf_printf(OutFile, " %s\n", NameProto);
                     break;
                 }
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("start")
-            {
-                if(LqHttpProtoIsBind(Reg))
-                {
-                    fprintf(OutFile, " ERROR: Has been started\n");
+            LQSTR_CASE("start") {
+                if(LqHttpProtoIsBind(Reg)) {
+                    LqFbuf_printf(OutFile, " ERROR: Has been started\n");
                     IsSuccess = false;
                     break;
                 }
                 int Count;
-                if((Count = LqWrkBossStartAllWrkSync()) >= 0)
-                {
-                    if(LqHttpProtoBind(Reg) == -1)
-                    {
-                        fprintf(OutFile, " Not bind (%s)\n", strerror(lq_errno));
+                if((Count = LqWrkBossStartAllWrkSync()) >= 0) {
+                    if(LqHttpProtoBind(Reg) == -1) {
+                        LqFbuf_printf(OutFile, " Not bind (%s)\n", strerror(lq_errno));
                         IsSuccess = false;
-                    } else
-                    {
-                        fprintf(OutFile, " OK\n");
+                    } else {
+                        LqFbuf_printf(OutFile, " OK\n");
                     }
-                } else
-                {
-                    fprintf(OutFile, " ERROR: Not start workers\n");
+                } else {
+                    LqFbuf_printf(OutFile, " ERROR: Not start workers\n");
                     IsSuccess = false;
                     break;
                 }
             }
             break;
-            LQSTR_CASE("stop")
-            {
-                if(LqHttpProtoUnbind(Reg) == 0)
-                {
-                    fprintf(OutFile, " OK\n");
-                } else
-                {
-                    fprintf(OutFile, " ERROR: Not stopping\n");
+            LQSTR_CASE("stop") {
+                if(LqHttpProtoUnbind(Reg) == 0) {
+                    LqFbuf_printf(OutFile, " OK\n");
+                } else {
+                    LqFbuf_printf(OutFile, " ERROR: Not stopping\n");
                     IsSuccess = false;
                 }
             }
             break;
-            LQSTR_CASE("maxconn")
-            {
+            LQSTR_CASE("maxconn") {
                 int MaxConn = 0;
-                if(!ReadNumber(CommandData, &MaxConn))
-                {
+                if(!ReadNumber(CommandData, &MaxConn)) {
                     int Count;
                     LqHttpProtoGetInfo(Reg, nullptr, 0, nullptr, 0, nullptr, &Count, nullptr);
-                    fprintf(OutFile, " %llu\n", (ullong)Count);
+                    LqFbuf_printf(OutFile, " %llu\n", (ullong)Count);
                     continue;
                 }
                 LqHttpProtoSetInfo(Reg, nullptr, nullptr, nullptr, &MaxConn, nullptr);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
             /*---------------------------
             *Worker commands
             */
-            LQSTR_CASE("addwrk")
-            {
+            LQSTR_CASE("addwrk") {
                 int Count = 0;
-                if(sscanf(CommandData.c_str(), "%i", &Count) < 1)
-                {       
-                    fprintf(OutFile, " %llu\n", (ullong)LqWrkBossCountWrk());
+                if(LqFrbuf_snscanf(CommandData.c_str(), CommandData.length(), "%i", &Count) < 1) {
+                    LqFbuf_printf(OutFile, " %llu\n", (ullong)LqWrkBossCountWrk());
                     break;
                 }
                 if(Count < 0)
                     Count = std::thread::hardware_concurrency();
-                if(LqWrkBossAddWrks(Count, true) == Count)
-                {
-                    fprintf(OutFile, " OK\n");
-                } else
-                {
-                    fprintf(OutFile, " ERROR: Not adding workers.\n");
+                if(LqWrkBossAddWrks(Count, true) == Count) {
+                    LqFbuf_printf(OutFile, " OK\n");
+                } else {
+                    LqFbuf_printf(OutFile, " ERROR: Not adding workers.\n");
                     IsSuccess = false;
                 }
             }
             break;
-            LQSTR_CASE("rmwrk")
-            {
+            LQSTR_CASE("rmwrk") {
                 int Count = 0;
-                if(sscanf(CommandData.c_str(), "%i", &Count) < 1)
-                {
-                    fprintf(OutFile, " ERROR: Invalid count of workers\n");
+                if(LqFrbuf_snscanf(CommandData.c_str(), CommandData.length(), "%i", &Count) < 1) {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid count of workers\n");
                     IsSuccess = false;
                     continue;
                 }
@@ -536,7 +461,7 @@ lblAgain:
                 if(CurCount > 0)
                     Count = lq_min(CurCount, Count);
                 LqWrkBossKickWrks(Count);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
             /*
@@ -546,33 +471,30 @@ lblAgain:
             /*---------------------------
             *Module commands
             */
-            LQSTR_CASE("ldmdl")
-            {
+            LQSTR_CASE("ldmdl") {
                 LqString Path = ReadPath(CommandData);
-                if(Path[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid module path\n");
+                if(Path[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid module path\n");
                     IsSuccess = false;
                     break;
                 }
                 uintptr_t ModuleHandle;
                 auto Res = LqHttpMdlLoad(Reg, Path.c_str(), nullptr, &ModuleHandle);
-                switch(Res)
-                {
+                switch(Res) {
                     case LQHTTPMDL_LOAD_ALREADY_HAVE:
-                        fprintf(OutFile, " ERROR: Already have this module\n");
+                        LqFbuf_printf(OutFile, " ERROR: Already have this module\n");
                         IsSuccess = false;
                         break;
                     case LQHTTPMDL_LOAD_FAIL:
-                        fprintf(OutFile, " ERROR: Fail load module \"%s\"\n", strerror(lq_errno));
+                        LqFbuf_printf(OutFile, " ERROR: Fail load module \"%s\"\n", strerror(lq_errno));
                         IsSuccess = false;
                         break;
                     case LQHTTPMDL_LOAD_PROC_NOT_FOUND:
-                        fprintf(OutFile, " ERROR: Fail load module. Not found entry point\n");
+                        LqFbuf_printf(OutFile, " ERROR: Fail load module. Not found entry point\n");
                         IsSuccess = false;
                         break;
                     case LQHTTPMDL_LOAD_INDEPENDENTLY_UNLOADED:
-                        fprintf(OutFile, " NOTE: Independently unloaded\n");
+                        LqFbuf_printf(OutFile, " NOTE: Independently unloaded\n");
                         IsSuccess = false;
                         break;
                     case LQHTTPMDL_LOAD_OK:
@@ -580,86 +502,72 @@ lblAgain:
                         char NameBuf[1024];
                         NameBuf[0] = '\0';
                         LqHttpMdlGetNameByHandle(Reg, ModuleHandle, NameBuf, sizeof(NameBuf) - 1);
-                        fprintf(OutFile, " Module #%llx (%s) loaded\n", (unsigned long long)ModuleHandle, NameBuf);
+                        LqFbuf_printf(OutFile, " Module #%llx (%s) loaded\n", (unsigned long long)ModuleHandle, NameBuf);
                         break;
                     }
                 }
             }
             break;
-            LQSTR_CASE("rmmdl")
-            {
+            LQSTR_CASE("rmmdl") {
                 LqString ModuleName = ReadPath(CommandData);
-                if(ModuleName.empty())
-                {
-                    fprintf(OutFile, " ERROR: Invalid module name\n");
+                if(ModuleName.empty()) {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid module name\n");
                     IsSuccess = false;
                     continue;
                 }
-                if(ModuleName[0] == '#')
-                {
+                if(ModuleName[0] == '#') {
                     ModuleName.erase(0, 1);
                     ullong v = 0;
-                    sscanf(ModuleName.data(), "%llx", &v);
-                    if(LqHttpMdlFreeByHandle(Reg, (uintptr_t)v) >= 1)
-                    {
-                        fprintf(OutFile, " OK\n");
-                    } else
-                    {
-                        fprintf(OutFile, " ERROR: Module not found\n");
+                    LqFrbuf_snscanf(ModuleName.data(), ModuleName.length(), "%llx", &v);
+                    if(LqHttpMdlFreeByHandle(Reg, (uintptr_t)v) >= 1) {
+                        LqFbuf_printf(OutFile, " OK\n");
+                    } else {
+                        LqFbuf_printf(OutFile, " ERROR: Module not found\n");
                         IsSuccess = false;
                     }
-                } else
-                {
+                } else {
                     auto CountRemoved = LqHttpMdlFreeByName(Reg, ModuleName.data(), true);
-                    if(CountRemoved >= 1)
-                    {
-                        fprintf(OutFile, " Removed %i count\n", (int)CountRemoved);
-                    } else
-                    {
-                        fprintf(OutFile, " ERROR: Module not found\n");
+                    if(CountRemoved >= 1) {
+                        LqFbuf_printf(OutFile, " Removed %i count\n", (int)CountRemoved);
+                    } else {
+                        LqFbuf_printf(OutFile, " ERROR: Module not found\n");
                         IsSuccess = false;
                     }
                 }
             }
             break;
-            LQSTR_CASE("mdllist")
-            {
+            LQSTR_CASE("mdllist") {
                 char Buf[10000];
                 bool IsFree = false;
                 for(uintptr_t h = 0; LqHttpMdlEnm(Reg, &h, Buf, sizeof(Buf), &IsFree) >= 0;)
-                    fprintf(OutFile, " #%llx (%s) %s\n", (ullong)h, Buf, (IsFree) ? "released" : "");
+                    LqFbuf_printf(OutFile, " #%llx (%s) %s\n", (ullong)h, Buf, (IsFree) ? "released" : "");
             }
             break;
-            LQSTR_CASE("mdlcmd")
-            {
+            LQSTR_CASE("mdlcmd") {
                 LqString ModuleName = ReadPath(CommandData);
-                if(ModuleName.empty())
-                {
-                    fprintf(OutFile, " ERROR: Invalid module name\n");
+                if(ModuleName.empty()) {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid module name\n");
                     IsSuccess = false;
                     break;
                 }
                 CommandData = "?" + CommandData;
-                if(ModuleName[0] == '#')
-                {
+                if(ModuleName[0] == '#') {
                     ModuleName.erase(0, 1);
                     ullong v = 0;
-                    sscanf(ModuleName.data(), "%llx", &v);
+                    LqFrbuf_snscanf(ModuleName.data(), ModuleName.length(), "%llx", &v);
 
                     if(LqHttpMdlSendCommandByHandle(Reg, (uintptr_t)v, CommandData.c_str(), OutFile) >= 0)
-                        fprintf(OutFile, "\n OK\n");
-                    else
-                    {
-                        fprintf(OutFile, " ERROR: Module not found\n");
+                        LqFbuf_printf(OutFile, "\n OK\n");
+                    else {
+                        LqFbuf_printf(OutFile, " ERROR: Module not found\n");
                         IsSuccess = false;
                     }
                     break;
                 }
                 if(LqHttpMdlSendCommandByName(Reg, ModuleName.c_str(), CommandData.c_str(), OutFile) > 0)
-                    fprintf(OutFile, "\n OK\n");
-                else
-                {
-                    fprintf(OutFile, " ERROR: Module not found\n");
+                    LqFbuf_printf(OutFile, "\n OK\n");
+                else {
+                    LqFbuf_printf(OutFile, " ERROR: Module not found\n");
                     IsSuccess = false;
                 }
             }
@@ -671,12 +579,10 @@ lblAgain:
             /*---------------------------
             *Domen commands
             */
-            LQSTR_CASE("mkdmn")
-            {
+            LQSTR_CASE("mkdmn") {
                 LqString Domen = ReadPath(CommandData);
-                if(Domen[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid domen name\n");
+                if(Domen[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid domen name\n");
                     IsSuccess = false;
                     break;
                 }
@@ -684,12 +590,10 @@ lblAgain:
                 PrintPthRegisterResult(OutFile, Res);
             }
             break;
-            LQSTR_CASE("rmdmn")
-            {
+            LQSTR_CASE("rmdmn") {
                 LqString Domen = ReadPath(CommandData);
-                if((Domen[0] == '\0') || (Domen[0] == '*'))
-                {
-                    fprintf(OutFile, " ERROR: Invalid domen name\n");
+                if((Domen[0] == '\0') || (Domen[0] == '*')) {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid domen name\n");
                     IsSuccess = false;
                     break;
                 }
@@ -704,35 +608,30 @@ lblAgain:
             /*---------------------------
             *Path commands
             */
-            LQSTR_CASE("mkredirect")
-            {
+            LQSTR_CASE("mkredirect") {
                 LqString Param = ReadParams(CommandData, "f");
                 LqString Domen = ReadPath(CommandData);
-                if(Domen[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid domen name\n");
+                if(Domen[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid domen name\n");
                     IsSuccess = false;
                     break;
                 }
 
                 LqString NetDir = ReadPath(CommandData);
-                if(NetDir[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid net dir name\n");
+                if(NetDir[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid net dir name\n");
                     IsSuccess = false;
                     break;
                 }
                 LqString RealPath = ReadPath(CommandData);
-                if(RealPath[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid real path name\n");
+                if(RealPath[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid real path name\n");
                     IsSuccess = false;
                     break;
                 }
                 int Status = 0;
-                if(!ReadNumber(CommandData, &Status))
-                {
-                    fprintf(OutFile, " ERROR: Invalid status code\n");
+                if(!ReadNumber(CommandData, &Status)) {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid status code\n");
                     IsSuccess = false;
                     break;
                 }
@@ -743,28 +642,24 @@ lblAgain:
                 PrintPthRegisterResult(OutFile, Res);
             }
             break;
-            LQSTR_CASE("mkpth")
-            {
+            LQSTR_CASE("mkpth") {
                 LqString Param = ReadParams(CommandData, "sf");
                 LqString Domen = ReadPath(CommandData);
-                if(Domen[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid domen name\n");
+                if(Domen[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid domen name\n");
                     IsSuccess = false;
                     break;
                 }
 
                 LqString NetDir = ReadPath(CommandData);
-                if(NetDir[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid net dir name\n");
+                if(NetDir[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid net dir name\n");
                     IsSuccess = false;
                     break;
                 }
                 LqString RealPath = ReadPath(CommandData);
-                if(RealPath[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid real path name\n");
+                if(RealPath[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid real path name\n");
                     IsSuccess = false;
                     break;
                 }
@@ -775,20 +670,17 @@ lblAgain:
                 PrintPthRegisterResult(OutFile, Res);
             }
             break;
-            LQSTR_CASE("rmpth")
-            {
+            LQSTR_CASE("rmpth") {
                 LqString Param = ReadParams(CommandData, "f");
                 LqString Domen = ReadPath(CommandData);
-                if(Domen[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid domen name\n");
+                if(Domen[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid domen name\n");
                     break;
                 }
 
                 LqString NetDir = ReadPath(CommandData);
-                if(NetDir[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid net dir name\n");
+                if(NetDir[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid net dir name\n");
                     break;
                 }
                 LqHttpPthResultEnm Res = (Param.find("f") == LqString::npos) ?
@@ -797,14 +689,12 @@ lblAgain:
                 PrintPthRegisterResult(OutFile, Res);
             }
             break;
-            LQSTR_CASE("pthlist")
-            {
+            LQSTR_CASE("pthlist") {
                 char DomenBuf[512];
                 DomenBuf[0] = '\0';
                 LqString Param = ReadParams(CommandData, "p");
-                while(LqHttpPthDmnEnm(Reg, DomenBuf, sizeof(DomenBuf) - 1))
-                {
-                    fprintf(OutFile, " Domen: %s\n", DomenBuf);
+                while(LqHttpPthDmnEnm(Reg, DomenBuf, sizeof(DomenBuf) - 1)) {
+                    LqFbuf_printf(OutFile, " Domen: %s\n", DomenBuf);
                     char NetAddress[10000];
                     char RealPath[LQ_MAX_PATH];
                     char ModuleName[10000];
@@ -832,13 +722,11 @@ lblAgain:
                         &DefaultAccess,
                         &UserList
                         )
-                        )
-                    {
+                        ) {
                         const char * TypeStr;
-                        switch(Type & LQHTTPPTH_TYPE_SEP)
-                        {
+                        switch(Type & LQHTTPPTH_TYPE_SEP) {
                             case LQHTTPPTH_TYPE_DIR:
-                                fprintf
+                                LqFbuf_printf
                                 (
                                     OutFile,
                                     "  %s\n   dir%s\n   \"%s\"\n   #%llx (%s)\n   %s",
@@ -851,8 +739,7 @@ lblAgain:
                                 );
                                 break;
                             case LQHTTPPTH_TYPE_FILE:
-                                fprintf
-                                (
+                                LqFbuf_printf(
                                     OutFile,
                                     "  %s\n   file\n   \"%s\"\n   #%llx (%s)\n   %s",
                                     NetAddress,
@@ -863,8 +750,7 @@ lblAgain:
                                 );
                                 break;
                             case LQHTTPPTH_TYPE_EXEC_DIR:
-                                fprintf
-                                (
+                                LqFbuf_printf(
                                     OutFile,
                                     "  %s\n   exec dir%s\n   #%llx\n   #%llx (%s)\n   %s",
                                     NetAddress,
@@ -876,8 +762,7 @@ lblAgain:
                                 );
                                 break;
                             case LQHTTPPTH_TYPE_EXEC_FILE:
-                                fprintf
-                                (
+                                LqFbuf_printf(
                                     OutFile,
                                     "  %s\n   exec file\n   #%llx\n   #%llx (%s)\n   %s",
                                     NetAddress,
@@ -888,8 +773,7 @@ lblAgain:
                                 );
                                 break;
                             case LQHTTPPTH_TYPE_FILE_REDIRECTION:
-                                fprintf
-                                (
+                                LqFbuf_printf(
                                     OutFile,
                                     "  %s\n   file redirection\n   %s\n   #%llx (%s)\n   %s",
                                     NetAddress,
@@ -900,8 +784,7 @@ lblAgain:
                                 );
                                 break;
                             case LQHTTPPTH_TYPE_DIR_REDIRECTION:
-                                fprintf
-                                (
+                                LqFbuf_printf(
                                     OutFile,
                                     "  %s\n   dir redirection%s\n   %s\n   #%llx (%s)\n   %s",
                                     NetAddress,
@@ -913,12 +796,11 @@ lblAgain:
                                 );
                                 break;
                         }
-                        if((UserList != nullptr) && (Param == "p"))
-                        {
-                            fprintf(OutFile, "\n");
+                        if((UserList != nullptr) && (Param == "p")) {
+                            LqFbuf_printf(OutFile, "\n");
                             PrintAuth(OutFile, UserList);
                         }
-                        fprintf(OutFile, "\n");
+                        LqFbuf_printf(OutFile, "\n");
                         RealPath[0] = '\0';
                         LqHttpAtzRelease(UserList);
                         UserList = nullptr;
@@ -926,20 +808,17 @@ lblAgain:
                 }
             }
             break;
-            LQSTR_CASE("pthsetperm")
-            {
+            LQSTR_CASE("pthsetperm") {
                 LqString Param = ReadParams(CommandData, "f");
                 LqString Domen = ReadPath(CommandData);
-                if(Domen[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid domen name\n");
+                if(Domen[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid domen name\n");
                     IsSuccess = false;
                     break;
                 }
                 LqString NetDir = ReadPath(CommandData);
-                if(NetDir[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid net file name\n");
+                if(NetDir[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid net file name\n");
                     IsSuccess = false;
                     break;
                 }
@@ -950,40 +829,34 @@ lblAgain:
                 PrintPthRegisterResult(OutFile, Res);
             }
             break;
-            LQSTR_CASE("pthsetatz")
-            {
+            LQSTR_CASE("pthsetatz") {
                 LqString Param = ReadParams(CommandData, "fr");
                 LqString Domen = ReadPath(CommandData);
-                if(Domen[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid domen name\n");
+                if(Domen[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid domen name\n");
                     IsSuccess = false;
                     break;
                 }
                 LqString NetDir = ReadPath(CommandData);
-                if(NetDir[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid net file name\n");
+                if(NetDir[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid net file name\n");
                     IsSuccess = false;
                     break;
                 }
                 LqString RealmName = ReadPath(CommandData);
-                if(RealmName[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid realm\n");
+                if(RealmName[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid realm\n");
                     IsSuccess = false;
                     break;
                 }
                 LqHttpAtz* Atz = nullptr;
                 for(auto i : AtzList)
-                    if(RealmName == i->Realm)
-                    {
+                    if(RealmName == i->Realm) {
                         Atz = i;
                         break;
                     }
-                if(Atz == nullptr)
-                {
-                    fprintf(OutFile, " ERROR: Not found authorization(Enter another realm)\n");
+                if(Atz == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not found authorization(Enter another realm)\n");
                     IsSuccess = false;
                     break;
                 }
@@ -993,20 +866,17 @@ lblAgain:
                 PrintPthRegisterResult(OutFile, Res);
             }
             break;
-            LQSTR_CASE("pthunsetatz")
-            {
+            LQSTR_CASE("pthunsetatz") {
                 LqString Param = ReadParams(CommandData, "f");
                 LqString Domen = ReadPath(CommandData);
-                if(Domen[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid domen name\n");
+                if(Domen[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid domen name\n");
                     IsSuccess = false;
                     break;
                 }
                 LqString NetDir = ReadPath(CommandData);
-                if(NetDir[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid net file name\n");
+                if(NetDir[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid net file name\n");
                     IsSuccess = false;
                     break;
                 }
@@ -1023,62 +893,52 @@ lblAgain:
             /*---------------------------
             *Authorization commands
             */
-            LQSTR_CASE("mkatz")
-            {
+            LQSTR_CASE("mkatz") {
                 LqString Param = ReadParams(CommandData, "bd");
-                if(Param.find_first_of("bd") == LqString::npos)
-                {
-                    fprintf(OutFile, " ERROR: Invalid type of authorization (b - basic, d - digest)\n");
+                if(Param.find_first_of("bd") == LqString::npos) {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid type of authorization (b - basic, d - digest)\n");
                     IsSuccess = false;
                     break;
                 }
                 LqString RealmName = ReadPath(CommandData);
-                if(RealmName[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid realm\n");
+                if(RealmName[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid realm\n");
                     IsSuccess = false;
                     break;
                 }
 
                 bool IsHave = false;
                 for(auto i : AtzList)
-                    if(RealmName == i->Realm)
-                    {
+                    if(RealmName == i->Realm) {
                         IsHave = true;
                         break;
                     }
-                if(IsHave)
-                {
-                    fprintf(OutFile, " ERROR: Already have this authorization(enter another realm)\n");
+                if(IsHave) {
+                    LqFbuf_printf(OutFile, " ERROR: Already have this authorization(enter another realm)\n");
                     IsSuccess = false;
                     break;
                 }
 
                 auto NewAtz = LqHttpAtzCreate((Param.find("b") != LqString::npos) ? LQHTTPATZ_TYPE_BASIC : LQHTTPATZ_TYPE_DIGEST, RealmName.c_str());
-                if(NewAtz == nullptr)
-                {
-                    fprintf(OutFile, " ERROR: Not alloc new authorization\n");
+                if(NewAtz == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not alloc new authorization\n");
                     IsSuccess = false;
                     break;
                 }
                 AtzList.push_back(NewAtz);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("rmatz")
-            {
+            LQSTR_CASE("rmatz") {
                 LqString RealmName = ReadPath(CommandData);
-                if(RealmName[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid realm\n");
+                if(RealmName[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid realm\n");
                     IsSuccess = false;
                     break;
                 }
                 bool IsHave = false;
-                for(int i = 0; i < AtzList.size(); i++)
-                {
-                    if(RealmName == AtzList[i]->Realm)
-                    {
+                for(int i = 0; i < AtzList.size(); i++) {
+                    if(RealmName == AtzList[i]->Realm) {
                         IsHave = true;
                         LqHttpAtzRelease(AtzList[i]); /* decrement count of pointers */
                         if(AtzList.size() > 1)
@@ -1086,100 +946,86 @@ lblAgain:
                         AtzList.pop_back();
                     }
                 }
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("atzmkusr")
-            {
+            LQSTR_CASE("atzmkusr") {
                 LqString RealmName = ReadPath(CommandData);
-                if(RealmName[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid realm\n");
+                if(RealmName[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid realm\n");
                     IsSuccess = false;
                     break;
                 }
                 LqString UserName = ReadPath(CommandData);
-                if(UserName[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid user name\n");
+                if(UserName[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid user name\n");
                     IsSuccess = false;
                     break;
                 }
 
                 LqString Password = ReadPath(CommandData);
-                if(Password[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid password\n");
+                if(Password[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid password\n");
                     IsSuccess = false;
                     break;
                 }
                 uint8_t Perm = ReadPermissions(CommandData);
                 LqHttpAtz* Atz = nullptr;
                 for(auto i : AtzList)
-                    if(RealmName == i->Realm)
-                    {
+                    if(RealmName == i->Realm) {
                         Atz = i;
                         break;
                     }
-                if(Atz == nullptr)
-                {
-                    fprintf(OutFile, " ERROR: Not found authorization(Enter another realm)\n");
+                if(Atz == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not found authorization(Enter another realm)\n");
                     IsSuccess = false;
                     break;
                 }
-                if(!LqHttpAtzAdd(Atz, Perm, UserName.c_str(), Password.c_str()))
-                {
-                    fprintf(OutFile, " ERROR: Not adding user in authorization\n");
+                if(!LqHttpAtzAdd(Atz, Perm, UserName.c_str(), Password.c_str())) {
+                    LqFbuf_printf(OutFile, " ERROR: Not adding user in authorization\n");
                     IsSuccess = false;
                     break;
                 }
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("atzrmusr")
-            {
+            LQSTR_CASE("atzrmusr") {
                 LqString RealmName = ReadPath(CommandData);
-                if(RealmName[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid realm\n");
+                if(RealmName[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid realm\n");
                     IsSuccess = false;
                     break;
                 }
                 uint8_t Perm = ReadPermissions(CommandData);
                 LqString UserName = ReadPath(CommandData);
-                if(UserName[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid user name\n");
+                if(UserName[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid user name\n");
                     IsSuccess = false;
                     break;
                 }
                 LqHttpAtz* Atz = nullptr;
                 for(auto i : AtzList)
-                    if(RealmName == i->Realm)
-                    {
+                    if(RealmName == i->Realm) {
                         Atz = i;
                         break;
                     }
-                if(Atz == nullptr)
-                {
-                    fprintf(OutFile, " ERROR: Not found authorization(Enter another realm)\n");
+                if(Atz == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not found authorization(Enter another realm)\n");
                     IsSuccess = false;
                     break;
                 }
-                if(!LqHttpAtzRemove(Atz, UserName.c_str()))
-                {
-                    fprintf(OutFile, " ERROR: Not remove user from authorization list\n");
+                if(!LqHttpAtzRemove(Atz, UserName.c_str())) {
+                    LqFbuf_printf(OutFile, " ERROR: Not remove user from authorization list\n");
                     IsSuccess = false;
                     break;
                 }
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("atzlist")
-            {
+            LQSTR_CASE("atzlist") {
                 for(auto i : AtzList)
                     PrintAuth(OutFile, i);
-                fprintf(OutFile, "\n");
+                LqFbuf_printf(OutFile, "\n");
             }
             break;
 
@@ -1190,21 +1036,18 @@ lblAgain:
             /*---------------------------
             *SSL Parametrs
             */
-            LQSTR_CASE("setssl")
-            {
+            LQSTR_CASE("setssl") {
                 LqString Param = ReadParams(CommandData, "ap");
                 LqString CertName = ReadPath(CommandData);
-                if(CertName[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid cert file name\n");
+                if(CertName[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid cert file name\n");
                     IsSuccess = false;
                     break;
                 }
 
                 LqString KeyFileName = ReadPath(CommandData);
-                if(CertName[0] == '\0')
-                {
-                    fprintf(OutFile, " ERROR: Invalid key file name\n");
+                if(CertName[0] == '\0') {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid key file name\n");
                     IsSuccess = false;
                     break;
                 }
@@ -1221,24 +1064,21 @@ lblAgain:
                     nullptr,
                     nullptr
                 );
-                if(Res)
-                {
-                    fprintf(OutFile, " OK\n");
-                } else
-                {
-                    fprintf(OutFile, " ERROR: Not create ssl\n");
+                if(Res) {
+                    LqFbuf_printf(OutFile, " OK\n");
+                } else {
+                    LqFbuf_printf(OutFile, " ERROR: Not create ssl\n");
                     IsSuccess = false;
                 }
 #else
-                fprintf(OutFile, " ERROR: Not implemented(Recompile all server with OpenSSL library)\n");
+                LqFbuf_printf(OutFile, " ERROR: Not implemented(Recompile all server with OpenSSL library)\n");
                 IsSuccess = false;
 #endif
             }
             break;
-            LQSTR_CASE("unsetssl")
-            {
+            LQSTR_CASE("unsetssl") {
                 LqHttpProtoRemoveSSL(Reg);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
                 IsSuccess = false;
             }
             break;
@@ -1249,57 +1089,50 @@ lblAgain:
             /*---------------------------
             *Cache parametrs
             */
-            LQSTR_CASE("chemaxsize")
-            { /* Cache parametrs*/
+            LQSTR_CASE("chemaxsize") { /* Cache parametrs*/
                 size_t Size = 0;
-                if(!ReadNumber(CommandData, &Size))
-                {
-                    fprintf(OutFile, " %llu\n", (ullong)LqHttpCheGetMaxSize(Reg));
+                if(!ReadNumber(CommandData, &Size)) {
+                    LqFbuf_printf(OutFile, " %llu\n", (ullong)LqHttpCheGetMaxSize(Reg));
                     break;
                 }
                 LqHttpCheSetMaxSize(Reg, Size);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("chemaxsizef")
-            {
+            LQSTR_CASE("chemaxsizef") {
                 size_t Size = 0;
-                if(!ReadNumber(CommandData, &Size))
-                {
-                    fprintf(OutFile, " %llu\n", (ullong)LqHttpCheGetMaxSizeFile(Reg));
+                if(!ReadNumber(CommandData, &Size)) {
+                    LqFbuf_printf(OutFile, " %llu\n", (ullong)LqHttpCheGetMaxSizeFile(Reg));
                     break;
                 }
                 LqHttpCheSetMaxSizeFile(Reg, Size);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("chesize")
-            {
-                fprintf(OutFile, " %llu\n", (ullong)LqHttpCheGetEmployedSize(Reg));
+            LQSTR_CASE("chesize") {
+                LqFbuf_printf(OutFile, " %llu\n", (ullong)LqHttpCheGetEmployedSize(Reg));
             }
             break;
             LQSTR_CASE("cheperu") //CacHE PERiod Update
             {
                 LqTimeMillisec Millisec;
-                if(!ReadNumber(CommandData, &Millisec))
-                {
-                    fprintf(OutFile, " %llu\n", (ullong)LqHttpCheGetPeriodUpdateStat(Reg));
+                if(!ReadNumber(CommandData, &Millisec)) {
+                    LqFbuf_printf(OutFile, " %llu\n", (ullong)LqHttpCheGetPeriodUpdateStat(Reg));
                     break;
                 }
                 LqHttpCheSetPeriodUpdateStat(Reg, Millisec);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
             LQSTR_CASE("cheprepcount") //CacHE PREPared COUNT
             {
                 size_t Count;
-                if(!ReadNumber(CommandData, &Count))
-                {
-                    fprintf(OutFile, " %llu\n", (ullong)LqHttpCheGetMaxCountOfPrepared(Reg));
+                if(!ReadNumber(CommandData, &Count)) {
+                    LqFbuf_printf(OutFile, " %llu\n", (ullong)LqHttpCheGetMaxCountOfPrepared(Reg));
                     break;
                 }
                 LqHttpCheSetMaxCountOfPrepared(Reg, Count);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
             /*
@@ -1309,140 +1142,121 @@ lblAgain:
             /*---------------------------
             *Connections parametr
             */
-            LQSTR_CASE("conncount")
-            {
-                fprintf(OutFile, " %llu\n", (ullong)Reg->CountConnections);
+            LQSTR_CASE("conncount") {
+                LqFbuf_printf(OutFile, " %llu\n", (ullong)Reg->CountConnections);
             }
             break;
-            LQSTR_CASE("conncloseall")
-            {
+            LQSTR_CASE("conncloseall") {
                 LqWrkBossCloseConnByProtoAsync(&Reg->Proto);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("connclosebyip")
-            {
+            LQSTR_CASE("connclosebyip") {
                 LqString Param = ReadParams(CommandData, "6");
                 LqString IpAddress = ReadPath(CommandData);
-                if(IpAddress.empty())
-                {
-                    fprintf(OutFile, " ERROR: Invalid ip address\n");
+                if(IpAddress.empty()) {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid ip address\n");
                     IsSuccess = false;
                     break;
                 }
                 LqConnInetAddress adr;
-                if(LqConnStrToRowIp((Param.find_first_of("6") != LqString::npos)?6: 4, IpAddress.c_str(), &adr) == -1)
-                {
-                    fprintf(OutFile, " ERROR: Invalid ip address\n");
+                if(LqConnStrToRowIp((Param.find_first_of("6") != LqString::npos) ? 6 : 4, IpAddress.c_str(), &adr) == -1) {
+                    LqFbuf_printf(OutFile, " ERROR: Invalid ip address\n");
                     IsSuccess = false;
                     break;
                 }
 
                 LqWrkBossCloseConnByIpSync(&adr.Addr);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("connlist")
-            {
+            LQSTR_CASE("connlist") {
 
                 LqWrkBossEnumCloseRmEvntByProto(
-					[](void* OutFile, LqEvntHdr* Conn) -> unsigned
-					{
-						if(LqEvntIsConn(Conn))
-						{
-							char IpBuf[256];
-							LqHttpConnGetRemoteIpStr((LqHttpConn*)Conn, IpBuf, 255);
-							fprintf((FILE*)OutFile, " Host: %s, Port: %i\n", IpBuf, LqHttpConnGetRemotePort((LqHttpConn*)Conn));
-						}
-						return 0;
-					},
-					&Reg->Proto, 
-					OutFile
-                );
+                    [](void* OutFile, LqEvntHdr* Conn) -> unsigned {
+                    if(LqEvntIsConn(Conn)) {
+                        char IpBuf[256];
+                        LqHttpConnGetRemoteIpStr((LqHttpConn*)Conn, IpBuf, 255);
+                        LqFbuf_printf((LqFbuf*)OutFile, " Host: %s, Port: %i\n", IpBuf, LqHttpConnGetRemotePort((LqHttpConn*)Conn));
+                    }
+                    return 0;
+                },
+                    &Reg->Proto,
+                    OutFile
+                    );
             }
             break;
             /*
             *Connections parametr
             *--------------------------
             */
-            LQSTR_CASE("name")
-            {
+            LQSTR_CASE("name") {
                 LqString ServName = ReadPath(CommandData);
-                if(ServName.empty())
-                {
+                if(ServName.empty()) {
                     char ServName[4096] = {0};
                     LqHttpProtoGetNameServer(Reg, ServName, sizeof(ServName) - 1);
-                    fprintf(OutFile, " %s\n", ServName);
+                    LqFbuf_printf(OutFile, " %s\n", ServName);
                     break;
                 }
                 LqHttpProtoSetNameServer(Reg, ServName.c_str());
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("timelife")
-            {
+            LQSTR_CASE("timelife") {
                 LqTimeMillisec Millisec;
-                if(!ReadNumber(CommandData, &Millisec))
-                {
+                if(!ReadNumber(CommandData, &Millisec)) {
                     LqHttpProtoGetInfo(Reg, nullptr, 0, nullptr, 0, nullptr, nullptr, &Millisec);
-                    fprintf(OutFile, " %llu\n", (ullong)Millisec);
+                    LqFbuf_printf(OutFile, " %llu\n", (ullong)Millisec);
                     break;
                 }
-                LqHttpProtoSetInfo(Reg, nullptr,nullptr, nullptr, nullptr, &Millisec);
-                fprintf(OutFile, " OK\n");
+                LqHttpProtoSetInfo(Reg, nullptr, nullptr, nullptr, nullptr, &Millisec);
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("maxhdrsize")
-            {
+            LQSTR_CASE("maxhdrsize") {
                 size_t Size;
-                if(!ReadNumber(CommandData, &Size))
-                {
-                    fprintf(OutFile, " %llu\n", (ullong)Reg->MaxHeadersSize);
+                if(!ReadNumber(CommandData, &Size)) {
+                    LqFbuf_printf(OutFile, " %llu\n", (ullong)Reg->MaxHeadersSize);
                     break;
                 }
                 Reg->MaxHeadersSize = lq_max(Size, 4);
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("maxmltprthdrsize")
-            {
+            LQSTR_CASE("maxmltprthdrsize") {
                 size_t Size;
-                if(!ReadNumber(CommandData, &Size))
-                {
-                    fprintf(OutFile, " %llu\n", (ullong)Reg->MaxMultipartHeadersSize);
+                if(!ReadNumber(CommandData, &Size)) {
+                    LqFbuf_printf(OutFile, " %llu\n", (ullong)Reg->MaxMultipartHeadersSize);
                     break;
                 }
                 Reg->MaxMultipartHeadersSize = Size;
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
             LQSTR_CASE("perchgdigestnonce") //Period chenge digest nonce
             {
                 LqTimeSec Time;
-                if(!ReadNumber(CommandData, &Time))
-                {
-                    fprintf(OutFile, " %llu\n", (ullong)Reg->PeriodChangeDigestNonce);
+                if(!ReadNumber(CommandData, &Time)) {
+                    LqFbuf_printf(OutFile, " %llu\n", (ullong)Reg->PeriodChangeDigestNonce);
                     break;
                 }
                 Reg->PeriodChangeDigestNonce = Time;
-                fprintf(OutFile, " OK\n");
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-            LQSTR_CASE("dbginfo")
-            {
+            LQSTR_CASE("dbginfo") {
                 LqString DbgInfo = LqWrkBoss::GetGlobal()->DebugInfo();
-                fprintf(OutFile, "%s", DbgInfo.c_str());
+                LqFbuf_printf(OutFile, "%s", DbgInfo.c_str());
             }
             break;
-            LQSTR_CASE("fulldbginfo")
-            {
+            LQSTR_CASE("fulldbginfo") {
                 LqString DbgInfo = LqWrkBoss::GetGlobal()->AllDebugInfo();
-                fprintf(OutFile, "%s", DbgInfo.c_str());
+                LqFbuf_printf(OutFile, "%s", DbgInfo.c_str());
             }
             break;
             LQSTR_SWITCH_DEFAULT
             {
-                fprintf(OutFile, " ERROR: Invalid command\n");
+                LqFbuf_printf(OutFile, " ERROR: Invalid command\n");
                 IsSuccess = false;
             }
             break;
@@ -1454,8 +1268,7 @@ lblAgain:
     return 0;
 }
 
-const char* PrintHlp()
-{
+const char* PrintHlp() {
     static const char* HlpMsg =
         " Help:\n"
         "   Syntax of command: [Command prefix]<command> [args ...]\n"
@@ -1534,8 +1347,7 @@ const char* PrintHlp()
     return HlpMsg;
 }
 
-LqString PermToString(uint8_t Perm)
-{
+LqString PermToString(uint8_t Perm) {
     LqString p;
     if(LQHTTPATZ_PERM_READ & Perm) p += "r";
     if(LQHTTPATZ_PERM_WRITE & Perm) p += "w";
@@ -1547,58 +1359,49 @@ LqString PermToString(uint8_t Perm)
     return p;
 }
 
-void PrintPthRegisterResult(FILE* Dest, LqHttpPthResultEnm Res)
-{
-    switch(Res)
-    {
-        case LQHTTPPTH_RES_ALREADY_HAVE: fprintf(Dest, " ERROR: Already have\n"); break;
-        case LQHTTPPTH_RES_DOMEN_NAME_OVERFLOW: fprintf(Dest, " ERROR: Domen name overflow\n"); break;
-        case LQHTTPPTH_RES_INVALID_NAME: fprintf(Dest, " ERROR: Invlaid name\n"); break;
-        case LQHTTPPTH_RES_MODULE_REJECT: fprintf(Dest, " ERROR: Module reject\n"); break;
-        case LQHTTPPTH_RES_NOT_ALLOC_MEM: fprintf(Dest, " ERROR: Not alloc mem\n"); break;
-        case LQHTTPPTH_RES_NOT_HAVE_DOMEN: fprintf(Dest, " ERROR: Not have domen\n"); break;
-        case LQHTTPPTH_RES_NOT_HAVE_ATZ: fprintf(Dest, " ERROR: Not have authorization\n"); break;
-        case LQHTTPPTH_RES_ALREADY_HAVE_ATZ: fprintf(Dest, " ERROR: Already have authorization\n"); break;
-        case LQHTTPPTH_RES_NOT_DIR: fprintf(Dest, " ERROR: Not dir (dir must be ex: /serv/)\n"); break;
-        case LQHTTPPTH_RES_NOT_HAVE_PATH: fprintf(Dest, " ERROR: Not have path\n"); break;
-        case LQHTTPPTH_RES_OK: fprintf(Dest, " OK\n"); return;
-        default: fprintf(Dest, " ERROR\n"); break;
+void PrintPthRegisterResult(LqFbuf* Dest, LqHttpPthResultEnm Res) {
+    switch(Res) {
+        case LQHTTPPTH_RES_ALREADY_HAVE: LqFbuf_printf(Dest, " ERROR: Already have\n"); break;
+        case LQHTTPPTH_RES_DOMEN_NAME_OVERFLOW: LqFbuf_printf(Dest, " ERROR: Domen name overflow\n"); break;
+        case LQHTTPPTH_RES_INVALID_NAME: LqFbuf_printf(Dest, " ERROR: Invlaid name\n"); break;
+        case LQHTTPPTH_RES_MODULE_REJECT: LqFbuf_printf(Dest, " ERROR: Module reject\n"); break;
+        case LQHTTPPTH_RES_NOT_ALLOC_MEM: LqFbuf_printf(Dest, " ERROR: Not alloc mem\n"); break;
+        case LQHTTPPTH_RES_NOT_HAVE_DOMEN: LqFbuf_printf(Dest, " ERROR: Not have domen\n"); break;
+        case LQHTTPPTH_RES_NOT_HAVE_ATZ: LqFbuf_printf(Dest, " ERROR: Not have authorization\n"); break;
+        case LQHTTPPTH_RES_ALREADY_HAVE_ATZ: LqFbuf_printf(Dest, " ERROR: Already have authorization\n"); break;
+        case LQHTTPPTH_RES_NOT_DIR: LqFbuf_printf(Dest, " ERROR: Not dir (dir must be ex: /serv/)\n"); break;
+        case LQHTTPPTH_RES_NOT_HAVE_PATH: LqFbuf_printf(Dest, " ERROR: Not have path\n"); break;
+        case LQHTTPPTH_RES_OK: LqFbuf_printf(Dest, " OK\n"); return;
+        default: LqFbuf_printf(Dest, " ERROR\n"); break;
     }
     IsSuccess = false;
 }
 
-void PrintAuth(FILE* Dest, LqHttpAtz* Auth)
-{
+void PrintAuth(LqFbuf* Dest, LqHttpAtz* Auth) {
     LqHttpAtzLockRead(Auth);
-    fprintf(Dest, "   Auth type: %s; Realm: %s", (Auth->AuthType == LQHTTPATZ_TYPE_BASIC) ? "basic" : "digest", Auth->Realm);
-    if(Auth->AuthType == LQHTTPATZ_TYPE_BASIC)
-    {
-        for(int i = 0; i < Auth->CountAuthoriz; i++)
-        {
-            auto Res = LqBase64DecodeToStlStr(Auth->Basic[i].LoginPassword, LqStrLen(Auth->Basic[i].LoginPassword));
-            auto Pos = Res.find(':', 0);
-            if(Pos == LqString::npos)
+    LqFbuf_printf(Dest, "   Auth type: %s; Realm: %s", (Auth->AuthType == LQHTTPATZ_TYPE_BASIC) ? "basic" : "digest", Auth->Realm);
+    char Buf[4096];
+    if(Auth->AuthType == LQHTTPATZ_TYPE_BASIC) {
+        for(int i = 0; i < Auth->CountAuthoriz; i++) {
+            Buf[0] = '\0';
+            LqFrbuf_snscanf(Auth->Basic[i].LoginPassword, LqStrLen(Auth->Basic[i].LoginPassword), "%.*b", (int)sizeof(Buf), Buf);
+            char * Pos = LqStrChr(Buf, ':');
+            if(Pos == nullptr)
                 continue;
-            Res.erase(Pos, -1);
-            fprintf(Dest, "\n    User: %s; Mask: %s", Res.c_str(), PermToString(Auth->Basic[i].AccessMask).c_str());
+            *Pos = '\0';
+            LqFbuf_printf(Dest, "\n    User: %s; Mask: %s", Buf, PermToString(Auth->Basic[i].AccessMask).c_str());
         }
-    } else
-    {
+    } else {
         for(int i = 0; i < Auth->CountAuthoriz; i++)
-        {
-            fprintf(Dest, "\n    User: %s; Mask: %s", Auth->Digest[i].UserName, PermToString(Auth->Digest[i].AccessMask).c_str());
-        }
+            LqFbuf_printf(Dest, "\n    User: %s; Mask: %s", Auth->Digest[i].UserName, PermToString(Auth->Digest[i].AccessMask).c_str());
     }
     LqHttpAtzUnlock(Auth);
 }
 
-uint8_t ReadPermissions(LqString& Source)
-{
+uint8_t ReadPermissions(LqString& Source) {
     uint8_t r = 0;
-    for(int i = 0; (Source[0] != '\0') && (strchr("rwtcdms", Source[0]) != nullptr); i++)
-    {
-        switch(Source[0])
-        {
+    for(int i = 0; (Source[0] != '\0') && (LqStrChr("rwtcdms", Source[0]) != nullptr); i++) {
+        switch(Source[0]) {
             case 'r': r |= LQHTTPATZ_PERM_READ; break;
             case 'w': r |= LQHTTPATZ_PERM_WRITE; break;
             case 't': r |= LQHTTPATZ_PERM_CHECK; break;
@@ -1614,10 +1417,8 @@ uint8_t ReadPermissions(LqString& Source)
     return r;
 }
 
-LqString ReadPath(LqString& Source)
-{
-    if(Source[0] == '\"')
-    {
+LqString ReadPath(LqString& Source) {
+    if(Source[0] == '\"') {
         auto Off = Source.find('\"', 1);
         if(Off == LqString::npos)
             return "";
@@ -1626,8 +1427,7 @@ LqString ReadPath(LqString& Source)
         while((Source[0] == ' ') || ((Source[0] == '\t')))
             Source.erase(0, 1);
         return ret;
-    } else
-    {
+    } else {
         auto Off = Source.find_first_of("\t\r\n ");
         auto ret = Source.substr(0, Off);
         Source.erase(0, Off);
@@ -1637,14 +1437,11 @@ LqString ReadPath(LqString& Source)
     }
 }
 
-LqString ReadParams(LqString& Source, const char * Params)
-{
-    if((Source[0] == '-') && strchr(Params, Source[1]))
-    {
+LqString ReadParams(LqString& Source, const char * Params) {
+    if((Source[0] == '-') && LqStrChr(Params, Source[1])) {
         LqString Res;
         Source.erase(0, 1);
-        while((Source[0] != '\0') && (strchr(Params, Source[0]) != nullptr))
-        {
+        while((Source[0] != '\0') && (LqStrChr(Params, Source[0]) != nullptr)) {
             Res += Source[0];
             Source.erase(0, 1);
         }
@@ -1654,3 +1451,6 @@ LqString ReadParams(LqString& Source, const char * Params)
     }
     return "";
 }
+
+#define __METHOD_DECLS__
+#include "LqAlloc.hpp"

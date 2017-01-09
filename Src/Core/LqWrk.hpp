@@ -30,8 +30,7 @@ typedef LqShdPtr<LqWrk, LqWrkDelete, false, false> LqWrkPtr;
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
 class LQ_IMPORTEXPORT LqWrk:
-    public LqThreadBase
-{
+    public LqThreadBase {
 
     friend LqWrkBoss;
     friend LqConn;
@@ -65,10 +64,8 @@ class LQ_IMPORTEXPORT LqWrk:
     inline void Lock() { Locker.LockWriteYield(); }
 
     inline void WaiterLockMain() { WaitLocker.LockWrite(); }
-    inline void WaiterLock() 
-    {
-        while(!WaitLocker.TryLockWrite())
-        {
+    inline void WaiterLock() {
+        while(!WaitLocker.TryLockWrite()) {
             NotifyThread();
             for(uintptr_t i = 0; i < 50; i++)
                 if(WaitLocker.TryLockWrite())
@@ -78,7 +75,7 @@ class LQ_IMPORTEXPORT LqWrk:
         }
     }
     inline void WaiterUnlock() { WaitLocker.UnlockWrite(); }
-    
+
     void ClearQueueCommands();
 
     static void ExitHandlerFn(void* Data);
@@ -131,7 +128,7 @@ public:
 
     size_t   CloseConnByProtoSync(const LqProto* Proto);
     bool     CloseConnByProtoAsync(const LqProto* Proto);
-    
+
     /*
       @Proc - In this proc must not call another worker methods.
     */

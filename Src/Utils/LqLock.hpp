@@ -19,14 +19,12 @@
 */
 
 template<typename TypeFlag = unsigned>
-class LqLocker
-{
+class LqLocker {
     std::atomic<TypeFlag> Locker;
 public:
     inline LqLocker(): Locker(1) {}
 
-    inline bool TryLockRead()
-    {
+    inline bool TryLockRead() {
         TypeFlag v = Locker;
         if(v != 0)
             return Locker.compare_exchange_strong(v, v + 1);
@@ -36,8 +34,7 @@ public:
     inline void LockReadYield() { for(TypeFlag v; ((v = Locker) == 0) || !Locker.compare_exchange_strong(v, v + 1); std::this_thread::yield()); }
     inline void UnlockRead() { --Locker; }
 
-    inline bool TryLockWrite()
-    {
+    inline bool TryLockWrite() {
         TypeFlag v = 1;
         return Locker.compare_exchange_strong(v, 0);
     }
@@ -50,8 +47,7 @@ public:
     inline bool IsLockRead() const { return Locker > 1; }
     inline bool IsLockWrite() const { return Locker == 0; }
     /* Common unlock. Use for read/write lock */
-    inline void Unlock()
-    {
+    inline void Unlock() {
         if(IsLockRead())
             UnlockRead();
         else if(IsLockWrite())
@@ -79,8 +75,7 @@ public:
         ReleaseWrite();
 */
 template<typename TypeFlag = unsigned>
-class LqSafeRegion
-{
+class LqSafeRegion {
     std::atomic<TypeFlag> SafeRegionWaiter;
     static const TypeFlag TstBit = ((TypeFlag)1) << (sizeof(TypeFlag) * 8 - 2);
 public:
@@ -89,16 +84,14 @@ public:
     /*
     For thread owner
     */
-    bool EnterSafeRegion()
-    {
+    bool EnterSafeRegion() {
         /*
         SafeRegionWaiter = 0 - Wait writing thread
         SafeRegionWaiter = 1 - Not have waiting threads
         SafeRegionWaiter = 2..n - Have waiting read threads
         SafeRegionWaiter & 0x800..0 - ThreadOwner wait some operations
         */
-        if(SafeRegionWaiter != 1)
-        {
+        if(SafeRegionWaiter != 1) {
             SafeRegionWaiter |= TstBit;
             for(TypeFlag v = (TstBit + 1); !SafeRegionWaiter.compare_exchange_strong(v, 1); std::this_thread::yield(), v = (TstBit + 1));
             return true;
@@ -106,11 +99,9 @@ public:
         return false;
     }
 
-    bool EnterSafeRegionAndSwitchToWriteMode()
-    {
+    bool EnterSafeRegionAndSwitchToWriteMode() {
         TypeFlag v = 1;
-        if(!SafeRegionWaiter.compare_exchange_strong(v, 0))
-        {
+        if(!SafeRegionWaiter.compare_exchange_strong(v, 0)) {
             SafeRegionWaiter |= TstBit;
             for(v = (TstBit + 1); !SafeRegionWaiter.compare_exchange_strong(v, 0); std::this_thread::yield(), v = (TstBit + 1));
             return true;
@@ -118,11 +109,9 @@ public:
         return false;
     }
 
-    bool EnterSafeRegionAndSwitchToReadMode()
-    {
+    bool EnterSafeRegionAndSwitchToReadMode() {
         TypeFlag v = 1;
-        if(!SafeRegionWaiter.compare_exchange_strong(v, 2))
-        {
+        if(!SafeRegionWaiter.compare_exchange_strong(v, 2)) {
             SafeRegionWaiter |= TstBit;
             for(v = (TstBit + 1); !SafeRegionWaiter.compare_exchange_strong(v, 2); std::this_thread::yield(), v = (TstBit + 1));
             return true;
@@ -133,8 +122,7 @@ public:
     /*
     For thread clients
     */
-    inline bool TryOccupyRead()
-    {
+    inline bool TryOccupyRead() {
         TypeFlag v = SafeRegionWaiter;
         if(v & ~TstBit)
             return SafeRegionWaiter.compare_exchange_strong(v, v + 1);
@@ -144,8 +132,7 @@ public:
     void OccupyReadYield() { while(!TryOccupyRead()) std::this_thread::yield(); }
     void ReleaseRead() { --SafeRegionWaiter; }
 
-    inline bool TryOccupyWrite()
-    {
+    inline bool TryOccupyWrite() {
         TypeFlag v = 1;
         return SafeRegionWaiter.compare_exchange_strong(v, 0);
     }

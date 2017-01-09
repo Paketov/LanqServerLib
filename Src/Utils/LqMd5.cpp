@@ -1,6 +1,7 @@
 
 #include "LqMd5.h"
 #include "LqStr.h"
+#include "LqSbuf.h"
 
 #ifdef HAVE_OPENSSL
 #include <openssl/md5.h>
@@ -101,8 +102,7 @@ typedef LqMd5Ctx MD5_CTX;
  * This processes one or more 64-byte data blocks, but does NOT update
  * the bit counters.  There are no alignment requirements.
  */
-static const void *body(LqMd5Ctx *ctx, const void *data, unsigned long size)
-{
+static const void *body(LqMd5Ctx *ctx, const void *data, unsigned long size) {
     const unsigned char *ptr;
     MD5_u32plus a, b, c, d;
     MD5_u32plus saved_a, saved_b, saved_c, saved_d;
@@ -114,91 +114,90 @@ static const void *body(LqMd5Ctx *ctx, const void *data, unsigned long size)
     c = ctx->c;
     d = ctx->d;
 
-    do
-    {
-    saved_a = a;
-    saved_b = b;
-    saved_c = c;
-    saved_d = d;
+    do {
+        saved_a = a;
+        saved_b = b;
+        saved_c = c;
+        saved_d = d;
 
-    /* Round 1 */
-    STEP(F, a, b, c, d, SET(0), 0xd76aa478, 7)
-        STEP(F, d, a, b, c, SET(1), 0xe8c7b756, 12)
-        STEP(F, c, d, a, b, SET(2), 0x242070db, 17)
-        STEP(F, b, c, d, a, SET(3), 0xc1bdceee, 22)
-        STEP(F, a, b, c, d, SET(4), 0xf57c0faf, 7)
-        STEP(F, d, a, b, c, SET(5), 0x4787c62a, 12)
-        STEP(F, c, d, a, b, SET(6), 0xa8304613, 17)
-        STEP(F, b, c, d, a, SET(7), 0xfd469501, 22)
-        STEP(F, a, b, c, d, SET(8), 0x698098d8, 7)
-        STEP(F, d, a, b, c, SET(9), 0x8b44f7af, 12)
-        STEP(F, c, d, a, b, SET(10), 0xffff5bb1, 17)
-        STEP(F, b, c, d, a, SET(11), 0x895cd7be, 22)
-        STEP(F, a, b, c, d, SET(12), 0x6b901122, 7)
-        STEP(F, d, a, b, c, SET(13), 0xfd987193, 12)
-        STEP(F, c, d, a, b, SET(14), 0xa679438e, 17)
-        STEP(F, b, c, d, a, SET(15), 0x49b40821, 22)
+        /* Round 1 */
+        STEP(F, a, b, c, d, SET(0), 0xd76aa478, 7)
+            STEP(F, d, a, b, c, SET(1), 0xe8c7b756, 12)
+            STEP(F, c, d, a, b, SET(2), 0x242070db, 17)
+            STEP(F, b, c, d, a, SET(3), 0xc1bdceee, 22)
+            STEP(F, a, b, c, d, SET(4), 0xf57c0faf, 7)
+            STEP(F, d, a, b, c, SET(5), 0x4787c62a, 12)
+            STEP(F, c, d, a, b, SET(6), 0xa8304613, 17)
+            STEP(F, b, c, d, a, SET(7), 0xfd469501, 22)
+            STEP(F, a, b, c, d, SET(8), 0x698098d8, 7)
+            STEP(F, d, a, b, c, SET(9), 0x8b44f7af, 12)
+            STEP(F, c, d, a, b, SET(10), 0xffff5bb1, 17)
+            STEP(F, b, c, d, a, SET(11), 0x895cd7be, 22)
+            STEP(F, a, b, c, d, SET(12), 0x6b901122, 7)
+            STEP(F, d, a, b, c, SET(13), 0xfd987193, 12)
+            STEP(F, c, d, a, b, SET(14), 0xa679438e, 17)
+            STEP(F, b, c, d, a, SET(15), 0x49b40821, 22)
 
-        /* Round 2 */
-        STEP(G, a, b, c, d, GET(1), 0xf61e2562, 5)
-        STEP(G, d, a, b, c, GET(6), 0xc040b340, 9)
-        STEP(G, c, d, a, b, GET(11), 0x265e5a51, 14)
-        STEP(G, b, c, d, a, GET(0), 0xe9b6c7aa, 20)
-        STEP(G, a, b, c, d, GET(5), 0xd62f105d, 5)
-        STEP(G, d, a, b, c, GET(10), 0x02441453, 9)
-        STEP(G, c, d, a, b, GET(15), 0xd8a1e681, 14)
-        STEP(G, b, c, d, a, GET(4), 0xe7d3fbc8, 20)
-        STEP(G, a, b, c, d, GET(9), 0x21e1cde6, 5)
-        STEP(G, d, a, b, c, GET(14), 0xc33707d6, 9)
-        STEP(G, c, d, a, b, GET(3), 0xf4d50d87, 14)
-        STEP(G, b, c, d, a, GET(8), 0x455a14ed, 20)
-        STEP(G, a, b, c, d, GET(13), 0xa9e3e905, 5)
-        STEP(G, d, a, b, c, GET(2), 0xfcefa3f8, 9)
-        STEP(G, c, d, a, b, GET(7), 0x676f02d9, 14)
-        STEP(G, b, c, d, a, GET(12), 0x8d2a4c8a, 20)
+            /* Round 2 */
+            STEP(G, a, b, c, d, GET(1), 0xf61e2562, 5)
+            STEP(G, d, a, b, c, GET(6), 0xc040b340, 9)
+            STEP(G, c, d, a, b, GET(11), 0x265e5a51, 14)
+            STEP(G, b, c, d, a, GET(0), 0xe9b6c7aa, 20)
+            STEP(G, a, b, c, d, GET(5), 0xd62f105d, 5)
+            STEP(G, d, a, b, c, GET(10), 0x02441453, 9)
+            STEP(G, c, d, a, b, GET(15), 0xd8a1e681, 14)
+            STEP(G, b, c, d, a, GET(4), 0xe7d3fbc8, 20)
+            STEP(G, a, b, c, d, GET(9), 0x21e1cde6, 5)
+            STEP(G, d, a, b, c, GET(14), 0xc33707d6, 9)
+            STEP(G, c, d, a, b, GET(3), 0xf4d50d87, 14)
+            STEP(G, b, c, d, a, GET(8), 0x455a14ed, 20)
+            STEP(G, a, b, c, d, GET(13), 0xa9e3e905, 5)
+            STEP(G, d, a, b, c, GET(2), 0xfcefa3f8, 9)
+            STEP(G, c, d, a, b, GET(7), 0x676f02d9, 14)
+            STEP(G, b, c, d, a, GET(12), 0x8d2a4c8a, 20)
 
-        /* Round 3 */
-        STEP(H, a, b, c, d, GET(5), 0xfffa3942, 4)
-        STEP(H2, d, a, b, c, GET(8), 0x8771f681, 11)
-        STEP(H, c, d, a, b, GET(11), 0x6d9d6122, 16)
-        STEP(H2, b, c, d, a, GET(14), 0xfde5380c, 23)
-        STEP(H, a, b, c, d, GET(1), 0xa4beea44, 4)
-        STEP(H2, d, a, b, c, GET(4), 0x4bdecfa9, 11)
-        STEP(H, c, d, a, b, GET(7), 0xf6bb4b60, 16)
-        STEP(H2, b, c, d, a, GET(10), 0xbebfbc70, 23)
-        STEP(H, a, b, c, d, GET(13), 0x289b7ec6, 4)
-        STEP(H2, d, a, b, c, GET(0), 0xeaa127fa, 11)
-        STEP(H, c, d, a, b, GET(3), 0xd4ef3085, 16)
-        STEP(H2, b, c, d, a, GET(6), 0x04881d05, 23)
-        STEP(H, a, b, c, d, GET(9), 0xd9d4d039, 4)
-        STEP(H2, d, a, b, c, GET(12), 0xe6db99e5, 11)
-        STEP(H, c, d, a, b, GET(15), 0x1fa27cf8, 16)
-        STEP(H2, b, c, d, a, GET(2), 0xc4ac5665, 23)
+            /* Round 3 */
+            STEP(H, a, b, c, d, GET(5), 0xfffa3942, 4)
+            STEP(H2, d, a, b, c, GET(8), 0x8771f681, 11)
+            STEP(H, c, d, a, b, GET(11), 0x6d9d6122, 16)
+            STEP(H2, b, c, d, a, GET(14), 0xfde5380c, 23)
+            STEP(H, a, b, c, d, GET(1), 0xa4beea44, 4)
+            STEP(H2, d, a, b, c, GET(4), 0x4bdecfa9, 11)
+            STEP(H, c, d, a, b, GET(7), 0xf6bb4b60, 16)
+            STEP(H2, b, c, d, a, GET(10), 0xbebfbc70, 23)
+            STEP(H, a, b, c, d, GET(13), 0x289b7ec6, 4)
+            STEP(H2, d, a, b, c, GET(0), 0xeaa127fa, 11)
+            STEP(H, c, d, a, b, GET(3), 0xd4ef3085, 16)
+            STEP(H2, b, c, d, a, GET(6), 0x04881d05, 23)
+            STEP(H, a, b, c, d, GET(9), 0xd9d4d039, 4)
+            STEP(H2, d, a, b, c, GET(12), 0xe6db99e5, 11)
+            STEP(H, c, d, a, b, GET(15), 0x1fa27cf8, 16)
+            STEP(H2, b, c, d, a, GET(2), 0xc4ac5665, 23)
 
-        /* Round 4 */
-        STEP(I, a, b, c, d, GET(0), 0xf4292244, 6)
-        STEP(I, d, a, b, c, GET(7), 0x432aff97, 10)
-        STEP(I, c, d, a, b, GET(14), 0xab9423a7, 15)
-        STEP(I, b, c, d, a, GET(5), 0xfc93a039, 21)
-        STEP(I, a, b, c, d, GET(12), 0x655b59c3, 6)
-        STEP(I, d, a, b, c, GET(3), 0x8f0ccc92, 10)
-        STEP(I, c, d, a, b, GET(10), 0xffeff47d, 15)
-        STEP(I, b, c, d, a, GET(1), 0x85845dd1, 21)
-        STEP(I, a, b, c, d, GET(8), 0x6fa87e4f, 6)
-        STEP(I, d, a, b, c, GET(15), 0xfe2ce6e0, 10)
-        STEP(I, c, d, a, b, GET(6), 0xa3014314, 15)
-        STEP(I, b, c, d, a, GET(13), 0x4e0811a1, 21)
-        STEP(I, a, b, c, d, GET(4), 0xf7537e82, 6)
-        STEP(I, d, a, b, c, GET(11), 0xbd3af235, 10)
-        STEP(I, c, d, a, b, GET(2), 0x2ad7d2bb, 15)
-        STEP(I, b, c, d, a, GET(9), 0xeb86d391, 21)
+            /* Round 4 */
+            STEP(I, a, b, c, d, GET(0), 0xf4292244, 6)
+            STEP(I, d, a, b, c, GET(7), 0x432aff97, 10)
+            STEP(I, c, d, a, b, GET(14), 0xab9423a7, 15)
+            STEP(I, b, c, d, a, GET(5), 0xfc93a039, 21)
+            STEP(I, a, b, c, d, GET(12), 0x655b59c3, 6)
+            STEP(I, d, a, b, c, GET(3), 0x8f0ccc92, 10)
+            STEP(I, c, d, a, b, GET(10), 0xffeff47d, 15)
+            STEP(I, b, c, d, a, GET(1), 0x85845dd1, 21)
+            STEP(I, a, b, c, d, GET(8), 0x6fa87e4f, 6)
+            STEP(I, d, a, b, c, GET(15), 0xfe2ce6e0, 10)
+            STEP(I, c, d, a, b, GET(6), 0xa3014314, 15)
+            STEP(I, b, c, d, a, GET(13), 0x4e0811a1, 21)
+            STEP(I, a, b, c, d, GET(4), 0xf7537e82, 6)
+            STEP(I, d, a, b, c, GET(11), 0xbd3af235, 10)
+            STEP(I, c, d, a, b, GET(2), 0x2ad7d2bb, 15)
+            STEP(I, b, c, d, a, GET(9), 0xeb86d391, 21)
 
-        a += saved_a;
-    b += saved_b;
-    c += saved_c;
-    d += saved_d;
+            a += saved_a;
+        b += saved_b;
+        c += saved_c;
+        d += saved_d;
 
-    ptr += 64;
+        ptr += 64;
     } while(size -= 64);
 
     ctx->a = a;
@@ -209,8 +208,7 @@ static const void *body(LqMd5Ctx *ctx, const void *data, unsigned long size)
     return ptr;
 }
 
-static void MD5_Init(LqMd5Ctx *ctx)
-{
+static void MD5_Init(LqMd5Ctx *ctx) {
     ctx->a = 0x67452301;
     ctx->b = 0xefcdab89;
     ctx->c = 0x98badcfe;
@@ -220,45 +218,40 @@ static void MD5_Init(LqMd5Ctx *ctx)
     ctx->hi = 0;
 }
 
-static void MD5_Update(LqMd5Ctx *ctx, const void *data, unsigned long size)
-{
+static void MD5_Update(LqMd5Ctx *ctx, const void *data, unsigned long size) {
     MD5_u32plus saved_lo;
     unsigned long used, available;
 
     saved_lo = ctx->lo;
     if((ctx->lo = (saved_lo + size) & 0x1fffffff) < saved_lo)
-    ctx->hi++;
+        ctx->hi++;
     ctx->hi += size >> 29;
 
     used = saved_lo & 0x3f;
 
-    if(used)
-    {
-    available = 64 - used;
+    if(used) {
+        available = 64 - used;
 
-    if(size < available)
-    {
-        memcpy(&ctx->buffer[used], data, size);
-        return;
+        if(size < available) {
+            memcpy(&ctx->buffer[used], data, size);
+            return;
+        }
+
+        memcpy(&ctx->buffer[used], data, available);
+        data = (const unsigned char *)data + available;
+        size -= available;
+        body(ctx, ctx->buffer, 64);
     }
 
-    memcpy(&ctx->buffer[used], data, available);
-    data = (const unsigned char *)data + available;
-    size -= available;
-    body(ctx, ctx->buffer, 64);
-    }
-
-    if(size >= 64)
-    {
-    data = body(ctx, data, size & ~(unsigned long)0x3f);
-    size &= 0x3f;
+    if(size >= 64) {
+        data = body(ctx, data, size & ~(unsigned long)0x3f);
+        size &= 0x3f;
     }
 
     memcpy(ctx->buffer, data, size);
 }
 
-static void MD5_Final(unsigned char *result, LqMd5Ctx *ctx)
-{
+static void MD5_Final(unsigned char *result, LqMd5Ctx *ctx) {
     unsigned long used, available;
 
     used = ctx->lo & 0x3f;
@@ -267,12 +260,11 @@ static void MD5_Final(unsigned char *result, LqMd5Ctx *ctx)
 
     available = 64 - used;
 
-    if(available < 8)
-    {
-    memset(&ctx->buffer[used], 0, available);
-    body(ctx, ctx->buffer, 64);
-    used = 0;
-    available = 64;
+    if(available < 8) {
+        memset(&ctx->buffer[used], 0, available);
+        body(ctx, ctx->buffer, 64);
+        used = 0;
+        available = 64;
     }
 
     memset(&ctx->buffer[used], 0, available - 8);
@@ -313,47 +305,42 @@ static void MD5_Final(unsigned char *result, LqMd5Ctx *ctx)
 
 #include <string.h>
 
-LQ_EXTERN_C void LQ_CALL LqMd5Init(LqMd5Ctx* Ctx)
-{
+LQ_EXTERN_C void LQ_CALL LqMd5Init(LqMd5Ctx* Ctx) {
     MD5_Init((MD5_CTX*)Ctx);
 }
 
-LQ_EXTERN_C void LQ_CALL LqMd5Update(LqMd5Ctx* Ctx, const void* Data, size_t Len)
-{
+LQ_EXTERN_C void LQ_CALL LqMd5Update(LqMd5Ctx* Ctx, const void* Data, size_t Len) {
     MD5_Update((MD5_CTX*)Ctx, Data, Len);
 }
 
-LQ_EXTERN_C void LQ_CALL LqMd5Final(unsigned char* Result, LqMd5Ctx* Ctx)
-{
+LQ_EXTERN_C void LQ_CALL LqMd5Final(unsigned char* Result, LqMd5Ctx* Ctx) {
     MD5_Final(Result, (MD5_CTX*)Ctx);
 }
 
-LQ_EXTERN_C int LQ_CALL LqMd5Compare(const LqMd5* Hash1, const LqMd5* Hash2)
-{
+LQ_EXTERN_C int LQ_CALL LqMd5Compare(const LqMd5* Hash1, const LqMd5* Hash2) {
     return memcmp(Hash1, Hash2, sizeof(LqMd5));
 }
 
-LQ_EXTERN_C void LQ_CALL LqMd5ToString(char* DestStr, const LqMd5* Hash)
-{
-    LqStrToHex(DestStr, Hash, sizeof(LqMd5));
+LQ_EXTERN_C void LQ_CALL LqMd5ToString(char* DestStr, const LqMd5* Hash) {
+    LqFwbuf_snprintf(DestStr, 100, "%.*v", (int)sizeof(LqMd5), Hash);
 }
 
-LQ_EXTERN_C int LQ_CALL LqMd5FromString(LqMd5* Hash, const char* SourceStr)
-{
-    return LqStrFromHex(Hash, sizeof(LqMd5), SourceStr);
+LQ_EXTERN_C int LQ_CALL LqMd5FromString(LqMd5* Hash, const char* SourceStr) {
+    int Readed = -1;
+    LqFrbuf_snscanf(SourceStr, 100, "%.*v%n", (int)sizeof(LqMd5), Hash, &Readed);
+    return Readed;
 }
 
-LQ_EXTERN_C void LQ_CALL LqMd5Gen(LqMd5* Hash, const void* Buf, size_t BufLen)
-{
+LQ_EXTERN_C void LQ_CALL LqMd5Gen(LqMd5* Hash, const void* Buf, size_t BufLen) {
     LqMd5Ctx ctx;
     MD5_Init((MD5_CTX*)&ctx);
     MD5_Update((MD5_CTX*)&ctx, Buf, BufLen);
     MD5_Final((unsigned char*)Hash, (MD5_CTX*)&ctx);
 }
 
-LQ_EXTERN_C void LQ_CALL LqMd5GenToString(char* Dest, const void* Buf, size_t BufLen)
-{
+LQ_EXTERN_C void LQ_CALL LqMd5GenToString(char* Dest, const void* Buf, size_t BufLen) {
     LqMd5 h;
     LqMd5Gen(&h, Buf, BufLen);
-    LqStrToHex(Dest, &h, sizeof(h));
+    LqFwbuf_snprintf(Dest, 100, "%.*v", (int)sizeof(h), &h);
 }
+

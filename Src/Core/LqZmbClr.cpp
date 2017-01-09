@@ -16,18 +16,16 @@
 #include "LqAlloc.hpp"
 
 
-struct LqZmbClrAdditionalInfo
-{
+struct LqZmbClrAdditionalInfo {
     LqTimeMillisec          TimeLive;
     const LqProto*          Proto;
-    volatile bool         IsUsed;
+    volatile bool           IsUsed;
     void*                   UserData;
     bool(*RemoveProc)(LqEvntFd* Evnt, void* UserData);
 };
 
 
-static void LQ_CALL LqZmbClrHandler(LqEvntFd* Fd, LqEvntFlag RetFlags)
-{
+static void LQ_CALL LqZmbClrHandler(LqEvntFd* Fd, LqEvntFlag RetFlags) {
     auto Proto = ((LqZmbClrAdditionalInfo*)Fd->UserData)->Proto;
     auto TimeLive = ((LqZmbClrAdditionalInfo*)Fd->UserData)->TimeLive;
 
@@ -35,11 +33,9 @@ static void LQ_CALL LqZmbClrHandler(LqEvntFd* Fd, LqEvntFlag RetFlags)
     LqFileTimerSet(Fd->Fd, TimeLive / 2);
 }
 
-static void LQ_CALL LqZmbClrHandlerClose(LqEvntFd* Fd)
-{
+static void LQ_CALL LqZmbClrHandlerClose(LqEvntFd* Fd) {
     auto AddInfo = (LqZmbClrAdditionalInfo*)Fd->UserData;
-    if((AddInfo->RemoveProc == nullptr) || (AddInfo->RemoveProc(Fd, AddInfo->UserData)))
-    {
+    if((AddInfo->RemoveProc == nullptr) || (AddInfo->RemoveProc(Fd, AddInfo->UserData))) {
         Fd->UserData = 0;
         LqFastAlloc::Delete(AddInfo);
         LqFileClose(Fd->Fd);
@@ -47,15 +43,13 @@ static void LQ_CALL LqZmbClrHandlerClose(LqEvntFd* Fd)
     }
 }
 
-LQ_EXTERN_C int LQ_CALL LqZmbClrInit(LqEvntFd* Dest, const LqProto* Proto, LqTimeMillisec TimeLive, bool(*RemoveProc)(LqEvntFd* Evnt, void* UserData), void* UserData)
-{
+LQ_EXTERN_C int LQ_CALL LqZmbClrInit(LqEvntFd* Dest, const LqProto* Proto, LqTimeMillisec TimeLive, bool(*RemoveProc)(LqEvntFd* Evnt, void* UserData), void* UserData) {
     auto AddInfo = LqFastAlloc::New<LqZmbClrAdditionalInfo>();
     if(AddInfo == nullptr)
         return -1;
     int TimerFd = LqFileTimerCreate(LQ_O_NOINHERIT);
-    if(TimerFd == -1)
-    {
-        LQ_ERR("LqZmbClrInit() LqFileTimerCreate(LQ_O_NOINHERIT) not create timer \"%s\"\n", strerror(lq_errno));
+    if(TimerFd == -1) {
+        LQ_LOG_ERR("LqZmbClrInit() LqFileTimerCreate(LQ_O_NOINHERIT) not create timer \"%s\"\n", strerror(lq_errno));
         LqFastAlloc::Delete(AddInfo);
         return -1;
     }
@@ -75,8 +69,7 @@ LQ_EXTERN_C int LQ_CALL LqZmbClrInit(LqEvntFd* Dest, const LqProto* Proto, LqTim
     return 0;
 }
 
-LQ_EXTERN_C int LQ_CALL LqZmbClrSetTimeLive(LqEvntFd* Dest, LqTimeMillisec TimeLive)
-{
+LQ_EXTERN_C int LQ_CALL LqZmbClrSetTimeLive(LqEvntFd* Dest, LqTimeMillisec TimeLive) {
     if(Dest->UserData == 0)
         return -1;
     auto AddInfo = (LqZmbClrAdditionalInfo*)Dest->UserData;
@@ -85,8 +78,7 @@ LQ_EXTERN_C int LQ_CALL LqZmbClrSetTimeLive(LqEvntFd* Dest, LqTimeMillisec TimeL
     return 0;
 }
 
-LQ_EXTERN_C int LQ_CALL LqZmbClrUninit(LqEvntFd* Dest)
-{
+LQ_EXTERN_C int LQ_CALL LqZmbClrUninit(LqEvntFd* Dest) {
     LqEvntSetClose3(Dest);
     return 0;
 }

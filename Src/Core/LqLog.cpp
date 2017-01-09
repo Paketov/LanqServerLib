@@ -1,34 +1,29 @@
 #include "LqLog.h"
+#include "LqSbuf.h"
+#include "LqLock.hpp"
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdarg.h>
 
 
-void LQ_LOG_DEBUG(const char* val, ...)
-{
-#ifdef LQ_LOG_DEBUG_HAVE
-    va_list va;
-    va_start(va, val);
-    vfprintf(stdout, val, va);
-#endif
-}
+
+static LqFwbuf LogInfoBuf;
+static LqFwbuf LogErr;
 
 
-void LQ_LOG_USER(const char* val, ...)
-{
+void LQ_LOG_INFO(const char* Fmt, ...) {
 #ifdef LQ_LOG_USER_HAVE
-    va_list va;
-    va_start(va, val);
-    vfprintf(stdout, val, va);
+	va_list va;
+	va_start(va, Fmt);
+	LqFwbuf_vprintf(&LogUserBuf, Fmt, va);
+	va_end(va);
 #endif
 }
 
-void LQ_ERR(const char* val, ...)
-{
+void LQ_LOG_ERR(const char* Fmt, ...) {
 #ifdef LQ_ERR_HAVE
-    va_list va;
-    va_start(va, val);
-    vfprintf(stderr, val, va);
+	va_list va;
+	va_start(va, Fmt);
+	LqFwbuf_vprintf(&LogErr, Fmt, va);
+	va_end(va);
 #endif
 }

@@ -28,13 +28,11 @@
 # include <ws2ipdef.h>
 # include <wchar.h>
 
-#define gai_strerror gai_strerrorA
+# define gai_strerror gai_strerrorA
 
-
-
-#define SHUT_RD    SD_RECEIVE
-#define SHUT_WR    SD_SEND
-#define SHUT_RDWR  SD_BOTH
+# define SHUT_RD    SD_RECEIVE
+# define SHUT_WR    SD_SEND
+# define SHUT_RDWR  SD_BOTH
 
 # pragma comment(lib, "Ws2_32.lib")
 # pragma comment(lib, "Mswsock.lib")
@@ -63,8 +61,7 @@
 #include "Lanq.h"
 
 
-typedef union LqConnInetAddress
-{
+typedef union LqConnInetAddress {
     struct sockaddr         Addr;
     struct sockaddr_in      AddrInet;
     struct sockaddr_in6     AddrInet6;
@@ -107,14 +104,14 @@ LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose(void* lqain Conn);
 LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose2(void* lqain Conn, LqTimeMillisec WaitTime);
 
 /*
-* Set close force immediately(call close handler if found event header immediately) 
+* Set close force immediately(call close handler if found event header immediately)
 *  @Conn: LqConn or LqEvntFd
 *  @return: 1- when close handle called, <= 0 - when not deleted
 */
 LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose3(void* lqain Conn);
 
 /*
-* Remove event from main worker boss immediately(not call close handler) 
+* Remove event from main worker boss immediately(not call close handler)
 *  @Conn: LqConn or LqEvntFd
 *  @return: 1- when removed, <= 0 - when not removed
 */
@@ -145,8 +142,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqEvntFdAdd2(LqEvntFd* lqain Evnt);
 /*
 * @return: SSL_CTX
 */
-LQ_IMPORTEXPORT void* LQ_CALL LqConnSslCreate
-(
+LQ_IMPORTEXPORT void* LQ_CALL LqConnSslCreate(
     const void* lqain MethodSSL, /* Example SSLv23_method()*/
     const char* lqain CertFile, /* Example: "server.pem"*/
     const char* lqain KeyFile, /*Example: "server.key"*/
@@ -172,11 +168,11 @@ static inline bool LQ_CALL __LqProtoEmptyKickByTimeOutProc(LqConn*, LqTimeMillis
 static inline char* LQ_CALL __LqProtoEmptyDebugInfoProc(LqConn*) { return nullptr; }
 
 #define LqProtoInit(Proto) \
-	((LqProto*)Proto)->Handler = __LqProtoEmptyHandler;\
-	((LqProto*)Proto)->CloseHandler = __LqProtoEmptyCloseHandler;\
-	((LqProto*)Proto)->KickByTimeOutProc = __LqProtoEmptyKickByTimeOutProc;\
-	((LqProto*)Proto)->CmpAddressProc = __LqProtoEmptyCmpAddressProc;\
-	((LqProto*)Proto)->DebugInfoProc = __LqProtoEmptyDebugInfoProc;
+    ((LqProto*)Proto)->Handler = __LqProtoEmptyHandler;\
+    ((LqProto*)Proto)->CloseHandler = __LqProtoEmptyCloseHandler;\
+    ((LqProto*)Proto)->KickByTimeOutProc = __LqProtoEmptyKickByTimeOutProc;\
+    ((LqProto*)Proto)->CmpAddressProc = __LqProtoEmptyCmpAddressProc;\
+    ((LqProto*)Proto)->DebugInfoProc = __LqProtoEmptyDebugInfoProc;
 
 #define LqEvntHdrClose(Event)                                           \
     (((LqEvntHdr*)(Event))->Flag |= _LQEVNT_FLAG_NOW_EXEC,              \

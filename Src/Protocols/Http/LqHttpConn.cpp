@@ -17,26 +17,20 @@
 #include "LqAlloc.hpp"
 
 
-intptr_t LqHttpConnHdrEnm(bool IsResponse, char* Buf, size_t SizeHeaders, char** HeaderNameResult, char** HeaderNameResultEnd, char** HeaderValResult, char** HeaderValEnd)
-{
+intptr_t LqHttpConnHdrEnm(bool IsResponse, char* Buf, size_t SizeHeaders, char** HeaderNameResult, char** HeaderNameResultEnd, char** HeaderValResult, char** HeaderValEnd) {
     if(SizeHeaders <= 0)
         return -1;
     char *Name, *NameEnd, *Val, *ValEnd;
     char *i, *m = Buf + SizeHeaders - 1;
-    if(*HeaderNameResult == nullptr)
-    {
+    if(*HeaderNameResult == nullptr) {
         i = Buf;
-        if(IsResponse)
-        {
-            if(((i + 5) < m) && (i[0] == 'H') && (i[1] == 'T') && (i[2] == 'T') && (i[3] == 'P') && (i[4] == '/'))
-            {
+        if(IsResponse) {
+            if(((i + 5) < m) && (i[0] == 'H') && (i[1] == 'T') && (i[2] == 'T') && (i[3] == 'P') && (i[4] == '/')) {
                 i += 5;
-                for(; ; i++)
-                {
+                for(; ; i++) {
                     if(((i + 1) >= m))
                         return -1;
-                    if((*i == '\r') && (i[1] == '\n'))
-                    {
+                    if((*i == '\r') && (i[1] == '\n')) {
                         i += 2;
                         if(((i + 2) >= m) || (*i == '\r') && (i[1] == '\n'))
                             return -1;
@@ -44,14 +38,11 @@ intptr_t LqHttpConnHdrEnm(bool IsResponse, char* Buf, size_t SizeHeaders, char**
                     }
                 }
             }
-        } else
-        {
-            for(; ; i++)
-            {
+        } else {
+            for(; ; i++) {
                 if(((i + 1) >= m))
                     return -1;
-                if((*i == '\r') && (i[1] == '\n'))
-                {
+                if((*i == '\r') && (i[1] == '\n')) {
                     i += 2;
                     if(((i + 2) >= m) || (*i == '\r') && (i[1] == '\n'))
                         return -1;
@@ -60,8 +51,7 @@ intptr_t LqHttpConnHdrEnm(bool IsResponse, char* Buf, size_t SizeHeaders, char**
             }
         }
 
-    } else
-    {
+    } else {
         i = *HeaderValEnd + 2;
         if(i >= m)
             return -1;
@@ -69,8 +59,7 @@ intptr_t LqHttpConnHdrEnm(bool IsResponse, char* Buf, size_t SizeHeaders, char**
 
     for(; (i < m) && ((*i == ' ') || (*i == '\t')); i++);
     Name = i;
-    for(;; i++)
-    {
+    for(;; i++) {
         if(((i + 1) >= m) || (*i == '\r') && (i[1] == '\n'))
             return -1;
         if(*i == ':')
@@ -78,16 +67,14 @@ intptr_t LqHttpConnHdrEnm(bool IsResponse, char* Buf, size_t SizeHeaders, char**
     }
     NameEnd = i;
     i++;
-    for(;; i++)
-    {
+    for(;; i++) {
         if((i + 1) >= m)
             return -1;
         if((*i != ' ') && (*i != '\t'))
             break;
     }
     Val = i;
-    for(; ; i++)
-    {
+    for(; ; i++) {
         if((i + 1) >= m)
             return -1;
         if((*i == '\r') && (i[1] == '\n'))
@@ -101,19 +88,15 @@ intptr_t LqHttpConnHdrEnm(bool IsResponse, char* Buf, size_t SizeHeaders, char**
     return 0;
 }
 
-LQ_EXTERN_C void LQ_CALL LqHttpConnPthRemove(LqHttpConn* c)
-{
-    if(c->Pth != nullptr)
-    {
+LQ_EXTERN_C void LQ_CALL LqHttpConnPthRemove(LqHttpConn* c) {
+    if(c->Pth != nullptr) {
         LqHttpPthRelease(c->Pth);
         c->Pth = nullptr;
     }
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpConnGetRemoteIpStr(const LqHttpConn* c, char* DestStr, size_t DestStrSize)
-{
-    switch(LqHttpConnGetRmtAddr(c)->sa_family)
-    {
+LQ_EXTERN_C int LQ_CALL LqHttpConnGetRemoteIpStr(const LqHttpConn* c, char* DestStr, size_t DestStrSize) {
+    switch(LqHttpConnGetRmtAddr(c)->sa_family) {
         case AF_INET:
             if(inet_ntop(AF_INET, &((sockaddr_in*)LqHttpConnGetRmtAddr(c))->sin_addr, DestStr, DestStrSize) == nullptr)
                 return 0;
@@ -127,10 +110,8 @@ LQ_EXTERN_C int LQ_CALL LqHttpConnGetRemoteIpStr(const LqHttpConn* c, char* Dest
     }
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpConnGetRemotePort(const LqHttpConn* c)
-{
-    switch(LqHttpConnGetRmtAddr(c)->sa_family)
-    {
+LQ_EXTERN_C int LQ_CALL LqHttpConnGetRemotePort(const LqHttpConn* c) {
+    switch(LqHttpConnGetRmtAddr(c)->sa_family) {
         case AF_INET:
             return ntohs(((sockaddr_in*)LqHttpConnGetRmtAddr(c))->sin_port);
         case AF_INET6:
@@ -140,8 +121,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpConnGetRemotePort(const LqHttpConn* c)
     }
 }
 
-bool LqHttpConnBufferRealloc(LqHttpConn* c, size_t NewSize)
-{
+bool LqHttpConnBufferRealloc(LqHttpConn* c, size_t NewSize) {
     char* NewBuff = (char*)___realloc(c->Buf, NewSize);
     if(NewBuff == nullptr)
         return false;
@@ -150,8 +130,7 @@ bool LqHttpConnBufferRealloc(LqHttpConn* c, size_t NewSize)
     return true;
 }
 
-size_t LqHttpConnSend_Native(LqHttpConn* c, const void* SourceBuf, size_t SizeBuf)
-{
+size_t LqHttpConnSend_Native(LqHttpConn* c, const void* SourceBuf, size_t SizeBuf) {
 #if defined(HAVE_OPENSSL)
     if(c->ssl)
         return LqConnSendSSL(&c->CommonConn, SourceBuf, SizeBuf, c->ssl);
@@ -159,16 +138,14 @@ size_t LqHttpConnSend_Native(LqHttpConn* c, const void* SourceBuf, size_t SizeBu
     return LqConnSend(&c->CommonConn, SourceBuf, SizeBuf);
 }
 
-LQ_EXTERN_C void LQ_CALL LqHttpConnCallEvntAct(LqHttpConn * Conn)
-{
+LQ_EXTERN_C void LQ_CALL LqHttpConnCallEvntAct(LqHttpConn * Conn) {
     auto f = Conn->CommonConn.Flag;
     Conn->EventAct(Conn);
     if(f != Conn->CommonConn.Flag)
-    Conn->CommonConn.Flag |= _LQEVNT_FLAG_USER_SET;
+        Conn->CommonConn.Flag |= _LQEVNT_FLAG_USER_SET;
 }
 
-LQ_EXTERN_C size_t LQ_CALL LqHttpConnSend(LqHttpConn* c, const void* SourceBuf, size_t SizeBuf)
-{
+LQ_EXTERN_C size_t LQ_CALL LqHttpConnSend(LqHttpConn* c, const void* SourceBuf, size_t SizeBuf) {
     size_t r;
 #if defined(HAVE_OPENSSL)
     if(c->ssl)
@@ -180,8 +157,7 @@ LQ_EXTERN_C size_t LQ_CALL LqHttpConnSend(LqHttpConn* c, const void* SourceBuf, 
     return r;
 }
 
-LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnSendFromStream(LqHttpConn* c, LqSbuf* Stream, intptr_t Count)
-{
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnSendFromStream(LqHttpConn* c, LqSbuf* Stream, intptr_t Count) {
     intptr_t r;
 #if defined(HAVE_OPENSSL)
     if(c->ssl)
@@ -193,8 +169,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnSendFromStream(LqHttpConn* c, LqSbuf* Str
     return r;
 }
 
-LQ_EXTERN_C LqFileSz LQ_CALL LqHttpConnSendFromFile(LqHttpConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count)
-{
+LQ_EXTERN_C LqFileSz LQ_CALL LqHttpConnSendFromFile(LqHttpConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count) {
     LqFileSz r;
 #if defined(HAVE_OPENSSL)
     if(c->ssl)
@@ -206,8 +181,7 @@ LQ_EXTERN_C LqFileSz LQ_CALL LqHttpConnSendFromFile(LqHttpConn* c, int InFd, LqF
     return r;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpConnCountPendingData(LqHttpConn* c)
-{
+LQ_EXTERN_C int LQ_CALL LqHttpConnCountPendingData(LqHttpConn* c) {
 #if defined(HAVE_OPENSSL)
     if(c->ssl)
         return LqConnCountPendingDataSSL(&c->CommonConn, c->ssl);
@@ -215,8 +189,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpConnCountPendingData(LqHttpConn* c)
     return LqConnCountPendingData(&c->CommonConn);
 }
 
-int LqHttpConnRecive_Native(LqHttpConn* c, void* Buf, int ReadSize, int Flags)
-{
+int LqHttpConnRecive_Native(LqHttpConn* c, void* Buf, int ReadSize, int Flags) {
     int Res;
 #if defined(HAVE_OPENSSL)
     if(c->ssl)
@@ -227,8 +200,7 @@ int LqHttpConnRecive_Native(LqHttpConn* c, void* Buf, int ReadSize, int Flags)
     return Res;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpConnRecive(LqHttpConn* c, void* Buf, int ReadSize)
-{
+LQ_EXTERN_C int LQ_CALL LqHttpConnRecive(LqHttpConn* c, void* Buf, int ReadSize) {
     int r;
 #if defined(HAVE_OPENSSL)
     if(c->ssl)
@@ -237,20 +209,17 @@ LQ_EXTERN_C int LQ_CALL LqHttpConnRecive(LqHttpConn* c, void* Buf, int ReadSize)
 #endif
         r = LqConnRecive(&c->CommonConn, Buf, ReadSize, 0);
 
-    if((r < ReadSize) && LQERR_IS_WOULD_BLOCK)
-    {
+    if((r < ReadSize) && LQERR_IS_WOULD_BLOCK) {
         if(r == -1)
             r = 0;
         c->ReadedBodySize += r;
-    } else
-    {
+    } else {
         c->ReadedBodySize += lq_max(r, 0);
     }
     return r;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpConnPeek(LqHttpConn* c, void* Buf, int ReadSize)
-{
+LQ_EXTERN_C int LQ_CALL LqHttpConnPeek(LqHttpConn* c, void* Buf, int ReadSize) {
     int Res;
 #if defined(HAVE_OPENSSL)
     if(c->ssl)
@@ -263,8 +232,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpConnPeek(LqHttpConn* c, void* Buf, int ReadSize)
     return Res;
 }
 
-LQ_EXTERN_C LqFileSz LQ_CALL LqHttpConnReciveInFile(LqHttpConn* c, int OutFd, LqFileSz Count)
-{
+LQ_EXTERN_C LqFileSz LQ_CALL LqHttpConnReciveInFile(LqHttpConn* c, int OutFd, LqFileSz Count) {
     LqFileSz r;
 #if defined(HAVE_OPENSSL)
     if(c->ssl)
@@ -279,8 +247,7 @@ LQ_EXTERN_C LqFileSz LQ_CALL LqHttpConnReciveInFile(LqHttpConn* c, int OutFd, Lq
     return r;
 }
 
-LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnReciveInStream(LqHttpConn* c, LqSbuf* Stream, intptr_t Count)
-{
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnReciveInStream(LqHttpConn* c, LqSbuf* Stream, intptr_t Count) {
     intptr_t r;
 #if defined(HAVE_OPENSSL)
     if(c->ssl)
@@ -295,8 +262,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnReciveInStream(LqHttpConn* c, LqSbuf* Str
     return r;
 }
 
-LQ_EXTERN_C size_t LQ_CALL LqHttpConnSkip(LqHttpConn* c, size_t Count)
-{
+LQ_EXTERN_C size_t LQ_CALL LqHttpConnSkip(LqHttpConn* c, size_t Count) {
     size_t r;
 #if defined(HAVE_OPENSSL)
     if(c->ssl)
@@ -308,13 +274,10 @@ LQ_EXTERN_C size_t LQ_CALL LqHttpConnSkip(LqHttpConn* c, size_t Count)
     return r;
 }
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataStore(LqHttpConn* c, const void* Name, const void* Value)
-{
+LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataStore(LqHttpConn* c, const void* Name, const void* Value) {
     auto UserData = c->UserData;
-    for(unsigned short i = 0; i < c->UserDataCount; i++)
-    {
-        if(UserData[i].Name == Name)
-        {
+    for(unsigned short i = 0; i < c->UserDataCount; i++) {
+        if(UserData[i].Name == Name) {
             UserData[i].Data = (void*)Value;
             return c->UserDataCount;
         }
@@ -330,13 +293,10 @@ LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataStore(LqHttpConn* c, const void* Name,
     return c->UserDataCount;
 }
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataGet(const LqHttpConn* c, const void* Name, void** Value)
-{
+LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataGet(const LqHttpConn* c, const void* Name, void** Value) {
     auto UserData = c->UserData;
-    for(unsigned short i = 0; i < c->UserDataCount; i++)
-    {
-        if(UserData[i].Name == Name)
-        {
+    for(unsigned short i = 0; i < c->UserDataCount; i++) {
+        if(UserData[i].Name == Name) {
             *Value = UserData[i].Data;
             return 1;
         }
@@ -344,13 +304,10 @@ LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataGet(const LqHttpConn* c, const void* N
     return 0;
 }
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataUnstore(LqHttpConn* c, const void* Name)
-{
+LQ_IMPORTEXPORT int LQ_CALL LqHttpConnDataUnstore(LqHttpConn* c, const void* Name) {
     auto UserData = c->UserData;
-    for(unsigned short i = 0; i < c->UserDataCount; i++)
-    {
-        if(UserData[i].Name == Name)
-        {
+    for(unsigned short i = 0; i < c->UserDataCount; i++) {
+        if(UserData[i].Name == Name) {
             c->UserDataCount--;
             UserData[i] = UserData[c->UserDataCount];
             c->UserData = LqFastAlloc::ReallocCount<LqHttpUserData>(UserData, c->UserDataCount + 1, c->UserDataCount);

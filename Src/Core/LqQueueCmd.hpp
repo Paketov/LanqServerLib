@@ -27,18 +27,15 @@
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
 template<typename TypeCommand>
-class LqQueueCmd
-{
+class LqQueueCmd {
     /*POD Structures*/
-    struct ElementHeader
-    {
+    struct ElementHeader {
         ElementHeader*          Next;
         TypeCommand             Type;
     };
 
     template<typename TypeVal>
-    struct Element
-    {
+    struct Element {
         ElementHeader           Header;
         TypeVal                 Value;
     };
@@ -47,10 +44,8 @@ class LqQueueCmd
     mutable LqLocker<size_t>    Locker;
 public:
 
-    struct Interator
-    {
-        class
-        {
+    struct Interator {
+        class {
             friend LqQueueCmd;
             friend Interator;
             ElementHeader* Cmd;
@@ -123,8 +118,7 @@ public:
     template<typename ValType>
     bool PushBegin(TypeCommand tCommand, ValType Val);
 
-    Interator SeparateBegin()
-    {
+    Interator SeparateBegin() {
         Interator i;
         Locker.LockWriteYield();
         i.Type.Cmd = Begin;
@@ -132,8 +126,7 @@ public:
         return i;
     }
 
-    void SeparatePush(Interator& Source)
-    {
+    void SeparatePush(Interator& Source) {
         ElementHeader* NewCommand = Source.Type.Cmd;
         Source.Type.Cmd = Source.Type.Cmd->Next;
         NewCommand->Next = nullptr;
@@ -144,10 +137,8 @@ public:
         End = NewCommand;
     }
 
-    bool SeparateIsEnd(Interator& Source)
-    {
-        if(!Source)
-        {
+    bool SeparateIsEnd(Interator& Source) {
+        if(!Source) {
             Locker.UnlockWrite();
             return true;
         }
@@ -166,46 +157,40 @@ public:
 #include "LqAlloc.hpp"
 
 template<typename TypeCommand>
-inline LqQueueCmd<TypeCommand>::Interator::operator bool() const
-{
+inline LqQueueCmd<TypeCommand>::Interator::operator bool() const {
     return Type.Cmd != nullptr;
 }
 
 template<typename TypeCommand>
 template<typename ValType>
-inline ValType& LqQueueCmd<TypeCommand>::Interator::Val()
-{
+inline ValType& LqQueueCmd<TypeCommand>::Interator::Val() {
     return ((Element<ValType>*)Type.Cmd)->Value;
 }
 
 template<typename TypeCommand>
 template<typename ValType>
-void LqQueueCmd<TypeCommand>::Interator::Pop()
-{
+void LqQueueCmd<TypeCommand>::Interator::Pop() {
     Element<ValType>* DelCommand = (Element<ValType>*)Type.Cmd;
     Type.Cmd = Type.Cmd->Next;
     LqFastAlloc::Delete(DelCommand);
 }
 
 template<typename TypeCommand>
-void LqQueueCmd<TypeCommand>::Interator::Pop()
-{
+void LqQueueCmd<TypeCommand>::Interator::Pop() {
     ElementHeader* DelCommand = Type.Cmd;
     Type.Cmd = Type.Cmd->Next;
     LqFastAlloc::Delete(DelCommand);
 }
 
 template<typename TypeCommand>
-void LqQueueCmd<TypeCommand>::Interator::JustPop()
-{
+void LqQueueCmd<TypeCommand>::Interator::JustPop() {
     ElementHeader* DelCommand = Type.Cmd;
     Type.Cmd = Type.Cmd->Next;
     LqFastAlloc::JustDelete(DelCommand);
 }
 
 template<typename TypeCommand>
-typename LqQueueCmd<TypeCommand>::Interator LqQueueCmd<TypeCommand>::Fork()
-{
+typename LqQueueCmd<TypeCommand>::Interator LqQueueCmd<TypeCommand>::Fork() {
     Interator i;
     Locker.LockWriteYield();
     i.Type.Cmd = Begin;
@@ -215,16 +200,13 @@ typename LqQueueCmd<TypeCommand>::Interator LqQueueCmd<TypeCommand>::Fork()
 }
 
 template<typename TypeCommand>
-LqQueueCmd<TypeCommand>::LqQueueCmd()
-{
+LqQueueCmd<TypeCommand>::LqQueueCmd() {
     Begin = End = nullptr;
 }
 
 template<typename TypeCommand>
-LqQueueCmd<TypeCommand>::~LqQueueCmd()
-{
-    for(auto i = Begin; i != nullptr; )
-    {
+LqQueueCmd<TypeCommand>::~LqQueueCmd() {
+    for(auto i = Begin; i != nullptr; ) {
         auto Type = i;
         i = i->Next;
         LqFastAlloc::JustDelete(Type);
@@ -232,12 +214,10 @@ LqQueueCmd<TypeCommand>::~LqQueueCmd()
 }
 
 template<typename TypeCommand>
-bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand)
-{
+bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand) {
     auto NewCommand = LqFastAlloc::New<ElementHeader>();
-    if(NewCommand == nullptr)
-    {
-        LQ_ERR("LqQueueCmd<TypeCommand>::Push() not alloc memory\n");
+    if(NewCommand == nullptr) {
+        LQ_LOG_ERR("LqQueueCmd<TypeCommand>::Push() not alloc memory\n");
         return false;
     }
     NewCommand->Next = nullptr;
@@ -255,12 +235,10 @@ bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand)
 
 template<typename TypeCommand>
 template<typename ValType>
-bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand, ValType Val)
-{
+bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand, ValType Val) {
     auto NewCommand = LqFastAlloc::New<Element<ValType>>();
-    if(NewCommand == nullptr)
-    {
-        LQ_ERR("LqQueueCmd<TypeCommand>::Push<ValType>() not alloc memory\n");
+    if(NewCommand == nullptr) {
+        LQ_LOG_ERR("LqQueueCmd<TypeCommand>::Push<ValType>() not alloc memory\n");
         return false;
     }
     NewCommand->Header.Next = nullptr;
@@ -280,12 +258,10 @@ bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand, ValType Val)
 
 template<typename TypeCommand>
 template<typename ValType>
-bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand, ValType Val)
-{
+bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand, ValType Val) {
     auto NewCommand = LqFastAlloc::New<Element<ValType>>();
-    if(NewCommand == nullptr)
-    {
-        LQ_ERR("LqQueueCmd<TypeCommand>::PushBegin<ValType>() not alloc memory\n");
+    if(NewCommand == nullptr) {
+        LQ_LOG_ERR("LqQueueCmd<TypeCommand>::PushBegin<ValType>() not alloc memory\n");
         return false;
     }
     NewCommand->Header.Type = tCommand;
@@ -301,12 +277,10 @@ bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand, ValType Val)
 }
 
 template<typename TypeCommand>
-bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand)
-{
+bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand) {
     auto NewCommand = LqFastAlloc::New<ElementHeader>();
-    if(NewCommand == nullptr)
-    {
-        LQ_ERR("LqQueueCmd<TypeCommand>::PushBegin() not alloc memory\n");
+    if(NewCommand == nullptr) {
+        LQ_LOG_ERR("LqQueueCmd<TypeCommand>::PushBegin() not alloc memory\n");
         return false;
     }
     NewCommand->Type = tCommand;

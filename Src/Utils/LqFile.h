@@ -15,18 +15,17 @@
 
 #ifdef LQPLATFORM_POSIX
 # include <poll.h>
+# include <pthread.h>
 
 # ifdef LQ_ASYNC_IO_NOT_HAVE
-typedef struct LqAsync
-{
+typedef struct LqAsync {
     char __empty;
 } LqAsync;
 # else
 
 #  include <aio.h>
 
-typedef struct LqAsync
-{
+typedef struct LqAsync {
     bool IsNonBlock;
     int EvFd;
     aiocb cb;
@@ -60,18 +59,15 @@ LQ_EXTERN_C_END
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-typedef struct LqFilePoll
-{
+typedef struct LqFilePoll {
     int   fd;         /* file descriptor */
     short events;     /* requested events */
     short revents;    /* returned events */
 } LqFilePoll;
 #pragma pack(pop)
 
-typedef struct LqAsync
-{
-    union
-    {
+typedef struct LqAsync {
+    union {
         long        Status;
         void*       Pointer;
     };
@@ -102,8 +98,7 @@ LQ_EXTERN_C_BEGIN
 #define LQ_STDOUT STDOUT_FILENO
 #define LQ_STDIN  STDIN_FILENO
 
-enum
-{
+enum {
     LQDIREVNT_ADDED = 1,
     LQDIREVNT_RM = 2,
     LQDIREVNT_MOD = 4,
@@ -115,8 +110,15 @@ enum
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-typedef struct LqFileStat
-{
+typedef struct LqMutex {
+#ifdef LQPLATFORM_POSIX
+    pthread_mutex_t m;
+#else
+    void* m;
+#endif
+};
+
+typedef struct LqFileStat {
     uint8_t             Type;
     uint16_t            Access;
 
@@ -133,8 +135,7 @@ typedef struct LqFileStat
     short               Uid;
 } LqFileStat;
 
-typedef struct LqFileEnm
-{
+typedef struct LqFileEnm {
     uintptr_t Hndl;
     char* Internal;
 } LqFileEnm;
@@ -143,14 +144,12 @@ typedef struct LqFileEnm
 * LqFilePathEvnt
 */
 
-typedef struct LqFilePathEvnt
-{
+typedef struct LqFilePathEvnt {
     int Fd; /*This event can use in LqEvnt or LqFilePoll*/
 
     /*Internal data*/
 #if defined(LQPLATFORM_WINDOWS)
-    struct
-    {
+    struct {
         int           DirFd;
         bool          IsSubtree;
         unsigned long NotifyFilter;
@@ -158,10 +157,8 @@ typedef struct LqFilePathEvnt
         size_t        DirNameLen;
         char*         Buffer;
         size_t        BufferSize;
-        struct
-        {
-            union
-            {
+        struct {
+            union {
                 long  Status;
                 void* Pointer;
             };
@@ -170,13 +167,11 @@ typedef struct LqFilePathEvnt
 
     } _Data;
 #else
-    struct Subdir
-    {
+    struct Subdir {
         int                     Pwd;
         char*                   Name;
     };
-    struct
-    {
+    struct {
         char*                   Name;
         struct Subdir*          Subdirs;
         size_t                  SubdirsCount;
@@ -192,8 +187,7 @@ typedef struct LqFilePathEvnt
 struct LqFilePathEvntEnm;
 typedef struct LqFilePathEvntEnm LqFilePathEvntEnm;
 
-struct LqFilePathEvntEnm
-{
+struct LqFilePathEvntEnm {
     LqFilePathEvntEnm*  Next;
     uint8_t             Flag;
     char                Name[1];
@@ -396,6 +390,10 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileDescrSetInherit(int Descriptor, int IsInherit)
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFileDescrDupToStd(int Descriptor, int StdNo);
 
+LQ_IMPORTEXPORT bool LQ_CALL LqFileIsTerminal(int Fd);
+
+LQ_IMPORTEXPORT bool LQ_CALL LqFileIsSocket(int Fd);
+
 /*------------------------------------------
 * Process
 * LqFileProcessCreate
@@ -420,7 +418,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileProcessCreate(
     int StdOut,
     int StdErr,
     int* lqaopt lqaout EventKill,
-	bool IsOwnerGroup
+    bool IsOwnerGroup
 );
 /*
 * LqFileProcessKill
@@ -513,6 +511,12 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileSharedOpen(int key, size_t Size, int DscrFlags
 LQ_IMPORTEXPORT void* LQ_CALL LqFileSharedAt(int shmid, void* lqain lqaopt BaseAddress);
 LQ_IMPORTEXPORT int LQ_CALL LqFileSharedUnmap(void* lqain addr);
 LQ_IMPORTEXPORT int LQ_CALL LqFileSharedClose(int shmid);
+
+LQ_IMPORTEXPORT bool LQ_CALL LqMutexCreate(LqMutex* lqaout Dest);
+LQ_IMPORTEXPORT bool LQ_CALL LqMutexTryLock(LqMutex* lqaio Dest);
+LQ_IMPORTEXPORT bool LQ_CALL LqMutexLock(LqMutex* lqaio Dest);
+LQ_IMPORTEXPORT bool LQ_CALL LqMutexUnlock(LqMutex* lqaio Dest);
+LQ_IMPORTEXPORT bool LQ_CALL LqMutexClose(LqMutex* lqain Dest);
 
 LQ_EXTERN_C_END
 

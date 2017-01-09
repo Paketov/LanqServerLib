@@ -14,35 +14,28 @@
 #pragma pack(1)
 
 template<typename NumT, bool ByteOrderBigEndiean>
-class LqByteOrderNum
-{
+class LqByteOrderNum {
     NumT val;
 public:
     typedef NumT Type;
-    operator NumT() const
-    {
+    operator NumT() const {
         NumT v;
-        if(ByteOrderBigEndiean)
-        {
+        if(ByteOrderBigEndiean) {
             for(intptr_t i = 0; i < sizeof(NumT); i++)
                 v = (v << 8) | ((uint8_t*)&val)[i];
-        } else
-        {
+        } else {
             for(intptr_t i = sizeof(NumT) - 1; i >= 0; i--)
                 v = (v << 8) | ((uint8_t*)&val)[i];
         }
         return v;
     }
 
-    NumT operator=(NumT n)
-    {
+    NumT operator=(NumT n) {
         NumT v = n;
-        if(ByteOrderBigEndiean)
-        {
+        if(ByteOrderBigEndiean) {
             for(intptr_t i = sizeof(NumT) - 1; i >= 0; i--, v >>= 8)
                 ((uint8_t*)&val)[i] = v & 0xff;
-        } else
-        {
+        } else {
             for(intptr_t i = 0; i < sizeof(NumT); i++, v >>= 8)
                 ((uint8_t*)&val)[i] = v & 0xff;
         }
@@ -51,8 +44,7 @@ public:
 };
 
 template<typename NumT, size_t BitOff, size_t BitLen>
-class LqBitField
-{
+class LqBitField {
     NumT val;
     static const NumT Filt1 = (NumT(-1) >> BitOff) & (NumT(-1) << ((sizeof(NumT) * 8) - (BitOff + BitLen)));
     static const NumT Filt2 = ~Filt1;
@@ -63,8 +55,7 @@ public:
 };
 
 template<typename T, bool ByteOrderBigEndiean, size_t BitOff, size_t BitLen>
-class LqBitField<LqByteOrderNum<T, ByteOrderBigEndiean>, BitOff, BitLen>
-{
+class LqBitField<LqByteOrderNum<T, ByteOrderBigEndiean>, BitOff, BitLen> {
     LqByteOrderNum<T, ByteOrderBigEndiean> val;
     static const T Filt1 = (T(-1) >> BitOff) & (T(-1) << ((sizeof(T) * 8) - (BitOff + BitLen)));
     static const T Filt2 = ~Filt1;
@@ -74,23 +65,21 @@ public:
     T operator=(T n) { val = (val & Filt2) | (Filt1 & (n << ShrB)); return n; }
 };
 
-struct ipheader
-{
-    union
-    {
+/* This is POD structures !*/
+
+struct ipheader {
+    union {
         LqBitField<LqByteOrderNum<uint8_t, true>, 0, 4> version;
         LqBitField<LqByteOrderNum<uint8_t, true>, 4, 4> ihl;
     };
-    union
-    {
+    union {
         LqBitField<LqByteOrderNum<uint8_t, true>, 0, 6> dscp;
         LqBitField<LqByteOrderNum<uint8_t, true>, 6, 2> ecn;
     };
 
     LqByteOrderNum<uint16_t, true> len;
     LqByteOrderNum<uint16_t, true> id;
-    union
-    {
+    union {
         LqBitField<LqByteOrderNum<uint16_t, true>, 0, 1> reserv;
         LqBitField<LqByteOrderNum<uint16_t, true>, 1, 1> nofr;
         LqBitField<LqByteOrderNum<uint16_t, true>, 2, 1> hasfr;
@@ -103,9 +92,8 @@ struct ipheader
     LqByteOrderNum<uint32_t, true> daddr;
 
 
-    int ToString(char* DestBuf, size_t DestBufSize)
-    {
-        return snprintf(
+    int ToString(char* DestBuf, size_t DestBufSize) {
+        return LqFwbuf_snprintf(
             DestBuf,
             DestBufSize,
             "version: %u\n"
@@ -144,8 +132,7 @@ struct ipheader
         );
     }
 
-    void ComputeChecksum()
-    {
+    void ComputeChecksum() {
         check = 0;
         unsigned long sum = 0;
         size_t count = ihl * 4;
@@ -161,14 +148,12 @@ struct ipheader
 };
 
 
-struct tcphdr
-{
+struct tcphdr {
     LqByteOrderNum<uint16_t, true> source;
     LqByteOrderNum<uint16_t, true> dest;
     LqByteOrderNum<uint32_t, true> seq;
     LqByteOrderNum<uint32_t, true> ack_seq;
-    union
-    {
+    union {
         LqBitField<LqByteOrderNum<uint16_t, true>, 0, 4> thl;
         LqBitField<LqByteOrderNum<uint16_t, true>, 4, 3> res1;
         LqBitField<LqByteOrderNum<uint16_t, true>, 7, 1> ns;
@@ -186,9 +171,8 @@ struct tcphdr
     LqByteOrderNum<uint16_t, true>   check;
     LqByteOrderNum<uint16_t, true>   urg_ptr;
 
-    int ToString(char* DestBuf, size_t DestBufSize)
-    {
-        return snprintf(
+    int ToString(char* DestBuf, size_t DestBufSize) {
+        return LqFwbuf_snprintf(
             DestBuf,
             DestBufSize,
             "source: %u\n"
@@ -222,21 +206,18 @@ struct tcphdr
     }
 
 
-    void ComputeChecksum(ipheader *iph, size_t DataLen = 0, void* Data = nullptr)
-    {
+    void ComputeChecksum(ipheader *iph, size_t DataLen = 0, void* Data = nullptr) {
         const uint16_t *buf = (uint16_t*)this;
         uint32_t sum = 0;
         int len = thl * 4;
         *(uint16_t*)&check = 0;
         for(; len > 1; len -= 2)
             sum += *(buf++);
-        if(Data == nullptr)
-        {
+        if(Data == nullptr) {
             len = DataLen;
             for(; len > 1; len -= 2)
                 sum += *(buf++);
-        } else
-        {
+        } else {
             if(len == 1)
                 sum += *((uint8_t *)(buf++));
             len = DataLen;
@@ -256,8 +237,7 @@ struct tcphdr
             sum = (sum & 0xFFFF) + (sum >> 16);
         *(uint16_t*)&check = (uint16_t)(~sum);
     }
-    void ComputeChecksum(size_t DataLen = 0, void* Data = nullptr)
-    {
+    void ComputeChecksum(size_t DataLen = 0, void* Data = nullptr) {
         const uint16_t *buf = (uint16_t*)this;
         uint32_t sum = 0;
         int len = thl * 4;
@@ -265,12 +245,10 @@ struct tcphdr
         for(; len > 1; len -= 2)
             sum += *(buf++);
         len = DataLen;
-        if(Data == nullptr)
-        {
+        if(Data == nullptr) {
             for(; len > 1; len -= 2)
                 sum += *(buf++);
-        } else
-        {
+        } else {
             if(len == 1)
                 sum += *((uint8_t *)(buf++));
             buf = (uint16_t*)Data;
@@ -287,16 +265,14 @@ struct tcphdr
 };
 
 
-struct udphdr
-{
+struct udphdr {
     LqByteOrderNum<uint16_t, true> source;
     LqByteOrderNum<uint16_t, true> dest;
     LqByteOrderNum<uint16_t, true> len;
     LqByteOrderNum<uint16_t, true> check;
 
-    int ToString(char* DestBuf, size_t DestBufSize)
-    {
-        return snprintf(
+    int ToString(char* DestBuf, size_t DestBufSize) {
+        return LqFwbuf_snprintf(
             DestBuf,
             DestBufSize,
             "source: %u\n"
@@ -311,21 +287,18 @@ struct udphdr
     }
 
 
-    void ComputeChecksum(ipheader *iph, size_t DataLen = 0, void* Data = nullptr)
-    {
+    void ComputeChecksum(ipheader *iph, size_t DataLen = 0, void* Data = nullptr) {
         const uint16_t *buf = (uint16_t*)this;
         uint32_t sum = 0;
         int len = sizeof(udphdr);
         *(uint16_t*)&check = 0;
         for(; len > 1; len -= 2)
             sum += *(buf++);
-        if(Data == nullptr)
-        {
+        if(Data == nullptr) {
             len = DataLen;
             for(; len > 1; len -= 2)
                 sum += *(buf++);
-        } else
-        {
+        } else {
             if(len == 1)
                 sum += *((uint8_t *)(buf++));
             len = DataLen;
@@ -345,8 +318,7 @@ struct udphdr
             sum = (sum & 0xFFFF) + (sum >> 16);
         *(uint16_t*)&check = (uint16_t)(~sum);
     }
-    void ComputeChecksum(size_t DataLen = 0, void* Data = nullptr)
-    {
+    void ComputeChecksum(size_t DataLen = 0, void* Data = nullptr) {
         const uint16_t *buf = (uint16_t*)this;
         uint32_t sum = 0;
         int len = sizeof(udphdr);
@@ -354,12 +326,10 @@ struct udphdr
         for(; len > 1; len -= 2)
             sum += *(buf++);
         len = DataLen;
-        if(Data == nullptr)
-        {
+        if(Data == nullptr) {
             for(; len > 1; len -= 2)
                 sum += *(buf++);
-        } else
-        {
+        } else {
             if(len == 1)
                 sum += *((uint8_t *)(buf++));
             buf = (uint16_t*)Data;
@@ -375,21 +345,18 @@ struct udphdr
     }
 };
 
-struct icmphdr
-{
+struct icmphdr {
     uint8_t type;
     uint8_t code;
     LqByteOrderNum<uint16_t, true>   check;
 
-    struct
-    {
+    struct {
         LqByteOrderNum<uint16_t, true> id;
         LqByteOrderNum<uint16_t, true> seq;
         char data[1];
     } echo;
 
-    void ComputeChecksum(size_t CommonLen)
-    {
+    void ComputeChecksum(size_t CommonLen) {
         *(uint16_t*)&check = 0;
         int sum = 0;
         size_t count = CommonLen;

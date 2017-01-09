@@ -19,8 +19,7 @@ LQ_EXTERN_C_BEGIN
 
 LQ_IMPORTEXPORT LqHttpAtz* LQ_CALL LqHttpAtzCreate(LqHttpAtzTypeEnm AuthType, const char* lqain lqautf8 Realm);
 
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpAtzAdd
-(
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpAtzAdd(
     LqHttpAtz* lqaio NetAutoriz,
     uint8_t AccessMask,
     const char* lqain lqautf8 UserName,

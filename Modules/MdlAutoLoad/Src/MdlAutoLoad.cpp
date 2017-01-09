@@ -21,10 +21,8 @@
 
 static void LoadModule(const char* ModuleFileName);
 
-static LqString ReadPath(LqString& Source)
-{
-    if(Source[0] == '\"')
-    {
+static LqString ReadPath(LqString& Source) {
+    if(Source[0] == '\"') {
         auto Off = Source.find('\"', 1);
         if(Off == LqString::npos)
             return "";
@@ -33,8 +31,7 @@ static LqString ReadPath(LqString& Source)
         while((Source[0] == ' ') || ((Source[0] == '\t')))
             Source.erase(0, 1);
         return ret;
-    } else
-    {
+    } else {
         auto Off = Source.find_first_of("\t\r\n ");
         auto ret = Source.substr(0, Off);
         Source.erase(0, Off);
@@ -44,14 +41,11 @@ static LqString ReadPath(LqString& Source)
     }
 }
 
-static LqString ReadParams(LqString& Source, const char * Params)
-{
-    if((Source[0] == '-') && strchr(Params, Source[1]))
-    {
+static LqString ReadParams(LqString& Source, const char * Params) {
+    if((Source[0] == '-') && LqStrChr(Params, Source[1])) {
         LqString Res;
         Source.erase(0, 1);
-        while((Source[0] != '\0') && (strchr(Params, Source[0]) != nullptr))
-        {
+        while((Source[0] != '\0') && (LqStrChr(Params, Source[0]) != nullptr)) {
             Res += Source[0];
             Source.erase(0, 1);
         }
@@ -63,8 +57,7 @@ static LqString ReadParams(LqString& Source, const char * Params)
 }
 
 
-class LqMdlPathFollowTask
-{
+class LqMdlPathFollowTask {
 public:
     LqEvntFd                     TimerFd;
     std::vector<LqFilePathEvnt*> Dirs;
@@ -72,8 +65,7 @@ public:
     LqLocker<uintptr_t>          PathsLocker;
     LqLocker<uintptr_t>          ModuleLocker;
     LqHttpProtoBase*             RegDest;
-    struct Module
-    {
+    struct Module {
         LqString        ModuleName;
         uintptr_t       Handle;
     };
@@ -82,39 +74,30 @@ public:
 
 
 
-    static void WorkingMethod(LqEvntFd* Fd, LqEvntFlag RetFlags)
-    {
+    static void WorkingMethod(LqEvntFd* Fd, LqEvntFlag RetFlags) {
         LqFileTimerSet(Fd->Fd, 3000);
 
         LqFilePathEvntEnm* Paths = nullptr;
         auto Ft = (LqMdlPathFollowTask*)Fd->UserData;
         Ft->PathsLocker.LockWriteYield();
         int CountEvents = LqFilePollCheck(Ft->DirsPoll.data(), Ft->DirsPoll.size(), 2);
-        if(CountEvents <= 0)
-        {
+        if(CountEvents <= 0) {
             Ft->PathsLocker.UnlockWrite();
             return;
         }
 
-        for(size_t i = 0; i < Ft->DirsPoll.size(); i++)
-        {
+        for(size_t i = 0; i < Ft->DirsPoll.size(); i++) {
             if(!(Ft->DirsPoll[i].events & LQEVNT_FLAG_RD))
                 continue;
             LqFilePathEvntDoEnum(Ft->Dirs[i], &Paths);
-            for(auto j = Paths; j != nullptr; j = j->Next)
-            {
-                if(j->Flag & (LQDIREVNT_ADDED | LQDIREVNT_MOVE_TO))
-                {
+            for(auto j = Paths; j != nullptr; j = j->Next) {
+                if(j->Flag & (LQDIREVNT_ADDED | LQDIREVNT_MOVE_TO)) {
                     LoadModule(j->Name);
-                } else if(j->Flag & (LQDIREVNT_RM | LQDIREVNT_MOVE_FROM))
-                {
+                } else if(j->Flag & (LQDIREVNT_RM | LQDIREVNT_MOVE_FROM)) {
                     Ft->ModuleLocker.LockWrite();
-                    for(unsigned i = 0; i < Ft->Modules.size(); i++)
-                    {
-                        if(LqStrSame(Ft->Modules[i].ModuleName.c_str(), j->Name))
-                        {
-                            if(LqHttpMdlFreeByHandle(Ft->RegDest, Ft->Modules[i].Handle) > -1)
-                            {
+                    for(unsigned i = 0; i < Ft->Modules.size(); i++) {
+                        if(LqStrSame(Ft->Modules[i].ModuleName.c_str(), j->Name)) {
+                            if(LqHttpMdlFreeByHandle(Ft->RegDest, Ft->Modules[i].Handle) > -1) {
                                 Ft->Modules[i] = Ft->Modules[Ft->Modules.size() - 1];
                                 Ft->Modules.pop_back();
                             }
@@ -132,12 +115,10 @@ public:
 static LqHttpMdl Mod;
 static LqMdlPathFollowTask Task;
 
-static void LoadModule(const char* ModuleFileName)
-{
+static void LoadModule(const char* ModuleFileName) {
     uintptr_t Handle;
     Task.ModuleLocker.LockWrite();
-    if(LqHttpMdlLoad(Task.RegDest, ModuleFileName, nullptr, &Handle) == LQHTTPMDL_LOAD_OK)
-    {
+    if(LqHttpMdlLoad(Task.RegDest, ModuleFileName, nullptr, &Handle) == LQHTTPMDL_LOAD_OK) {
         Task.Modules.push_back(LqMdlPathFollowTask::Module());
         auto& Val = Task.Modules[Task.Modules.size() - 1];
         Val.Handle = Handle;
@@ -146,22 +127,19 @@ static void LoadModule(const char* ModuleFileName)
     Task.ModuleLocker.UnlockWrite();
 }
 
-static void LoadAllModulesFromDir(const char * Dir, bool IsSubdir)
-{
+static void LoadAllModulesFromDir(const char * Dir, bool IsSubdir) {
     LqFileEnm DirEnm;
     char FileName[32768];
     uint8_t Flag;
 
-    for(auto r = LqFileEnmStart(&DirEnm, Dir, FileName, sizeof(FileName) - 1, &Flag); r != -1; r = LqFileEnmNext(&DirEnm, FileName, sizeof(FileName) - 1, &Flag))
-    {
+    for(auto r = LqFileEnmStart(&DirEnm, Dir, FileName, sizeof(FileName) - 1, &Flag); r != -1; r = LqFileEnmNext(&DirEnm, FileName, sizeof(FileName) - 1, &Flag)) {
         if(LqStrSame(FileName, ".") || LqStrSame(FileName, ".."))
             continue;
         LqString ModuleFileName = Dir;
         if(ModuleFileName[ModuleFileName.length() - 1] != LQ_PATH_SEPARATOR)
             ModuleFileName.append(1, LQ_PATH_SEPARATOR);
         ModuleFileName += FileName;
-        if(Flag == LQ_F_DIR)
-        {
+        if(Flag == LQ_F_DIR) {
             if(IsSubdir)
                 LoadAllModulesFromDir(ModuleFileName.c_str(), IsSubdir);
             continue;
@@ -170,20 +148,16 @@ static void LoadAllModulesFromDir(const char * Dir, bool IsSubdir)
     }
 }
 
-static void UnloadAllModules(const char * DirName)
-{
+static void UnloadAllModules(const char * DirName) {
     auto l = LqStrLen(DirName);
     Task.ModuleLocker.LockWrite();
-    for(unsigned i = 0; i < Task.Modules.size(); i++)
-    {
+    for(unsigned i = 0; i < Task.Modules.size(); i++) {
         if(
             (LQ_PATH_SEPARATOR == '\\') ?
             LqStrUtf8CmpCaseLen(Task.Modules[i].ModuleName.c_str(), DirName, l) :
             LqStrSameMax(Task.Modules[i].ModuleName.c_str(), DirName, l)
-            )
-        {
-            if(LqHttpMdlFreeByHandle(Task.RegDest, Task.Modules[i].Handle) > -1)
-            {
+            ) {
+            if(LqHttpMdlFreeByHandle(Task.RegDest, Task.Modules[i].Handle) > -1) {
                 Task.Modules[i] = Task.Modules[Task.Modules.size() - 1];
                 Task.Modules.pop_back();
             }
@@ -192,13 +166,10 @@ static void UnloadAllModules(const char * DirName)
     Task.ModuleLocker.UnlockWrite();
 }
 
-static void UnloadAllModules()
-{
+static void UnloadAllModules() {
     Task.ModuleLocker.LockWrite();
-    for(unsigned i = 0; i < Task.Modules.size(); i++)
-    {
-        if(LqHttpMdlFreeByHandle(Task.RegDest, Task.Modules[i].Handle) > -1)
-        {
+    for(unsigned i = 0; i < Task.Modules.size(); i++) {
+        if(LqHttpMdlFreeByHandle(Task.RegDest, Task.Modules[i].Handle) > -1) {
             Task.Modules[i] = Task.Modules[Task.Modules.size() - 1];
             Task.Modules.pop_back();
         }
@@ -206,26 +177,21 @@ static void UnloadAllModules()
     Task.ModuleLocker.UnlockWrite();
 }
 
-LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHttpProtoBase* Reg, uintptr_t ModuleHandle, const char* LibPath, void* UserData)
-{
+LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHttpProtoBase* Reg, uintptr_t ModuleHandle, const char* LibPath, void* UserData) {
     LqHttpMdlInit(Reg, &Mod, "MdlAutoLoad", ModuleHandle);
 
     Mod.ReciveCommandProc =
-        [](LqHttpMdl* Mdl, const char* Command, void* Data)
-    {
-        FILE* OutBuffer = nullptr;
+        [](LqHttpMdl* Mdl, const char* Command, void* Data) {
+        LqFbuf* OutBuffer = nullptr;
         LqString FullCommand;
-        if(Command[0] == '?')
-        {
+        if(Command[0] == '?') {
             FullCommand = Command + 1;
-            OutBuffer = (FILE*)Data;
-        } else
-        {
+            OutBuffer = (LqFbuf*)Data;
+        } else {
             FullCommand = Command;
         }
         LqString Cmd;
-        while((FullCommand[0] != ' ') && (FullCommand[0] != '\0') && (FullCommand[0] != '\t'))
-        {
+        while((FullCommand[0] != ' ') && (FullCommand[0] != '\0') && (FullCommand[0] != '\t')) {
             Cmd.append(1, FullCommand[0]);
             FullCommand.erase(0, 1);
         }
@@ -233,19 +199,16 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
             FullCommand.erase(0, 1);
 
 
-        LQSTR_SWITCH(Cmd.c_str())
-        {
-            LQSTR_CASE("mkdir")
-            {
+        LQSTR_SWITCH(Cmd.c_str()) {
+            LQSTR_CASE("mkdir") {
                 LqString Params = ReadParams(FullCommand, "lr");
                 LqString Path = ReadPath(FullCommand);
 
 
                 auto DirEvent = LqFastAlloc::New<LqFilePathEvnt>();
-                if(DirEvent == nullptr)
-                {
+                if(DirEvent == nullptr) {
                     if(OutBuffer)
-                        fprintf(OutBuffer, " [MdlAutoLoad] ERROR: path not added (not mem alloc)\n");
+                        LqFbuf_printf(OutBuffer, " [MdlAutoLoad] ERROR: path not added (not mem alloc)\n");
                     break;
                 }
                 auto r = LqFilePathEvntCreate
@@ -254,10 +217,9 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                     Path.c_str(),
                     LQDIREVNT_MOVE_TO | LQDIREVNT_MOVE_FROM | LQDIREVNT_ADDED | LQDIREVNT_RM | ((Params.find_first_of('r') != LqString::npos) ? LQDIREVNT_SUBTREE : 0)
                 );
-                if(r == -1)
-                {
+                if(r == -1) {
                     if(OutBuffer)
-                        fprintf(OutBuffer, " [MdlAutoLoad] ERROR: path not added\n");
+                        LqFbuf_printf(OutBuffer, " [MdlAutoLoad] ERROR: path not added\n");
                     break;
                 }
 
@@ -276,21 +238,18 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                 if(Params.find_first_of('l') != LqString::npos)
                     LoadAllModulesFromDir(Path.c_str(), Params.find_first_of('r') != LqString::npos);
                 if(OutBuffer)
-                    fprintf(OutBuffer, " [MdlAutoLoad] OK\n");
+                    LqFbuf_printf(OutBuffer, " [MdlAutoLoad] OK\n");
             }
             break;
-            LQSTR_CASE("rmdir")
-            {
+            LQSTR_CASE("rmdir") {
                 LqString Params = ReadParams(FullCommand, "u");
                 LqString Path = ReadPath(FullCommand);
                 int CountDeleted = 0;
                 Task.PathsLocker.LockWrite();
-                for(size_t i = 0; i < Task.Dirs.size(); i++)
-                {
+                for(size_t i = 0; i < Task.Dirs.size(); i++) {
                     char DestName[LQ_MAX_PATH];
                     LqFilePathEvntGetName(Task.Dirs[i], DestName, sizeof(DestName) - 1);
-                    if(LqStrSame(DestName, Path.c_str()))
-                    {
+                    if(LqStrSame(DestName, Path.c_str())) {
                         LqFilePathEvntFree(Task.Dirs[i]);
                         LqFastAlloc::Delete(Task.Dirs[i]);
                         Task.Dirs[i] = Task.Dirs[Task.Dirs.size() - 1];
@@ -302,31 +261,27 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                 }
                 Task.PathsLocker.Unlock();
 
-                if(CountDeleted > 0)
-                {
+                if(CountDeleted > 0) {
                     if(Params.find_first_of('u') != LqString::npos)
                         UnloadAllModules(Path.c_str());
                     if(OutBuffer)
-                        fprintf(OutBuffer, " [MdlAutoLoad] OK (removed %i count)\n", CountDeleted);
-                } else
-                {
+                        LqFbuf_printf(OutBuffer, " [MdlAutoLoad] OK (removed %i count)\n", CountDeleted);
+                } else {
                     if(OutBuffer)
-                        fprintf(OutBuffer, " [MdlAutoLoad] ERROR: not found path\n");
+                        LqFbuf_printf(OutBuffer, " [MdlAutoLoad] ERROR: not found path\n");
                 }
             }
             break;
-            LQSTR_CASE("rmmdls")
-            {
+            LQSTR_CASE("rmmdls") {
                 UnloadAllModules();
                 if(OutBuffer)
-                    fprintf(OutBuffer, " [MdlAutoLoad] OK\n");
+                    LqFbuf_printf(OutBuffer, " [MdlAutoLoad] OK\n");
             }
             break;
             LQSTR_CASE("?")
-            LQSTR_CASE("help")
-            {
+                LQSTR_CASE("help") {
                 if(OutBuffer)
-                    fprintf
+                    LqFbuf_printf
                     (
                     OutBuffer,
                     " [MdlAutoLoad]\n"
@@ -341,19 +296,16 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
             break;
             LQSTR_SWITCH_DEFAULT
                 if(OutBuffer)
-                    fprintf(OutBuffer, " [MdlAutoLoad] ERROR: unknown command");
+                    LqFbuf_printf(OutBuffer, " [MdlAutoLoad] ERROR: unknown command");
         }
     };
 
-    Mod.FreeNotifyProc =
-    [](LqHttpMdl* This) -> uintptr_t
-    {
+    Mod.FreeNotifyProc = [](LqHttpMdl* This) -> uintptr_t {
         LqEvntSetClose2(&Task.TimerFd, 0);
         volatile int* Tst = &Task.TimerFd.Fd;
         while(*Tst != -1);
         Task.PathsLocker.LockWrite();
-        for(auto& i : Task.Dirs)
-        {
+        for(auto& i : Task.Dirs) {
             LqFilePathEvntFree(i);
             LqFastAlloc::Delete(i);
         }
@@ -369,8 +321,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     LqEvntFdInit(&Task.TimerFd, NewTimer, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
     Task.TimerFd.UserData = (uintptr_t)&Task;
     Task.TimerFd.Handler = Task.WorkingMethod;
-    Task.TimerFd.CloseHandler = [](LqEvntFd* Fd)
-    {
+    Task.TimerFd.CloseHandler = [](LqEvntFd* Fd) {
         LqFileClose(Fd->Fd);
         Fd->Fd = -1;
     };

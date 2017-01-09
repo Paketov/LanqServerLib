@@ -13,8 +13,7 @@
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
 template<typename TypeFunc>
-class LqHndls
-{
+class LqHndls {
     LqPtdArr<TypeFunc> Arr;
 public:
 
@@ -38,8 +37,7 @@ public:
 
     /* Call all hanlers*/
     template<class... _Args, typename = decltype((std::declval<TypeFunc>())(std::declval<_Args>()...))>
-    void Call(_Args&&... _Ax)
-    {
+    void Call(_Args&&... _Ax) {
         for(auto i = Arr.begin(); !i.is_end(); ++i)
             (*i)(_Ax...);
     }

@@ -39,8 +39,7 @@ class LqWrk;
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
 
-class LQ_IMPORTEXPORT LqWrkBoss
-{
+class LQ_IMPORTEXPORT LqWrkBoss {
     friend LqWrk;
     friend void LqWrkDelete(LqWrk* This);
 
@@ -86,7 +85,7 @@ public:
     */
     size_t      CloseConnByTimeoutSync(LqTimeMillisec LiveTime) const;
     bool        CloseConnByTimeoutAsync(LqTimeMillisec LiveTime) const;
-    
+
     /*
       Close all connection by ip.
        @Addr: filter ip address.
@@ -94,7 +93,7 @@ public:
     */
     size_t      CloseConnByTimeoutSync(const LqProto* Proto, LqTimeMillisec LiveTime) const;
     bool        CloseConnByTimeoutAsync(const LqProto* Proto, LqTimeMillisec LiveTime) const;
-    
+
     /*
       Close all connection by ip.
        @Addr: filter ip address.
@@ -109,8 +108,8 @@ public:
        @return: true - on success, false - otherwise
     */
     bool        CloseConnByProtoAsync(const LqProto* Proto) const;
-    size_t      CloseConnByProtoSync(const LqProto* Proto) const; 
-    
+    size_t      CloseConnByProtoSync(const LqProto* Proto) const;
+
     /*
       Update event flags.
        @Conn: target header.
@@ -120,7 +119,7 @@ public:
     size_t      UpdateAllEvntFlagSync() const;
     /*
       Enum and remove or close event header
-       @UserData: Use in @Proc  
+       @UserData: Use in @Proc
        @Proc: Callback function
          @Conn: Event header
          @return: 0 - just continue, 1 - remove, 2 - remove and close
@@ -174,7 +173,7 @@ public:
 
     size_t      KickAllWorkers();
 
-    size_t      SetWrkMinCount(size_t NewVal); 
+    size_t      SetWrkMinCount(size_t NewVal);
 
     LqString    DebugInfo();
     LqString    AllDebugInfo();

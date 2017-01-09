@@ -15,20 +15,17 @@
 #include <string.h>
 #include <memory.h>
 
-LQ_EXTERN_C char* LQ_CALL LqHttpActSwitchToRspAndSetStartLine(LqHttpConn* c, int StatusCode)
-{
+LQ_EXTERN_C char* LQ_CALL LqHttpActSwitchToRspAndSetStartLine(LqHttpConn* c, int StatusCode) {
     LqHttpActSwitchToRsp(c);
     char* Buf = LqHttpRspHdrResize(c, 200);
     if(Buf == nullptr)
         return nullptr;
-    auto Written = snprintf(Buf, 199, "HTTP/%s %i %s\r\n\r\n", LqHttpProtoGetByConn(c)->HTTPProtoVer, StatusCode, LqHttpPrsGetMsgByStatus(StatusCode));
+    auto Written = LqFwbuf_snprintf(Buf, 199, "HTTP/%s %i %s\r\n\r\n", LqHttpProtoGetByConn(c)->HTTPProtoVer, StatusCode, LqHttpPrsGetMsgByStatus(StatusCode));
     c->Response.Status = StatusCode;
     return LqHttpRspHdrResize(c, Written);
 }
 
-
-void LqHttpActSwitchToRcv(LqHttpConn* c)
-{
+void LqHttpActSwitchToRcv(LqHttpConn* c) {
     LqHttpActKeepOnlyHeaders(c);
     memset(&c->Query, 0, sizeof(c->Query));
     c->ActionResult = LQHTTPACT_RES_BEGIN;
@@ -39,48 +36,41 @@ void LqHttpActSwitchToRcv(LqHttpConn* c)
     LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
     c->ReadedBodySize = 0;
     c->WrittenBodySize = 0;
-	if(c->UserData != nullptr)
-	{
-		c->UserData = LqFastAlloc::ReallocCount<LqHttpUserData>(c->UserData, c->UserDataCount, 0);
-		c->UserDataCount = 0;
-	}
+    if(c->UserData != nullptr) {
+        c->UserData = LqFastAlloc::ReallocCount<LqHttpUserData>(c->UserData, c->UserDataCount, 0);
+        c->UserDataCount = 0;
+    }
 }
 
-LQ_EXTERN_C void LQ_CALL LqHttpActSwitchToRsp(LqHttpConn* c)
-{
+LQ_EXTERN_C void LQ_CALL LqHttpActSwitchToRsp(LqHttpConn* c) {
     LqFileSz ReciveLen = (LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER) ? lq_max(c->Query.ContentLen - c->ReadedBodySize, 0) : 0;
     LqHttpActKeepOnlyHeaders(c);
     c->ActionResult = LQHTTPACT_RES_BEGIN;
     c->ActionState = LQHTTPACT_STATE_RSP;
-    memset(&c->Response, 0, sizeof(c->Response));  
+    memset(&c->Response, 0, sizeof(c->Response));
     c->Response.CountNeedRecive = ReciveLen;
 }
 
-LQ_EXTERN_C void LQ_CALL LqHttpActSwitchToClose(LqHttpConn* c)
-{
+LQ_EXTERN_C void LQ_CALL LqHttpActSwitchToClose(LqHttpConn* c) {
     LqHttpActKeepOnlyHeaders(c);
     c->ActionResult = LQHTTPACT_RES_BEGIN;
     c->ActionState = LQHTTPACT_STATE_CLS_CONNECTION;
 }
 
-LQ_EXTERN_C void LQ_CALL LqHttpActSwitchToManualRsp(LqHttpConn* c)
-{
+LQ_EXTERN_C void LQ_CALL LqHttpActSwitchToManualRsp(LqHttpConn* c) {
     LqHttpActSwitchToRsp(c);
     c->ActionResult = LQHTTPACT_RES_BEGIN;
     c->ActionState = LQHTTPACT_STATE_RSP_INIT_HANDLE;
 }
 
-LQ_EXTERN_C void LQ_CALL LqHttpActSwitchToManualRcv(LqHttpConn* c)
-{
+LQ_EXTERN_C void LQ_CALL LqHttpActSwitchToManualRcv(LqHttpConn* c) {
     LqHttpActKeepOnlyHeaders(c);
     c->ActionResult = LQHTTPACT_RES_BEGIN;
     c->ActionState = LQHTTPACT_STATE_RCV_INIT_HANDLE;
 }
 
-LQ_EXTERN_C void LQ_CALL LqHttpActKeepOnlyHeaders(LqHttpConn* c)
-{
-    switch(c->ActionState)
-    {
+LQ_EXTERN_C void LQ_CALL LqHttpActKeepOnlyHeaders(LqHttpConn* c) {
+    switch(c->ActionState) {
         case LQHTTPACT_STATE_MULTIPART_RCV_STREAM:
         case LQHTTPACT_STATE_RCV_STREAM:
             LqSbufUninit(&c->Query.Stream);
@@ -90,20 +80,17 @@ LQ_EXTERN_C void LQ_CALL LqHttpActKeepOnlyHeaders(LqHttpConn* c)
             LqFileTrdCancel(c->Query.OutFd);
             goto lblRcvClearMultipart;
         case LQHTTPACT_STATE_MULTIPART_RCV_HDRS:
-            if(c->_Reserved != 0)
-            {
+            if(c->_Reserved != 0) {
                 free((void*)c->_Reserved);
                 c->_Reserved = 0;
             }
         case LQHTTPACT_STATE_MULTIPART_SKIP_AND_GET_HDRS:
         case LQHTTPACT_STATE_MULTIPART_SKIP_TO_HDRS:
 lblRcvClearMultipart:
-            if(c->Query.MultipartHeaders != nullptr)
-            {
+            if(c->Query.MultipartHeaders != nullptr) {
                 auto Cur = c->Query.MultipartHeaders;
                 auto Next = Cur->Query.MultipartHeaders;
-                while(true)
-                {
+                while(true) {
                     free(Cur);
                     if(Next == nullptr)
                         break;

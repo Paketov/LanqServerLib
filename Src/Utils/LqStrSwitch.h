@@ -54,37 +54,33 @@
 
 inline constexpr LQSTR_SWITCH_TYPE_LEN __StrSwitchLen(const char* const Str) { return (*Str != '\0') ? (__StrSwitchLen(Str + 1) + 1) : 0; }
 inline constexpr LQSTR_SWITCH_TYPE_HASH __StrSwitchHash(const char* const Str, LQSTR_SWITCH_TYPE_HASH CurHash) \
-	{ return (*Str != '\0') ? (__StrSwitchHash(Str + 1, CurHash * (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8 - 1) + *Str)) : CurHash; }
+{ return (*Str != '\0') ? (__StrSwitchHash(Str + 1, CurHash * (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8 - 1) + *Str)) : CurHash; }
 inline constexpr LQSTR_SWITCH_TYPE_CASE __StrSwitchStrCase(const char* const Str) \
-	{ return ((LQSTR_SWITCH_TYPE_CASE)__StrSwitchLen(Str) << (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8)) | (LQSTR_SWITCH_TYPE_CASE)__StrSwitchHash(Str, 0); }
+{ return ((LQSTR_SWITCH_TYPE_CASE)__StrSwitchLen(Str) << (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8)) | (LQSTR_SWITCH_TYPE_CASE)__StrSwitchHash(Str, 0); }
 
-inline LQSTR_SWITCH_TYPE_CASE __StrSwitch(const char* Str)
-{
-	LQSTR_SWITCH_TYPE_HASH h = 0;
+inline LQSTR_SWITCH_TYPE_CASE __StrSwitch(const char* Str) {
+    LQSTR_SWITCH_TYPE_HASH h = 0;
     const char* k = Str;
     for(; *k != '\0'; k++) h = (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8 - 1) * h + *k;
     return ((LQSTR_SWITCH_TYPE_CASE)(k - Str) << (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8)) | (LQSTR_SWITCH_TYPE_CASE)h;
 }
 
-inline LQSTR_SWITCH_TYPE_CASE __StrSwitchN(const char* Str, size_t Len)
-{
-	LQSTR_SWITCH_TYPE_HASH h = 0;
+inline LQSTR_SWITCH_TYPE_CASE __StrSwitchN(const char* Str, size_t Len) {
+    LQSTR_SWITCH_TYPE_HASH h = 0;
     const char* k = Str, *m = Str + Len;
     for(; k < m; k++) h = (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8 - 1) * h + *k;
     return ((LQSTR_SWITCH_TYPE_CASE)(Len) << (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8)) | (LQSTR_SWITCH_TYPE_CASE)h;
 }
 
-inline LQSTR_SWITCH_TYPE_CASE __StrSwitchI(const char* Str)
-{
-	LQSTR_SWITCH_TYPE_HASH h = 0;
+inline LQSTR_SWITCH_TYPE_CASE __StrSwitchI(const char* Str) {
+    LQSTR_SWITCH_TYPE_HASH h = 0;
     const char* k = Str;
     for(; *k != '\0'; k++) h = (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8 - 1) * h + tolower(*k);
     return ((LQSTR_SWITCH_TYPE_CASE)(k - Str) << (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8)) | (LQSTR_SWITCH_TYPE_CASE)h;
 }
 
-inline LQSTR_SWITCH_TYPE_CASE __StrSwitchNI(const char* Str, size_t Len)
-{
-	LQSTR_SWITCH_TYPE_HASH h = 0;
+inline LQSTR_SWITCH_TYPE_CASE __StrSwitchNI(const char* Str, size_t Len) {
+    LQSTR_SWITCH_TYPE_HASH h = 0;
     const char* k = Str, *m = Str + Len;
     for(; k < m; k++) h = (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8 - 1) * h + tolower(*k);
     return ((LQSTR_SWITCH_TYPE_CASE)(Len) << (sizeof(LQSTR_SWITCH_TYPE_HASH) * 8)) | (LQSTR_SWITCH_TYPE_CASE)h;

@@ -14,11 +14,9 @@
 #include <Windows.h>
 
 
-LQ_EXTERN_C int LQ_CALL ___lq_windows_errno()
-{
+LQ_EXTERN_C int LQ_CALL ___lq_windows_errno() {
     // Translate win error to unix error
-    switch(GetLastError())
-    {
+    switch(GetLastError()) {
         case NO_ERROR:                          return 0;
         case ERROR_INVALID_OPERATION:           return EPERM;
         case ERROR_ALREADY_EXISTS:
@@ -104,7 +102,7 @@ LQ_EXTERN_C int LQ_CALL ___lq_windows_errno()
         case ERROR_POSSIBLE_DEADLOCK:           return EDEADLOCK;
         case ERROR_INVALID_AT_INTERRUPT_TIME:   return EINTR;
         case ERROR_NO_MORE_SEARCH_HANDLES:      return EMFILE;
-        case ERROR_HANDLE_EOF:                  return ENODATA;
+        case ERROR_HANDLE_EOF:                  return EAGAIN;
         case ERROR_SHARING_BUFFER_EXCEEDED:     return ENOLCK;
         case ERROR_NOT_CONNECTED:               return ENOLINK;
         case ERROR_FILE_INVALID:                return ENXIO;
@@ -257,14 +255,12 @@ LQ_EXTERN_C int LQ_CALL ___lq_windows_errno()
     return EOTHER;
 }
 
-LQ_EXTERN_C int LQ_CALL ___lq_windows_set_errno(int NewErr)
-{
+LQ_EXTERN_C int LQ_CALL ___lq_windows_set_errno(int NewErr) {
     DWORD Err;
     errno = NewErr;
     // Translate unix error to win error
 
-    switch(NewErr)
-    {
+    switch(NewErr) {
         case 0: Err = NO_ERROR; break;
         case EPERM: Err = ERROR_INVALID_OPERATION; break;
         case EEXIST: Err = ERROR_FILE_EXISTS; break;

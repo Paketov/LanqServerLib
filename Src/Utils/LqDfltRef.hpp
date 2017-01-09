@@ -12,8 +12,7 @@
 /*
  !! Only use for lqaout arguments !!
 */
-class LqDfltPtr
-{
+class LqDfltPtr {
     template<typename t, typename at>
     struct assoc_type { static at value; };
 public:
@@ -24,8 +23,7 @@ public:
 template<typename TYPE, typename ASSOC_TYPE>
 ASSOC_TYPE LqDfltPtr::assoc_type<TYPE, ASSOC_TYPE>::value;
 
-class LqDfltRef
-{
+class LqDfltRef {
     template<typename t, typename at>
     struct assoc_type { static at value; };
 public:

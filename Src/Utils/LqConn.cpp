@@ -33,19 +33,16 @@
 # endif
 
 # include <io.h>
-static struct _wsa_data
-{
-	LPWSADATA wsa;
-	_wsa_data()
-	{
-		static WSADATA wd;
-		WSAStartup(WSA_VERSION, &wd);
-		wsa = &wd;
-	}
-	~_wsa_data()
-	{
-		WSACleanup();
-	}
+static struct _wsa_data {
+    LPWSADATA wsa;
+    _wsa_data() {
+        static WSADATA wd;
+        WSAStartup(WSA_VERSION, &wd);
+        wsa = &wd;
+    }
+    ~_wsa_data() {
+        WSACleanup();
+    }
 } wsa_data;
 #endif
 
@@ -55,61 +52,51 @@ static struct _wsa_data
 
 
 
-LQ_EXTERN_C int LQ_CALL LqConnBind(const char* Host, const char* Port, int RouteProto, int SockType, int TransportProto, int MaxConnections, bool IsNonBlock)
-{
+LQ_EXTERN_C int LQ_CALL LqConnBind(const char* Host, const char* Port, int RouteProto, int SockType, int TransportProto, int MaxConnections, bool IsNonBlock) {
     static const int True = 1;
     int s;
     addrinfo *Addrs = nullptr, HostInfo = {0};
-    HostInfo.ai_family = RouteProto;
-	HostInfo.ai_socktype = (SockType == -1) ? SOCK_STREAM : SockType; // SOCK_STREAM;
+    HostInfo.ai_family = (RouteProto == -1) ? AF_INET : RouteProto;
+    HostInfo.ai_socktype = (SockType == -1) ? SOCK_STREAM : SockType; // SOCK_STREAM;
     HostInfo.ai_flags = AI_PASSIVE;//AI_ALL;
-	HostInfo.ai_protocol = (TransportProto == -1)? IPPROTO_TCP: TransportProto; // IPPROTO_TCP;
+    HostInfo.ai_protocol = (TransportProto == -1) ? IPPROTO_TCP : TransportProto; // IPPROTO_TCP;
     int res;
-    if((res = getaddrinfo(((Host != nullptr) && (*Host != '\0')) ? Host : (const char*)nullptr, Port, &HostInfo, &Addrs)) != 0)
-    {
-        LQ_ERR("LqConnBind() getaddrinfo(%s, %s, *, *) failed \"%s\" \n",
+    if((res = getaddrinfo(((Host != nullptr) && (*Host != '\0')) ? Host : (const char*)nullptr, Port, &HostInfo, &Addrs)) != 0) {
+        LQ_LOG_ERR("LqConnBind() getaddrinfo(%s, %s, *, *) failed \"%s\" \n",
             ((Host != nullptr) && (*Host != '\0')) ? Host : "NULL",
-            Port,
-            gai_strerror(res));
+                   Port,
+                   gai_strerror(res));
         return -1;
     }
 
-    for(auto i = Addrs; i != nullptr; i = i->ai_next)
-    {
+    for(auto i = Addrs; i != nullptr; i = i->ai_next) {
         if((s = socket(i->ai_family, i->ai_socktype, i->ai_protocol)) == -1)
             continue;
         LqFileDescrSetInherit(s, 0);
-        if(setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char*)&True, sizeof(True)) == -1)
-        {
-            LQ_ERR("LqConnBind() setsockopt(%i, SOL_SOCKET, SO_REUSEADDR, &1, sizeof(1)) failed \"%s\"\n", s, strerror(lq_errno));
+        if(setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char*)&True, sizeof(True)) == -1) {
+            LQ_LOG_ERR("LqConnBind() setsockopt(%i, SOL_SOCKET, SO_REUSEADDR, &1, sizeof(1)) failed \"%s\"\n", s, strerror(lq_errno));
             continue;
         }
-		if(IsNonBlock)
-		{
-			if(LqConnSwitchNonBlock(s, 1))
-			{
-				LQ_ERR("LqConnBind() LqConnSwitchNonBlock(%i, 1) failed \"%s\"\n", s, strerror(lq_errno));
-				continue;
-			}
-		}
-        if(i->ai_family == AF_INET6)
-        {
-            if(setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&True, sizeof(True)) == -1)
-            {
-                LQ_ERR("LqConnBind() setsockopt(%i, IPPROTO_IPV6, IPV6_V6ONLY, &1, sizeof(1)) failed \"%s\"\n", s, strerror(lq_errno));
+        if(IsNonBlock) {
+            if(LqConnSwitchNonBlock(s, 1)) {
+                LQ_LOG_ERR("LqConnBind() LqConnSwitchNonBlock(%i, 1) failed \"%s\"\n", s, strerror(lq_errno));
                 continue;
             }
         }
-        if(bind(s, i->ai_addr, i->ai_addrlen) == -1)
-        {
-            LQ_ERR("LqConnBind() bind(%i, *, %i) failed \"%s\"\n", s, (int)i->ai_addrlen, strerror(lq_errno));
+        if(i->ai_family == AF_INET6) {
+            if(setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&True, sizeof(True)) == -1) {
+                LQ_LOG_ERR("LqConnBind() setsockopt(%i, IPPROTO_IPV6, IPV6_V6ONLY, &1, sizeof(1)) failed \"%s\"\n", s, strerror(lq_errno));
+                continue;
+            }
+        }
+        if(bind(s, i->ai_addr, i->ai_addrlen) == -1) {
+            LQ_LOG_ERR("LqConnBind() bind(%i, *, %i) failed \"%s\"\n", s, (int)i->ai_addrlen, strerror(lq_errno));
             closesocket(s);
             s = -1;
             continue;
         }
-        if(listen(s, MaxConnections) == -1)
-        {
-            LQ_ERR("LqConnBind() listen(%s, %i) failed \"%s\"\n", s, MaxConnections, strerror(lq_errno));
+        if(listen(s, MaxConnections) == -1) {
+            LQ_LOG_ERR("LqConnBind() listen(%s, %i) failed \"%s\"\n", s, MaxConnections, strerror(lq_errno));
             closesocket(s);
             s = -1;
             continue;
@@ -119,56 +106,50 @@ LQ_EXTERN_C int LQ_CALL LqConnBind(const char* Host, const char* Port, int Route
 
     if(Addrs != nullptr)
         freeaddrinfo(Addrs);
-    if(s == -1)
-    {
-        LQ_ERR("LqConnBind() not binded to sock\n");
+    if(s == -1) {
+        LQ_LOG_ERR("LqConnBind() not binded to sock\n");
         return -1;
     }
     return s;
 }
 
-LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, int RouteProto, int SockType, int TransportProto, void* IpPrtAddress, socklen_t* IpPrtAddressLen, bool IsNonBlock)
-{
+LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, int RouteProto, int SockType, int TransportProto, void* IpPrtAddress, socklen_t* IpPrtAddressLen, bool IsNonBlock) {
     int s = -1;
     addrinfo hi = {0}, *ah = nullptr, *i;
 
-	hi.ai_family = (RouteProto == -1)? AF_UNSPEC: RouteProto;
-	hi.ai_socktype = (SockType == -1) ? SOCK_STREAM : SockType; // SOCK_STREAM;
-	hi.ai_protocol = (TransportProto == -1) ? IPPROTO_TCP : TransportProto; // IPPROTO_TCP;
-	hi.ai_flags = 0;//AI_ALL;
+    hi.ai_family = (RouteProto == -1) ? AF_UNSPEC : RouteProto;
+    hi.ai_socktype = (SockType == -1) ? SOCK_STREAM : SockType; // SOCK_STREAM;
+    hi.ai_protocol = (TransportProto == -1) ? IPPROTO_TCP : TransportProto; // IPPROTO_TCP;
+    hi.ai_flags = 0;//AI_ALL;
 
     int res;
-    if((res = getaddrinfo(((Address != nullptr) && (*Address != '\0')) ? Address : (const char*)nullptr, Port, &hi, &ah)) != 0)
-    {
-        LQ_ERR("LqConnConnect() getaddrinfo(%s, %s, *, *) failed \"%s\" \n",
+    if((res = getaddrinfo(((Address != nullptr) && (*Address != '\0')) ? Address : (const char*)nullptr, Port, &hi, &ah)) != 0) {
+        LQ_LOG_ERR("LqConnConnect() getaddrinfo(%s, %s, *, *) failed \"%s\" \n",
             ((Address != nullptr) && (*Address != '\0')) ? Address : "NULL",
-            Port,
-            gai_strerror(res));
+                   Port,
+                   gai_strerror(res));
         return -1;
     }
 
-    for(i = ah; i != nullptr; i = i->ai_next)
-    {
+    for(i = ah; i != nullptr; i = i->ai_next) {
         if((s = socket(i->ai_family, i->ai_socktype, i->ai_protocol)) == -1)
             continue;
-		if(IsNonBlock)
-			LqConnSwitchNonBlock(s, 1);
+        if(IsNonBlock)
+            LqConnSwitchNonBlock(s, 1);
         if(connect(s, i->ai_addr, i->ai_addrlen) != -1)
             break;
-		if(IsNonBlock && LQERR_IS_WOULD_BLOCK)
-			break;
+        if(IsNonBlock && LQERR_IS_WOULD_BLOCK)
+            break;
         closesocket(s);
     }
-    if(i == nullptr)
-    {
+    if(i == nullptr) {
         if(ah != nullptr)
             freeaddrinfo(ah);
-        LQ_ERR("LqConnConnect() not connected\n");
+        LQ_LOG_ERR("LqConnConnect() not connected\n");
         return -1;
     }
 
-    if((IpPrtAddress != nullptr) && (IpPrtAddressLen != nullptr))
-    {
+    if((IpPrtAddress != nullptr) && (IpPrtAddressLen != nullptr)) {
         memcpy(IpPrtAddress, i->ai_addr, lq_min(i->ai_addrlen, *IpPrtAddressLen));
         *IpPrtAddressLen = i->ai_addrlen;
     }
@@ -177,18 +158,16 @@ LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, int
     return s;
 }
 
-LQ_EXTERN_C int LQ_CALL LqConnStrToRowIp(int TypeIp, const char* SourseStr, LqConnInetAddress* DestAddress)
-{
-    return (inet_pton(DestAddress->Addr.sa_family = ((TypeIp == 6) ? AF_INET6 : AF_INET), SourseStr, (TypeIp == 6) ? (void*)&DestAddress->AddrInet6.sin6_addr : (void*)&DestAddress->AddrInet.sin_addr) == 1)? 0: -1;
+LQ_EXTERN_C int LQ_CALL LqConnStrToRowIp(int TypeIp, const char* SourseStr, LqConnInetAddress* DestAddress) {
+    return (inet_pton(DestAddress->Addr.sa_family = ((TypeIp == 6) ? AF_INET6 : AF_INET), SourseStr, (TypeIp == 6) ? (void*)&DestAddress->AddrInet6.sin6_addr : (void*)&DestAddress->AddrInet.sin_addr) == 1) ? 0 : -1;
 }
 
 
-LQ_EXTERN_C int LQ_CALL LqConnRowIpToStr(LqConnInetAddress* SourceAddress, char* DestStr, size_t DestStrLen)
-{
-    return 
-        (inet_ntop(SourceAddress->Addr.sa_family, 
+LQ_EXTERN_C int LQ_CALL LqConnRowIpToStr(LqConnInetAddress* SourceAddress, char* DestStr, size_t DestStrLen) {
+    return
+        (inet_ntop(SourceAddress->Addr.sa_family,
         (SourceAddress->Addr.sa_family == AF_INET6) ? (void*)&SourceAddress->AddrInet6.sin6_addr : (void*)&SourceAddress->AddrInet.sin_addr, DestStr, DestStrLen) != nullptr
-        ) ? 0 : -1;
+         ) ? 0 : -1;
 }
 
 
@@ -201,8 +180,7 @@ LQ_EXTERN_C void* LQ_CALL LqConnSslCreate
     int TypeCertFile, /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
     const char* CAFile,
     const char* DhpFile
-)
-{
+) {
 #ifdef HAVE_OPENSSL
 
     static const unsigned char dh1024_p[] = {
@@ -239,28 +217,24 @@ LQ_EXTERN_C void* LQ_CALL LqConnSslCreate
     static bool IsLoaded = false;
 
     LQ_BREAK_BLOCK_BEGIN
-    if(!IsLoaded)
-    {
-        IsLoaded = true;
-        SSL_library_init();
-        SSL_load_error_strings();
-    }
+        if(!IsLoaded) {
+            IsLoaded = true;
+            SSL_library_init();
+            SSL_load_error_strings();
+        }
 
     if((NewCtx = SSL_CTX_new((const SSL_METHOD*)MethodSSL)) == nullptr)
         break;
 
     SSL_CTX_set_verify(NewCtx, SSL_VERIFY_NONE, nullptr);
 
-    if(CipherList != nullptr)
-    {
+    if(CipherList != nullptr) {
         if(SSL_CTX_set_cipher_list(NewCtx, CipherList) == 1)
             SSL_CTX_set_options(NewCtx, SSL_OP_CIPHER_SERVER_PREFERENCE);
     }
 
-    if(CAFile != nullptr)
-    {
-        if(!SSL_CTX_load_verify_locations(NewCtx, CAFile, NULL))
-        {
+    if(CAFile != nullptr) {
+        if(!SSL_CTX_load_verify_locations(NewCtx, CAFile, NULL)) {
             SSL_CTX_free(NewCtx);
             NewCtx = nullptr;
             break;
@@ -268,44 +242,36 @@ LQ_EXTERN_C void* LQ_CALL LqConnSslCreate
 
     }
     if((SSL_CTX_use_certificate_file(NewCtx, CertFile, TypeCertFile) <= 0) ||
-        (SSL_CTX_use_PrivateKey_file(NewCtx, KeyFile, TypeCertFile) <= 0))
-    {
+        (SSL_CTX_use_PrivateKey_file(NewCtx, KeyFile, TypeCertFile) <= 0)) {
         SSL_CTX_free(NewCtx);
         NewCtx = nullptr;
         break;
     }
 
-    if(SSL_CTX_check_private_key(NewCtx) != 1)
-    {
+    if(SSL_CTX_check_private_key(NewCtx) != 1) {
         SSL_CTX_free(NewCtx);
         NewCtx = nullptr;
         break;
     }
 
-    if(DhpFile != nullptr)
-    {
+    if(DhpFile != nullptr) {
         BIO *bio = BIO_new_file(DhpFile, "r");
-        if(bio)
-        {
+        if(bio) {
             DH *dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
             BIO_free(bio);
-            if(dh)
-            {
+            if(dh) {
                 SSL_CTX_set_tmp_dh(NewCtx, dh);
                 SSL_CTX_set_options(NewCtx, SSL_OP_SINGLE_DH_USE);
                 DH_free(dh);
             }
         }
-    } else
-    {
+    } else {
         DH *dh = DH_new();
-        if(dh)
-        {
+        if(dh) {
             dh->p = BN_bin2bn(dh1024_p, sizeof(dh1024_p), NULL);
             dh->g = BN_bin2bn(dh1024_g, sizeof(dh1024_g), NULL);
             dh->length = 160;
-            if(dh->p && dh->g)
-            {
+            if(dh->p && dh->g) {
                 SSL_CTX_set_tmp_dh(NewCtx, dh);
                 SSL_CTX_set_options(NewCtx, SSL_OP_SINGLE_DH_USE);
             }
@@ -313,41 +279,33 @@ LQ_EXTERN_C void* LQ_CALL LqConnSslCreate
         }
     }
     LQ_BREAK_BLOCK_END
-    return NewCtx;
+        return NewCtx;
 #else
     return nullptr;
 #endif
 }
 
 
-LQ_EXTERN_C void LQ_CALL __LqEvntFdDfltHandler(LqEvntFd * Instance, LqEvntFlag Flags)
-{
-}
+LQ_EXTERN_C void LQ_CALL __LqEvntFdDfltHandler(LqEvntFd * Instance, LqEvntFlag Flags) {}
 
-LQ_EXTERN_C void LQ_CALL __LqEvntFdDfltCloseHandler(LqEvntFd*)
-{
-}
+LQ_EXTERN_C void LQ_CALL __LqEvntFdDfltCloseHandler(LqEvntFd*) {}
 
 /*
 * @return: count written in sock. Always >= 0.
 */
-size_t LqConnSend(LqConn* c, const void* Buf, size_t WriteSize)
-{
+size_t LqConnSend(LqConn* c, const void* Buf, size_t WriteSize) {
     int s;
     size_t Sended = 0;
     const auto MaxSendSizeInTact = c->Proto->MaxSendInTact;
     const auto MaxSendSize = c->Proto->MaxSendInSingleTime;
-    while(WriteSize > 0)
-    {
+    while(WriteSize > 0) {
         if(Sended > MaxSendSize)
             break;
-        if((s = send(c->Fd, (const char*)Buf + Sended, (WriteSize > MaxSendSizeInTact) ? MaxSendSizeInTact : WriteSize, 0)) > 0)
-        {
+        if((s = send(c->Fd, (const char*)Buf + Sended, (WriteSize > MaxSendSizeInTact) ? MaxSendSizeInTact : WriteSize, 0)) > 0) {
             Sended += s;
             if((WriteSize -= s) <= 0)
                 break;
-        } else
-        {
+        } else {
             break;
         }
     }
@@ -358,16 +316,14 @@ size_t LqConnSend(LqConn* c, const void* Buf, size_t WriteSize)
 /*
 *  @return: count written in sock. Always >= 0.
 */
-LqFileSz LqConnSendFromFile(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count)
-{
+LqFileSz LqConnSendFromFile(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count) {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     LqFileSz Sended = 0;
     intptr_t r, wr;
     if(LqFileSeek(InFd, OffsetInFile, LQ_SEEK_SET) < 0)
         return -1;
     const auto MaxSendSize = c->Proto->MaxSendInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Sended) > 0; Sended += r)
-    {
+    for(LqFileSz ReadSize; (ReadSize = Count - Sended) > 0; Sended += r) {
         if(Sended > MaxSendSize)
             break;
         if(ReadSize > sizeof(Buf))
@@ -385,14 +341,12 @@ LqFileSz LqConnSendFromFile(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz
 /*
 *  @return: count written in sock. Always >= 0.
 */
-intptr_t LqConnSendFromStream(LqConn* c, LqSbuf* Stream, intptr_t Count)
-{
+intptr_t LqConnSendFromStream(LqConn* c, LqSbuf* Stream, intptr_t Count) {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     size_t Sended = 0;
     int r, wr;
     const auto MaxSendSize = c->Proto->MaxSendInSingleTime;
-    for(intptr_t ReadSize; (ReadSize = Count - Sended) > 0; Sended += r)
-    {
+    for(intptr_t ReadSize; (ReadSize = Count - Sended) > 0; Sended += r) {
         if(Sended > MaxSendSize)
             break;
         if(ReadSize > sizeof(Buf))
@@ -413,15 +367,13 @@ intptr_t LqConnSendFromStream(LqConn* c, LqSbuf* Stream, intptr_t Count)
 /*
 *  @return: count readed from sock. If is less than 0 - which means that not all the data has been written to file.
 */
-LqFileSz LqConnReciveInFile(LqConn* c, int OutFd, LqFileSz Count)
-{
+LqFileSz LqConnReciveInFile(LqConn* c, int OutFd, LqFileSz Count) {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     int r;
 
     LqFileSz Readed = 0;
     const auto MaxReciveSize = c->Proto->MaxReciveInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; )
-    {
+    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; ) {
         if(Readed > MaxReciveSize)
             break;
         if(ReadSize > sizeof(Buf))
@@ -441,14 +393,12 @@ LqFileSz LqConnReciveInFile(LqConn* c, int OutFd, LqFileSz Count)
 * @return: count readed from sock. If is less than 0 - which means that not all the data has been written to stream.
 */
 
-intptr_t LqConnReciveInStream(LqConn* c, LqSbuf* Stream, intptr_t Count)
-{
+intptr_t LqConnReciveInStream(LqConn* c, LqSbuf* Stream, intptr_t Count) {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     int r;
     LqFileSz Readed = 0;
     const auto MaxReciveSize = c->Proto->MaxReciveInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; )
-    {
+    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; ) {
         if(Readed > MaxReciveSize)
             break;
         if(ReadSize > sizeof(Buf))
@@ -465,28 +415,24 @@ intptr_t LqConnReciveInStream(LqConn* c, LqSbuf* Stream, intptr_t Count)
 }
 
 
-LQ_EXTERN_C int LQ_CALL LqEvntSetFlags(void* Conn, LqEvntFlag Flag, LqTimeMillisec WaitTime)
-{
+LQ_EXTERN_C int LQ_CALL LqEvntSetFlags(void* Conn, LqEvntFlag Flag, LqTimeMillisec WaitTime) {
     auto h = (LqEvntHdr*)Conn;
     if(h->Flag & LQEVNT_FLAG_END)
         return 0;
     LqEvntFlag Expected, New;
     bool IsSync;
-    do
-    {
+    do {
         Expected = h->Flag;
         New = (Expected & ~(LQEVNT_FLAG_RD | LQEVNT_FLAG_WR | LQEVNT_FLAG_ACCEPT | LQEVNT_FLAG_CONNECT | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP)) | Flag;
         if(IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC))
             New |= _LQEVNT_FLAG_SYNC;
     } while(!LqAtmCmpXchg(h->Flag, Expected, New));
-    if(IsSync)
-    {
-		LqWrkBossUpdateAllEvntFlagAsync();
+    if(IsSync) {
+        LqWrkBossUpdateAllEvntFlagAsync();
         if(WaitTime <= 0)
             return 1;
         auto Start = LqTimeGetLocMillisec();
-        while(h->Flag & _LQEVNT_FLAG_SYNC)
-        {
+        while(h->Flag & _LQEVNT_FLAG_SYNC) {
             LqThreadYield();
             if((LqTimeGetLocMillisec() - Start) > WaitTime)
                 return 1;
@@ -495,43 +441,37 @@ LQ_EXTERN_C int LQ_CALL LqEvntSetFlags(void* Conn, LqEvntFlag Flag, LqTimeMillis
     return 0;
 }
 
-LQ_EXTERN_C int LQ_CALL LqEvntSetClose(void* Conn)
-{
+LQ_EXTERN_C int LQ_CALL LqEvntSetClose(void* Conn) {
     auto h = (LqEvntHdr*)Conn;
     LqEvntFlag Expected, New;
     bool IsSync;
-    do
-    {
-        Expected = h->Flag;
-        New = Expected | LQEVNT_FLAG_END;
-		if(IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC))
-			New |= _LQEVNT_FLAG_SYNC;
-    } while(!LqAtmCmpXchg(h->Flag, Expected, New));
-    if(IsSync)
-		LqWrkBossUpdateAllEvntFlagAsync();
-    return 0;
-}
-
-LQ_EXTERN_C int LQ_CALL LqEvntSetClose2(void* Conn, LqTimeMillisec WaitTime)
-{
-    auto h = (LqEvntHdr*)Conn;
-    LqEvntFlag Expected, New;
-    bool IsSync;
-    do
-    {
+    do {
         Expected = h->Flag;
         New = Expected | LQEVNT_FLAG_END;
         if(IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC))
             New |= _LQEVNT_FLAG_SYNC;
     } while(!LqAtmCmpXchg(h->Flag, Expected, New));
     if(IsSync)
-    {
+        LqWrkBossUpdateAllEvntFlagAsync();
+    return 0;
+}
+
+LQ_EXTERN_C int LQ_CALL LqEvntSetClose2(void* Conn, LqTimeMillisec WaitTime) {
+    auto h = (LqEvntHdr*)Conn;
+    LqEvntFlag Expected, New;
+    bool IsSync;
+    do {
+        Expected = h->Flag;
+        New = Expected | LQEVNT_FLAG_END;
+        if(IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC))
+            New |= _LQEVNT_FLAG_SYNC;
+    } while(!LqAtmCmpXchg(h->Flag, Expected, New));
+    if(IsSync) {
         LqWrkBossUpdateAllEvntFlagAsync();
         if(WaitTime <= 0)
             return 1;
         auto Start = LqTimeGetLocMillisec();
-        while(h->Flag & _LQEVNT_FLAG_SYNC)
-        {
+        while(h->Flag & _LQEVNT_FLAG_SYNC) {
             if((LqTimeGetLocMillisec() - Start) > WaitTime)
                 return 1;
         }
@@ -539,46 +479,38 @@ LQ_EXTERN_C int LQ_CALL LqEvntSetClose2(void* Conn, LqTimeMillisec WaitTime)
     return 0;
 }
 
-LQ_EXTERN_C int LQ_CALL LqEvntSetClose3(void * Conn)
-{
+LQ_EXTERN_C int LQ_CALL LqEvntSetClose3(void * Conn) {
     auto h = (LqEvntHdr*)Conn;
     LqEvntFlag Expected, New;
-    do
-    {
+    do {
         Expected = h->Flag;
         New = Expected | LQEVNT_FLAG_END;
     } while(!LqAtmCmpXchg(h->Flag, Expected, New));
     return LqWrkBossCloseEvnt(h);
 }
 
-LQ_EXTERN_C int LQ_CALL LqEvntSetRemove3(void* Conn)
-{
-	return LqWrkBossRemoveEvnt((LqEvntHdr*)Conn);
+LQ_EXTERN_C int LQ_CALL LqEvntSetRemove3(void* Conn) {
+    return LqWrkBossRemoveEvnt((LqEvntHdr*)Conn);
 }
 
-LQ_EXTERN_C int LQ_CALL LqEvntFdAdd(LqEvntFd* Evnt)
-{
+LQ_EXTERN_C int LQ_CALL LqEvntFdAdd(LqEvntFd* Evnt) {
     return LqWrkBossAddEvntAsync((LqEvntHdr*)Evnt);
 }
 
-LQ_EXTERN_C int LQ_CALL LqEvntFdAdd2(LqEvntFd* Evnt)
-{
+LQ_EXTERN_C int LQ_CALL LqEvntFdAdd2(LqEvntFd* Evnt) {
     return LqWrkBossAddEvntSync((LqEvntHdr*)Evnt);
 }
 
-int LqConnRecive(LqConn* c, void* Buf, int ReadSize, int Flags)
-{
+int LqConnRecive(LqConn* c, void* Buf, int ReadSize, int Flags) {
     return recv(c->Fd, (char*)Buf, ReadSize, Flags);
 }
 
-size_t LqConnSkip(LqConn* c, size_t Count)
-{
+size_t LqConnSkip(LqConn* c, size_t Count) {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     int r;
     LqFileSz Readed = 0;
     const auto MaxReciveSize = c->Proto->MaxReciveInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; )
-    {
+    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; ) {
         if(Readed > MaxReciveSize)
             break;
         if(ReadSize > sizeof(Buf))
@@ -599,23 +531,19 @@ size_t LqConnSkip(LqConn* c, size_t Count)
 /*
 * @return: count written in sock. Always >= 0.
 */
-size_t LqConnSendSSL(LqConn* c, const void* Buf, size_t WriteSize, SSL* ssl)
-{
+size_t LqConnSendSSL(LqConn* c, const void* Buf, size_t WriteSize, SSL* ssl) {
     int s;
     size_t Sended = 0;
     const size_t MaxSendSizeInTact = c->Proto->MaxSendInTact;
     const size_t MaxSendSize = c->Proto->MaxSendInSingleTime;
-    while(WriteSize > 0)
-    {
+    while(WriteSize > 0) {
         if(Sended > MaxSendSize)
             break;
-        if((s = SSL_write(ssl, (const char*)Buf + Sended, (WriteSize > MaxSendSizeInTact) ? MaxSendSizeInTact : WriteSize)) > 0)
-        {
+        if((s = SSL_write(ssl, (const char*)Buf + Sended, (WriteSize > MaxSendSizeInTact) ? MaxSendSizeInTact : WriteSize)) > 0) {
             Sended += s;
             if((WriteSize -= s) == 0)
                 break;
-        } else
-        {
+        } else {
             break;
         }
     }
@@ -625,16 +553,14 @@ size_t LqConnSendSSL(LqConn* c, const void* Buf, size_t WriteSize, SSL* ssl)
 /*
 *  @return: count written in sock. Always >= 0.
 */
-LqFileSz LqConnSendFromFileSSL(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count, SSL* ssl)
-{
+LqFileSz LqConnSendFromFileSSL(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count, SSL* ssl) {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     LqFileSz Sended = 0;
     intptr_t r, wr;
     if(LqFileSeek(InFd, OffsetInFile, LQ_SEEK_SET) < 0)
         return -1;
     const auto MaxSendSize = c->Proto->MaxSendInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Sended) > 0; Sended += r)
-    {
+    for(LqFileSz ReadSize; (ReadSize = Count - Sended) > 0; Sended += r) {
         if(Sended > MaxSendSize)
             break;
         if(ReadSize > sizeof(Buf))
@@ -652,14 +578,12 @@ LqFileSz LqConnSendFromFileSSL(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFil
 /*
 *  @return: count written in sock. Always >= 0.
 */
-intptr_t LqConnSendFromStreamSSL(LqConn* c, LqSbuf* Stream, intptr_t Count, SSL* ssl)
-{
+intptr_t LqConnSendFromStreamSSL(LqConn* c, LqSbuf* Stream, intptr_t Count, SSL* ssl) {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     size_t Sended = 0;
     int r, wr;
     const auto MaxSendSize = c->Proto->MaxSendInSingleTime;
-    for(size_t ReadSize; (ReadSize = Count - Sended) > 0; Sended += r)
-    {
+    for(size_t ReadSize; (ReadSize = Count - Sended) > 0; Sended += r) {
         if(Sended > MaxSendSize)
             break;
         if(ReadSize > sizeof(Buf))
@@ -680,15 +604,13 @@ intptr_t LqConnSendFromStreamSSL(LqConn* c, LqSbuf* Stream, intptr_t Count, SSL*
 /*
 *  @return: count readed from sock. If is less than 0 - which means that not all the data has been written to file.
 */
-LqFileSz LqConnReciveInFileSSL(LqConn* c, int OutFd, LqFileSz Count, SSL* ssl)
-{
+LqFileSz LqConnReciveInFileSSL(LqConn* c, int OutFd, LqFileSz Count, SSL* ssl) {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     int r;
 
     LqFileSz Readed = 0;
     const auto MaxReciveSize = c->Proto->MaxReciveInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; )
-    {
+    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; ) {
         if(Readed > MaxReciveSize)
             break;
         if(ReadSize > sizeof(Buf))
@@ -708,14 +630,12 @@ LqFileSz LqConnReciveInFileSSL(LqConn* c, int OutFd, LqFileSz Count, SSL* ssl)
 * @return: count readed from sock. If is less than 0 - which means that not all the data has been written to stream.
 */
 
-intptr_t LqConnReciveInStreamSSL(LqConn* c, LqSbuf* Stream, intptr_t Count, SSL* ssl)
-{
+intptr_t LqConnReciveInStreamSSL(LqConn* c, LqSbuf* Stream, intptr_t Count, SSL* ssl) {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     int r;
     LqFileSz Readed = 0;
     const auto MaxReciveSize = c->Proto->MaxReciveInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; )
-    {
+    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; ) {
         if(Readed > MaxReciveSize)
             break;
         if(ReadSize > sizeof(Buf))
@@ -731,26 +651,22 @@ intptr_t LqConnReciveInStreamSSL(LqConn* c, LqSbuf* Stream, intptr_t Count, SSL*
     return Readed;
 }
 
-int LqConnReciveSSL(LqConn* c, void* Buf, int ReadSize, int Flags, SSL* ssl)
-{
+int LqConnReciveSSL(LqConn* c, void* Buf, int ReadSize, int Flags, SSL* ssl) {
     return ((Flags & MSG_PEEK) ? SSL_peek : SSL_read)(ssl, Buf, ReadSize);
 }
 
-int LqConnCountPendingDataSSL(LqConn* c, SSL* ssl)
-{
+int LqConnCountPendingDataSSL(LqConn* c, SSL* ssl) {
     auto res = SSL_pending(ssl);
     if(res < 500) return 500;
     return res;
 }
 
-size_t LqConnSkipSSL(LqConn* c, size_t Count, SSL* ssl)
-{
+size_t LqConnSkipSSL(LqConn* c, size_t Count, SSL* ssl) {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     int r;
     LqFileSz Readed = 0;
     const size_t MaxReciveSize = c->Proto->MaxReciveInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; )
-    {
+    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; ) {
         if(Readed > MaxReciveSize)
             break;
         if(ReadSize > sizeof(Buf))
@@ -766,8 +682,7 @@ size_t LqConnSkipSSL(LqConn* c, size_t Count, SSL* ssl)
 
 #endif
 
-LQ_EXTERN_C int LQ_CALL LqConnCountPendingData(LqConn* c)
-{
+LQ_EXTERN_C int LQ_CALL LqConnCountPendingData(LqConn* c) {
 #ifdef LQPLATFORM_WINDOWS
     u_long res = -1;
     if(ioctlsocket(c->Fd, FIONREAD, &res) == -1)
@@ -780,15 +695,14 @@ LQ_EXTERN_C int LQ_CALL LqConnCountPendingData(LqConn* c)
     return res;
 }
 
-LQ_EXTERN_C int LQ_CALL LqConnSwitchNonBlock(int Fd, int IsNonBlock)
-{
+LQ_EXTERN_C int LQ_CALL LqConnSwitchNonBlock(int Fd, int IsNonBlock) {
 #ifdef LQPLATFORM_WINDOWS
     u_long nonBlocking = IsNonBlock;
     if(ioctlsocket(Fd, FIONBIO, &nonBlocking) == -1)
         return -1;
 #else
     auto Flags = fcntl(Fd, F_GETFL, 0);
-    if(fcntl(Fd, F_SETFL, (IsNonBlock)? (Flags | O_NONBLOCK): (Flags & ~O_NONBLOCK)) == -1)
+    if(fcntl(Fd, F_SETFL, (IsNonBlock) ? (Flags | O_NONBLOCK) : (Flags & ~O_NONBLOCK)) == -1)
         return -1;
 #endif
     return 0;

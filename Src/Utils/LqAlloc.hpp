@@ -32,11 +32,9 @@
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
 
-class LqFastAlloc
-{
+class LqFastAlloc {
     template<size_t SizeElem>
-    struct Fields
-    {
+    struct Fields {
         void*                   StartElement;
         size_t                  Count;
         size_t                  SizeList;
@@ -45,41 +43,34 @@ class LqFastAlloc
         Fields(): StartElement(nullptr), SizeList(80), Count(0) {}
         ~Fields() { for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next) Next = *(void**)Ptr, ___free(Ptr); }
 
-        void* Alloc()
-        {
+        void* Alloc() {
             Locker.LockWrite();
-            if(StartElement != nullptr)
-            {
+            if(StartElement != nullptr) {
                 void* Ret = StartElement;
                 StartElement = *(void**)Ret;
                 Count--;
                 Locker.UnlockWrite();
                 return Ret;
-            } else
-            {
+            } else {
                 Locker.UnlockWrite();
                 return ___malloc(SizeElem);
             }
         }
-        void Free(void* Data)
-        {
+        void Free(void* Data) {
             Locker.LockWrite();
-            if(Count >= SizeList)
-            {
+            if(Count >= SizeList) {
                 Locker.UnlockWrite();
                 ___free(Data);
-            } else
-            {
+            } else {
                 *(void**)Data = StartElement;
                 StartElement = Data;
                 Count++;
                 Locker.UnlockWrite();
             }
         }
-        void ClearList()
-        {
+        void ClearList() {
             Locker.LockWrite();
-            for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next) 
+            for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next)
                 Next = *(void**)Ptr, ___free(Ptr);
             Count = 0;
             Locker.UnlockWrite();
@@ -139,33 +130,29 @@ public:
 #define __LQ_ALLOC_H_2_
 
 template<typename Type, typename... _Args>
-inline Type* LqFastAlloc::New(_Args&&... _Ax)
-{
+inline Type* LqFastAlloc::New(_Args&&... _Ax) {
     return new(assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.Alloc()) Type(_Ax...);
 }
 
 template<typename Type>
-static Type* LqFastAlloc::ReallocCount(Type* Prev, size_t PrevCount, size_t NewCount)
-{
+static Type* LqFastAlloc::ReallocCount(Type* Prev, size_t PrevCount, size_t NewCount) {
     Type* NewVal = nullptr;
 
-    switch(NewCount)
-    {
+    switch(NewCount) {
         case 0: lblExit:
-            switch(PrevCount)
-            {
-                case 0: break;
-                case 1: LqFastAlloc::Delete((StructSize<Type, 1>*)Prev);  break;
-                case 2: LqFastAlloc::Delete((StructSize<Type, 2>*)Prev);  break;
-                case 3: LqFastAlloc::Delete((StructSize<Type, 3>*)Prev);  break;
-                case 4: LqFastAlloc::Delete((StructSize<Type, 4>*)Prev);  break;
-                case 5: LqFastAlloc::Delete((StructSize<Type, 5>*)Prev);  break;
-                case 6: LqFastAlloc::Delete((StructSize<Type, 6>*)Prev);  break;
-                case 7: LqFastAlloc::Delete((StructSize<Type, 7>*)Prev);  break;
-                case 8: LqFastAlloc::Delete((StructSize<Type, 8>*)Prev);  break;
-                default: ___free(Prev); break;
-            }
-        return NewVal;
+    switch(PrevCount) {
+        case 0: break;
+        case 1: LqFastAlloc::Delete((StructSize<Type, 1>*)Prev);  break;
+        case 2: LqFastAlloc::Delete((StructSize<Type, 2>*)Prev);  break;
+        case 3: LqFastAlloc::Delete((StructSize<Type, 3>*)Prev);  break;
+        case 4: LqFastAlloc::Delete((StructSize<Type, 4>*)Prev);  break;
+        case 5: LqFastAlloc::Delete((StructSize<Type, 5>*)Prev);  break;
+        case 6: LqFastAlloc::Delete((StructSize<Type, 6>*)Prev);  break;
+        case 7: LqFastAlloc::Delete((StructSize<Type, 7>*)Prev);  break;
+        case 8: LqFastAlloc::Delete((StructSize<Type, 8>*)Prev);  break;
+        default: ___free(Prev); break;
+    }
+    return NewVal;
         case 1: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 1>>(); break;
         case 2: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 2>>(); break;
         case 3: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 3>>(); break;
@@ -186,28 +173,24 @@ static Type* LqFastAlloc::ReallocCount(Type* Prev, size_t PrevCount, size_t NewC
 Delete memory region with adding in stack regions. Late, this region takes from stack.
 */
 template<typename Type>
-inline typename std::enable_if<!std::is_same<Type, void>::value>::type LqFastAlloc::Delete(Type* Val)
-{
+inline typename std::enable_if<!std::is_same<Type, void>::value>::type LqFastAlloc::Delete(Type* Val) {
     Val->~Type();
     assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.Free(Val);
 }
 
 
 template<typename Type>
-inline void LqFastAlloc::Clear()
-{
+inline void LqFastAlloc::Clear() {
     assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.ClearList();
 }
 
 template<typename Type>
-inline void LqFastAlloc::SetMaxCount(size_t NewSize)
-{
+inline void LqFastAlloc::SetMaxCount(size_t NewSize) {
     assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.SetMaxCount(NewSize);
 }
 
 template<typename Type>
-inline size_t LqFastAlloc::GetMaxCount()
-{
+inline size_t LqFastAlloc::GetMaxCount() {
     return assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.SizeList;
 }
 

@@ -10,7 +10,6 @@
 
 #include "LqDef.h"
 #include "LqOs.h"
-#include <stdio.h>
 
 LQ_EXTERN_C_BEGIN
 
@@ -38,25 +37,26 @@ LQ_IMPORTEXPORT size_t LQ_CALL LqStrCat(char* lqaout DestStr, const char* lqain 
 LQ_IMPORTEXPORT size_t LQ_CALL LqStrLen(const char* lqain SourceStr);
 LQ_IMPORTEXPORT char* LQ_CALL LqStrDuplicate(const char* lqain SourceStr);
 LQ_IMPORTEXPORT char* LQ_CALL LqStrDuplicateMax(const char* lqain SourceStr, size_t Count);
+
 LQ_IMPORTEXPORT bool LQ_CALL LqStrSame(const char* lqain Str1, const char* lqain Str2);
 LQ_IMPORTEXPORT bool LQ_CALL LqStrSameMax(const char* lqain Str1, const char* lqain Str2, size_t Max);
-
-LQ_IMPORTEXPORT void LQ_CALL LqStrToHex(char* lqaout lqacp Dest, const void* lqain SourceData, size_t LenSource);
-LQ_IMPORTEXPORT int LQ_CALL LqStrFromHex(void* lqaout Dest, size_t DestLen, const char* lqain lqacp SourceStr);
+LQ_IMPORTEXPORT char* LQ_CALL LqStrChr(const char* lqain Str1, int Char);
+LQ_IMPORTEXPORT char* LQ_CALL LqStrChrMax(const char* lqain Str1, int Char, size_t Max);
+LQ_IMPORTEXPORT char* LQ_CALL LqStrPbrk(const char* lqain Str1, const char* lqain SrchSeq);
+LQ_IMPORTEXPORT char* LQ_CALL LqStrPbrkMax(const char* lqain Str1, const char* lqain SrchSeq, size_t Max);
+LQ_IMPORTEXPORT char* LQ_CALL LqStrStr(const char* lqain Str1, const char* lqain SrchSeq);
+LQ_IMPORTEXPORT char* LQ_CALL LqStrStrMax(const char* lqain Str1, const char* lqain SrchSeq, size_t Max);
+LQ_IMPORTEXPORT char* LQ_CALL LqStrRchr(const char* lqain Str1, int Char);
+LQ_IMPORTEXPORT char* LQ_CALL LqStrRpbrk(const char* lqain Str1, const char* lqain SrchSeq);
 
 LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrCharUtf16ToLower(uint32_t r);
 LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrCharUtf16ToUpper(uint32_t r);
 LQ_IMPORTEXPORT bool LQ_CALL LqStrCharUtf16IsAlpha(uint32_t r);
 
-
 LQ_IMPORTEXPORT char* LQ_CALL LqStrUtf8CharToStr(char* lqautf8 lqaout Dest, uint32_t ch);
 LQ_IMPORTEXPORT wchar_t* LQ_CALL LqStrUtf16CharToStr(wchar_t* lqautf16 lqaout Dest, uint32_t ch);
 
 LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrUtf8StrToChar(const char* lqautf8 lqain  Source);
-
-LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrCharRead(FILE* FileBuf);
-
-LQ_IMPORTEXPORT uint32_t LQ_CALL LqStrCharReadUtf8File(FILE* FileBuf);
 
 LQ_EXTERN_C_END
 

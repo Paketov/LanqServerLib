@@ -17,8 +17,7 @@ void LQ_CALL LqHttpMdlHandlersEmpty(LqHttpConn*);
 
 
 
-void LQ_CALL LqHttpMdlHandlersCacheInfo
-(
+void LQ_CALL LqHttpMdlHandlersCacheInfo(
     const char* lqain Path,
     LqHttpConn* lqain lqaopt Connection,
 
@@ -38,8 +37,7 @@ void LQ_CALL LqHttpMdlHandlersCacheInfo
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-typedef struct LqHttpExtensionMime
-{
+typedef struct LqHttpExtensionMime {
     size_t  CountExt;
     char**  Ext;
     size_t  CountMime;
@@ -50,8 +48,7 @@ typedef struct LqHttpExtensionMime
 
 const LqHttpExtensionMime* LqHttpMimeExtension(const char* lqain Str);
 
-void LQ_CALL LqHttpMdlHandlersMime
-(
+void LQ_CALL LqHttpMdlHandlersMime (
     const char* lqain Path,
     LqHttpConn* lqain lqaout Connection,
     char* lqaout lqaopt MimeDestBuf,
