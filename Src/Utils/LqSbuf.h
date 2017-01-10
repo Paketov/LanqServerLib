@@ -50,16 +50,10 @@ typedef struct LqSbufWriteRegion {
     void*      _Hdr;
 
     void*    Dest;
-    union {
-        const intptr_t DestLen;
-        intptr_t _DestLen;
-    };
+    intptr_t DestLen;
     intptr_t Readed;
-    union {
-        const intptr_t CommonReaded;
-        intptr_t _CommonReaded;
-    };
-    bool Fin;
+    intptr_t CommonReaded;
+    bool     Fin;
 } LqSbufWriteRegion;
 
 typedef struct LqSbufReadRegion {
@@ -69,16 +63,10 @@ typedef struct LqSbufReadRegion {
     size_t     _PageDataSize;
 
     void*    Source;
-    union {
-        const intptr_t SourceLen;
-        intptr_t _SourceLen;
-    };
+    intptr_t SourceLen;
     intptr_t Written;
-    union {
-        const intptr_t CommonWritten;
-        intptr_t _CommonWritten;
-    };
-    bool Fin;
+    intptr_t CommonWritten;
+    bool     Fin;
 } LqSbufReadRegion;
 
 typedef struct LqSbufReadRegionPtr {
@@ -86,16 +74,10 @@ typedef struct LqSbufReadRegionPtr {
     intptr_t   _Size;
 
     void*    Source;
-    union {
-        const intptr_t SourceLen;
-        intptr_t _SourceLen;
-    };
+    intptr_t SourceLen;
     intptr_t Written;
-    union {
-        const intptr_t CommonWritten;
-        intptr_t _CommonWritten;
-    };
-    bool Fin;
+    intptr_t CommonWritten;
+    bool     Fin;
 } LqSbufReadRegionPtr;
 
 #pragma pack(pop)

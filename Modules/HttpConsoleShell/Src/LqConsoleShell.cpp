@@ -107,8 +107,11 @@ int ReadCommandLine(char* CommandBuf, LqString& Line, LqString& Flags) {
 
     if(EndArguments < 0)
         EndArguments = StartArguments;
+    Line.clear();
     Line.resize(EndArguments - StartArguments);
     Flags.resize(Flags2 - Flags1);
+    CommandBuf[0] = '\0';
+
     LqFbuf_scanf(InFiles.top(), 0, "%?*[\n\r ]%?[+@-]%[^ \n\r]%?*[ ]%?[^\n\r]", Flags.data(), CommandBuf, Line.data());
     return EndCommand - Flags2;
 }

@@ -387,7 +387,7 @@ lblAgain:
             SetLastError(ERROR_IO_PENDING);
             break;
         case STATUS_SUCCESS: return iosb.Information;
-        case STATUS_END_OF_FILE: SetLastError(ERROR_HANDLE_EOF); break;
+        case STATUS_END_OF_FILE: SetLastError(ERROR_HANDLE_EOF); return 0;
         case STATUS_INVALID_PARAMETER:
             if(ppl == nullptr) {
                 ppl = &pl;
