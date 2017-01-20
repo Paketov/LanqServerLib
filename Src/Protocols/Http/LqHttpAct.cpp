@@ -20,7 +20,7 @@ LQ_EXTERN_C char* LQ_CALL LqHttpActSwitchToRspAndSetStartLine(LqHttpConn* c, int
     char* Buf = LqHttpRspHdrResize(c, 200);
     if(Buf == nullptr)
         return nullptr;
-    auto Written = LqFwbuf_snprintf(Buf, 199, "HTTP/%s %i %s\r\n\r\n", LqHttpProtoGetByConn(c)->HTTPProtoVer, StatusCode, LqHttpPrsGetMsgByStatus(StatusCode));
+    auto Written = LqFbuf_snprintf(Buf, 199, "HTTP/%s %i %s\r\n\r\n", LqHttpProtoGetByConn(c)->HTTPProtoVer, StatusCode, LqHttpPrsGetMsgByStatus(StatusCode));
     c->Response.Status = StatusCode;
     return LqHttpRspHdrResize(c, Written);
 }

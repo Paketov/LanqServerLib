@@ -176,7 +176,7 @@ LQ_EXTERN_C LqFileSz LQ_CALL LqHttpConnSendFromFile(LqHttpConn* c, int InFd, LqF
         r = LqConnSendFromFileSSL(&c->CommonConn, InFd, OffsetInFile, Count c->ssl);
     else
 #endif
-        r = LqConnSendFromFile(&c->CommonConn, InFd, OffsetInFile, Count);
+        r = LqSockSendFromFile(&c->CommonConn, InFd, OffsetInFile, Count);
     c->WrittenBodySize += r;
     return r;
 }
@@ -186,7 +186,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpConnCountPendingData(LqHttpConn* c) {
     if(c->ssl)
         return LqConnCountPendingDataSSL(&c->CommonConn, c->ssl);
 #endif
-    return LqConnCountPendingData(&c->CommonConn);
+    return LqSockCountPendingData(&c->CommonConn);
 }
 
 int LqHttpConnRecive_Native(LqHttpConn* c, void* Buf, int ReadSize, int Flags) {

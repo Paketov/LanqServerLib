@@ -69,7 +69,7 @@ struct LqEvntHdr {
 */
 struct LqConn {
     LQ_CONN_COMMON_EVNT_HDR;
-    LqProto*            Proto;      /*Server registration*/
+    LqProto*            Proto;      /*Protocol registartion(or maybe just handlers)*/
 };
 
 

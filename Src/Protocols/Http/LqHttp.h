@@ -272,10 +272,13 @@ struct LqHttpUserData {
 
 struct LqHttpConn {
     LqConn                      CommonConn;
+
     LqTimeMillisec              TimeStartMillisec;
     LqTimeMillisec              TimeLastExchangeMillisec;
     char*                       Buf;
     size_t                      BufSize;
+
+
     unsigned short              UserDataCount;
     LqHttpUserData*             UserData;
     uintptr_t                   _Reserved;
@@ -399,7 +402,7 @@ struct LqHttpMdl {
     /* Must return handler for method or NULL */
     LqHttpEvntHandlerFn(LQ_CALL * GetActEvntHandlerProc)(LqHttpConn* c);
 
-    /* Use for send command to module. If @Command[0] == '?', then the command came from the console and in Data FILE* descriptor for out*/
+    /* Use for send command to module. If @Command[0] == '?', then the command came from the console*/
     void (LQ_CALL* ReciveCommandProc)(LqHttpMdl* This, const char* Command, void* Data);
 
     /* Internally used in C++ part */

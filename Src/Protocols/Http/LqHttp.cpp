@@ -77,7 +77,7 @@ static char*LQ_CALL LqHttpCoreDbgInfoProc(LqConn* Connection);
 static bool LQ_CALL LqHttpCoreKickByTimeOutProc(LqConn* Connection, LqTimeMillisec CurrentTimeMillisec, LqTimeMillisec EstimatedLiveTime);
 static bool LqHttpMultipartAddHeaders(LqHttpMultipartHeaders** CurMultipart, const char* Buf, size_t BufLen);
 
-static void LQ_CALL LqHttpCoreBindHandler(LqConn* Connection, LqEvntFlag Flag);
+static void LQ_CALL LqHttpCoreAcceptHandler(LqConn* Connection, LqEvntFlag Flag);
 static void LQ_CALL LqHttpCoreBindCloseHandler(LqConn* Connection);
 
 static void LqHttpCoreRcvMultipartSkipToHdr(LqHttpConn* c);
@@ -187,7 +187,7 @@ LQ_EXTERN_C LqHttpProtoBase* LQ_CALL LqHttpProtoCreate() {
     r->Base.BindProto.UserData = r->Base.Proto.UserData = r;
 
     LqProtoInit(&r->Base.BindProto);
-    r->Base.BindProto.Handler = LqHttpCoreBindHandler;
+    r->Base.BindProto.Handler = LqHttpCoreAcceptHandler;
     r->Base.BindProto.CloseHandler = LqHttpCoreBindCloseHandler;
 
     r->Base.ZmbClr.Fd = -1;
@@ -226,7 +226,7 @@ LQ_EXTERN_C LqHttpProtoBase* LQ_CALL LqHttpProtoCreate() {
     LqHttpProtoSetNameServer(&r->Base, "Lanq(Lan Quick) 1.0");
 
     r->Cache.SetMaxSize(1024 * 1024 * 400);
-    LqFwbuf_snprintf(r->Base.HTTPProtoVer, sizeof(r->Base.HTTPProtoVer), "1.1");
+    LqFbuf_snprintf(r->Base.HTTPProtoVer, sizeof(r->Base.HTTPProtoVer), "1.1");
     LqHttpPthDmnCreate(&r->Base, "*");
 #ifdef HAVE_OPENSSL
     r->Base.ssl_ctx = nullptr;
@@ -816,7 +816,7 @@ lblResponseResult2:
 /*
 * Create new connection to client
 */
-static void LQ_CALL LqHttpCoreBindHandler(LqConn* Connection, LqEvntFlag Flag) {
+static void LQ_CALL LqHttpCoreAcceptHandler(LqConn* Connection, LqEvntFlag Flag) {
     if(Flag & LQEVNT_FLAG_ERR) {
         LqEvntSetClose(Connection);
         LQHTTPLOG_ERR("LqHttpCoreBindErrorProc() have error on binded socket\n");
@@ -830,7 +830,7 @@ static void LQ_CALL LqHttpCoreBindHandler(LqConn* Connection, LqEvntFlag Flag) {
     LqHttpConn* c;
 
     if((ClientFd = accept(Connection->Fd, &ClientAddr.Addr, &ClientAddrLen)) == -1) {
-        LQHTTPLOG_ERR("LqHttpCoreBindHandler() client not accepted\n");
+        LQHTTPLOG_ERR("LqHttpCoreAcceptHandler() client not accepted\n");
         return;
     }
 
@@ -840,7 +840,7 @@ static void LQ_CALL LqHttpCoreBindHandler(LqConn* Connection, LqEvntFlag Flag) {
             auto r = LqFastAlloc::New<HttpConnIp4>();
             if(r == nullptr) {
                 closesocket(ClientFd);
-                LQHTTPLOG_ERR("LqHttpCoreBindHandler() not alloc memory for connection\n");
+                LQHTTPLOG_ERR("LqHttpCoreAcceptHandler() not alloc memory for connection\n");
                 return;
             }
             r->Ip4Addr = ClientAddr.AddrInet;
@@ -852,7 +852,7 @@ static void LQ_CALL LqHttpCoreBindHandler(LqConn* Connection, LqEvntFlag Flag) {
             auto r = LqFastAlloc::New<HttpConnIp6>();
             if(r == nullptr) {
                 closesocket(ClientFd);
-                LQHTTPLOG_ERR("LqHttpCoreBindHandler() not alloc memory for connection\n");
+                LQHTTPLOG_ERR("LqHttpCoreAcceptHandler() not alloc memory for connection\n");
                 return;
             }
             r->Ip6Addr = ClientAddr.AddrInet6;
@@ -860,7 +860,7 @@ static void LQ_CALL LqHttpCoreBindHandler(LqConn* Connection, LqEvntFlag Flag) {
         }
         break;
         default:
-            LQHTTPLOG_ERR("LqHttpCoreBindHandler() unicknown connection protocol\n");
+            LQHTTPLOG_ERR("LqHttpCoreAcceptHandler() unicknown connection protocol\n");
             closesocket(ClientFd);
             return;
     }
@@ -977,7 +977,7 @@ static char* LQ_CALL LqHttpCoreDbgInfoProc(LqConn* Connection) {
     char * Info = (char*)malloc(255);
     if(Info == nullptr)
         return nullptr;
-    LqFwbuf_snprintf(
+    LqFbuf_snprintf(
         Info,
         254,
         "  HTTP connection. flags: %s%s%s",
@@ -1729,7 +1729,7 @@ static void LqHttpParseHeader(LqHttpConn* c, LqHttpQuery* q, char* StartKey, cha
         LQSTR_CASE_I("content-length");
         {
             ullong InputLen = 0ULL;
-            LqFrbuf_snscanf(StartVal, EndVal - StartVal, "%llu", &InputLen);
+            LqFbuf_snscanf(StartVal, EndVal - StartVal, "%llu", &InputLen);
             q->ContentLen = InputLen;
             //!!!!!!!!!!
         }

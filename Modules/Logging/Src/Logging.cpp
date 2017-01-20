@@ -78,7 +78,7 @@ void Log(const char* RemoteAddress, const char* StartLine, int RspStat, LqFileSz
 	TimeZone = -TimeZone;
 	struct tm Tm;
 	LqTimeLocSecToLocTm(&Tm, CurTime / 1000);
-	int Written = LqFwbuf_snprintf(
+	int Written = LqFbuf_snprintf(
 		Buffer,
 		sizeof(Buffer) - 3,
 		"%s - - [%02i/%s/%i:%02i:%02i:%02i +%02i%02i] \"%s\" %i %llu \"%s\" \"%s\" \"%s\"\r\n",

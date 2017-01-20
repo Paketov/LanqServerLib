@@ -49,10 +49,25 @@ static struct _wsa_data {
 /*
 *                   Response functions.
 */
+typedef struct LqConnSslInfo {
+	const void* MethodSSL; /* Example SSLv23_method()*/
+	const char* CertFile; /* Example: "server.pem"*/
+	const char* KeyFile; /*Example: "server.key"*/
+	const char* CipherList;
+	int TypeCertFile; /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
+	const char* CAFile;
+	const char* DhpFile;
+} LqConnSslInfo;
 
-
-
-LQ_EXTERN_C int LQ_CALL LqConnBind(const char* Host, const char* Port, int RouteProto, int SockType, int TransportProto, int MaxConnections, bool IsNonBlock) {
+LQ_EXTERN_C int LQ_CALL LqConnBind(
+	const char* Host,
+	const char* Port, 
+	int RouteProto, 
+	int SockType, 
+	int TransportProto, 
+	int MaxConnections, 
+	bool IsNonBlock
+) {
     static const int True = 1;
     int s;
     addrinfo *Addrs = nullptr, HostInfo = {0};
@@ -78,8 +93,8 @@ LQ_EXTERN_C int LQ_CALL LqConnBind(const char* Host, const char* Port, int Route
             continue;
         }
         if(IsNonBlock) {
-            if(LqConnSwitchNonBlock(s, 1)) {
-                LQ_LOG_ERR("LqConnBind() LqConnSwitchNonBlock(%i, 1) failed \"%s\"\n", s, strerror(lq_errno));
+            if(LqSockSwitchNonBlock(s, 1)) {
+                LQ_LOG_ERR("LqConnBind() LqSockSwitchNonBlock(%i, 1) failed \"%s\"\n", s, strerror(lq_errno));
                 continue;
             }
         }
@@ -135,7 +150,7 @@ LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, int
         if((s = socket(i->ai_family, i->ai_socktype, i->ai_protocol)) == -1)
             continue;
         if(IsNonBlock)
-            LqConnSwitchNonBlock(s, 1);
+            LqSockSwitchNonBlock(s, 1);
         if(connect(s, i->ai_addr, i->ai_addrlen) != -1)
             break;
         if(IsNonBlock && LQERR_IS_WOULD_BLOCK)
@@ -169,6 +184,8 @@ LQ_EXTERN_C int LQ_CALL LqConnRowIpToStr(LqConnInetAddress* SourceAddress, char*
         (SourceAddress->Addr.sa_family == AF_INET6) ? (void*)&SourceAddress->AddrInet6.sin6_addr : (void*)&SourceAddress->AddrInet.sin_addr, DestStr, DestStrLen) != nullptr
          ) ? 0 : -1;
 }
+
+
 
 
 LQ_EXTERN_C void* LQ_CALL LqConnSslCreate
@@ -316,7 +333,7 @@ size_t LqConnSend(LqConn* c, const void* Buf, size_t WriteSize) {
 /*
 *  @return: count written in sock. Always >= 0.
 */
-LqFileSz LqConnSendFromFile(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count) {
+LqFileSz LqSockSendFromFile(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count) {
     char Buf[LQCONN_MAX_LOCAL_SIZE];
     LqFileSz Sended = 0;
     intptr_t r, wr;
@@ -682,7 +699,7 @@ size_t LqConnSkipSSL(LqConn* c, size_t Count, SSL* ssl) {
 
 #endif
 
-LQ_EXTERN_C int LQ_CALL LqConnCountPendingData(LqConn* c) {
+LQ_EXTERN_C int LQ_CALL LqSockCountPendingData(LqConn* c) {
 #ifdef LQPLATFORM_WINDOWS
     u_long res = -1;
     if(ioctlsocket(c->Fd, FIONREAD, &res) == -1)
@@ -695,7 +712,7 @@ LQ_EXTERN_C int LQ_CALL LqConnCountPendingData(LqConn* c) {
     return res;
 }
 
-LQ_EXTERN_C int LQ_CALL LqConnSwitchNonBlock(int Fd, int IsNonBlock) {
+LQ_EXTERN_C int LQ_CALL LqSockSwitchNonBlock(int Fd, int IsNonBlock) {
 #ifdef LQPLATFORM_WINDOWS
     u_long nonBlocking = IsNonBlock;
     if(ioctlsocket(Fd, FIONBIO, &nonBlocking) == -1)

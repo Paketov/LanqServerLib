@@ -61,7 +61,7 @@ void LQ_CALL LqHttpMdlHandlersNonce(LqHttpConn* c, char* MethodBuf, size_t Metho
     uint64_t h = Random;
     for(const char* k = IpBuf; *k != '\0'; k++)
         h = 63 * h + *k;
-    LqFwbuf_snprintf(MethodBuf, MethodBufSize, "%q64x", h);
+    LqFbuf_snprintf(MethodBuf, MethodBufSize, "%q64x", h);
 }
 
 LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* c, uint8_t AccessMask) {
@@ -188,7 +188,7 @@ static bool LqHttpAtzGetBasicBase64LoginPassword(char* Str, size_t Len, char** R
     auto t = Str[Len];
     Str[Len] = '\0';
     int a = -1, b = -1;
-    LqFrbuf_snscanf(Str, Len, "%*{B|b}asic%*[ ]%n%*[a-zA-Z0-9/+=]%n", &a, &b);
+    LqFbuf_snscanf(Str, Len, "%*{B|b}asic%*[ ]%n%*[a-zA-Z0-9/+=]%n", &a, &b);
     Str[Len] = t;
     if((a != -1) && (b != -1)) {
         *Res = Str + a;
@@ -261,7 +261,7 @@ static char* LqHttpAtzGetBasicCode(const char* User, const char* Password) {
     if(Step1Buf == nullptr)
         return nullptr;
     Step1Buf[0] = '\0';
-    LqFwbuf_snprintf(Step1Buf, l, "%s:%s", User, Password);
+    LqFbuf_snprintf(Step1Buf, l, "%s:%s", User, Password);
     size_t Step2BufLen = (size_t)((float)l * 1.4f) + 2;
     char* Step2Buf = (char*)calloc(Step2BufLen, 1);
     if(Step2Buf == nullptr) {
@@ -269,7 +269,7 @@ static char* LqHttpAtzGetBasicCode(const char* User, const char* Password) {
         return nullptr;
     }
     /* Write base 64*/
-    LqFwbuf_snprintf(Step2Buf, Step2BufLen, "%#b", Step1Buf);
+    LqFbuf_snprintf(Step2Buf, Step2BufLen, "%#b", Step1Buf);
     free(Step1Buf);
     return Step2Buf;
 }
@@ -337,7 +337,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzAdd(LqHttpAtz* NetAutoriz, uint8_t AccessMask,
         LqMd5Update(&ctx, Password, LqStrLen(Password));
         LqMd5 h;
         LqMd5Final((unsigned char*)&h, &ctx);
-        LqFwbuf_snprintf(
+        LqFbuf_snprintf(
             NetAutoriz->Digest[NetAutoriz->CountAuthoriz].DigestLoginPassword,
             sizeof(NetAutoriz->Digest[NetAutoriz->CountAuthoriz].DigestLoginPassword),
             "%.*v", //Print hex string
@@ -360,7 +360,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzRemove(LqHttpAtz* NetAutoriz, const char* User
         char Buf[4096];
         for(size_t i = 0; i < nc;) {
             Buf[0] = '\0';
-            LqFrbuf_snscanf(NetAutoriz->Basic[i].LoginPassword, LqStrLen(NetAutoriz->Basic[i].LoginPassword), "%.4095b", Buf);
+            LqFbuf_snscanf(NetAutoriz->Basic[i].LoginPassword, LqStrLen(NetAutoriz->Basic[i].LoginPassword), "%.4095b", Buf);
             if(LqStrSameMax(Buf, UserName, l)) {
                 LqCheckedFree(NetAutoriz->Basic[i].LoginPassword);
                 memmove(NetAutoriz->Basic + i, NetAutoriz->Basic + (i + 1), (nc - (i + 1)) * sizeof(NetAutoriz->Basic[0]));

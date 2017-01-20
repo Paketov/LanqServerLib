@@ -282,7 +282,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqHttpRcvHdrScanfVa(const LqHttpConn* c, size_t Dee
         return -1;
     auto t = *EndVal;
     *EndVal = '\0';
-    auto r = LqFrbuf_snscanf(StartVal, EndVal - StartVal, Format, Va);
+    auto r = LqFbuf_snscanf(StartVal, EndVal - StartVal, Format, Va);
     *EndVal = t;
     return r;
 }

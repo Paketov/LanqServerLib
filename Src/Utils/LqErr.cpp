@@ -106,6 +106,7 @@ LQ_EXTERN_C int LQ_CALL ___lq_windows_errno() {
         case ERROR_SHARING_BUFFER_EXCEEDED:     return ENOLCK;
         case ERROR_NOT_CONNECTED:               return ENOLINK;
         case ERROR_FILE_INVALID:                return ENXIO;
+        case ERROR_NO_DATA:                     return ENODATA;
         case ERROR_ARITHMETIC_OVERFLOW:         return EOVERFLOW;
         case ERROR_SETMARK_DETECTED:
         case ERROR_BEGINNING_OF_MEDIA:          return ESPIPE;
@@ -288,7 +289,7 @@ LQ_EXTERN_C int LQ_CALL ___lq_windows_set_errno(int NewErr) {
         case EDEADLOCK: Err = ERROR_POSSIBLE_DEADLOCK; break;
         case EINTR: Err = ERROR_INVALID_AT_INTERRUPT_TIME; break;
         case EMFILE: Err = ERROR_NO_MORE_SEARCH_HANDLES; break;
-        case ENODATA: Err = ERROR_HANDLE_EOF; break;
+        case ENODATA: Err = ERROR_NO_DATA; break;
         case ENOLCK: Err = ERROR_SHARING_BUFFER_EXCEEDED; break;
         case ENOLINK: Err = ERROR_NOT_CONNECTED; break;
         case ENXIO: Err = ERROR_FILE_INVALID; break;

@@ -574,7 +574,7 @@ LQ_EXTERN_C int LQ_CALL LqFileTermPairCreate(int* MasterFd, int* SlaveFd, int Ma
         CurSerNum = TermSerialNumber + 1;
     } while(!LqAtmCmpXchg(TermSerialNumber, t, CurSerNum));
 
-    LqFwbuf_snprintf(
+    LqFbuf_snprintf(
         PipeNameBuffer,
         sizeof(PipeNameBuffer),
         "\\\\.\\Pipe\\TermPair_%u%u_%u%u",
@@ -608,7 +608,7 @@ LQ_EXTERN_C int LQ_CALL LqFilePipeCreate(int* lpReadPipe, int* lpWritePipe, uint
         CurSerNum = PipeSerialNumber + 1;
     } while(!LqAtmCmpXchg(PipeSerialNumber, t, CurSerNum));
 
-    LqFwbuf_snprintf(
+    LqFbuf_snprintf(
         PipeNameBuffer,
         sizeof(PipeNameBuffer),
         "\\\\.\\Pipe\\AnonPipe_%u%u_%u%u",
@@ -641,7 +641,7 @@ LQ_EXTERN_C int LQ_CALL LqFilePipeCreateRw(int* Pipe1, int* Pipe2, uint32_t Flag
         t = PipeSerialNumber;
         CurSerNum = PipeSerialNumber + 1;
     } while(!LqAtmCmpXchg(PipeSerialNumber, t, CurSerNum));
-    LqFwbuf_snprintf(
+    LqFbuf_snprintf(
         PipeNameBuffer,
         sizeof(PipeNameBuffer),
         "\\\\.\\Pipe\\AnonPipeRw_%u%u_%u%u",
@@ -749,7 +749,7 @@ LQ_EXTERN_C int LQ_CALL LqFileSharedCreate(int key, size_t Size, int DscrFlags, 
     HANDLE hMap;
     char Name[30];
     SECURITY_ATTRIBUTES InheritAttr = {sizeof(SECURITY_ATTRIBUTES), NULL, (DscrFlags & LQ_O_NOINHERIT) ? FALSE : TRUE};
-    LqFwbuf_snprintf(Name, sizeof(Name), "SharedM%05X", key);
+    LqFbuf_snprintf(Name, sizeof(Name), "SharedM%05X", key);
     hMap = CreateFileMappingA(INVALID_HANDLE_VALUE,
                               &InheritAttr,
                               PAGE_READWRITE,
@@ -762,7 +762,7 @@ LQ_EXTERN_C int LQ_CALL LqFileSharedCreate(int key, size_t Size, int DscrFlags, 
 LQ_EXTERN_C int LQ_CALL LqFileSharedOpen(int key, size_t Size, int DscrFlags, int UserAccess) {
     HANDLE hMap;
     char Name[30];
-    LqFwbuf_snprintf(Name, sizeof(Name), "SharedM%05X", key);
+    LqFbuf_snprintf(Name, sizeof(Name), "SharedM%05X", key);
     hMap = OpenFileMappingA(FILE_MAP_ALL_ACCESS, (DscrFlags & LQ_O_NOINHERIT) ? FALSE : TRUE, Name);
     return (hMap == 0) ? -1 : (int)hMap;
 }
@@ -1635,7 +1635,7 @@ LQ_EXTERN_C bool LQ_CALL LqMutexClose(LqMutex* lqain Dest) {
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileGetPath(int Fd, char* DestBuf, intptr_t SizeBuf) {
     char PathToFd[64];
-    LqFwbuf_snprintf(PathToFd, sizeof(PathToFd), "/proc/self/fd/%i", Fd);
+    LqFbuf_snprintf(PathToFd, sizeof(PathToFd), "/proc/self/fd/%i", Fd);
     return readlink(PathToFd, DestBuf, SizeBuf);
 }
 
@@ -2098,7 +2098,7 @@ LQ_EXTERN_C int LQ_CALL LqFileProcessParentId() {
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileProcessName(int Pid, char* DestBuf, intptr_t SizeBuf) {
     char Buf[64];
-    LqFwbuf_snprintf(Buf, sizeof(Buf), "/proc/%i/exe", Pid);
+    LqFbuf_snprintf(Buf, sizeof(Buf), "/proc/%i/exe", Pid);
     return readlink(Buf, DestBuf, SizeBuf);
 }
 

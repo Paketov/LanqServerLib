@@ -60,6 +60,8 @@
 
 #include "Lanq.h"
 
+#pragma pack(push)
+#pragma pack(LQSTRUCT_ALIGN_MEM)
 
 typedef union LqConnInetAddress {
     struct sockaddr         Addr;
@@ -68,7 +70,8 @@ typedef union LqConnInetAddress {
     struct sockaddr_storage AddrStorage;
 } LqConnInetAddress;
 
-LqFileSz LqConnSendFromFile(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count);
+#pragma pack(pop)
+LqFileSz LqSockSendFromFile(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count);
 intptr_t LqConnSendFromStream(LqConn* c, LqSbuf* Stream, intptr_t Count);
 size_t LqConnSend(LqConn* c, const void* Buf, size_t WriteSize);
 
@@ -79,9 +82,9 @@ LqFileSz LqConnReciveInFile(LqConn* c, int OutFd, LqFileSz Count);
 intptr_t LqConnReciveInStream(LqConn* c, LqSbuf* Stream, intptr_t Count);
 LQ_EXTERN_C_BEGIN
 
-LQ_IMPORTEXPORT int LQ_CALL LqConnCountPendingData(LqConn* c);
+LQ_IMPORTEXPORT int LQ_CALL LqSockCountPendingData(LqConn* c);
 /* Return -1 is err. */
-LQ_IMPORTEXPORT int LQ_CALL LqConnSwitchNonBlock(int Fd, int IsNonBlock);
+LQ_IMPORTEXPORT int LQ_CALL LqSockSwitchNonBlock(int Fd, int IsNonBlock);
 
 /*
 * @Conn - Target connection or children of connection.

@@ -41,9 +41,9 @@ int main(int argc, char* argv[])
     signal(SIGPIPE, SIG_IGN);
 #endif
 	LqCpSet(LQCP_UTF_8);
-	LqFbuf_fdopen(&StdIn, LQFWBUF_PRINTF_FLUSH | LQFWBUF_PUT_FLUSH, LQ_STDIN, 0, 50, 4096, 20);
-	LqFbuf_fdopen(&StdOut, LQFWBUF_PRINTF_FLUSH | LQFWBUF_PUT_FLUSH, LQ_STDOUT, 0, 50, 4096, 20);
-	LqFbuf_fdopen(&StdErr, LQFWBUF_PRINTF_FLUSH | LQFWBUF_PUT_FLUSH, LQ_STDERR, 0, 50, 4096, 20);
+	LqFbuf_fdopen(&StdIn, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH, LQ_STDIN, 0, 50, 4096, 20);
+	LqFbuf_fdopen(&StdOut, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH, LQ_STDOUT, 0, 50, 4096, 20);
+	LqFbuf_fdopen(&StdErr, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH, LQ_STDERR, 0, 50, 4096, 20);
 
     intptr_t CountWorkers = 1;
     int BeepFreg = -1, BeepLen = -1;
@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
             break;
             case 'p': {
                 int StartRange = 0, EndRange = 0;
-                auto Readed = LqFrbuf_snscanf(argv[i], LqStrLen(argv[i]), "%i-%i", &StartRange, &EndRange);
+                auto Readed = LqFbuf_snscanf(argv[i], LqStrLen(argv[i]), "%i-%i", &StartRange, &EndRange);
                 if(Readed == 1) {
                     EndRange = StartRange;
                 } else if((Readed < 1) || (StartRange > EndRange)) {
@@ -94,7 +94,7 @@ int main(int argc, char* argv[])
             case 'b':
             {
                 int TmpFreg, TmpLen;
-                auto Readed = LqFrbuf_snscanf(argv[i], LqStrLen(argv[i]), "%i,%i", &TmpFreg, &TmpLen);
+                auto Readed = LqFbuf_snscanf(argv[i], LqStrLen(argv[i]), "%i,%i", &TmpFreg, &TmpLen);
                 if(Readed == 1) {
                     BeepFreg = TmpFreg;
                     BeepLen = 200;

@@ -107,7 +107,7 @@ lblWaitAgain:
             auto Fd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
             if(Fd == -1)
                 continue;
-            LqConnSwitchNonBlock(Fd, 1);
+            LqSockSwitchNonBlock(Fd, 1);
             LqConnInetAddress AddrLoc = *Addr;
             if(AddrLoc.Addr.sa_family == AF_INET) {
                 AddrLoc.AddrInet.sin_port = htons(j);

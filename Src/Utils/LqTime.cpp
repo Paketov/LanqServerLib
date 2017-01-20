@@ -47,13 +47,13 @@ LQ_EXTERN_CPP LqString LQ_CALL LqTimeDiffSecToStlStr(LqTimeSec t1, LqTimeSec t2)
     if((Days != 0) || k)
         str_r += LqToString(Days) + " days ", k = true;
     char Buf[30];
-    LqFwbuf_snprintf(Buf, sizeof(Buf), "%02i:%02i:%02i", (int)Hours, (int)Minutes, (int)Seconds);
+    LqFbuf_snprintf(Buf, sizeof(Buf), "%02i:%02i:%02i", (int)Hours, (int)Minutes, (int)Seconds);
     return str_r + Buf;
 }
 
 LQ_EXTERN_CPP LqString LQ_CALL LqTimeDiffMillisecToStlStr(LqTimeMillisec t1, LqTimeMillisec t2) {
     char Buf[20];
-    LqFwbuf_snprintf(Buf, sizeof(Buf), ":%03i", (int)((t2 - t1) % 1000));
+    LqFbuf_snprintf(Buf, sizeof(Buf), ":%03i", (int)((t2 - t1) % 1000));
     return LqTimeDiffSecToStlStr(t1 / 1000, t2 / 1000) + Buf;
 }
 
@@ -61,7 +61,7 @@ LQ_EXTERN_CPP LqString LQ_CALL LqTimeLocSecToStlStr(LqTimeSec t) {
     char b[30]; b[0] = '\0';
     tm Tm;
     LqTimeLocSecToLocTm(&Tm, t);
-    LqFwbuf_snprintf(b, sizeof(b), PRINTF_TIME_TM_FORMAT, PRINTF_TIME_TM_ARG(Tm));
+    LqFbuf_snprintf(b, sizeof(b), PRINTF_TIME_TM_FORMAT, PRINTF_TIME_TM_ARG(Tm));
     return b;
 }
 
@@ -70,7 +70,7 @@ LQ_EXTERN_CPP LqString LQ_CALL LqTimeGmtSecToStlStr(LqTimeSec t) {
     t += GmtCorrection;
     time_t Tt = t;
     auto Tm = gmtime(&Tt);
-    LqFwbuf_snprintf(Buf, sizeof(Buf), PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*Tm));
+    LqFbuf_snprintf(Buf, sizeof(Buf), PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*Tm));
     return Buf;
 }
 
@@ -213,11 +213,11 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToGmtSec(const char* Str, LqTimeSec* Result) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqTimeGmtTmToStr(char* DestStr, LqTimeSec DestStrLen, const struct tm* InTmGmt) {
-    return LqFwbuf_snprintf(DestStr, DestStrLen, PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*InTmGmt));
+    return LqFbuf_snprintf(DestStr, DestStrLen, PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*InTmGmt));
 }
 
 LQ_EXTERN_C int LQ_CALL LqTimeLocTmToStr(char* DestStr, LqTimeSec DestStrLen, const struct tm* InTm) {
-    return LqFwbuf_snprintf(DestStr, DestStrLen, PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*InTm));
+    return LqFbuf_snprintf(DestStr, DestStrLen, PRINTF_TIME_TM_FORMAT_GMT, PRINTF_TIME_TM_ARG_GMT(*InTm));
 }
 
 LQ_EXTERN_C int LQ_CALL LqTimeLocToStr(char* DestStr, LqTimeSec DestStrLen) {

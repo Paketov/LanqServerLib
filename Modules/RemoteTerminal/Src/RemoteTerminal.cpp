@@ -245,7 +245,7 @@ void LQ_CALL ConnHandlers::NewTerminal(LqHttpConn* c) {
 	char KeyBuffer[50] = {0};
 	for(int i = 0; i < 4; i++)
 		Key[i] = rand() + clock() * 10000;
-	LqFwbuf_snprintf(KeyBuffer, sizeof(KeyBuffer), "%.*v", (int)(sizeof(Key) - sizeof(int)), Key);
+	LqFbuf_snprintf(KeyBuffer, sizeof(KeyBuffer), "%.*v", (int)(sizeof(Key) - sizeof(int)), Key);
 	auto Ses = LqFastAlloc::New<CmdSession>(MasterFd, Pid, LqString(KeyBuffer));
 	LqString LqResponse;
 	LqResponse = "{\"Key\": \"" + LqString(KeyBuffer) + "\", \"SessionIndex\": " + LqToString(Ses->Index) + "}";

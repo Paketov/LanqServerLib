@@ -43,6 +43,7 @@
     <ClCompile Include="..\Src\Utils\LqLib.cpp" />
     <ClCompile Include="..\Src\Utils\LqPrtScan.cpp" />
     <ClCompile Include="..\Src\Utils\LqSbuf.cpp" />
+    <ClCompile Include="..\Src\Utils\LqSockBuf.cpp" />
     <ClCompile Include="..\Src\Utils\LqStr.cpp" />
     <ClCompile Include="..\Src\Utils\LqTime.cpp" />
     <ClCompile Include="..\Src\Utils\LqMd5.cpp" />
@@ -86,6 +87,7 @@
     <ClInclude Include="..\Src\Utils\LqFileTrd.h" />
     <ClInclude Include="..\Src\Utils\LqIpRow.hpp" />
     <ClInclude Include="..\Src\Utils\LqPrtScan.hpp" />
+    <ClInclude Include="..\Src\Utils\LqSockBuf.h" />
     <ClInclude Include="..\Src\Utils\LqTbl.hpp" />
     <ClInclude Include="..\Src\Utils\LqHndls.hpp" />
     <ClInclude Include="..\Src\Utils\LqLib.h" />

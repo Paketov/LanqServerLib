@@ -322,12 +322,12 @@ LQ_EXTERN_C int LQ_CALL LqMd5Compare(const LqMd5* Hash1, const LqMd5* Hash2) {
 }
 
 LQ_EXTERN_C void LQ_CALL LqMd5ToString(char* DestStr, const LqMd5* Hash) {
-    LqFwbuf_snprintf(DestStr, 100, "%.*v", (int)sizeof(LqMd5), Hash);
+    LqFbuf_snprintf(DestStr, 100, "%.*v", (int)sizeof(LqMd5), Hash);
 }
 
 LQ_EXTERN_C int LQ_CALL LqMd5FromString(LqMd5* Hash, const char* SourceStr) {
     int Readed = -1;
-    LqFrbuf_snscanf(SourceStr, 100, "%.*v%n", (int)sizeof(LqMd5), Hash, &Readed);
+    LqFbuf_snscanf(SourceStr, 100, "%.*v%n", (int)sizeof(LqMd5), Hash, &Readed);
     return Readed;
 }
 
@@ -341,6 +341,6 @@ LQ_EXTERN_C void LQ_CALL LqMd5Gen(LqMd5* Hash, const void* Buf, size_t BufLen) {
 LQ_EXTERN_C void LQ_CALL LqMd5GenToString(char* Dest, const void* Buf, size_t BufLen) {
     LqMd5 h;
     LqMd5Gen(&h, Buf, BufLen);
-    LqFwbuf_snprintf(Dest, 100, "%.*v", (int)sizeof(h), &h);
+    LqFbuf_snprintf(Dest, 100, "%.*v", (int)sizeof(h), &h);
 }
 

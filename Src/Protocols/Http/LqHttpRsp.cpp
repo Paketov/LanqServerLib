@@ -69,7 +69,7 @@ static bool LqHttpRsp304Headers(LqHttpConn* c, char* Etag, char* CacheControl, t
 }
 
 int LqHttpRspPrintRangeBoundaryHeaders(char* Buf, size_t SizeBuf, LqHttpConn* c, LqFileSz SizeFile, LqFileSz Start, LqFileSz End, const char* MimeType) {
-    return LqFwbuf_snprintf(
+    return LqFbuf_snprintf(
         Buf,
         SizeBuf,
         "\r\n--z3d6b6a416f9b53e416f9b5z\r\n"
@@ -82,7 +82,7 @@ int LqHttpRspPrintRangeBoundaryHeaders(char* Buf, size_t SizeBuf, LqHttpConn* c,
 }
 
 int LqHttpRspPrintEndRangeBoundaryHeader(char* Buf, size_t SizeBuf) {
-    return LqFwbuf_snprintf(
+    return LqFbuf_snprintf(
         Buf,
         SizeBuf,
         "\r\n--z3d6b6a416f9b53e416f9b5z--"
@@ -551,7 +551,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqHttpRspHdrPrintfContent(LqHttpConn* c, const char
     if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
         return -1;
     va_start(Va, FormatStr);
-    auto Written = LqFwbuf_svnprintf(LocalBuf, sizeof(LocalBuf) - 1, FormatStr, Va);
+    auto Written = LqFbuf_svnprintf(LocalBuf, sizeof(LocalBuf) - 1, FormatStr, Va);
     va_end(Va);
     return LqHttpRspHdrAddSmallContent(c, LocalBuf, Written);
 }
@@ -581,7 +581,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqHttpRspContentWritePrintfVa(LqHttpConn* c, const 
     if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
         return -1;
     char LocalBuf[LQCONN_MAX_LOCAL_SIZE];
-    auto Written = LqFwbuf_svnprintf(LocalBuf, sizeof(LocalBuf) - 1, FormatStr, Va);
+    auto Written = LqFbuf_svnprintf(LocalBuf, sizeof(LocalBuf) - 1, FormatStr, Va);
     return LqHttpRspContentWrite(c, LocalBuf, Written);
 }
 
@@ -744,7 +744,7 @@ LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrAdd(LqHttpConn* c, const char* HeaderName,
 
 LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrAddPrintfVa(LqHttpConn* c, const char* HeaderName, const char* FormatStr, va_list Va) {
     char LocalBuf[LQCONN_MAX_LOCAL_SIZE];
-    auto Written = LqFwbuf_svnprintf(LocalBuf, sizeof(LocalBuf) - 1, FormatStr, Va);
+    auto Written = LqFbuf_svnprintf(LocalBuf, sizeof(LocalBuf) - 1, FormatStr, Va);
     if(Written >= (sizeof(LocalBuf) - 2))
         return nullptr;
     return LqHttpRspHdrAddEx(c, HeaderName, LqStrLen(HeaderName), LocalBuf, Written);
@@ -812,7 +812,7 @@ LQ_EXTERN_C char* LQ_CALL LqHttpRspHdrAddStartLine(LqHttpConn* c, uint16_t Statu
     if(LqHttpActGetClassByConn(c) != LQHTTPACT_CLASS_RSP)
         return nullptr;
     char Buf[1024];
-    auto Written = LqFwbuf_snprintf(Buf, sizeof(Buf) - 1, "HTTP/%s %q16u %s\r\n", LqHttpProtoGetByConn(c)->HTTPProtoVer, StatusCode, LqHttpPrsGetMsgByStatus(StatusCode));
+    auto Written = LqFbuf_snprintf(Buf, sizeof(Buf) - 1, "HTTP/%s %q16u %s\r\n", LqHttpProtoGetByConn(c)->HTTPProtoVer, StatusCode, LqHttpPrsGetMsgByStatus(StatusCode));
     if(auto Res = LqHttpRspHdrInsertStrEx(c, 0, 0, Buf, Written)) {
         c->Response.Status = StatusCode;
         return Res;
@@ -966,7 +966,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpRspGetSbufMd5(LqHttpConn* c, LqSbuf* StreamBuf, L
             return false;
     }
     LqMd5Init(&ctx);
-    LqSbufPtrSet(StreamBuf, &Ptr);
+    LqSbufPtrSet(&Ptr, StreamBuf);
     while(true) {
         auto Count = LqSbufReadByPtr(&Ptr, Buf, sizeof(Buf));
         if(Count < 0)

@@ -285,7 +285,7 @@ public:
                             return LqString();
                         char Buf[1024];
                         LqSbufPtr BufPtr;
-                        LqSbufPtrSet(&Size.Conn->Query.Stream, &BufPtr);
+                        LqSbufPtrSet(&BufPtr, &Size.Conn->Query.Stream);
                         LqString Result;
                         for(;;) {
                             intptr_t Readed;

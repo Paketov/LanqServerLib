@@ -15,6 +15,7 @@
 
 #include <stdarg.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 LQ_EXTERN_C_BEGIN
 
@@ -94,13 +95,12 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufWrite(LqSbuf* StreamBuf, const void* lqai
 */
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufRead(LqSbuf* StreamBuf, void* DataDest, intptr_t DataDestSize);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufPeek(const LqSbuf* StreamBuf, void* DataDest, intptr_t DataDestSize);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufTransfer(LqSbuf* StreamBufSource, LqSbuf* StreamBufDest, intptr_t Size);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufTransfer(LqSbuf* StreamBufDest, LqSbuf* StreamBufSource, intptr_t Size);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufCopy(LqSbuf* StreamDest, const LqSbuf* StreamSource);
 
 /*
 * Redirect part of stream in file, or read from file.
 */
-
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqSbufCheck(LqSbuf* StreamBuf);
 
 LQ_IMPORTEXPORT bool LQ_CALL LqSbufReadRegionFirst(LqSbuf* StreamBuf, LqSbufReadRegion* Reg, intptr_t Size);
 LQ_IMPORTEXPORT bool LQ_CALL LqSbufReadRegionNext(LqSbufReadRegion* Reg);  /* Get next page*/
@@ -118,9 +118,8 @@ LQ_IMPORTEXPORT bool LQ_CALL LqSbufWriteRegionNext(LqSbufWriteRegion* Reg);
 *  Start <|----------------------------------------------|> End Stream
 */
 
-LQ_IMPORTEXPORT void LQ_CALL LqSbufPtrSet(LqSbuf* StreamBuf, LqSbufPtr* StreamPointerDest);
-
-LQ_IMPORTEXPORT void LQ_CALL LqSbufPtrCopy(LqSbufPtr* StreamPointerDest, LqSbufPtr* StreamPointerSource);
+LQ_IMPORTEXPORT void LQ_CALL LqSbufPtrSet(LqSbufPtr* StreamPointerDest, LqSbuf* StreamBuf);
+LQ_IMPORTEXPORT void LQ_CALL LqSbufPtrCopy(LqSbufPtr* StreamPointerDest, const LqSbufPtr* StreamPointerSource);
 /*
 * @StreamBuf - Pointer on stream buf structure.
 * @StreamPointer - Pointer on data in stream.
@@ -139,124 +138,107 @@ LQ_IMPORTEXPORT bool LQ_CALL LqSbufReadRegionPtrIsEos(LqSbufReadRegionPtr* Reg);
 * File io
 */
 
-#define LQFWBUF_PRINTF_FLUSH   ((uint8_t)0x01)
-#define LQFWBUF_PUT_FLUSH      ((uint8_t)0x02)
-#define LQFWBUF_WRITE_ERROR    ((uint8_t)0x04)
-#define LQFWBUF_WOULD_BLOCK    ((uint8_t)0x08)
+typedef uint16_t LqFbufFlag;
 
+#define LQFBUF_PRINTF_FLUSH      ((LqFbufFlag)0x0001)
+#define LQFBUF_PUT_FLUSH         ((LqFbufFlag)0x0002)
+#define LQFBUF_WRITE_ERROR       ((LqFbufFlag)0x0004)
+#define LQFBUF_WRITE_WOULD_BLOCK ((LqFbufFlag)0x0008)
 
-#define LQFRBUF_READ_ERROR     ((uint8_t)0x10)
-#define LQFRBUF_WOULD_BLOCK    ((uint8_t)0x20)
-#define LQFRBUF_READ_EOF       ((uint8_t)0x40)
-#define LQFRWBUF_FAST_LK       ((uint8_t)0x80)
+#define LQFBUF_READ_ERROR        ((LqFbufFlag)0x0010)
+#define LQFBUF_READ_WOULD_BLOCK  ((LqFbufFlag)0x0020)
+#define LQFBUF_READ_EOF          ((LqFbufFlag)0x0040)
+#define LQFBUF_FAST_LK		     ((LqFbufFlag)0x0080)
 
-#define LQFRBUF_SCANF_PEEK    ((int)0x01)
-#define LQFRBUF_SCANF_PEEK_WHEN_ERR    ((int)0x02)
+#define LQFBUF_POINTER           ((LqFbufFlag)0x0100)
+#define LQFBUF_STREAM            ((LqFbufFlag)0x0200)
+#define LQFBUF_SEP_COMMA         ((LqFbufFlag)0x0400)
+#define LQFBUF_USER_FLAG         ((LqFbufFlag)0x0800)
+
+#define LQFRBUF_SCANF_PEEK           ((int)0x01)
+#define LQFRBUF_SCANF_PEEK_WHEN_ERR  ((int)0x02)
 
 
 #define LQFRWBUF_FAST_LOCKER     int
 #define LQFRWBUF_DEFAULT_LOCKER  LqMutex
 
+#pragma pack(push)
+#pragma pack(LQSTRUCT_ALIGN_MEM)
 
-typedef struct LqFwbuf {
-    void* UserData;
-    LqSbuf Buf;
-    intptr_t MinFlush;
-    intptr_t MaxFlush;
-    uint8_t Flags;
-    char FloatSep;
-    intptr_t(*WriteProc)(LqFwbuf*, char*, size_t);
-    union {
-        LQFRWBUF_FAST_LOCKER FastLocker;
-        LQFRWBUF_DEFAULT_LOCKER Locker;
-    };
-} LqFwbuf;
+struct LqFbufCookie;
+typedef struct LqFbufCookie LqFbufCookie;
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_fdopen(
-    LqFwbuf* Context,
+typedef struct LqFbuf {
+	union {
+		struct {
+			LqSbuf OutBuf;
+			LqSbuf InBuf;
+		};
+		LqSbufPtr BufPtr;
+	};
+
+	void* UserData;
+	LqFbufFlag Flags;
+	
+
+	intptr_t MinFlush;
+	intptr_t MaxFlush;
+	intptr_t PortionSize;
+
+	LqFbufCookie* Cookie;
+	union {
+		LQFRWBUF_FAST_LOCKER FastLocker;
+		LQFRWBUF_DEFAULT_LOCKER Locker;
+	};
+} LqFbuf;
+
+struct LqFbufCookie {
+	intptr_t(*ReadProc)(LqFbuf*, char*, size_t);
+	intptr_t(*WriteProc)(LqFbuf*, char*, size_t);
+	intptr_t(*SeekProc)(LqFbuf*, int64_t Offset, int Flags);
+	intptr_t(*CloseProc)(LqFbuf* Buf);
+};
+
+
+#pragma pack(pop)
+
+
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_open_cookie(
+    LqFbuf* Context,
+	void* UserData,
+	LqFbufCookie* Cookie,
+	LqFbufFlag Flags,
+	intptr_t WriteMinBuffSize,
+	intptr_t WriteMaxBuffSize,
+	intptr_t ReadPortionSize
+);
+
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_fdopen(
+    LqFbuf* Context,
+	LqFbufFlag Flags,
     int Fd,
-    uint8_t Flags,
-    size_t MinBuffSize,
-    size_t MaxBuffSize
+	intptr_t WriteMinBuffSize,
+	intptr_t WriteMaxBuffSize,
+	intptr_t ReadPortionSize
 );
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_init(
-    LqFwbuf* Context,
-    uint8_t Flags,
-    intptr_t(*WriteProc)(LqFwbuf*, char*, size_t),
-    char FloatSep,
-    void* UserData,
-    size_t MinBuffSize,
-    size_t MaxBuffSize
-);
-
-LQ_IMPORTEXPORT void LQ_CALL LqFwbuf_uninit(LqFwbuf* Context);
-
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_open(
-    LqFwbuf* Context,
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_open(
+    LqFbuf* Context,
     const char* FileName,
-    uint32_t Flags,
+    uint32_t FileFlags,
     int Access,
-    size_t MinBuffSize,
-    size_t MaxBuffSize
+	intptr_t WriteMinBuffSize,
+	intptr_t WriteMaxBuffSize,
+	intptr_t ReadPortionSize
 );
 
-LQ_IMPORTEXPORT void LQ_CALL LqFwbuf_close(LqFwbuf* Context);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_stream(LqFbuf* Context);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_vprintf(LqFwbuf* Context, const char* Fmt, va_list va);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_printf(LqFwbuf* Context, const char* Fmt, ...);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_close(LqFbuf* Context);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_putc(LqFwbuf* Context, int Val);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_puts(LqFwbuf* Context, const char* Val);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_write(LqFwbuf* Context, const void* Buf, size_t Size);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_putsn(LqFwbuf* Context, const char* Val, size_t Len);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_flush(LqFwbuf* Context);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_size(LqFwbuf* Context);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_seek(LqFbuf* Context, int64_t Offset, int Flags);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_svnprintf(char* Dest, size_t DestSize, const char* Fmt, va_list va);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFwbuf_snprintf(char* Dest, size_t DestSize, const char* Fmt, ...);
-////************************************************/
-
-typedef struct LqFrbuf {
-    void* UserData;
-    LqSbuf Buf;
-    intptr_t PortionSize;
-    uint8_t Flags;
-    char FloatSep;
-    intptr_t(*ReadProc)(LqFrbuf*, char*, size_t);
-    union {
-        LQFRWBUF_FAST_LOCKER FastLocker;
-        LQFRWBUF_DEFAULT_LOCKER Locker;
-    };
-} LqFrbuf;
-
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFrbuf_init(
-    LqFrbuf* Context,
-    uint8_t Flags,
-    intptr_t(*ReadProc)(LqFrbuf*, char*, size_t),
-    char FloatSep,
-    void* UserData,
-    size_t PortionSize
-);
-
-LQ_IMPORTEXPORT void LQ_CALL LqFrbuf_uninit(LqFrbuf* Context);
-
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFrbuf_fdopen(
-    LqFrbuf* Context,
-    int Fd,
-    uint8_t Flags,
-    size_t PortionSize
-);
-
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFrbuf_open(
-    LqFrbuf* Context,
-    const char* FileName,
-    uint32_t Flags,
-    int Access,
-    size_t PortionSize
-);
-
-LQ_IMPORTEXPORT void LQ_CALL LqFrbuf_close(LqFrbuf* Context);
+//////////////////
 
 /*
 * Buffering scan.
@@ -303,79 +285,37 @@ LQ_IMPORTEXPORT void LQ_CALL LqFrbuf_close(LqFrbuf* Context);
                  F, f - read floating point number without expanent
                  n - get count readed chars
 */
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFrbuf_vscanf(LqFrbuf* Context, int Flags, const char* Fmt, va_list va);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFrbuf_scanf(LqFrbuf* Context, int Flags, const char* Fmt, ...);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFrbuf_getc(LqFrbuf* Context, int* Dest);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFrbuf_read(LqFrbuf* Context, void* Buf, size_t Len);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFrbuf_peek(LqFrbuf* Context, void* Buf, size_t Len);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFrbuf_flush(LqFrbuf* Context);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFrbuf_size(LqFrbuf* Context);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFrbuf_vssncanf(const char* Source, size_t LenSource, const char* Fmt, va_list va);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFrbuf_snscanf(const char* Source, size_t LenSource, const char* Fmt, ...);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_vscanf(LqFbuf* Context, int Flags, const char* Fmt, va_list va);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_scanf(LqFbuf* Context, int Flags, const char* Fmt, ...);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_getc(LqFbuf* Context, int* Dest);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_read(LqFbuf* Context, void* Buf, size_t Len);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_peek(LqFbuf* Context, void* Buf, size_t Len);
 
-//////
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_flush(LqFbuf* Context);
 
-typedef struct LqFbuf {
-    LqFwbuf OutBuf;
-    LqFrbuf InBuf;
-    intptr_t(*SeekProc)(LqFbuf* Buf, int64_t Offset, int Flags);
-} LqFbuf;
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_vprintf(LqFbuf* Context, const char* Fmt, va_list va);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_printf(LqFbuf* Context, const char* Fmt, ...);
 
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_putc(LqFbuf* Context, int Val);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_puts(LqFbuf* Context, const char* Val);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_write(LqFbuf* Context, const void* Buf, size_t Size);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_putsn(LqFbuf* Context, const char* Val, size_t Len);
+LQ_IMPORTEXPORT size_t LQ_CALL LqFbuf_sizes(const LqFbuf* lqain Context, size_t* lqaopt lqaout OutBuf, size_t* lqaopt lqaout InBuf);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_init(
-    LqFbuf* Context,
-    uint8_t Flags,
-    intptr_t(*ReadProc)(LqFrbuf*, char*, size_t),
-    intptr_t(*WriteProc)(LqFwbuf*, char*, size_t),
-    intptr_t(*SeekProc)(LqFbuf*, int64_t Offset, int Flags),
-    char FloatSep,
-    void* UserData,
-    size_t WriteMinBuffSize,
-    size_t WriteMaxBuffSize,
-    size_t ReadPortionSize
-);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_vssncanf(const char* lqain Source, size_t LenSource, const char* lqain Fmt, va_list va);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_snscanf(const char* lqain Source, size_t LenSource, const char* lqain Fmt, ...);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_fdopen(
-    LqFbuf* Context,
-    uint8_t Flags,
-    int Fd,
-    char FloatSep,
-    size_t WriteMinBuffSize,
-    size_t WriteMaxBuffSize,
-    size_t ReadPortionSize
-);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_svnprintf(char* lqaout lqacp Dest, size_t DestSize, const char* lqain lqacp Fmt, va_list va);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_snprintf(char* lqaout lqacp Dest, size_t DestSize, const char* lqain lqacp Fmt, ...);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_open(
-    LqFbuf* Context,
-    const char* FileName,
-    uint32_t FileFlags,
-    int Access,
-    char FloatSep,
-    size_t WriteMinBuffSize,
-    size_t WriteMaxBuffSize,
-    size_t ReadPortionSize
-);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_make_ptr(LqFbuf* lqats lqaout lqain DestSource);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_copy(LqFbuf* lqaout Dest, const LqFbuf* lqain lqats Source);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_set_ptr_cookie(LqFbuf* lqats lqaout Dest, void* lqain UserData, LqFbufCookie* Cookie);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_set_ptr_fd(LqFbuf* lqats lqaout lqain Dest, int Fd);/* For write in file (use LqFbuf_flush())*/
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_transfer(LqFbuf* lqats Dest, LqFbuf* lqats Source, size_t Size); /* Transfer transfer data from pointer/file in to another file (Without double buffering)*/
 
-LQ_IMPORTEXPORT void LQ_CALL LqFbuf_uninit(LqFbuf* Context);
-LQ_IMPORTEXPORT void LQ_CALL LqFbuf_close(LqFbuf* Context);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_seek(LqFbuf* Context, int64_t Offset, int Flags);
-
-
-#define LqFbuf_vscanf(Context, Flags, Fmt, va)      (LqFrbuf_vscanf(&(Context)->InBuf,(Flags), (Fmt), (va)))
-#define LqFbuf_scanf(Context, Flags, Fmt, ...)      (LqFrbuf_scanf(&(Context)->InBuf,(Flags), (Fmt), ##__VA_ARGS__))
-#define LqFbuf_getc(Context, Dest)                  (LqFrbuf_getc(&(Context)->InBuf, (Dest)))
-#define LqFbuf_read(Context, Buf, Len)              (LqFrbuf_read(&(Context)->InBuf, (Buf), (Len)))
-#define LqFbuf_peek(Context, Buf, Len)              (LqFrbuf_peek(&(Context)->InBuf, (Buf), (Len)))
-
-#define LqFbuf_flush(Context)                       (LqFwbuf_flush(&(Context)->OutBuf))
-#define LqFbuf_vprintf(Context, Fmt, va)            (LqFwbuf_vprintf(&(Context)->OutBuf, (Fmt), (va)))
-#define LqFbuf_printf(Context, Fmt, ...)            (LqFwbuf_printf(&(Context)->OutBuf, (Fmt), ##__VA_ARGS__))
-#define LqFbuf_putc(Context, Val)                   (LqFwbuf_putc(&(Context)->OutBuf, (Val)))
-#define LqFbuf_puts(Context, Val)                   (LqFwbuf_puts(&(Context)->OutBuf, (Val)))
-#define LqFbuf_write(Context, Buf, Size)            (LqFwbuf_write(&(Context)->OutBuf, (Buf), (Size)))
-#define LqFbuf_putsn(Context, Val, Len)             (LqFwbuf_putsn(&(Context)->OutBuf, (Val), (Len)))
-
+//////////////////
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqStrToInt(int* Dest, const char* Source, unsigned char Radix);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqStrToLl(long long* Dest, const char* Source, unsigned char Radix);

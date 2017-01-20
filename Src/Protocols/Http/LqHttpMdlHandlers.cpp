@@ -34,7 +34,7 @@ int LQ_CALL LqHttpMdlHandlersStatus(LqHttpConn* c, int Code) {
 		char ServerNameBuf[1024];
 		ServerNameBuf[0] = '\0';
 		LqHttpMdlGetByConn(c)->ServerNameProc(c, ServerNameBuf, sizeof(ServerNameBuf));
-		auto l = LqFwbuf_snprintf(
+		auto l = LqFbuf_snprintf(
 			Dest,
 			c->BufSize,
 			"HTTP/%s %u %s\r\n"
@@ -71,9 +71,9 @@ int LQ_CALL LqHttpMdlHandlersError(LqHttpConn* c, int Code) {
 		LqTimeGetGmtTm(&ctm);
 		char ServerNameBuf[1024], BodyBuf[1024];
 		ServerNameBuf[0] = '\0';
-		auto ContentLen = LqFwbuf_snprintf(BodyBuf, sizeof(BodyBuf) - 1, "<html><head></head><body>%u %s</body></html>", Code, StatusMsg);
+		auto ContentLen = LqFbuf_snprintf(BodyBuf, sizeof(BodyBuf) - 1, "<html><head></head><body>%u %s</body></html>", Code, StatusMsg);
 		LqHttpMdlGetByConn(c)->ServerNameProc(c, ServerNameBuf, sizeof(ServerNameBuf));
-		auto l = LqFwbuf_snprintf(
+		auto l = LqFbuf_snprintf(
 			Dest,
 			c->BufSize,
 			"HTTP/%s %u %s\r\n"

@@ -655,7 +655,7 @@ lblSearchStart:
     /*For debug*/
     unsigned QualityInfo(char * Buf, unsigned LenBuf) {
         unsigned CurLen = LenBuf, Len2, CurIndex = 0;
-        Len2 = LqFwbuf_snprintf(
+        Len2 = LqFbuf_snprintf(
             Buf,
             CurLen,
             "Count elements: %u\nAlloc count elements: %u\nSize(in bytes): %u\nHash quality:\n",
@@ -671,7 +671,7 @@ lblSearchStart:
             for(LpCell p = *c; p != nullptr; p = p->HeadCell::Next)
                 CountInCurIndex++;
 
-            Len2 = LqFwbuf_snprintf(Buf, CurLen, "%u:%u,", CurIndex, CountInCurIndex);
+            Len2 = LqFbuf_snprintf(Buf, CurLen, "%u:%u,", CurIndex, CountInCurIndex);
             if(Len2 < 0)
                 Len2 = 0;
             CurLen -= Len2;

@@ -946,7 +946,7 @@ LqString LqWrk::DebugInfo() const {
     size_t cciq = CountConnectionsInQueue;
 
     auto CurrentTimeMillisec = LqTimeGetLocMillisec();
-    LqFwbuf_snprintf(
+    LqFbuf_snprintf(
         Buf,
         sizeof(Buf),
         "--------------\n"

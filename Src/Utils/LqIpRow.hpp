@@ -93,7 +93,7 @@ struct ipheader {
 
 
     int ToString(char* DestBuf, size_t DestBufSize) {
-        return LqFwbuf_snprintf(
+        return LqFbuf_snprintf(
             DestBuf,
             DestBufSize,
             "version: %u\n"
@@ -172,7 +172,7 @@ struct tcphdr {
     LqByteOrderNum<uint16_t, true>   urg_ptr;
 
     int ToString(char* DestBuf, size_t DestBufSize) {
-        return LqFwbuf_snprintf(
+        return LqFbuf_snprintf(
             DestBuf,
             DestBufSize,
             "source: %u\n"
@@ -272,7 +272,7 @@ struct udphdr {
     LqByteOrderNum<uint16_t, true> check;
 
     int ToString(char* DestBuf, size_t DestBufSize) {
-        return LqFwbuf_snprintf(
+        return LqFbuf_snprintf(
             DestBuf,
             DestBufSize,
             "source: %u\n"

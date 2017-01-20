@@ -23,6 +23,8 @@
 #include "LqStr.hpp"
 #include "LqDef.hpp"
 
+#include "LqSockBuf.h"
+
 
 #include <stdlib.h>
 #include <type_traits>
@@ -50,44 +52,44 @@ std::stack<LqFbuf*> InFiles;
 
 template<typename TypeNumber>
 typename std::enable_if<std::is_same<TypeNumber, float>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
-    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%g%n", Dest, &n);
+    int n = -1; LqFbuf_snscanf(Source.c_str(), Source.length(), "%g%n", Dest, &n);
     if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 template<typename TypeNumber>
 typename std::enable_if<std::is_same<TypeNumber, double>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
-    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%lg%n", Dest, &n);
+    int n = -1; LqFbuf_snscanf(Source.c_str(), Source.length(), "%lg%n", Dest, &n);
     if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 template<typename TypeNumber>
 typename std::enable_if<std::is_same<TypeNumber, int>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
-    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%i%n", Dest, &n);
+    int n = -1; LqFbuf_snscanf(Source.c_str(), Source.length(), "%i%n", Dest, &n);
     if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 template<typename TypeNumber>
 typename std::enable_if<std::is_same<TypeNumber, uint>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
-    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%u%n", Dest, &n);
+    int n = -1; LqFbuf_snscanf(Source.c_str(), Source.length(), "%u%n", Dest, &n);
     if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 template<typename TypeNumber>
 typename std::enable_if<std::is_same<TypeNumber, ulong>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
-    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%lu%n", Dest, &n);
+    int n = -1; LqFbuf_snscanf(Source.c_str(), Source.length(), "%lu%n", Dest, &n);
     if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 
 template<typename TypeNumber>
 typename std::enable_if<std::is_same<TypeNumber, llong>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
-    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%lli%n", Dest, &n);
+    int n = -1; LqFbuf_snscanf(Source.c_str(), Source.length(), "%lli%n", Dest, &n);
     if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 template<typename TypeNumber>
 typename std::enable_if<std::is_same<TypeNumber, ullong>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
-    int n = -1; LqFrbuf_snscanf(Source.c_str(), Source.length(), "%llu%n", Dest, &n);
+    int n = -1; LqFbuf_snscanf(Source.c_str(), Source.length(), "%llu%n", Dest, &n);
     if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
@@ -99,7 +101,7 @@ int ReadCommandLine(char* CommandBuf, LqString& Line, LqString& Flags) {
     Flags1 = -1, Flags2 = -1, EndCommand = -1, StartArguments = -1, EndArguments = -1;
     /* Peek string */
     LqFbuf_scanf(InFiles.top(), LQFRBUF_SCANF_PEEK, "%?*[\n\r ]%n%?*[+@-]%n%*[^ \n\r]%n%?*[ ]%n%?*[^\n\r]%n", &Flags1, &Flags2, &EndCommand, &StartArguments, &EndArguments);
-    if((EndCommand == -1) && (InFiles.top()->InBuf.Flags & LQFRBUF_READ_EOF)) {
+    if((EndCommand == -1) && (InFiles.top()->Flags & LQFBUF_READ_EOF)) {
         LqFbuf_close(InFiles.top());
         InFiles.pop();
         return -1;
@@ -144,10 +146,12 @@ int main(int argc, char* argv[]) {
     LqFileDescrDupToStd(StdFd, LQ_STDERR);
     LqFileClose(StdFd);
 
-    LqFbuf_fdopen(&StdIn, LQFWBUF_PRINTF_FLUSH | LQFWBUF_PUT_FLUSH | LQFRWBUF_FAST_LK, LQ_STDIN, 0, 50, 4096, 2);
-    LqFbuf_fdopen(&StdOut, LQFWBUF_PRINTF_FLUSH | LQFWBUF_PUT_FLUSH | LQFRWBUF_FAST_LK, LQ_STDOUT, 0, 50, 4096, 20);
-    LqFbuf_fdopen(&StdErr, LQFWBUF_PRINTF_FLUSH | LQFWBUF_PUT_FLUSH | LQFRWBUF_FAST_LK, LQ_STDERR, 0, 50, 4096, 20);
-    LqFbuf_open(&NullOut, LQ_NULLDEV, LQ_O_WR, 0666, '.', 50, 4096, 20);
+    LqFbuf_fdopen(&StdIn, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH | LQFBUF_FAST_LK, LQ_STDIN, 50, 4096, 20);
+    LqFbuf_fdopen(&StdOut, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH | LQFBUF_FAST_LK, LQ_STDOUT, 50, 4096, 20);
+    LqFbuf_fdopen(&StdErr, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH | LQFBUF_FAST_LK, LQ_STDERR, 50, 4096, 20);
+
+    LqFbuf_open(&NullOut, LQ_NULLDEV, LQ_O_WR, 0666, 50, 4096, 20);
+    
 
 #if !defined(LQPLATFORM_WINDOWS)
     signal(SIGTERM, [](int) -> void { IsLoop = false; });
@@ -158,6 +162,7 @@ int main(int argc, char* argv[]) {
                   "Name: LanQ (Lan Quick) Server Shell\n"
                   " hotSAN 2016\n\n"
     );
+
     auto Reg = LqHttpProtoCreate();
     if(Reg == nullptr) {
         LqFbuf_printf(OutFile, "ERROR: Not alloc memory for protocol struct\n");
@@ -174,7 +179,7 @@ int main(int argc, char* argv[]) {
     LqString CommandFlags;
 
     if(argc > 1) {
-        if(LqFbuf_open(&InCmd, argv[1], LQ_O_RD, 0666, 0, 50, 4096, 20) < 0) {
+        if(LqFbuf_open(&InCmd, argv[1], LQ_O_RD, 0666, 50, 4096, 20) < 0) {
             LqFbuf_printf(OutFile, " ERROR: Not open lqcmd file\n");
             return -1;
         }
@@ -243,7 +248,7 @@ lblAgain:
                 }
                 auto InCmd = LqFastAlloc::New<LqFbuf>();
 
-                if(LqFbuf_open(InCmd, Path.c_str(), LQ_O_RD, 0666, 0, 50, 4096, 20) < 0) {
+                if(LqFbuf_open(InCmd, Path.c_str(), LQ_O_RD, 0666, 50, 4096, 20) < 0) {
                     LqFbuf_printf(OutFile, " ERROR: Not open lqcmd file\n");
                     IsSuccess = false;
                     break;
@@ -332,7 +337,7 @@ lblAgain:
             LQSTR_CASE("prt") {
                 char PortName[255];
                 PortName[0] = '\0';
-                if(LqFrbuf_snscanf(CommandData.c_str(), CommandData.length(), "%[a-zA-Z0-9]", PortName) < 1) {
+                if(LqFbuf_snscanf(CommandData.c_str(), CommandData.length(), "%[a-zA-Z0-9]", PortName) < 1) {
                     LqHttpProtoGetInfo(Reg, nullptr, 0, PortName, sizeof(PortName) - 1, nullptr, nullptr, nullptr);
                     LqFbuf_printf(OutFile, " %s\n", PortName);
                     break;
@@ -356,7 +361,7 @@ lblAgain:
             break;
             LQSTR_CASE("gmtcorr") {
                 int Corr = 0;
-                if(LqFrbuf_snscanf(CommandData.c_str(), CommandData.length(), "%i", &Corr) < 1) {
+                if(LqFbuf_snscanf(CommandData.c_str(), CommandData.length(), "%i", &Corr) < 1) {
                     LqFbuf_printf(OutFile, " %i\n", (int)LqTimeGetGmtCorrection());
                     continue;
                 }
@@ -436,7 +441,7 @@ lblAgain:
             */
             LQSTR_CASE("addwrk") {
                 int Count = 0;
-                if(LqFrbuf_snscanf(CommandData.c_str(), CommandData.length(), "%i", &Count) < 1) {
+                if(LqFbuf_snscanf(CommandData.c_str(), CommandData.length(), "%i", &Count) < 1) {
                     LqFbuf_printf(OutFile, " %llu\n", (ullong)LqWrkBossCountWrk());
                     break;
                 }
@@ -452,7 +457,7 @@ lblAgain:
             break;
             LQSTR_CASE("rmwrk") {
                 int Count = 0;
-                if(LqFrbuf_snscanf(CommandData.c_str(), CommandData.length(), "%i", &Count) < 1) {
+                if(LqFbuf_snscanf(CommandData.c_str(), CommandData.length(), "%i", &Count) < 1) {
                     LqFbuf_printf(OutFile, " ERROR: Invalid count of workers\n");
                     IsSuccess = false;
                     continue;
@@ -521,7 +526,7 @@ lblAgain:
                 if(ModuleName[0] == '#') {
                     ModuleName.erase(0, 1);
                     ullong v = 0;
-                    LqFrbuf_snscanf(ModuleName.data(), ModuleName.length(), "%llx", &v);
+                    LqFbuf_snscanf(ModuleName.data(), ModuleName.length(), "%llx", &v);
                     if(LqHttpMdlFreeByHandle(Reg, (uintptr_t)v) >= 1) {
                         LqFbuf_printf(OutFile, " OK\n");
                     } else {
@@ -557,7 +562,7 @@ lblAgain:
                 if(ModuleName[0] == '#') {
                     ModuleName.erase(0, 1);
                     ullong v = 0;
-                    LqFrbuf_snscanf(ModuleName.data(), ModuleName.length(), "%llx", &v);
+                    LqFbuf_snscanf(ModuleName.data(), ModuleName.length(), "%llx", &v);
 
                     if(LqHttpMdlSendCommandByHandle(Reg, (uintptr_t)v, CommandData.c_str(), OutFile) >= 0)
                         LqFbuf_printf(OutFile, "\n OK\n");
@@ -1387,7 +1392,7 @@ void PrintAuth(LqFbuf* Dest, LqHttpAtz* Auth) {
     if(Auth->AuthType == LQHTTPATZ_TYPE_BASIC) {
         for(int i = 0; i < Auth->CountAuthoriz; i++) {
             Buf[0] = '\0';
-            LqFrbuf_snscanf(Auth->Basic[i].LoginPassword, LqStrLen(Auth->Basic[i].LoginPassword), "%.*b", (int)sizeof(Buf), Buf);
+            LqFbuf_snscanf(Auth->Basic[i].LoginPassword, LqStrLen(Auth->Basic[i].LoginPassword), "%.*b", (int)sizeof(Buf), Buf);
             char * Pos = LqStrChr(Buf, ':');
             if(Pos == nullptr)
                 continue;

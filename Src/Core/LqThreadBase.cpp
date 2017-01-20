@@ -384,7 +384,7 @@ LqString LqThreadBase::DebugInfo() const {
         default: Prior = "unknown";
     }
     char Buf[1024];
-    LqFwbuf_snprintf (
+    LqFbuf_snprintf (
         Buf,
         sizeof(Buf),
         "--------------\n"
