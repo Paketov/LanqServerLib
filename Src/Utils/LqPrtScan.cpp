@@ -86,7 +86,7 @@ static void LQ_CALL EndProc(LqConn* Connection) {
     Conn->Locker.UnlockWrite();
 }
 
-LQ_EXTERN_CPP bool LQ_CALL LqPrtScanDo(LqConnInetAddress* Addr, std::vector<std::pair<uint16_t, uint16_t>>& PortRanges, int MaxScanConn, LqTimeMillisec ConnWait, std::vector<uint16_t>& OpenPorts) {
+LQ_EXTERN_CPP bool LQ_CALL LqPrtScanDo(LqConnAddr* Addr, std::vector<std::pair<uint16_t, uint16_t>>& PortRanges, int MaxScanConn, LqTimeMillisec ConnWait, std::vector<uint16_t>& OpenPorts) {
     ProtoScan Proto;
     LqProtoInit(&Proto.Proto);
     Proto.Proto.Handler = ConnScanHandler;
@@ -108,7 +108,7 @@ lblWaitAgain:
             if(Fd == -1)
                 continue;
             LqSockSwitchNonBlock(Fd, 1);
-            LqConnInetAddress AddrLoc = *Addr;
+            LqConnAddr AddrLoc = *Addr;
             if(AddrLoc.Addr.sa_family == AF_INET) {
                 AddrLoc.AddrInet.sin_port = htons(j);
             } else if(AddrLoc.Addr.sa_family == AF_INET6) {

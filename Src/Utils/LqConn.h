@@ -51,6 +51,7 @@
 #endif
 
 #if defined(HAVE_OPENSSL)
+# include <openssl/dh.h>
 # include <openssl/crypto.h>
 # include <openssl/x509.h>
 # include <openssl/pem.h>
@@ -63,12 +64,12 @@
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-typedef union LqConnInetAddress {
+typedef union LqConnAddr {
     struct sockaddr         Addr;
     struct sockaddr_in      AddrInet;
     struct sockaddr_in6     AddrInet6;
     struct sockaddr_storage AddrStorage;
-} LqConnInetAddress;
+} LqConnAddr;
 
 #pragma pack(pop)
 LqFileSz LqSockSendFromFile(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count);
@@ -124,9 +125,9 @@ LQ_IMPORTEXPORT int LQ_CALL LqConnBind(const char* Host, const char* Port, int R
 
 LQ_IMPORTEXPORT int LQ_CALL LqConnConnect(const char* lqain Address, const char* lqain Port, int RouteProto, int SockType, int TransportProto, void* lqaout lqaopt IpPrtAddress, socklen_t* lqaio lqaopt IpPrtAddressLen, bool IsNonBlock);
 
-LQ_IMPORTEXPORT int LQ_CALL LqConnStrToRowIp(int TypeIp, const char* lqain SourseStr, LqConnInetAddress* lqaout DestAddress);
+LQ_IMPORTEXPORT int LQ_CALL LqConnStrToRowIp(int TypeIp, const char* lqain SourseStr, LqConnAddr* lqaout DestAddress);
 
-LQ_IMPORTEXPORT int LQ_CALL LqConnRowIpToStr(LqConnInetAddress* lqain SourceAddress, char* lqaout DestStr, size_t DestStrLen);
+LQ_IMPORTEXPORT int LQ_CALL LqConnRowIpToStr(LqConnAddr* lqain SourceAddress, char* lqaout DestStr, size_t DestStrLen);
 
 LQ_IMPORTEXPORT void LQ_CALL __LqEvntFdDfltHandler(LqEvntFd* Instance, LqEvntFlag Flags);
 
@@ -146,7 +147,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqEvntFdAdd2(LqEvntFd* lqain Evnt);
 * @return: SSL_CTX
 */
 LQ_IMPORTEXPORT void* LQ_CALL LqConnSslCreate(
-    const void* lqain MethodSSL, /* Example SSLv23_method()*/
+    const void* lqain lqaopt MethodSSL, /* Example SSLv23_method()*/
     const char* lqain CertFile, /* Example: "server.pem"*/
     const char* lqain KeyFile, /*Example: "server.key"*/
     const char*lqain lqaopt CipherList,

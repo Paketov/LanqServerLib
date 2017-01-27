@@ -96,12 +96,12 @@ static void ParseArgsProc(LqString& Source, std::vector<std::string>& Res) {
 }
 
 
-bool GetLocalAddress(LqConnInetAddress* Dest) {
+bool GetLocalAddress(LqConnAddr* Dest) {
 	auto Fd = LqConnConnect("8.8.8.8", "53", AF_UNSPEC, SOCK_STREAM, IPPROTO_TCP, nullptr, nullptr, false);
 	if(Fd == -1)
 		return false;
 
-	socklen_t addr_len = sizeof(LqConnInetAddress);
+	socklen_t addr_len = sizeof(LqConnAddr);
 	getsockname(Fd, &Dest->Addr, &addr_len);
 	closesocket(Fd);
 	return true;
@@ -192,7 +192,7 @@ LqEvntFd ZmbClr;
 
 LqPtdArr<PktFormatType> PktPrintFormat;
 LqPtdArr<LqPortRange> PortRange;
-LqConnInetAddress LocalAddress;
+LqConnAddr LocalAddress;
 
 
 
@@ -493,7 +493,7 @@ static void LQ_CALL ClientEndConnProc(LqConn* Conn) {
 }
 
 static void LQ_CALL BindedReciveProc(LqConn* Conn, LqEvntFlag) {
-	LqConnInetAddress Addr;
+	LqConnAddr Addr;
 	socklen_t Len = sizeof(Addr);
 	auto fd = accept(Conn->Fd, &Addr.Addr, &Len);
 	if(fd == -1)

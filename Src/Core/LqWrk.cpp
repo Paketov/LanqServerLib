@@ -441,8 +441,8 @@ void LqWrk::ParseInputCommands() {
             break;
             case LQWRK_CMD_RM_CONN_BY_IP:
             {
-                CloseConnByIpSync(&Command.Val<LqConnInetAddress>().Addr);
-                Command.Pop<LqConnInetAddress>();
+                CloseConnByIpSync(&Command.Val<LqConnAddr>().Addr);
+                Command.Pop<LqConnAddr>();
             }
             break;
             case LQWRK_CMD_CLOSE_CONN_BY_PROTO:
@@ -820,9 +820,9 @@ bool LqWrk::CloseConnByIpAsync(const sockaddr* Addr) {
     switch(Addr->sa_family) {
         case AF_INET:
         {
-            LqConnInetAddress s;
+            LqConnAddr s;
             s.AddrInet = *(sockaddr_in*)Addr;
-            if(!CommandQueue.PushBegin<LqConnInetAddress>(LQWRK_CMD_RM_CONN_BY_IP, s)) {
+            if(!CommandQueue.PushBegin<LqConnAddr>(LQWRK_CMD_RM_CONN_BY_IP, s)) {
                 StartThreadLocker.UnlockWrite();
                 return false;
             }
@@ -830,9 +830,9 @@ bool LqWrk::CloseConnByIpAsync(const sockaddr* Addr) {
         break;
         case AF_INET6:
         {
-            LqConnInetAddress s;
+            LqConnAddr s;
             s.AddrInet6 = *(sockaddr_in6*)Addr;
-            if(!CommandQueue.PushBegin<LqConnInetAddress>(LQWRK_CMD_RM_CONN_BY_IP, s)) {
+            if(!CommandQueue.PushBegin<LqConnAddr>(LQWRK_CMD_RM_CONN_BY_IP, s)) {
                 StartThreadLocker.UnlockWrite();
                 return false;
             }

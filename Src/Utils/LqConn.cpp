@@ -173,12 +173,12 @@ LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, int
     return s;
 }
 
-LQ_EXTERN_C int LQ_CALL LqConnStrToRowIp(int TypeIp, const char* SourseStr, LqConnInetAddress* DestAddress) {
+LQ_EXTERN_C int LQ_CALL LqConnStrToRowIp(int TypeIp, const char* SourseStr, LqConnAddr* DestAddress) {
     return (inet_pton(DestAddress->Addr.sa_family = ((TypeIp == 6) ? AF_INET6 : AF_INET), SourseStr, (TypeIp == 6) ? (void*)&DestAddress->AddrInet6.sin6_addr : (void*)&DestAddress->AddrInet.sin_addr) == 1) ? 0 : -1;
 }
 
 
-LQ_EXTERN_C int LQ_CALL LqConnRowIpToStr(LqConnInetAddress* SourceAddress, char* DestStr, size_t DestStrLen) {
+LQ_EXTERN_C int LQ_CALL LqConnRowIpToStr(LqConnAddr* SourceAddress, char* DestStr, size_t DestStrLen) {
     return
         (inet_ntop(SourceAddress->Addr.sa_family,
         (SourceAddress->Addr.sa_family == AF_INET6) ? (void*)&SourceAddress->AddrInet6.sin6_addr : (void*)&SourceAddress->AddrInet.sin_addr, DestStr, DestStrLen) != nullptr
@@ -228,77 +228,81 @@ LQ_EXTERN_C void* LQ_CALL LqConnSslCreate
         0x85,0x5E,0x6E,0xEB,0x22,0xB3,0xB2,0xE5,
     };
 
-    SSL_CTX* NewCtx = nullptr;
+    SSL_CTX* NewCtx = NULL;
 
     bool r = false;
     static bool IsLoaded = false;
 
-    LQ_BREAK_BLOCK_BEGIN
-        if(!IsLoaded) {
-            IsLoaded = true;
-            SSL_library_init();
-            SSL_load_error_strings();
-        }
+	if(MethodSSL == NULL)
+		MethodSSL = SSLv23_server_method();
+	
+	do {
+		if(!IsLoaded) {
+			IsLoaded = true;
+			SSL_library_init();
+			OpenSSL_add_all_algorithms();
+			SSL_load_error_strings();
+		}
 
-    if((NewCtx = SSL_CTX_new((const SSL_METHOD*)MethodSSL)) == nullptr)
-        break;
+		if((NewCtx = SSL_CTX_new((const SSL_METHOD*)MethodSSL)) == NULL)
+			break;
+		SSL_CTX_set_read_ahead(NewCtx, 1);
+		SSL_CTX_set_verify(NewCtx, SSL_VERIFY_NONE, NULL);
 
-    SSL_CTX_set_verify(NewCtx, SSL_VERIFY_NONE, nullptr);
+		if(CipherList != NULL) {
+			if(SSL_CTX_set_cipher_list(NewCtx, CipherList) == 1)
+				SSL_CTX_set_options(NewCtx, SSL_OP_CIPHER_SERVER_PREFERENCE);
+		}
 
-    if(CipherList != nullptr) {
-        if(SSL_CTX_set_cipher_list(NewCtx, CipherList) == 1)
-            SSL_CTX_set_options(NewCtx, SSL_OP_CIPHER_SERVER_PREFERENCE);
-    }
+		if(CAFile != NULL) {
+			if(!SSL_CTX_load_verify_locations(NewCtx, CAFile, NULL)) {
+				SSL_CTX_free(NewCtx);
+				NewCtx = NULL;
+				break;
+			}
 
-    if(CAFile != nullptr) {
-        if(!SSL_CTX_load_verify_locations(NewCtx, CAFile, NULL)) {
-            SSL_CTX_free(NewCtx);
-            NewCtx = nullptr;
-            break;
-        }
+		}
+		if((SSL_CTX_use_certificate_file(NewCtx, CertFile, TypeCertFile) <= 0) ||
+			(SSL_CTX_use_PrivateKey_file(NewCtx, KeyFile, TypeCertFile) <= 0)) {
+			SSL_CTX_free(NewCtx);
+			NewCtx = NULL;
+			break;
+		}
 
-    }
-    if((SSL_CTX_use_certificate_file(NewCtx, CertFile, TypeCertFile) <= 0) ||
-        (SSL_CTX_use_PrivateKey_file(NewCtx, KeyFile, TypeCertFile) <= 0)) {
-        SSL_CTX_free(NewCtx);
-        NewCtx = nullptr;
-        break;
-    }
+		if(SSL_CTX_check_private_key(NewCtx) != 1) {
+			SSL_CTX_free(NewCtx);
+			NewCtx = NULL;
+			break;
+		}
 
-    if(SSL_CTX_check_private_key(NewCtx) != 1) {
-        SSL_CTX_free(NewCtx);
-        NewCtx = nullptr;
-        break;
-    }
-
-    if(DhpFile != nullptr) {
-        BIO *bio = BIO_new_file(DhpFile, "r");
-        if(bio) {
-            DH *dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
-            BIO_free(bio);
-            if(dh) {
-                SSL_CTX_set_tmp_dh(NewCtx, dh);
-                SSL_CTX_set_options(NewCtx, SSL_OP_SINGLE_DH_USE);
-                DH_free(dh);
-            }
-        }
-    } else {
-        DH *dh = DH_new();
-        if(dh) {
-            dh->p = BN_bin2bn(dh1024_p, sizeof(dh1024_p), NULL);
-            dh->g = BN_bin2bn(dh1024_g, sizeof(dh1024_g), NULL);
-            dh->length = 160;
-            if(dh->p && dh->g) {
-                SSL_CTX_set_tmp_dh(NewCtx, dh);
-                SSL_CTX_set_options(NewCtx, SSL_OP_SINGLE_DH_USE);
-            }
-            DH_free(dh);
-        }
-    }
-    LQ_BREAK_BLOCK_END
-        return NewCtx;
+		if(DhpFile != NULL) {
+			BIO *bio = BIO_new_file(DhpFile, "r");
+			if(bio) {
+				DH *dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
+				BIO_free(bio);
+				if(dh) {
+					SSL_CTX_set_tmp_dh(NewCtx, dh);
+					SSL_CTX_set_options(NewCtx, SSL_OP_SINGLE_DH_USE);
+					DH_free(dh);
+				}
+			}
+		} else {
+			DH *dh = DH_new();
+			if(dh) {
+				dh->p = BN_bin2bn(dh1024_p, sizeof(dh1024_p), NULL);
+				dh->g = BN_bin2bn(dh1024_g, sizeof(dh1024_g), NULL);
+				dh->length = 160;
+				if(dh->p && dh->g) {
+					SSL_CTX_set_tmp_dh(NewCtx, dh);
+					SSL_CTX_set_options(NewCtx, SSL_OP_SINGLE_DH_USE);
+				}
+				DH_free(dh);
+			}
+		}
+	} while(false);
+    return NewCtx;
 #else
-    return nullptr;
+    return NULL;
 #endif
 }
 
@@ -632,7 +636,7 @@ LqFileSz LqConnReciveInFileSSL(LqConn* c, int OutFd, LqFileSz Count, SSL* ssl) {
             break;
         if(ReadSize > sizeof(Buf))
             ReadSize = sizeof(Buf);
-        if((r = SSL_read(c->Fd, (char*)Buf, ReadSize)) < 1)
+        if((r = SSL_read(ssl, (char*)Buf, ReadSize)) < 1)
             break;
         Readed += r;
         if(LqFileWrite(OutFd, Buf, r) < r)
@@ -657,7 +661,7 @@ intptr_t LqConnReciveInStreamSSL(LqConn* c, LqSbuf* Stream, intptr_t Count, SSL*
             break;
         if(ReadSize > sizeof(Buf))
             ReadSize = sizeof(Buf);
-        if((r = SSL_read(c->Fd, (char*)Buf, ReadSize)) < 1)
+        if((r = SSL_read(ssl, (char*)Buf, ReadSize)) < 1)
             break;
         Readed += r;
         if(LqSbufWrite(Stream, Buf, r) < r)
@@ -693,7 +697,7 @@ size_t LqConnSkipSSL(LqConn* c, size_t Count, SSL* ssl) {
         Readed += r;
         if(r < ReadSize)
             break;
-    }
+	}
     return Readed;
 }
 

@@ -130,7 +130,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoCreateSSL
 #ifdef HAVE_OPENSSL
 
     LqAtmLkWr(Reg->sslLocker);
-    SSL_CTX* NewCtx = (SSL_CTX*)LqConnSslCreate(MethodSSL, MethodSSL, CertFile, KeyFile, CipherList, TypeCertFile, CAFile, DhpFile);
+    SSL_CTX* NewCtx = (SSL_CTX*)LqConnSslCreate(MethodSSL, CertFile, KeyFile, CipherList, TypeCertFile, CAFile, DhpFile);
     if(NewCtx == nullptr) {
         LqAtmUlkWr(Reg->sslLocker);
         return -1;
@@ -152,7 +152,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoSetSSL(LqHttpProtoBase* Reg, void* SSL_Ctx) {
     LqAtmLkWr(Reg->sslLocker);
     if(Reg->ssl_ctx != nullptr)
         SSL_CTX_free(Reg->ssl_ctx);
-    Reg->ssl_ctx = SSL_Ctx;
+    Reg->ssl_ctx = (SSL_CTX*)SSL_Ctx;
     LqAtmUlkWr(Reg->sslLocker);
     return 0;
 #else
@@ -250,8 +250,8 @@ LQ_EXTERN_C int LQ_CALL LqHttpProtoDelete(LqHttpProtoBase* Proto) {
     LqWrkBossCloseConnByProtoSync(&Proto->Proto);
     LqWrkBossCloseConnByProtoSync(&Proto->BindProto);
 #ifdef HAVE_OPENSSL
-    if(Proto.ssl_ctx != nullptr)
-        LqAtmLkInit(r->Base.sslLocker);
+    if(Proto->ssl_ctx != nullptr)
+        LqAtmLkInit(Proto->sslLocker);
 #endif
     LqObPtrDereference<LqHttpProto, LqFastAlloc::Delete>((LqHttpProto*)Proto);
     return 0;
@@ -570,7 +570,7 @@ lblResponseResult:
                         return;
                     }
                 }
-                LqEvntSetFlags(c, ((OldAct == LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE) ? LQEVNT_FLAG_RD : LQEVNT_FLAG_WR) | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+                LqEvntSetFlags(c, ((OldAct == LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE) ? LQEVNT_FLAG_RD : LQEVNT_FLAG_WR) | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
                 c->ActionState = LQHTTPACT_STATE_GET_HDRS;
 #endif
             }
@@ -727,7 +727,7 @@ lblSwitch:
                         return;
                     }
                 }
-                LqEvntSetFlags(c, ((OldAct == LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE) ? LQEVNT_FLAG_RD : LQEVNT_FLAG_WR) | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+                LqEvntSetFlags(c, ((OldAct == LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE) ? LQEVNT_FLAG_RD : LQEVNT_FLAG_WR) | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
                 c->ActionState = LQHTTPACT_STATE_GET_HDRS;
 #endif
             }
@@ -823,7 +823,7 @@ static void LQ_CALL LqHttpCoreAcceptHandler(LqConn* Connection, LqEvntFlag Flag)
         return;
     }
 
-    LqConnInetAddress ClientAddr;
+    LqConnAddr ClientAddr;
     auto Proto = (LqHttpProto*)Connection->Proto->UserData;
     socklen_t ClientAddrLen = sizeof(ClientAddr);
     int ClientFd;
@@ -878,13 +878,13 @@ static void LQ_CALL LqHttpCoreAcceptHandler(LqConn* Connection, LqEvntFlag Flag)
 #ifdef HAVE_OPENSSL
     c->ssl = nullptr;
     LqAtmLkRd(Proto->Base.sslLocker);
-    if(r->Base.ssl_ctx != nullptr) {
+    if(Proto->Base.ssl_ctx != nullptr) {
         if((c->ssl = SSL_new(Proto->Base.ssl_ctx)) == nullptr) {
-            LqAtmLkUlkRd(Proto->Base.sslLocker);
+            LqAtmUlkRd(Proto->Base.sslLocker);
             LqHttpCoreCloseHandler(&c->CommonConn);
             return;
         }
-        LqAtmLkUlkRd(Proto->Base.sslLocker);
+        LqAtmUlkRd(Proto->Base.sslLocker);
         if(SSL_set_fd(c->ssl, c->CommonConn.Fd) == 0) {
             SSL_free(c->ssl);
             c->ssl = nullptr;
@@ -895,14 +895,14 @@ static void LQ_CALL LqHttpCoreAcceptHandler(LqConn* Connection, LqEvntFlag Flag)
         if(SslAcptErr < 0) {
             if(((SslAcptErr == SSL_ERROR_WANT_READ) || (SslAcptErr == SSL_ERROR_WANT_WRITE))) {
                 c->ActionState = LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE;
-                LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+                LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
             } else {
                 LqHttpCoreCloseHandler(&c->CommonConn);
                 return;
             }
         }
     } else {
-        LqAtmLkUlkRd(Proto->Base.sslLocker);
+        LqAtmUlkRd(Proto->Base.sslLocker);
     }
 #endif
     LqAtmIntrlkInc(Proto->Base.CountConnections);
@@ -960,8 +960,8 @@ static void LQ_CALL LqHttpFreeProtoNotifyProc(LqProto* This) {
     LqHttpMdlFreeAll(&CurReg->Base);
     if(CurReg->Base.CountConnections == 0) {
 #ifdef HAVE_OPENSSL
-        if(CurProto->Base.ssl_ctx != nullptr)
-            SSL_CTX_free(CurProto->Base.ssl_ctx);
+        if(CurReg->Base.ssl_ctx != nullptr)
+            SSL_CTX_free(CurReg->Base.ssl_ctx);
 #endif
         LqFastAlloc::Delete(CurReg);
     }

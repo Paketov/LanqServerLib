@@ -17,6 +17,6 @@
 
 LQ_EXTERN_CPP_BEGIN
 
-LQ_IMPORTEXPORT bool LQ_CALL LqPrtScanDo(LqConnInetAddress* Addr, std::vector<std::pair<uint16_t, uint16_t>>& PortRanges, int MaxScanConn, LqTimeMillisec ConnWait, std::vector<uint16_t>& OpenPorts);
+LQ_IMPORTEXPORT bool LQ_CALL LqPrtScanDo(LqConnAddr* Addr, std::vector<std::pair<uint16_t, uint16_t>>& PortRanges, int MaxScanConn, LqTimeMillisec ConnWait, std::vector<uint16_t>& OpenPorts);
 
 LQ_EXTERN_CPP_END

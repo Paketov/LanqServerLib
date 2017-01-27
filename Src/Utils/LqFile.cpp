@@ -1566,6 +1566,12 @@ LQ_EXTERN_C bool LQ_CALL LqMutexClose(LqMutex* lqain Dest) {
     return CloseHandle(Dest->m);
 }
 
+LQ_EXTERN_C intptr_t LQ_CALL LqThreadId() {
+	return GetCurrentThreadId();
+}
+
+
+
 
 #define __METHOD_DECLS__
 #include "LqAlloc.hpp"
@@ -2758,6 +2764,10 @@ LQ_EXTERN_C bool LQ_CALL LqMutexUnlock(LqMutex* Dest) {
 LQ_EXTERN_C bool LQ_CALL LqMutexClose(LqMutex* Dest) {
     pthread_mutex_unlock(&Dest->m);
     return pthread_mutex_destroy(&Dest->m) == 0;
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqThreadId() {
+	return pthread_self();
 }
 
 #endif

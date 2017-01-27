@@ -6,6 +6,7 @@
 */
 
 #include "LqOs.h"
+#include "LqConn.h"
 #include "LqDef.hpp"
 #include "LqStr.hpp"
 #include <ctype.h>

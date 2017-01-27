@@ -61,4 +61,74 @@ typedef struct LqListHdr {
 	}\
   }
 
+////////////////////
+#pragma pack(push)
+#pragma pack(LQSTRUCT_ALIGN_MEM)
+
+typedef struct LqTblRow {
+	void**  Tbl;
+	size_t Count;
+	size_t MaxCount;
+	float  IncCoef;
+	float  DecCoef;
+} LqTblRow;
+#pragma pack(pop)
+
+#define LqTblRowInit(_Tbl) {\
+	(_Tbl)->Count = 0; (_Tbl)->MaxCount = 1; (_Tbl)->Tbl = (void**)___malloc(sizeof(void*)); (_Tbl)->Tbl[0] = NULL;\
+	(_Tbl)->IncCoef = 1.61803398874989484820; (_Tbl)->DecCoef = (_Tbl)->IncCoef + 0.1;\
+}
+
+#define LqTblRowRealloc(_Tbl, ___NewCount, _IndexByElem, _TypeElem, _Next) {\
+	size_t __NewCount = (size_t)(___NewCount);\
+	void** __NewArr = (void**)___malloc(__NewCount * sizeof(void*));\
+	memset(__NewArr, 0, __NewCount * sizeof(void*));\
+	_TypeElem *_a, *_n;\
+	void **__Arr = (_Tbl)->Tbl, **__MaxArr = __Arr + (_Tbl)->MaxCount;\
+	(_Tbl)->MaxCount = __NewCount;\
+	for(; __Arr < __MaxArr; __Arr++) {\
+		for(_a = ((_TypeElem*)*__Arr); _a; _a = _n) {\
+			__i = _IndexByElem(_a, __NewCount); _n = (_TypeElem*)(_a->_Next);\
+			_a->_Next = ((_TypeElem*)__NewArr[__i]); __NewArr[__i] = _a;\
+	}}\
+	___free((_Tbl)->Tbl);\
+	(_Tbl)->Tbl = __NewArr;\
+}
+
+#define LqTblRowInsert(_Tbl, _Elem, _Next, _IndexByElem, _TypeElem) {\
+	size_t __i;\
+	if(((_Tbl)->Count + 1) > (_Tbl)->MaxCount)\
+		LqTblRowRealloc((_Tbl), (_Tbl)->MaxCount * (_Tbl)->IncCoef + 1.0, _IndexByElem, _TypeElem, _Next);\
+	__i = _IndexByElem((_Elem), (_Tbl)->MaxCount);\
+	((_TypeElem*)(_Elem))->_Next = ((_TypeElem*)(_Tbl)->Tbl[__i]);\
+	(_Tbl)->Tbl[__i] = ((_TypeElem*)(_Elem));\
+	(_Tbl)->Count++;\
+}
+
+#define LqTblRowRemove(_Tbl, _Elem, _Next, _IndexByElem, IsInLoop, _TypeElem) {\
+	_TypeElem **__a;\
+	size_t __i = _IndexByElem((_Elem), (_Tbl)->MaxCount);\
+	for(__a = ((_TypeElem**)&(_Tbl)->Tbl[__i]); *__a != NULL; __a = &((_TypeElem*)(*__a))->_Next)\
+		if(*__a == ((void*)(_Elem))){\
+			*__a = ((_TypeElem*)(_Elem))->_Next; (_Tbl)->Count--;\
+			if(!(IsInLoop) && ((size_t)((_Tbl)->Count * (_Tbl)->DecCoef) < (_Tbl)->MaxCount) && ((_Tbl)->Count > 0))\
+				LqTblRowRealloc((_Tbl), (_Tbl)->Count, _IndexByElem, _TypeElem, _Next);\
+			break;\
+		}\
+}
+
+#define LqTblRowSearch(_Tbl, _Key, _Res, _Next, _IndexByKey, _CmpKeyVal, _TypeElem) {\
+	void* __a;\
+	size_t __i = _IndexByKey((_Key), (_Tbl)->MaxCount); (_Res) = NULL;\
+	for(__a = (_Tbl)->Tbl[__i]; __a != NULL; __a = ((_TypeElem*)__a)->_Next) {\
+		if(_CmpKeyVal((_Key), (_TypeElem*)__a)) { (_Res) = ((_TypeElem*)__a); break; }\
+	}\
+}
+
+#define LqTblRowForEach(_Tbl, _Elem, _Next, _TypeElem) \
+	for(_TypeElem **__b = (_TypeElem**)(_Tbl)->Tbl, **__m = __b + (_Tbl)->MaxCount, *__a = NULL, *__n; (__b < __m) && (__a == NULL); __b++)\
+		for(__a = *__b; (((_Elem) = __a) != NULL) && (__n = (_TypeElem*)__a->_Next, 1); __a = __n)
+
+#define LqTblRowUninit(_Tbl) { if((_Tbl)->Tbl != NULL) ___free((_Tbl)->Tbl); }
+
 #endif

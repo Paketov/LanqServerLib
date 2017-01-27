@@ -22,9 +22,10 @@
 #include "LqHttpAtz.h"
 #include "LqStr.hpp"
 #include "LqDef.hpp"
-
+#include "LqFche.h"
 #include "LqSockBuf.h"
 
+#include "LqConn.h"
 
 #include <stdlib.h>
 #include <type_traits>
@@ -129,6 +130,36 @@ LqFbuf* InFile = &StdIn;
 LqFbuf* OutFile = &StdOut;
 LqFbuf InCmd;
 
+
+//LqFche* Che;
+//void* SslCtx;
+//
+//void ff(void*, LqSockBuf* SockBuf) {
+//	char Buf[4096];
+//	LqSockBufScanf(SockBuf, false, "%{^\r\n\r\n}%*{\r\n\r\n}", Buf);
+//
+//	LqSockBufNotifyWhenMatch(SockBuf, nullptr, ff, "%*{^\r\n\r\n}", 1, 32768);
+//	
+//	LqSockBufRspSetHdr(SockBuf);
+//	LqSockBufPrintfHdr(SockBuf, "HTTP/1.1 200 OK\r\n");
+//	
+//	//LqSockBufPrintf(SockBuf, "Hello world");
+//	LqSockBufRspFile(SockBuf, "E:\\serv\\www\\IMG_20150811_044731.jpg");
+//	LqFileSz  Len = LqSockBufRspLen(SockBuf);
+//	LqSockBufPrintfHdr(SockBuf, "Content-Length: %lli\r\n", Len);
+//	LqSockBufPrintfHdr(SockBuf, "Content-Type: image/jpeg\r\n", Len);
+//	//LqSockBufPrintfHdr(SockBuf, "Content-Type: application/octet-stream\r\n");
+//	LqSockBufPrintfHdr(SockBuf, "\r\n", Len);
+//	
+//	LqSockBufRspUnsetHdr(SockBuf);
+//	//LqSockBufNotifyRspCompletion(
+//	//	SockBuf,
+//	//	[](void*, LqSockBuf* Buf) { 
+//	//		int yy = 0; 
+//	//	}, 
+//	//	nullptr);
+//};
+
 int main(int argc, char* argv[]) {
 
     int StdFd = LqFileDescrDup(LQ_STDIN, 0);
@@ -157,6 +188,32 @@ int main(int argc, char* argv[]) {
     signal(SIGTERM, [](int) -> void { IsLoop = false; });
 #endif
     LqCpSet(LQCP_UTF_8);
+
+
+	//Che = LqFcheCreate();
+
+	//LqWrkBossAddWrks(3, true);
+	//LqWrkBossStartAllWrkSync();
+
+
+	//SslCtx = LqConnSslCreate(NULL, "E:\\serv\\cert\\server.crt", "E:\\serv\\cert\\server.key", NULL, 1, NULL, NULL);
+
+	//LqSockAcceptor* Acceptor;
+	//Acceptor = LqSockAcceptorCreate(nullptr, "443", AF_INET, SOCK_STREAM, IPPROTO_TCP, 65555, false, nullptr);
+	//LqSockAcceptorSetInstanceCache(Acceptor, Che);
+	//LqFcheDelete(Che);
+	//Acceptor->AcceptProc = [](LqSockAcceptor* Acceptor) {
+	//	LqSockBuf* SockBuf = LqSockAcceptorAcceptSsl(Acceptor, nullptr, SslCtx);
+	//	if(SockBuf == NULL)
+	//		return;
+	//	SockBuf->CloseHandler = [](LqSockBuf* SockBuf) {
+	//		LqSockBufDelete(SockBuf);
+	//	};
+	//	LqSockBufGoWork(SockBuf, nullptr);
+	//	LqSockBufNotifyWhenMatch(SockBuf, nullptr, ff, "%*{^\r\n\r\n}", 1, 32768);
+	//};
+
+	//LqSockAcceptorGoWork(Acceptor, nullptr);
 
     LqFbuf_printf(OutFile,
                   "Name: LanQ (Lan Quick) Server Shell\n"
@@ -1167,7 +1224,7 @@ lblAgain:
                     IsSuccess = false;
                     break;
                 }
-                LqConnInetAddress adr;
+                LqConnAddr adr;
                 if(LqConnStrToRowIp((Param.find_first_of("6") != LqString::npos) ? 6 : 4, IpAddress.c_str(), &adr) == -1) {
                     LqFbuf_printf(OutFile, " ERROR: Invalid ip address\n");
                     IsSuccess = false;

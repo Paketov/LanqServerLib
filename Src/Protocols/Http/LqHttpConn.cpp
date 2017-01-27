@@ -5,11 +5,10 @@
 * LqHttpAct... - Functions for work with action.
 */
 
-
+#include "LqConn.h"
 #include "LqHttp.h"
 #include "LqOs.h"
 #include "LqHttpConn.h"
-#include "LqConn.h"
 #include "LqAlloc.hpp"
 #include "LqHttpPth.hpp"
 
@@ -173,7 +172,7 @@ LQ_EXTERN_C LqFileSz LQ_CALL LqHttpConnSendFromFile(LqHttpConn* c, int InFd, LqF
     LqFileSz r;
 #if defined(HAVE_OPENSSL)
     if(c->ssl)
-        r = LqConnSendFromFileSSL(&c->CommonConn, InFd, OffsetInFile, Count c->ssl);
+        r = LqConnSendFromFileSSL(&c->CommonConn, InFd, OffsetInFile, Count, c->ssl);
     else
 #endif
         r = LqSockSendFromFile(&c->CommonConn, InFd, OffsetInFile, Count);

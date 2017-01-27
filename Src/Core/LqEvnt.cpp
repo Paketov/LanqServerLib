@@ -139,7 +139,7 @@
         for(; (_i >= 0) && (_Conns[_i] == (EmptyVal)); _i--);\
         ((__LqArr2*)(Arr))->MaxUsed = _i;\
         auto _n = _i + 2;\
-        if((size_t)(((decltype(LQEVNT_INCREASE_COEFFICIENT))_n) * LQEVNT_DECREASE_COEFFICIENT) < ((__LqArr2*)(Arr))->AllocCount){\
+        if((size_t)(((decltype(LQEVNT_DECREASE_COEFFICIENT))_n) * LQEVNT_DECREASE_COEFFICIENT) < ((__LqArr2*)(Arr))->AllocCount){\
             ((__LqArr2*)(Arr))->Data = ___realloc(((__LqArr2*)(Arr))->Data, _n * sizeof(TypeVal));\
             ((__LqArr2*)(Arr))->AllocCount = _n;\
         }\

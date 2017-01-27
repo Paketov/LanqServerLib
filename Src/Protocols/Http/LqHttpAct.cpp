@@ -1,4 +1,6 @@
 
+
+#include "LqConn.h"
 #include "LqHttp.h"
 #include "LqHttp.hpp"
 #include "LqHttpConn.h"

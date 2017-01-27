@@ -518,6 +518,8 @@ LQ_IMPORTEXPORT bool LQ_CALL LqMutexLock(LqMutex* lqaio Dest);
 LQ_IMPORTEXPORT bool LQ_CALL LqMutexUnlock(LqMutex* lqaio Dest);
 LQ_IMPORTEXPORT bool LQ_CALL LqMutexClose(LqMutex* lqain Dest);
 
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqThreadId();
+
 LQ_EXTERN_C_END
 
 

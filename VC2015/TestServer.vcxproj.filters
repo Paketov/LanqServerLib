@@ -99,6 +99,9 @@
     <ClCompile Include="..\Src\Utils\LqSockBuf.cpp">
       <Filter>Utils</Filter>
     </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqFche.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Src\Core\LqLog.h">
@@ -203,9 +206,6 @@
     <ClInclude Include="..\Src\Utils\LqFile.h">
       <Filter>Utils</Filter>
     </ClInclude>
-    <ClInclude Include="..\Src\Utils\LqFileChe.hpp">
-      <Filter>Utils</Filter>
-    </ClInclude>
     <ClInclude Include="..\Src\Utils\LqFileTrd.h">
       <Filter>Utils</Filter>
     </ClInclude>
@@ -264,6 +264,12 @@
       <Filter>Utils</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Utils\LqSockBuf.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqFche.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqFileChe.hpp">
       <Filter>Utils</Filter>
     </ClInclude>
   </ItemGroup>

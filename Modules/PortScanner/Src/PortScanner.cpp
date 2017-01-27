@@ -50,7 +50,7 @@ int main(int argc, char* argv[])
     std::vector<std::pair<uint16_t, uint16_t>> Ports;
     std::string LogFileName = "?stdout";
     int WaitMillisec = 1000;
-    LqConnInetAddress Addr;
+    LqConnAddr Addr;
     Addr.Addr.sa_family = 0;
     LqString StrAddr;
     bool IsOutEmpty = false;
