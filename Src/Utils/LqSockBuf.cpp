@@ -501,6 +501,14 @@ lblOut:
     return Res;
 }
 
+LQ_EXTERN_C bool LQ_CALL LqSockBufInterruptWork(LqSockBuf* SockBuf) {
+    bool Res;
+    _SockBufLock(SockBuf);
+    Res = LqEvntSetRemove3(&SockBuf->Conn) > 0;
+    _SockBufUnlock(SockBuf);
+    return Res;
+}
+
 LQ_EXTERN_C bool LQ_CALL LqSockBufNotifyRspCompletion(LqSockBuf* SockBuf, void(*CompletionProc)(void*, LqSockBuf*), void* UserData) {
     RspElement* NewStream;
     bool Res = false;
@@ -1287,6 +1295,14 @@ LQ_EXTERN_C bool LQ_CALL LqSockAcceptorGoWork(LqSockAcceptor* SockAcceptor, void
         goto lblOut;
     }
 lblOut:
+    _SockAcceptorUnlock(SockAcceptor);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqSockAcceptorInterruptWork(LqSockAcceptor* SockAcceptor) {
+    bool Res;
+    _SockAcceptorLock(SockAcceptor);
+    Res = LqEvntSetRemove3(&SockAcceptor->Conn) > 0;
     _SockAcceptorUnlock(SockAcceptor);
     return Res;
 }

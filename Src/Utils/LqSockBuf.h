@@ -99,6 +99,11 @@ LQ_IMPORTEXPORT bool LQ_CALL LqSockBufDelete(LqSockBuf* lqain lqats SockBuf);
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufGoWork(LqSockBuf* lqaio lqats SockBuf, void* lqain WrkBoss);
 
 /*
+* 
+*/
+LQ_IMPORTEXPORT bool LQ_CALL LqSockBufInterruptWork(LqSockBuf* lqaio lqats SockBuf);
+
+/*
 * Set instance of cache to SockBuf
 */
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufSetInstanceCache(LqSockBuf* lqaio lqats SockBuf, LqFche* lqain lqamrelease Cache);
@@ -183,7 +188,10 @@ LQ_IMPORTEXPORT LqSockAcceptor* LQ_CALL LqSockAcceptorCreate(
     bool IsNonBlock, 
     void* lqain UserData
 );
+
 LQ_IMPORTEXPORT bool LQ_CALL LqSockAcceptorGoWork(LqSockAcceptor* lqain lqats SockAcceptor, void* lqain WrkBoss);
+LQ_IMPORTEXPORT bool LQ_CALL LqSockAcceptorInterruptWork(LqSockAcceptor* lqain lqats SockAcceptor);
+
 LQ_IMPORTEXPORT bool LQ_CALL LqSockAcceptorDelete(LqSockAcceptor* lqain lqats SockAcceptor);
 
 LQ_IMPORTEXPORT LqSockBuf* LQ_CALL LqSockAcceptorAccept(LqSockAcceptor* lqain lqats SockAcceptor, void* lqain UserData);
