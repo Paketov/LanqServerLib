@@ -27,9 +27,6 @@
     <ClCompile Include="..\Src\Core\LqWrkBoss.cpp">
       <Filter>Core</Filter>
     </ClCompile>
-    <ClCompile Include="..\Src\Core\LqEvnt.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
     <ClCompile Include="..\Src\Protocols\Http\LqHttpMdl.cpp">
       <Filter>Protocols\HTTP</Filter>
     </ClCompile>
@@ -51,13 +48,7 @@
     <ClCompile Include="..\Src\Protocols\Http\LqHttp.cpp">
       <Filter>Protocols\HTTP</Filter>
     </ClCompile>
-    <ClCompile Include="..\Src\Protocols\Http\LqHttpAct.cpp">
-      <Filter>Protocols\HTTP</Filter>
-    </ClCompile>
     <ClCompile Include="..\Src\Protocols\Http\LqHttpAtz.cpp">
-      <Filter>Protocols\HTTP</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Src\Protocols\Http\LqHttpConn.cpp">
       <Filter>Protocols\HTTP</Filter>
     </ClCompile>
     <ClCompile Include="..\Src\Utils\LqStr.cpp">
@@ -93,14 +84,20 @@
     <ClCompile Include="..\Src\Core\LqZmbClr.cpp">
       <Filter>Core</Filter>
     </ClCompile>
-    <ClCompile Include="..\Src\Utils\LqPrtScan.cpp">
-      <Filter>Utils</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Src\Utils\LqSockBuf.cpp">
-      <Filter>Utils</Filter>
-    </ClCompile>
     <ClCompile Include="..\Src\Utils\LqFche.cpp">
       <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Core\LqSysPoll.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Core\LqFdIpc.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Core\LqSockBuf.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Core\LqPrtScan.cpp">
+      <Filter>Core</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -120,9 +117,6 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Core\Lanq.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Core\LqEvnt.h">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Protocols\Http\LqHttpLogging.h">
@@ -155,13 +149,7 @@
     <ClInclude Include="..\Src\Protocols\Http\LqHttp.hpp">
       <Filter>Protocols\HTTP</Filter>
     </ClInclude>
-    <ClInclude Include="..\Src\Protocols\Http\LqHttpAct.h">
-      <Filter>Protocols\HTTP</Filter>
-    </ClInclude>
     <ClInclude Include="..\Src\Protocols\Http\LqHttpAtz.h">
-      <Filter>Protocols\HTTP</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Protocols\Http\LqHttpConn.h">
       <Filter>Protocols\HTTP</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Utils\LqSbuf.h">
@@ -248,29 +236,32 @@
     <ClInclude Include="..\Src\Utils\LqTbl.hpp">
       <Filter>Utils</Filter>
     </ClInclude>
-    <ClInclude Include="..\Src\Core\LqEvntWin.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Core\LqEvntPoll.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Core\LqEvntEpoll.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
     <ClInclude Include="..\Src\Utils\LqIpRow.hpp">
-      <Filter>Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Utils\LqPrtScan.hpp">
-      <Filter>Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Utils\LqSockBuf.h">
       <Filter>Utils</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Utils\LqFche.h">
       <Filter>Utils</Filter>
     </ClInclude>
-    <ClInclude Include="..\Src\Utils\LqFileChe.hpp">
-      <Filter>Utils</Filter>
+    <ClInclude Include="..\Src\Core\LqSysPoll.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqSysPollWin.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqSysPollPoll.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqSysPollEpoll.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqFdIpc.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqSockBuf.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqPrtScan.hpp">
+      <Filter>Core</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

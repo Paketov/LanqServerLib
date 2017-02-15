@@ -30,17 +30,16 @@ bool LqHttpPthRelease(LqHttpPth* Pth);
 /*
 * Is @Atz == nullptr, then remove athorization
 */
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthDirSetAtz(LqHttpProtoBase* lqain Reg, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, LqHttpAtz* lqain Atz, bool IsReplace);
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthDirSetAtz(LqHttp* lqain Reg, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, LqHttpAtz* lqain Atz, bool IsReplace);
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthFileSetAtz(LqHttpProtoBase* lqain Reg, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, LqHttpAtz* lqain Atz, bool IsReplace);
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthFileSetAtz(LqHttp* lqain Reg, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, LqHttpAtz* lqain Atz, bool IsReplace);
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthDirSetPerm(LqHttpProtoBase* lqain Reg, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, uint8_t Permissions);
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthDirSetPerm(LqHttp* lqain Reg, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, uint8_t Permissions);
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthFileSetPerm(LqHttpProtoBase* lqain Reg, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, uint8_t Permissions);
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthFileSetPerm(LqHttp* lqain Reg, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, uint8_t Permissions);
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFile
-(
-    LqHttpProtoBase* lqaio Reg,
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFile(
+	LqHttp* lqaio Http,
     LqHttpMdl* lqain lqaopt RegModule,
     const char* lqain lqautf8 WebDomen,
     const char* lqain lqautf8 WebPath,
@@ -50,9 +49,8 @@ LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFile
     uintptr_t ModuleData
 );
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDir
-(
-    LqHttpProtoBase* lqaio Reg,
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDir(
+	LqHttp* lqaio Http,
     LqHttpMdl* lqain lqaopt RegModule,
     const char* lqain lqautf8 WebDomen,
     const char* lqain lqautf8 WebPath,
@@ -63,9 +61,8 @@ LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDir
     uintptr_t ModuleData
 );
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecFile
-(
-    LqHttpProtoBase* lqaio Reg,
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecFile(
+	LqHttp* lqaio Http,
     LqHttpMdl* lqain lqaopt RegModule,
     const char* lqain lqautf8 WebDomen,
     const char* lqain lqautf8 WebPath,
@@ -75,9 +72,8 @@ LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecFile
     uintptr_t ModuleData
 );
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecDir
-(
-    LqHttpProtoBase* lqaio Reg,
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecDir(
+	LqHttp* lqaio Http,
     LqHttpMdl* lqain lqaopt RegModule,
     const char* lqain lqautf8 WebDomen,
     const char* lqain lqautf8 WebPath,
@@ -88,9 +84,8 @@ LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecDir
     uintptr_t ModuleData
 );
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFileRedirection
-(
-    LqHttpProtoBase* lqaio Reg,
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFileRedirection(
+	LqHttp* lqaio Http,
     LqHttpMdl* lqain lqaopt RegModule,
     const char* lqain lqautf8 WebDomen,
     const char* lqain lqautf8 WebPath,
@@ -104,9 +99,8 @@ LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFileRedirection
 /*
 * Includes subdirs automatically
 */
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDirRedirection
-(
-    LqHttpProtoBase* lqaio Reg,
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDirRedirection(
+	LqHttp* lqaio Http,
     LqHttpMdl* lqain lqaopt RegModule,
     const char* lqain lqautf8 WebDomen,
     const char* lqain lqautf8 WebPath,
@@ -117,9 +111,8 @@ LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDirRedirection
     uintptr_t ModuleData
 );
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthCopyFile
-(
-    LqHttpProtoBase* lqaio Reg,
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthCopyFile(
+	LqHttp* lqaio Http,
     const char* lqain lqautf8 WebDomenDest,
     const char* lqain lqautf8 WebDomenSource,
     const char* lqain lqautf8 WebPath
@@ -127,38 +120,34 @@ LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthCopyFile
 
 LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthCopyDir
 (
-    LqHttpProtoBase* lqaio Reg,
+	LqHttp* lqaio Http,
     const char* lqain lqautf8 WebDomenDest,
     const char* lqain lqautf8 WebDomenSource,
     const char* lqain lqautf8 WebPath
 );
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthUnregisterFile
-(
-    LqHttpProtoBase* lqaio Reg,
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthUnregisterFile(
+	LqHttp* lqaio Http,
     const char* lqain lqautf8 WebDomen,
     const char* lqain lqautf8 WebPath
 );
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthUnregisterDir
-(
-    LqHttpProtoBase* lqaio Reg,
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthUnregisterDir(
+	LqHttp* lqaio Http,
     const char* lqain lqautf8 WebDomen,
     const char* lqain lqautf8 WebPath
 );
 /*
 *   Register "naked" path
 */
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegister
-(
-    LqHttpProtoBase* lqaio Reg,
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegister(
+	LqHttp* lqaio Http,
     const char* lqain lqautf8 Domain,
     LqHttpPth* lqain Path
 );
 
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpPthEnm
-(
-    LqHttpProtoBase* lqain Reg,
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpPthEnm(
+	LqHttp* lqain Http,
     const char* lqain lqautf8 Domain,
     char* lqaio lqautf8 WebPath, size_t PathLen,
     int* lqaout lqaopt Type,
@@ -171,9 +160,8 @@ LQ_IMPORTEXPORT bool LQ_CALL LqHttpPthEnm
     LqHttpAtz** lqaout lqaopt lqamrelease AccessUserList
 );
 
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpPthInfo
-(
-    LqHttpProtoBase* lqain Reg,
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpPthInfo(
+	LqHttp* lqain Http,
     const char* lqain lqautf8 Domain,
     const char* lqain lqautf8 WebPath,
     bool IsDir,
@@ -187,21 +175,19 @@ LQ_IMPORTEXPORT bool LQ_CALL LqHttpPthInfo
     LqHttpAtz** lqaout lqaopt lqamrelease AccessUserList
 );
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthDmnCreate
-(
-    LqHttpProtoBase* lqaio Reg,
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthDmnCreate(
+	LqHttp* lqaio Http,
     const char* lqain lqautf8 WebDomen
 );
 
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpPthDmnEnm
-(
-    LqHttpProtoBase* lqain Reg,
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpPthDmnEnm(
+	LqHttp* lqain Http,
     char* lqaio lqautf8 WebDomen,
     size_t WebDomenLen
 );
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthDmnDelete
-(
-    LqHttpProtoBase* lqaio Reg,
+
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthDmnDelete(
+	LqHttp* lqaio Http,
     const char* lqain lqautf8 WebDomen
 );
 

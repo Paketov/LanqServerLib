@@ -136,6 +136,7 @@ LQ_IMPORTEXPORT bool LQ_CALL LqSbufReadRegionPtrIsEos(LqSbufReadRegionPtr* lqain
 
 /*
 * File io
+*  "I like independent everywhere: in my opinions, in my programming... I`m create independent"
 */
 
 typedef uint16_t LqFbufFlag;
@@ -148,15 +149,15 @@ typedef uint16_t LqFbufFlag;
 #define LQFBUF_READ_ERROR        ((LqFbufFlag)0x0010)
 #define LQFBUF_READ_WOULD_BLOCK  ((LqFbufFlag)0x0020)
 #define LQFBUF_READ_EOF          ((LqFbufFlag)0x0040)
-#define LQFBUF_FAST_LK		     ((LqFbufFlag)0x0080)
+#define LQFBUF_FAST_LK           ((LqFbufFlag)0x0080)
 
 #define LQFBUF_POINTER           ((LqFbufFlag)0x0100)
 #define LQFBUF_STREAM            ((LqFbufFlag)0x0200)
 #define LQFBUF_SEP_COMMA         ((LqFbufFlag)0x0400)
 
 
-#define LQFRBUF_SCANF_PEEK           ((int)0x01)
-#define LQFRBUF_SCANF_PEEK_WHEN_ERR  ((int)0x02)
+#define LQFBUF_SCANF_PEEK           ((int)0x01)
+#define LQFBUF_SCANF_PEEK_WHEN_ERR  ((int)0x02)
 
 
 #define LQFRWBUF_FAST_LOCKER     int
@@ -169,35 +170,35 @@ struct LqFbufCookie;
 typedef struct LqFbufCookie LqFbufCookie;
 
 typedef struct LqFbuf {
-	union {
-		struct {
-			LqSbuf OutBuf;
-			LqSbuf InBuf;
-		};
-		LqSbufPtr BufPtr;
-	};
+    union {
+        struct {
+            LqSbuf OutBuf;
+            LqSbuf InBuf;
+        };
+        LqSbufPtr BufPtr;
+    };
 
-	void* UserData;
-	LqFbufFlag Flags;
-	
+    void* UserData;
+    LqFbufFlag Flags;
+    
 
-	intptr_t MinFlush;
-	intptr_t MaxFlush;
-	intptr_t PortionSize;
+    intptr_t MinFlush;
+    intptr_t MaxFlush;
+    intptr_t PortionSize;
 
-	LqFbufCookie* Cookie;
-	union {
-		LQFRWBUF_FAST_LOCKER FastLocker;
-		LQFRWBUF_DEFAULT_LOCKER Locker;
-	};
+    LqFbufCookie* Cookie;
+    union {
+        LQFRWBUF_FAST_LOCKER FastLocker;
+        LQFRWBUF_DEFAULT_LOCKER Locker;
+    };
 } LqFbuf;
 
 struct LqFbufCookie {
-	intptr_t(*ReadProc)(LqFbuf*, char*, size_t);
-	intptr_t(*WriteProc)(LqFbuf*, char*, size_t);
-	intptr_t(*SeekProc)(LqFbuf*, int64_t Offset, int Flags);
-	bool(*CopyProc)(LqFbuf*Dest, LqFbuf*Source);
-	intptr_t(*CloseProc)(LqFbuf*);
+    intptr_t(LQ_CALL *ReadProc)(LqFbuf*, char*, size_t);
+    intptr_t(LQ_CALL *WriteProc)(LqFbuf*, char*, size_t);
+    intptr_t(LQ_CALL *SeekProc)(LqFbuf*, int64_t Offset, int Flags);
+    bool(LQ_CALL *CopyProc)(LqFbuf*Dest, LqFbuf*Source);
+    intptr_t(LQ_CALL *CloseProc)(LqFbuf*);
 };
 
 #pragma pack(pop)
@@ -205,21 +206,21 @@ struct LqFbufCookie {
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_open_cookie(
     LqFbuf* lqaout Context,
-	void* UserData,
-	LqFbufCookie* lqain Cookie,
-	LqFbufFlag Flags,
-	intptr_t WriteMinBuffSize,
-	intptr_t WriteMaxBuffSize,
-	intptr_t ReadPortionSize
+    void* UserData,
+    LqFbufCookie* lqain Cookie,
+    LqFbufFlag Flags,
+    intptr_t WriteMinBuffSize,
+    intptr_t WriteMaxBuffSize,
+    intptr_t ReadPortionSize
 );
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_fdopen(
     LqFbuf* lqaout Context,
-	LqFbufFlag Flags,
+    LqFbufFlag Flags,
     int Fd,
-	intptr_t WriteMinBuffSize,
-	intptr_t WriteMaxBuffSize,
-	intptr_t ReadPortionSize
+    intptr_t WriteMinBuffSize,
+    intptr_t WriteMaxBuffSize,
+    intptr_t ReadPortionSize
 );
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_open(
@@ -227,10 +228,12 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_open(
     const char* lqain FileName,
     uint32_t FileFlags,
     int Access,
-	intptr_t WriteMinBuffSize,
-	intptr_t WriteMaxBuffSize,
-	intptr_t ReadPortionSize
+    intptr_t WriteMinBuffSize,
+    intptr_t WriteMaxBuffSize,
+    intptr_t ReadPortionSize
 );
+
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_null(LqFbuf* lqaout lqats Context);
 /*
 * Create stream pipe
 *  you can write some data and read them.
@@ -246,15 +249,15 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_seek(LqFbuf* lqaio lqats Context, int64_
 /*
 * Buffering scan.
 *  @Context - Source buffer
-*  @Flags: LQFRBUF_SCANF_PEEK - only peek buffer. Buffer can`t flush.
-           LQFRBUF_SCANF_PEEK_WHEN_ERR - Flush only when read all arguments.
+*  @Flags: LQFBUF_SCANF_PEEK - only peek buffer. Buffer can`t flush.
+           LQFBUF_SCANF_PEEK_WHEN_ERR - Flush only when read all arguments.
 *  @Fmt - Format string
 *
 *  %[flags][width][.accuracy][number_len][type]
 *   flags:
                 # - Extendet flags
                 $ - Use for base64 or hex
-                ? - Skip when not math
+                ? - Skip when not math (and increment return value)
 
     width:       when *(star), not set result value
 
@@ -275,6 +278,7 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_seek(LqFbuf* lqaio lqats Context, int64_
                  [<char>...<char2>-<char3>...] - read this chars
                  [^<char>...<char2>-<char3>...] - read all without this chars
                  {<val>|<val2>|...} - reading one of these values
+                 {^<val>} - read while not same <val>
                  b - read tradition base64. Flag # used for read = char. Flag $ used for get written size(for get readed size use %n).
                  B - read URL base 64. Flag # used for read = char. Flag $ used for get written size(for get readed size use %n).
                  V, v - read HEX data.  Flag $ used for get written size(for get readed size use %n).
@@ -311,14 +315,14 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_snscanf(const char* lqain Source, size_t
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_svnprintf(char* lqaout lqacp Dest, size_t DestSize, const char* lqain lqacp Fmt, va_list va);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_snprintf(char* lqaout lqacp Dest, size_t DestSize, const char* lqain lqacp Fmt, ...);
-
+LQ_IMPORTEXPORT bool LQ_CALL LqFbuf_eof(LqFbuf* lqaio lqats Context);
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_make_ptr(LqFbuf* lqaio lqats DestSource);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_copy(LqFbuf* lqats lqaout Dest, LqFbuf* lqain lqats Source);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_set_ptr_cookie(LqFbuf* lqats lqaout Dest, void* lqain UserData, LqFbufCookie* lqain Cookie);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_set_ptr_fd(LqFbuf* lqats lqaio Dest, int Fd);/* For write in file (use LqFbuf_flush())*/
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_transfer(LqFbuf* lqats lqaio Dest, LqFbuf* lqats lqaio Source, size_t Size); /* Transfer transfer data from pointer/file in to another file (Without double buffering)*/
-
+LQ_IMPORTEXPORT LqFileSz LQ_CALL LqFbuf_transfer(LqFbuf* lqats lqaio Dest, LqFbuf* lqats lqaio Source, LqFileSz Size); /* Transfer transfer data from pointer/file in to another file (Without double buffering)*/
+LQ_IMPORTEXPORT LqFileSz LQ_CALL LqFbuf_transfer_while_not_same(LqFbuf* lqats lqaio Dest, LqFbuf* lqats lqaio Source, LqFileSz Size, const char* lqain Seq, size_t SeqSize, bool* lqaout IsFound);
 //////////////////
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqStrToInt(int* Dest, const char* Source, unsigned char Radix);

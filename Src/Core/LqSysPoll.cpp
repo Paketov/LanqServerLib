@@ -2,7 +2,7 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-* LqEvnt... - Multiplatform abstracted event folower
+* LqSysPoll... - Multiplatform abstracted event folower
 * This part of server support:
 *       +Windows native events objects.
 *       +linux epoll.
@@ -11,11 +11,14 @@
 *
 */
 
-#include "LqEvnt.h"
+#include "LqSysPoll.h"
 #include "LqLog.h"
 #include "LqConn.h"
 
+#include "LqWrkBoss.h"
+#include "LqAtm.hpp"
 #include "LqAlloc.hpp"
+
 #define __METHOD_DECLS__
 #include "LqAlloc.hpp"
 
@@ -211,11 +214,11 @@
 //////////////////////
 
 #if defined(LQEVNT_WIN_EVENT)
-# include "LqEvntWin.hpp"
+# include "LqSysPollWin.hpp"
 #elif defined(LQEVNT_KEVENT)
 #err "Not implemented kevent"
 #elif defined(LQEVNT_EPOLL)
-# include "LqEvntEpoll.hpp"
+# include "LqSysPollEpoll.hpp"
 #elif defined(LQEVNT_POLL)
-# include "LqEvntPoll.hpp"
+# include "LqSysPollPoll.hpp"
 #endif

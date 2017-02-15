@@ -45,7 +45,7 @@ static char* IS_ESCAPE(const char* c) {
 
 static char* IS_UNRESERVED(const char* c) {
 	if((*(c) == '-') ||
-		(*(c) == '.') || (*(c) == '_') ||
+	   (*(c) == '.') || (*(c) == '_') ||
 	   (*(c) == '~') || (*(c) == '!') ||
 	   (*(c) == '*') || (*(c) == '\'') ||
 	   (*(c) == '(') || (*(c) == ')'))
@@ -59,7 +59,7 @@ static char* IS_USER_INFO(const char* c) {
 	if(auto r = IS_ESCAPE(c))
 		return r;
 	if((*(c) == ';') || (*(c) == ':') ||
-		(*(c) == '&') || (*(c) == '=') ||
+	   (*(c) == '&') || (*(c) == '=') ||
 	   (*(c) == '+') || (*(c) == '$') ||
 	   (*(c) == ','))
 		return (char*)c + 1;
@@ -72,7 +72,7 @@ static char* IS_PCHAR(const char* c) {
 	if(auto r = IS_ESCAPE(c))
 		return r;
 	if((*(c) == ':') || (*(c) == '@') ||
-		(*(c) == '&') || (*(c) == '=') ||
+	   (*(c) == '&') || (*(c) == '=') ||
 	   (*(c) == '+') || (*(c) == '$') ||
 	   (*(c) == ','))
 		return (char*)c + 1;
@@ -84,7 +84,7 @@ static char* IS_URIC_WITHOUT_EQ_AMP(const char* c) {
 	if(auto r = IS_ESCAPE(c))
 		return r;
 	if((*(c) == ';') || (*(c) == '/') ||
-		(*(c) == '?') || (*(c) == ':') ||
+	   (*(c) == '?') || (*(c) == ':') ||
 	   (*(c) == '@') || (*(c) == '+') ||
 	   (*(c) == '$') || (*(c) == ','))
 		return (char*)c + 1;
@@ -108,6 +108,110 @@ static char* IS_DIR(const char* c) {
 	return nullptr;
 }
 
+
+LQ_EXTERN_C LqHttpPrsUrlStatEnm LQ_CALL LqHttpPrsHostPort
+(
+	char* String,
+	char** HostStart, char** HostEnd,
+	char** PortStart, char** PortEnd,
+	char* HostType
+) {
+	char* r, *c = String, *t = c;
+
+	*HostStart = NULL;
+	*HostEnd = NULL;
+	*PortStart = NULL;
+	*PortEnd = NULL;
+
+	if(LqStrUtf8IsAlpha(c)) {
+		/*Read symbolic host name*/
+lblRep:
+
+		for(char* r;;) {
+			if((r = LqStrUtf8IsAlphaNum(c)) != nullptr)
+				c = r;
+			else if(*c == '-')
+				c++;
+			else
+				break;
+
+		}
+		if(*(c - 1) == '-')
+			return LQPRS_URL_ERR_SYMBOLIC_HOST_NAME;
+		if((*c == '.') && (LqStrUtf8IsAlphaNum(c + 1) != nullptr)) {
+			c++;
+			goto lblRep;
+		} else {
+			*HostStart = t;
+			*HostEnd = c;
+			*HostType = 's';
+			goto lblPort;
+		}
+	} else if(*c == '[') {
+		/*Read IPv6 host name*/
+		c++;
+		unsigned Count = 0;
+		bool IsHaveReduct = false;
+		if(*c == ':') {
+			if(c[1] == ':') {
+				c += 2;
+				IsHaveReduct = true;
+				if(*c == ']') goto lblIPv6Continue;
+			} else
+				return LQPRS_URL_ERR_IPv6_HOST_NAME;
+		}
+		while(true) {
+			if(IS_HEX(c)) {
+				Count++;
+				char* t = c++;
+				for(; IS_HEX(c); c++);
+				if(c > (t + 4)) return LQPRS_URL_ERR_IPv6_HOST_NAME;
+				if(*c == ':') {
+					c++;
+					if(*c == ':') {
+						if(IsHaveReduct)
+							return LQPRS_URL_ERR_IPv6_HOST_NAME;
+						IsHaveReduct = true;
+						c++;
+						if(*c == ']')
+							break;
+					} else if(!IS_HEX(c))
+						return LQPRS_URL_ERR_IPv6_HOST_NAME;
+				} else if(*c == ']')
+					break;
+				else
+					return LQPRS_URL_ERR_IPv6_HOST_NAME;
+			} else
+				return LQPRS_URL_ERR_IPv6_HOST_NAME;
+		}
+lblIPv6Continue:
+		if(IsHaveReduct) {
+			if(Count >= 8)
+				return LQPRS_URL_ERR_IPv6_HOST_NAME;
+		} else if(Count < 8)
+			return LQPRS_URL_ERR_IPv6_HOST_NAME;
+		*HostStart = t;
+		*HostEnd = t = ++c;
+		*HostType = '6';
+		goto lblPort;
+	} else
+		return LQPRS_URL_ERR_SYMBOLIC_HOST_NAME;
+
+	return LQPRS_URL_SUCCESS;
+lblPort:
+	/*Read port*/
+	t = c;
+	if(*c == ':') {
+		c++;
+		unsigned d = 0;
+		for(char* m = c + 5; IS_DIGIT(c) && (c < m); c++)
+			d = d * 10 + (*c - '0');
+		if(d > 65535) return LQPRS_URL_ERR_PORT;
+		*PortStart = t + 1;
+		*PortEnd = c;
+	}
+	return LQPRS_URL_SUCCESS;
+}
 
 /*
 
@@ -292,7 +396,8 @@ lblDir:
 			} else {
 				EndVal = StartVal = &ForEmptyArg;
 			}
-			AddQueryProc(UserData, StartKey, EndKey, StartVal, EndVal);
+			if(AddQueryProc != NULL)
+				AddQueryProc(UserData, StartKey, EndKey, StartVal, EndVal);
 			if(*c != '&')
 				break;
 		}

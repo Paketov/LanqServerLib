@@ -13,18 +13,20 @@ class LqWrk;
 class LqWrkBoss;
 
 
-#include "LqEvnt.h"
+#include "LqSysPoll.h"
 #include "LqLock.hpp"
 #include "LqQueueCmd.hpp"
 #include "LqThreadBase.hpp"
 #include "LqShdPtr.hpp"
+#include "LqAlloc.hpp"
 #include "LqDef.hpp"
 #include "Lanq.h"
-#include "LqAlloc.hpp"
+
 
 LQ_IMPORTEXPORT void LQ_CALL LqWrkDelete(LqWrk* This);
 
 typedef LqShdPtr<LqWrk, LqWrkDelete, false, false> LqWrkPtr;
+static llong __LqWrkInitEmpty();
 
 #pragma pack(push) 
 #pragma pack(LQSTRUCT_ALIGN_FAST)
@@ -38,25 +40,27 @@ class LQ_IMPORTEXPORT LqWrk:
     friend LqFastAlloc;
     friend void LqWrkDelete(LqWrk* This);
 
+    friend llong __LqWrkInitEmpty();
     /*GetCount external reference, used in SharedPtr*/
     size_t                                              CountPointers;
 
     /* GetCount waiting connections */
     LqAtomic<size_t>                                    CountConnectionsInQueue;
 
+    LqQueueCmd<uchar>                                   EvntFdQueue;
     LqQueueCmd<uchar>                                   CommandQueue;
-    LqEvnt                                              EventChecker;
+    LqSysPoll                                              EventChecker;
     LqEvntFd                                            NotifyEvent;
 
     mutable LqLocker<uintptr_t>                         Locker;
     mutable LqLocker<uintptr_t>                         WaitLocker;
 
-    ullong                                              Id;
+    llong                                               Id;
     LqTimeMillisec                                      TimeStart;
     bool                                                IsDelete;
     uintptr_t                                           IsSyncAllFlags;
 
-    void ParseInputCommands();
+    
     virtual void BeginThread();
     virtual void NotifyThread();
 
@@ -77,6 +81,8 @@ class LQ_IMPORTEXPORT LqWrk:
     inline void WaiterUnlock() { WaitLocker.UnlockWrite(); }
 
     void ClearQueueCommands();
+    void ParseInputCommands();
+    void AcceptAllEventFromQueue();
 
     static void ExitHandlerFn(void* Data);
     static void DelProc(void* Data, LqEvntInterator* Hdr);
@@ -87,7 +93,11 @@ public:
 
     static LqWrkPtr New(bool IsStart = false);
 
-    ullong   GetId() const;
+    static LqWrkPtr ByEvntHdr(LqEvntHdr* EvntHdr);
+
+    static LqWrkPtr GetNull();
+
+    llong   GetId() const;
 
     /*
     * Get busy info
@@ -134,6 +144,15 @@ public:
     */
     size_t   EnumCloseRmEvnt(unsigned(*Proc)(void* UserData, LqEvntHdr* Conn), void* UserData = nullptr);
     size_t   EnumCloseRmEvntByProto(unsigned(*Proc)(void* UserData, LqEvntHdr* Conn), const LqProto* Proto, void* UserData = nullptr);
+
+    bool EnumCloseRmEvntAsync(
+        unsigned(*EventAct)(void* UserData, size_t UserDataSize, void*Wrk, LqEvntHdr* EvntHdr, LqTimeMillisec CurTime),
+        const LqProto* Proto,
+        void* UserData,
+        size_t UserDataSize
+    );
+
+
 
     LqString DebugInfo() const;
     LqString AllDebugInfo();

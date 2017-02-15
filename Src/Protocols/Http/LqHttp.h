@@ -54,13 +54,17 @@
 #include "LqFile.h"
 #include "LqSbuf.h"
 #include "LqConn.h"
+#include "LqSockBuf.h"
 
 LQ_EXTERN_C_BEGIN
 
+
+typedef LqSockAcceptor LqHttp;
+typedef LqSockBuf      LqHttpConn;
+
+
 struct LqHttpQuery;
-struct LqHttpConn;
 struct LqHttpPth;
-struct LqHttpProtoBase;
 struct LqHttpAtz;
 struct LqHttpMdl;
 struct LqHttpExtensionMime;
@@ -68,10 +72,8 @@ struct LqHttpResponse;
 struct LqHttpMultipartHeaders;
 struct LqHttpUserData;
 
-typedef struct LqHttpConn LqHttpConn;
 typedef struct LqHttpQuery LqHttpQuery;
 typedef struct LqHttpPth LqHttpPth;
-typedef struct LqHttpProtoBase LqHttpProtoBase;
 typedef struct LqHttpAtz LqHttpAtz;
 typedef struct LqHttpMdl LqHttpMdl;
 typedef struct LqHttpExtensionMime LqHttpExtensionMime;
@@ -194,115 +196,56 @@ typedef enum LqHttpAuthorizPermissionEnm {
 #define LQHTTPPTH_TYPE_SEP 0x07
 #define LQ_MAX_CONTENT_LEN 0xffffffffff
 
-
-typedef enum LqHttpQurRspFlagsEnm {
-    LQHTTPCONN_FLAG_CLOSE = 1,
-    LQHTTPCONN_FLAG_NO_BODY = 2
-} LqHttpQurRspFlagsEnm;
+#define LQHTTPCONN_FLAG_CLOSE 1
+#define LQHTTPCONN_FLAG_NO_BODY 2
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-struct LqHttpQuery {
-    char*                       Method;
-    size_t                      MethodLen;
-    char*                       Host;
-    size_t                      HostLen;
-    char*                       UserInfo;
-    size_t                      UserInfoLen;
-    char*                       Path;
-    size_t                      PathLen;
-    char*                       Fragment;
-    size_t                      FragmentLen;
-    char*                       ProtoVer;
-    size_t                      ProtoVerLen;
-    char*                       Arg;
-    size_t                      ArgLen;
-    char*                       ContentBoundary;
-    size_t                      ContentBoundaryLen;
+//struct LqHttpQuery {
+//    char*                       Method;
+//    size_t                      MethodLen;
+//    char*                       Host;
+//    size_t                      HostLen;
+//    char*                       UserInfo;
+//    size_t                      UserInfoLen;
+//    char*                       Path;
+//    size_t                      PathLen;
+//    char*                       Fragment;
+//    size_t                      FragmentLen;
+//    char*                       ProtoVer;
+//    size_t                      ProtoVerLen;
+//    char*                       Arg;
+//    size_t                      ArgLen;
+//    char*                       ContentBoundary;
+//    size_t                      ContentBoundaryLen;
+//
+//    LqFileSz                    ContentLen;
+//    LqHttpMultipartHeaders*     MultipartHeaders;
+//    size_t                      HeadersEnd;
+//    union {
+//        int                     OutFd;
+//        LqSbuf                  Stream;
+//    };
+//    LqFileSz                    PartLen;
+//};
 
-    LqFileSz                    ContentLen;
-    LqHttpMultipartHeaders*     MultipartHeaders;
-    size_t                      HeadersEnd;
-    union {
-        int                     OutFd;
-        LqSbuf                  Stream;
-    };
-    LqFileSz                    PartLen;
-};
-
-struct LqHttpMultipartHeaders {
-    struct {
-        LqFileSz                ReadedBodySize;
-        LqHttpQuery             Query;
-    };
-    size_t                      BufSize;
-    char                        Buf[1];
-};
+//struct LqHttpMultipartHeaders {
+//    struct {
+//        LqFileSz                ReadedBodySize;
+//        LqHttpQuery             Query;
+//    };
+//    size_t                      BufSize;
+//    char                        Buf[1];
+//};
 
 #define LQHTTPRSP_MAX_RANGES 4
-
-struct LqHttpResponse {
-    size_t                      HeadersStart;
-    size_t                      HeadersEnd;
-    LqFileSz                    CountNeedRecive;
-    union {
-        struct {
-            union {
-                int             Fd;
-                void*           CacheInterator;
-            };
-            struct {
-                LqFileSz        Start;
-                LqFileSz        End;
-            } Ranges[LQHTTPRSP_MAX_RANGES];
-        };
-        LqSbuf                  Stream;
-    };
-
-    uint16_t                    Status;
-    uint8_t                     CountRanges;
-    uint8_t                     CurRange;
-};
 
 struct LqHttpUserData {
     void* Name;
     void* Data;
 };
 
-struct LqHttpConn {
-    LqConn                      CommonConn;
-
-    LqTimeMillisec              TimeStartMillisec;
-    LqTimeMillisec              TimeLastExchangeMillisec;
-    char*                       Buf;
-    size_t                      BufSize;
-
-
-    unsigned short              UserDataCount;
-    LqHttpUserData*             UserData;
-    uintptr_t                   _Reserved;
-    LqHttpEvntHandlerFn         EventAct;    /* Change action event*/
-    LqHttpEvntHandlerFn         EventClose;  /* Unexpected closing*/
-    LqHttpPth                   *Pth;
-    LqHttpActState              ActionState;     /* HTTP_ACTION_... */
-    LqHttpActResult             ActionResult;
-    uint8_t                     Flags;
-    LqFileSz                    WrittenBodySize;
-    struct {
-        LqFileSz                ReadedBodySize;
-        union {
-            LqHttpQuery         Query;
-            LqHttpResponse      Response;
-        };
-    };
-
-#if defined(HAVE_OPENSSL) && defined(LANQBUILD)
-    SSL*                        ssl;
-#else
-    void*                       _InternalUsed;
-#endif
-};
 
 struct LqHttpPth {
     size_t                      CountPointers;
@@ -329,6 +272,37 @@ struct LqHttpPth {
     uint8_t                     Permissions;    /* AUTHORIZATION_MASK_ ... */
 };
 
+typedef struct LqHttpRcvHdr {
+	char*        Name;
+	char*        Val;
+} LqHttpRcvHdr;
+
+typedef struct LqHttpRcvHdrs {
+	char*       Scheme;
+	char*		Method;
+	char*		Host;
+	char*		UserInfo;
+	char*		Port;
+	char*		Path;
+	char*		Fragment;
+	char*		Args;
+	char*		ContentBoundary;
+	uint8_t		MajorVer;
+	uint8_t		MinorVer;
+	LqHttpRcvHdr* Hdrs;
+	size_t      CountHdrs;
+} LqHttpRcvHdrs;
+
+typedef struct LqHttpConnData {
+	int              LenRspConveyor;
+	LqHttpRcvHdrs*   RcvHdr;
+	unsigned short   UserDataCount;
+	LqHttpUserData*  UserData;
+	uint8_t			 Flags;
+	LqHttpPth*       Pth;
+} LqHttpConnData;
+
+
 #pragma pack(pop)
 
 #pragma pack(push)
@@ -338,7 +312,7 @@ struct LqHttpPth {
 * Module defenition for http protocol
 */
 struct LqHttpMdl {
-    LqHttpProtoBase*            Proto;
+    LqHttp*             HttpAcceptor;
 
     char*                       Name;
 
@@ -380,7 +354,7 @@ struct LqHttpMdl {
         LqTimeSec* lqaout lqaopt Expires,
 
         LqFileStat const* lqain lqaopt Stat /*(Something sends for optimizing)*/
-        );
+    );
     /* Use for response error to client*/
     int (LQ_CALL* RspErrorProc)(LqHttpConn* lqain c, int lqain Code);
     /* Use for set status in start line*/
@@ -412,54 +386,6 @@ struct LqHttpMdl {
     uintptr_t                   UserData;
 };
 
-#define LqHttpProtoGetByConn(Conn) ((LqHttpProtoBase*)((LqConn*)Conn)->Proto)
-
-struct LqHttpProtoBase {
-    LqProto                     Proto;
-    LqProto                     BindProto;
-    LqConn                      Conn;
-    LqEvntFd                    ZmbClr;
-
-    size_t                      BindLocker;
-    size_t                      CountConnections;
-    size_t                      MaxConnections;
-    size_t                      MaxHeadersSize;
-    size_t                      MaxMultipartHeadersSize;
-    size_t                      CountConnAccepted;
-    size_t                      CountConnIgnored;
-    uintptr_t                   LockerBind;
-    bool                        IsRebind;
-    int                         RouteProtoFamily;
-
-    LqTimeMillisec              TimeLive;
-
-    LqTimeSec                   PeriodChangeDigestNonce;
-    bool                        IsResponse429;
-    bool                        IsUnregister;
-    bool                        IsResponseDate;
-    char                        HTTPProtoVer[16];
-    bool                        UseDefaultDmn;
-
-    size_t                      CountModules;
-
-    char                        ServName[1024];
-    uintptr_t                   ServNameLocker;
-#if defined(HAVE_OPENSSL) && defined(LANQBUILD)
-    SSL_CTX*                    ssl_ctx;
-    uintptr_t                   sslLocker;
-#else
-    void*                       _InternalUsed;
-    uintptr_t                   _InternalUsed2;
-#endif
-
-    LqHttpMdl                   StartModule;
-
-    LqEvntFd                    ZombieKiller;
-    LqTimeMillisec              ZombieKillerTimeLiveConnMillisec;
-    bool                        ZombieKillerIsSyncCheck;
-};
-
-
 /*
 */
 struct LqHttpAtz {
@@ -483,59 +409,26 @@ struct LqHttpAtz {
 };
 
 
+
 #pragma pack(pop)
 
 /*
 *----------------------------
 * Set and get HTTP proto parametrs
 */
+LQ_IMPORTEXPORT LqHttp* LQ_CALL LqHttpCreate(const char* Host, const char* Port, int RouteProto, void* SslCtx, bool IsSetCache, bool IsSetZmbClr);
 
-LQ_IMPORTEXPORT LqHttpProtoBase* LQ_CALL LqHttpProtoCreate();
-LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoDelete(LqHttpProtoBase* Proto);
+LQ_IMPORTEXPORT int LQ_CALL LqHttpDelete(LqHttp* Http);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpGoWork(LqHttp* Http, void* WrkBoss);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpInterruptWork(LqHttp* Http);
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoBind(LqHttpProtoBase* Reg);
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpProtoIsBind(LqHttpProtoBase* Reg);
-LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoUnbind(LqHttpProtoBase* Reg);
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoGetInfo(
-    LqHttpProtoBase* lqaio Reg,
-    char* lqaout lqaopt Host,
-    size_t HostBufSize,
-    char* lqaout lqaopt Port,
-    size_t PortBufSize,
-    int* lqaout lqaopt RouteProtoFamily,
-    int* lqaout lqaopt MaxConnections,
-    LqTimeMillisec* lqaout lqaopt TimeLive
-);
+LQ_IMPORTEXPORT size_t LQ_CALL LqHttpSetNameServer(LqHttp* Http, const char* NewName);
+LQ_IMPORTEXPORT size_t LQ_CALL LqHttpGetNameServer(LqHttp* Http, char* Name, size_t SizeName);
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoSetInfo(
-    LqHttpProtoBase* lqaio Reg,
-    const char* lqain lqaopt Host,
-    const char* lqain lqaopt Port,
-    const int* lqain lqaopt RouteProtoFamily,
-    const int* lqain lqaopt MaxConnections,
-    const LqTimeMillisec* lqain lqaopt TimeLive
-);
+#define LqHttpConnGetHttp(HttpConn) ((LqHttp*)(HttpConn)->UserData2)
+#define LqHttpConnGetData(HttpConn) ((LqHttpConnData*)(HttpConn)->UserData)
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoCreateSSL(
-    LqHttpProtoBase*lqaio Reg,
-    const void*lqain MethodSSL, /* Example SSLv23_method()*/
-    const char*lqain CertFile, /* Example: "server.pem"*/
-    const char*lqain KeyFile, /*Example: "server.key"*/
-    const char*lqain lqaopt CipherList,
-    int TypeCertFile, /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
-    const char*lqain lqaopt CAFile,
-    const char*lqain lqaopt DhpFile
-);
-
-LQ_IMPORTEXPORT int LQ_CALL LqHttpProtoSetSSL(
-    LqHttpProtoBase* Reg,
-    void* SSL_Ctx
-);
-
-LQ_IMPORTEXPORT void LQ_CALL LqHttpProtoRemoveSSL(LqHttpProtoBase* Reg);
-LQ_IMPORTEXPORT size_t LQ_CALL LqHttpProtoSetNameServer(LqHttpProtoBase* Reg, const char* NewName);
-LQ_IMPORTEXPORT size_t LQ_CALL LqHttpProtoGetNameServer(LqHttpProtoBase* Reg, char* Name, size_t SizeName);
 /*----------------------------
 */
 
@@ -543,16 +436,16 @@ LQ_IMPORTEXPORT size_t LQ_CALL LqHttpProtoGetNameServer(LqHttpProtoBase* Reg, ch
 *----------------------------
 * Set and get cache parametrs
 */
-LQ_IMPORTEXPORT size_t LQ_CALL LqHttpCheGetMaxSize(LqHttpProtoBase* Reg);        /*Get max size cache pool*/
-LQ_IMPORTEXPORT void LQ_CALL LqHttpCheSetMaxSize(LqHttpProtoBase* Reg, size_t NewVal);  /* Set max size cache pool */
-LQ_IMPORTEXPORT size_t LQ_CALL LqHttpCheGetMaxSizeFile(LqHttpProtoBase* Reg);                   /* Get minimum size file for adding to cache */
-LQ_IMPORTEXPORT void LQ_CALL LqHttpCheSetMaxSizeFile(LqHttpProtoBase* Reg, size_t NewVal);
-LQ_IMPORTEXPORT size_t LQ_CALL LqHttpCheGetEmployedSize(LqHttpProtoBase* Reg);
-LQ_IMPORTEXPORT LqTimeMillisec LQ_CALL LqHttpCheGetPeriodUpdateStat(LqHttpProtoBase* Reg);
-LQ_IMPORTEXPORT void LQ_CALL LqHttpCheSetPeriodUpdateStat(LqHttpProtoBase* Reg, LqTimeMillisec Millisec);
-LQ_IMPORTEXPORT size_t LQ_CALL LqHttpCheGetMaxCountOfPrepared(LqHttpProtoBase* Reg);
+LQ_IMPORTEXPORT size_t LQ_CALL LqHttpCheGetMaxSize(LqHttp* Http);        /*Get max size cache pool*/
+LQ_IMPORTEXPORT void LQ_CALL LqHttpCheSetMaxSize(LqHttp* Http, size_t NewVal);  /* Set max size cache pool */
+LQ_IMPORTEXPORT size_t LQ_CALL LqHttpCheGetMaxSizeFile(LqHttp* Http);                   /* Get minimum size file for adding to cache */
+LQ_IMPORTEXPORT void LQ_CALL LqHttpCheSetMaxSizeFile(LqHttp* Http, size_t NewVal);
+LQ_IMPORTEXPORT size_t LQ_CALL LqHttpCheGetEmployedSize(LqHttp* Http);
+LQ_IMPORTEXPORT LqTimeMillisec LQ_CALL LqHttpCheGetPeriodUpdateStat(LqHttp* Http);
+LQ_IMPORTEXPORT void LQ_CALL LqHttpCheSetPeriodUpdateStat(LqHttp* Http, LqTimeMillisec Millisec);
+LQ_IMPORTEXPORT size_t LQ_CALL LqHttpCheGetMaxCountOfPrepared(LqHttp* Http);
 
-LQ_IMPORTEXPORT void LQ_CALL LqHttpCheSetMaxCountOfPrepared(LqHttpProtoBase* Reg, size_t Count);
+LQ_IMPORTEXPORT void LQ_CALL LqHttpCheSetMaxCountOfPrepared(LqHttp* Http, size_t Count);
 /*----------------------------
 */
 
@@ -563,14 +456,14 @@ LQ_IMPORTEXPORT int LQ_CALL LqHttpEvntSetFlagByAct(LqHttpConn* Conn);
 * Protocol notify handlers
 */
 
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsRegisterQuery(LqHttpProtoBase* Reg, LqHttpNotifyFn QueryFunc);
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsUnregisterQuery(LqHttpProtoBase* Reg, LqHttpNotifyFn QueryFunc);
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsRegisterResponse(LqHttpProtoBase* Reg, LqHttpNotifyFn ResponseFunc);
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsUnregisterResponse(LqHttpProtoBase* Reg, LqHttpNotifyFn ResponseFunc);
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsRegisterConnect(LqHttpProtoBase* Reg, LqHttpNotifyFn ConnectFunc);
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsUnregisterConnect(LqHttpProtoBase* Reg, LqHttpNotifyFn ConnectFunc);
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsRegisterDisconnect(LqHttpProtoBase* Reg, LqHttpNotifyFn DisconnectFunc);
-LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsUnregisterDisconnect(LqHttpProtoBase* Reg, LqHttpNotifyFn DisconnectFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsRegisterQuery(LqHttp* Http, LqHttpNotifyFn QueryFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsUnregisterQuery(LqHttp* Http, LqHttpNotifyFn QueryFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsRegisterResponse(LqHttp* Http, LqHttpNotifyFn ResponseFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsUnregisterResponse(LqHttp* Http, LqHttpNotifyFn ResponseFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsRegisterConnect(LqHttp* Http, LqHttpNotifyFn ConnectFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsUnregisterConnect(LqHttp* Http, LqHttpNotifyFn ConnectFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsRegisterDisconnect(LqHttp* Http, LqHttpNotifyFn DisconnectFunc);
+LQ_IMPORTEXPORT bool LQ_CALL LqHttpHndlsUnregisterDisconnect(LqHttp* Http, LqHttpNotifyFn DisconnectFunc);
 
 LQ_EXTERN_C_END
 

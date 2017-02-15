@@ -19,16 +19,17 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\Src\Core\LqEvnt.cpp" />
+    <ClCompile Include="..\Src\Core\LqFdIpc.cpp" />
+    <ClCompile Include="..\Src\Core\LqPrtScan.cpp" />
+    <ClCompile Include="..\Src\Core\LqSockBuf.cpp" />
+    <ClCompile Include="..\Src\Core\LqSysPoll.cpp" />
     <ClCompile Include="..\Src\Core\LqLog.cpp" />
     <ClCompile Include="..\Src\Core\LqThreadBase.cpp" />
     <ClCompile Include="..\Src\Core\LqWrk.cpp" />
     <ClCompile Include="..\Src\Core\LqWrkBoss.cpp" />
     <ClCompile Include="..\Src\Core\LqZmbClr.cpp" />
     <ClCompile Include="..\Src\Protocols\Http\LqHttp.cpp" />
-    <ClCompile Include="..\Src\Protocols\Http\LqHttpAct.cpp" />
     <ClCompile Include="..\Src\Protocols\Http\LqHttpAtz.cpp" />
-    <ClCompile Include="..\Src\Protocols\Http\LqHttpConn.cpp" />
     <ClCompile Include="..\Src\Protocols\Http\LqHttpMdl.cpp" />
     <ClCompile Include="..\Src\Protocols\Http\LqHttpMdlHandlers.cpp" />
     <ClCompile Include="..\Src\Protocols\Http\LqHttpPrs.cpp" />
@@ -42,19 +43,20 @@
     <ClCompile Include="..\Src\Utils\LqFile.cpp" />
     <ClCompile Include="..\Src\Utils\LqFileTrd.cpp" />
     <ClCompile Include="..\Src\Utils\LqLib.cpp" />
-    <ClCompile Include="..\Src\Utils\LqPrtScan.cpp" />
     <ClCompile Include="..\Src\Utils\LqSbuf.cpp" />
-    <ClCompile Include="..\Src\Utils\LqSockBuf.cpp" />
     <ClCompile Include="..\Src\Utils\LqStr.cpp" />
     <ClCompile Include="..\Src\Utils\LqTime.cpp" />
     <ClCompile Include="..\Src\Utils\LqMd5.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Src\Core\Lanq.h" />
-    <ClInclude Include="..\Src\Core\LqEvnt.h" />
-    <ClInclude Include="..\Src\Core\LqEvntEpoll.hpp" />
-    <ClInclude Include="..\Src\Core\LqEvntPoll.hpp" />
-    <ClInclude Include="..\Src\Core\LqEvntWin.hpp" />
+    <ClInclude Include="..\Src\Core\LqFdIpc.h" />
+    <ClInclude Include="..\Src\Core\LqPrtScan.hpp" />
+    <ClInclude Include="..\Src\Core\LqSockBuf.h" />
+    <ClInclude Include="..\Src\Core\LqSysPoll.h" />
+    <ClInclude Include="..\Src\Core\LqSysPollEpoll.hpp" />
+    <ClInclude Include="..\Src\Core\LqSysPollPoll.hpp" />
+    <ClInclude Include="..\Src\Core\LqSysPollWin.hpp" />
     <ClInclude Include="..\Src\Core\LqLog.h" />
     <ClInclude Include="..\Src\Core\LqQueueCmd.hpp" />
     <ClInclude Include="..\Src\Core\LqThreadBase.hpp" />
@@ -64,9 +66,7 @@
     <ClInclude Include="..\Src\Core\LqZmbClr.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttp.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttp.hpp" />
-    <ClInclude Include="..\Src\Protocols\Http\LqHttpAct.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpAtz.h" />
-    <ClInclude Include="..\Src\Protocols\Http\LqHttpConn.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpLogging.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpMdl.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpMdlHandlers.h" />
@@ -85,11 +85,8 @@
     <ClInclude Include="..\Src\Utils\LqErr.h" />
     <ClInclude Include="..\Src\Utils\LqFche.h" />
     <ClInclude Include="..\Src\Utils\LqFile.h" />
-    <ClInclude Include="..\Src\Utils\LqFileChe.hpp" />
     <ClInclude Include="..\Src\Utils\LqFileTrd.h" />
     <ClInclude Include="..\Src\Utils\LqIpRow.hpp" />
-    <ClInclude Include="..\Src\Utils\LqPrtScan.hpp" />
-    <ClInclude Include="..\Src\Utils\LqSockBuf.h" />
     <ClInclude Include="..\Src\Utils\LqTbl.hpp" />
     <ClInclude Include="..\Src\Utils\LqHndls.hpp" />
     <ClInclude Include="..\Src\Utils\LqLib.h" />

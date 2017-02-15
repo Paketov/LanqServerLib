@@ -436,11 +436,11 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, intptr_t Siz
     return -1;
 }
 
-LQ_EXTERN_C intptr_t LQ_CALL LqFileWriteAsync(int Fd, const void* DestBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target) {
+LQ_EXTERN_C intptr_t LQ_CALL LqFileWriteAsync(int Fd, const void* SourceBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target) {
     LARGE_INTEGER pl;
     pl.QuadPart = Offset;
     Target->Status = STATUS_PENDING;
-    switch(auto Stat = NtWriteFile((HANDLE)Fd, (HANDLE)EventFd, NULL, NULL, (PIO_STATUS_BLOCK)Target, (PVOID)DestBuf, SizeBuf, &pl, NULL)) {
+    switch(auto Stat = NtWriteFile((HANDLE)Fd, (HANDLE)EventFd, NULL, NULL, (PIO_STATUS_BLOCK)Target, (PVOID)SourceBuf, SizeBuf, &pl, NULL)) {
         case STATUS_PENDING:
             SetLastError(ERROR_IO_PENDING);
         case STATUS_SUCCESS:
@@ -1566,11 +1566,13 @@ LQ_EXTERN_C bool LQ_CALL LqMutexClose(LqMutex* lqain Dest) {
     return CloseHandle(Dest->m);
 }
 
-LQ_EXTERN_C intptr_t LQ_CALL LqThreadId() {
+LQ_EXTERN_C int LQ_CALL LqThreadId() {
 	return GetCurrentThreadId();
 }
 
-
+LQ_EXTERN_C void LQ_CALL LqThreadYield() {
+	Sleep(0);
+}
 
 
 #define __METHOD_DECLS__
@@ -1818,7 +1820,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, intptr_t Siz
 #endif
 }
 
-LQ_EXTERN_C intptr_t LQ_CALL LqFileWriteAsync(int Fd, const void* DestBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target) {
+LQ_EXTERN_C intptr_t LQ_CALL LqFileWriteAsync(int Fd, const void* SourceBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target) {
 #ifdef LQ_ASYNC_IO_NOT_HAVE
     return ENOSYS;
 #else
@@ -1827,7 +1829,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFileWriteAsync(int Fd, const void* DestBuf, intpt
     Target->EvFd = EventFd;
     Target->cb.aio_fildes = Fd;
     Target->cb.aio_offset = Offset;
-    Target->cb.aio_buf = (void*)DestBuf;
+    Target->cb.aio_buf = (void*)SourceBuf;
     Target->cb.aio_nbytes = SizeBuf;
     Target->cb.aio_reqprio = 0;
     Target->cb.aio_lio_opcode = LIO_WRITE;
@@ -2766,8 +2768,12 @@ LQ_EXTERN_C bool LQ_CALL LqMutexClose(LqMutex* Dest) {
     return pthread_mutex_destroy(&Dest->m) == 0;
 }
 
-LQ_EXTERN_C intptr_t LQ_CALL LqThreadId() {
+LQ_EXTERN_C int LQ_CALL LqThreadId() {
 	return pthread_self();
+}
+
+LQ_EXTERN_C void LQ_CALL LqThreadYield() {
+	usleep(0);
 }
 
 #endif

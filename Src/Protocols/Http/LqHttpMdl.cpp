@@ -65,7 +65,7 @@ void LqHttpMdlPathRegister(LqHttpMdl* Module, LqHttpPth* l) {
 static void _LqHttpMdlDeletePathsFromFs(LqHttpMdl* Module, bool IsFreeRelations) {
     LqObPtrReference(Module);
     auto& PathsArr = *(LqHttpPthArr*)Module->_Paths;
-    auto& Dmns = ((LqHttpProto*)Module->Proto)->Dmns;
+    auto& Dmns = ((LqHttpData*)((LqHttp*)Module->HttpAcceptor)->UserData)->Dmns;
     PathsArr.clear();
     for(auto d = Dmns.begin(); !d.is_end(); ++d) {
         (*d)->Pths.remove_mult_by_compare_fn([&](LqHttpPthPtr& Ptr) {
@@ -81,14 +81,14 @@ static void LqHttpMdlEnmFree(LqHttpMdl* Module) {
     _LqHttpMdlDeletePathsFromFs(Module, true);
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByName(LqHttpProtoBase* Reg, const char* NameModule, bool IsAll) {
-    auto Proto = (LqHttpProto*)Reg;
+LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByName(LqHttp* Http, const char* NameModule, bool IsAll) {
+    auto HttpData = ((LqHttpData*)(Http)->UserData);
     int Res = 0;
-    for(auto& i : Proto->Modules) {
+    for(auto& i : HttpData->Modules) {
         if(LqStrSame(i->Name, NameModule)) {
             Res++;
             LqHttpMdlEnmFree(i.Get());
-            Proto->Modules.remove_by_val(i);
+			HttpData->Modules.remove_by_val(i);
             if(!IsAll)
                 break;
         }
@@ -96,38 +96,38 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByName(LqHttpProtoBase* Reg, const char* Na
     return Res;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeAll(LqHttpProtoBase* Reg) {
-    auto Proto = (LqHttpProto*)Reg;
+LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeAll(LqHttp* Http) {
+	auto HttpData = ((LqHttpData*)(Http)->UserData);
     LqPtdArr<LqHttpMdlPtr> CurList;
-    CurList.swap(Proto->Modules);
+    CurList.swap(HttpData->Modules);
     int Res = 0;
     for(auto& i : CurList) {
         Res++;
         LqHttpMdlEnmFree(i.Get());
-        Proto->Modules.remove_by_val(i);
+		HttpData->Modules.remove_by_val(i);
     }
     return Res;
 }
 
-LQ_EXTERN_C void LQ_CALL LqHttpMdlFreeMain(LqHttpProtoBase* Reg) {
-    LqHttpMdlEnmFree(&Reg->StartModule);
+LQ_EXTERN_C void LQ_CALL LqHttpMdlFreeMain(LqHttp* Http) {
+    LqHttpMdlEnmFree(&((LqHttpData*)(Http)->UserData)->StartModule);
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByHandle(LqHttpProtoBase* Reg, uintptr_t Handle) {
-    auto Proto = (LqHttpProto*)Reg;
-    for(auto& i : Proto->Modules) {
+LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByHandle(LqHttp* Http, uintptr_t Handle) {
+	auto HttpData = ((LqHttpData*)(Http)->UserData);
+    for(auto& i : HttpData->Modules) {
         if(i->Handle == Handle) {
             LqHttpMdlEnmFree(i.Get());
-            Proto->Modules.remove_by_val(i);
+			HttpData->Modules.remove_by_val(i);
             return 1;
         }
     }
     return 0;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpMdlSendCommandByHandle(LqHttpProtoBase* Reg, uintptr_t Handle, const char* Command, void* Data) {
-    auto Proto = (LqHttpProto*)Reg;
-    for(auto& i : Proto->Modules) {
+LQ_EXTERN_C int LQ_CALL LqHttpMdlSendCommandByHandle(LqHttp* Http, uintptr_t Handle, const char* Command, void* Data) {
+	auto HttpData = ((LqHttpData*)(Http)->UserData);
+    for(auto& i : HttpData->Modules) {
         if(i->Handle == Handle) {
             i->ReciveCommandProc(i.Get(), Command, Data);
             return 1;
@@ -136,9 +136,9 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlSendCommandByHandle(LqHttpProtoBase* Reg, uintp
     return 0;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpMdlSendCommandByName(LqHttpProtoBase* Reg, const char* Name, const char* Command, void* Data) {
-    auto Proto = (LqHttpProto*)Reg;
-    for(auto& i : Proto->Modules) {
+LQ_EXTERN_C int LQ_CALL LqHttpMdlSendCommandByName(LqHttp* Http, const char* Name, const char* Command, void* Data) {
+	auto HttpData = ((LqHttpData*)(Http)->UserData);
+    for(auto& i : HttpData->Modules) {
         if(LqStrSame(i->Name, Name)) {
             i->ReciveCommandProc(i.Get(), Command, Data);
             return 1;
@@ -147,19 +147,19 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlSendCommandByName(LqHttpProtoBase* Reg, const c
     return 0;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpMdlIsHave(LqHttpProtoBase* Reg, uintptr_t Handle) {
-    auto Proto = (LqHttpProto*)Reg;
-    for(auto& i : Proto->Modules) {
+LQ_EXTERN_C int LQ_CALL LqHttpMdlIsHave(LqHttp* Http, uintptr_t Handle) {
+	auto HttpData = ((LqHttpData*)(Http)->UserData);
+    for(auto& i : HttpData->Modules) {
         if(i->Handle == Handle)
             return 1;
     }
     return 0;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpMdlEnm(LqHttpProtoBase* Reg, uintptr_t* ModuleHandle, char* Name, size_t NameLen, bool* IsFree) {
-    auto Proto = (LqHttpProto*)Reg;
+LQ_EXTERN_C int LQ_CALL LqHttpMdlEnm(LqHttp* Http, uintptr_t* ModuleHandle, char* Name, size_t NameLen, bool* IsFree) {
+	auto HttpData = ((LqHttpData*)(Http)->UserData);
     if(*ModuleHandle == 0) {
-        auto i = Proto->Modules.begin();
+        auto i = HttpData->Modules.begin();
         if(i.is_end())
             return -1;
         if((*i)->Handle == 0) {
@@ -174,7 +174,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlEnm(LqHttpProtoBase* Reg, uintptr_t* ModuleHand
             *IsFree = (*i)->IsFree;
         return 0;
     }
-    for(auto i = Proto->Modules.begin(); !i.is_end(); i++) {
+    for(auto i = HttpData->Modules.begin(); !i.is_end(); i++) {
         if(((*i)->Handle != 0) && ((*i)->Handle == *ModuleHandle) && !(i += 1).is_end()) {
             *ModuleHandle = (*i)->Handle;
             if(Name != nullptr)
@@ -187,7 +187,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlEnm(LqHttpProtoBase* Reg, uintptr_t* ModuleHand
     return -1;
 }
 
-LQ_EXTERN_C void LQ_CALL LqHttpMdlInit(LqHttpProtoBase* Reg, LqHttpMdl* Module, const char* Name, uintptr_t Handle) {
+LQ_EXTERN_C void LQ_CALL LqHttpMdlInit(LqHttp* HttpAcceptor, LqHttpMdl* Module, const char* Name, uintptr_t Handle) {
     Module->CountPointers = 0;
 
     struct Procs {
@@ -199,36 +199,35 @@ LQ_EXTERN_C void LQ_CALL LqHttpMdlInit(LqHttpProtoBase* Reg, LqHttpMdl* Module, 
         static void LQ_CALL ReciveCommandProc(LqHttpMdl*, const char*, void*) {};
     };
 
-    Module->IsFree = false;
-    Module->Handle = Handle;
-    Module->FreeNotifyProc = Procs::FreeNotifyProc;
-    Module->BeforeFreeNotifyProc = Procs::BeforeFreeNotifyProc;
-    Module->CreatePathProc = Module->DeletePathProc = Procs::DelCreatePathProc;
-    Module->RegisterPathInDomenProc = Procs::RegisterPathInDomenProc;
-    Module->UnregisterPathFromDomenProc = Procs::UnregisterPathFromDomenProc;
-    Module->GetCacheInfoProc = LqHttpMdlHandlersCacheInfo;
-    Module->GetMimeProc = LqHttpMdlHandlersMime;
+    //Module->IsFree = false;
+    //Module->Handle = Handle;
+    //Module->FreeNotifyProc = Procs::FreeNotifyProc;
+    //Module->BeforeFreeNotifyProc = Procs::BeforeFreeNotifyProc;
+    //Module->CreatePathProc = Module->DeletePathProc = Procs::DelCreatePathProc;
+    //Module->RegisterPathInDomenProc = Procs::RegisterPathInDomenProc;
+    //Module->UnregisterPathFromDomenProc = Procs::UnregisterPathFromDomenProc;
+    //Module->GetCacheInfoProc = LqHttpMdlHandlersCacheInfo;
+    //Module->GetMimeProc = LqHttpMdlHandlersMime;
     Module->RspErrorProc = LqHttpMdlHandlersError;
-    Module->ServerNameProc = LqHttpMdlHandlersServerName;
-    Module->GetActEvntHandlerProc = LqHttpMdlHandlersGetMethod;
-    Module->ReciveCommandProc = Procs::ReciveCommandProc;
-    Module->AllowProc = LqHttpMdlHandlersAllowMethods;
-    Module->NonceProc = LqHttpMdlHandlersNonce;
-    Module->ResponseRedirectionProc = LqHttpMdlHandlersResponseRedirection;
-    Module->RspStatusProc = LqHttpMdlHandlersStatus;
-    Module->Proto = Reg;
+    //Module->ServerNameProc = LqHttpMdlHandlersServerName;
+    //Module->GetActEvntHandlerProc = LqHttpMdlHandlersGetMethod;
+    //Module->ReciveCommandProc = Procs::ReciveCommandProc;
+    //Module->AllowProc = LqHttpMdlHandlersAllowMethods;
+    //Module->NonceProc = LqHttpMdlHandlersNonce;
+    //Module->ResponseRedirectionProc = LqHttpMdlHandlersResponseRedirection;
+    //Module->RspStatusProc = LqHttpMdlHandlersStatus;
+    Module->HttpAcceptor = HttpAcceptor;
     Module->UserData = 0;
     new(&Module->_Paths[0]) LqHttpPthArr();
-    if(Name != nullptr)
+    if(Name != NULL)
         Module->Name = LqStrDuplicate(Name);
-    LqHttpProto* HttpProto = (LqHttpProto*)Reg;
-    auto Proto = (LqHttpProto*)Reg;
-    Proto->Modules.push_back(Module);
+	auto HttpData = ((LqHttpData*)(HttpAcceptor)->UserData);
+	HttpData->Modules.push_back(Module);
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpMdlGetNameByHandle(LqHttpProtoBase* Reg, uintptr_t Handle, char* NameDest, size_t NameDestSize) {
-    auto Proto = (LqHttpProto*)Reg;
-    for(auto& i : Proto->Modules) {
+LQ_EXTERN_C int LQ_CALL LqHttpMdlGetNameByHandle(LqHttp* Http, uintptr_t Handle, char* NameDest, size_t NameDestSize) {
+	auto HttpData = ((LqHttpData*)(Http)->UserData);
+    for(auto& i : HttpData->Modules) {
         if(i->Handle == Handle) {
             LqStrCopyMax(NameDest, i->Name, NameDestSize);
             return 1;
@@ -237,18 +236,18 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlGetNameByHandle(LqHttpProtoBase* Reg, uintptr_t
     return 0;
 }
 
-LQ_EXTERN_C LqHttpMdlLoadEnm LQ_CALL LqHttpMdlLoad(LqHttpProtoBase* Reg, const char* PathToLib, void* UserData, uintptr_t* Handle) {
+LQ_EXTERN_C LqHttpMdlLoadEnm LQ_CALL LqHttpMdlLoad(LqHttp* Http, const char* PathToLib, void* UserData, uintptr_t* Handle) {
     auto LibHandle = LqLibLoad(PathToLib);
     if(LibHandle == 0)
         return LQHTTPMDL_LOAD_FAIL;
-    if(LqHttpMdlIsHave(Reg, LibHandle) > 0)
+    if(LqHttpMdlIsHave(Http, LibHandle) > 0)
         return LQHTTPMDL_LOAD_ALREADY_HAVE;
     auto MuduleProc = (LqHttpModuleRegistratorProc)LqLibGetProc(LibHandle, LQ_MOD_REGISTARTOR_NAME);
     if(MuduleProc == NULL) {
         LqLibFree(LibHandle);
         return LQHTTPMDL_LOAD_PROC_NOT_FOUND;
     }
-    auto r = MuduleProc(Reg, (uintptr_t)LibHandle, PathToLib, UserData);
+    auto r = MuduleProc(Http, (uintptr_t)LibHandle, PathToLib, UserData);
     switch(r) {
         case LQHTTPMDL_REG_FREE_LIB:
             LqLibFree(LibHandle);

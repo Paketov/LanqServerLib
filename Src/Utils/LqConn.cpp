@@ -93,8 +93,8 @@ LQ_EXTERN_C int LQ_CALL LqConnBind(
             continue;
         }
         if(IsNonBlock) {
-            if(LqSockSwitchNonBlock(s, 1)) {
-                LQ_LOG_ERR("LqConnBind() LqSockSwitchNonBlock(%i, 1) failed \"%s\"\n", s, strerror(lq_errno));
+            if(LqConnSwitchNonBlock(s, 1)) {
+                LQ_LOG_ERR("LqConnBind() LqConnSwitchNonBlock(%i, 1) failed \"%s\"\n", s, strerror(lq_errno));
                 continue;
             }
         }
@@ -150,7 +150,7 @@ LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, int
         if((s = socket(i->ai_family, i->ai_socktype, i->ai_protocol)) == -1)
             continue;
         if(IsNonBlock)
-            LqSockSwitchNonBlock(s, 1);
+            LqConnSwitchNonBlock(s, 1);
         if(connect(s, i->ai_addr, i->ai_addrlen) != -1)
             break;
         if(IsNonBlock && LQERR_IS_WOULD_BLOCK)
@@ -435,93 +435,6 @@ intptr_t LqConnReciveInStream(LqConn* c, LqSbuf* Stream, intptr_t Count) {
     return Readed;
 }
 
-
-LQ_EXTERN_C int LQ_CALL LqEvntSetFlags(void* Conn, LqEvntFlag Flag, LqTimeMillisec WaitTime) {
-    auto h = (LqEvntHdr*)Conn;
-    if(h->Flag & LQEVNT_FLAG_END)
-        return 0;
-    LqEvntFlag Expected, New;
-    bool IsSync;
-    do {
-        Expected = h->Flag;
-        New = (Expected & ~(LQEVNT_FLAG_RD | LQEVNT_FLAG_WR | LQEVNT_FLAG_ACCEPT | LQEVNT_FLAG_CONNECT | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP)) | Flag;
-        if(IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC))
-            New |= _LQEVNT_FLAG_SYNC;
-    } while(!LqAtmCmpXchg(h->Flag, Expected, New));
-    if(IsSync) {
-        LqWrkBossUpdateAllEvntFlagAsync();
-        if(WaitTime <= 0)
-            return 1;
-        auto Start = LqTimeGetLocMillisec();
-        while(h->Flag & _LQEVNT_FLAG_SYNC) {
-            LqThreadYield();
-            if((LqTimeGetLocMillisec() - Start) > WaitTime)
-                return 1;
-        }
-    }
-    return 0;
-}
-
-LQ_EXTERN_C int LQ_CALL LqEvntSetClose(void* Conn) {
-    auto h = (LqEvntHdr*)Conn;
-    LqEvntFlag Expected, New;
-    bool IsSync;
-    do {
-        Expected = h->Flag;
-        New = Expected | LQEVNT_FLAG_END;
-        if(IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC))
-            New |= _LQEVNT_FLAG_SYNC;
-    } while(!LqAtmCmpXchg(h->Flag, Expected, New));
-    if(IsSync)
-        LqWrkBossUpdateAllEvntFlagAsync();
-    return 0;
-}
-
-LQ_EXTERN_C int LQ_CALL LqEvntSetClose2(void* Conn, LqTimeMillisec WaitTime) {
-    auto h = (LqEvntHdr*)Conn;
-    LqEvntFlag Expected, New;
-    bool IsSync;
-    do {
-        Expected = h->Flag;
-        New = Expected | LQEVNT_FLAG_END;
-        if(IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC))
-            New |= _LQEVNT_FLAG_SYNC;
-    } while(!LqAtmCmpXchg(h->Flag, Expected, New));
-    if(IsSync) {
-        LqWrkBossUpdateAllEvntFlagAsync();
-        if(WaitTime <= 0)
-            return 1;
-        auto Start = LqTimeGetLocMillisec();
-        while(h->Flag & _LQEVNT_FLAG_SYNC) {
-            if((LqTimeGetLocMillisec() - Start) > WaitTime)
-                return 1;
-        }
-    }
-    return 0;
-}
-
-LQ_EXTERN_C int LQ_CALL LqEvntSetClose3(void * Conn) {
-    auto h = (LqEvntHdr*)Conn;
-    LqEvntFlag Expected, New;
-    do {
-        Expected = h->Flag;
-        New = Expected | LQEVNT_FLAG_END;
-    } while(!LqAtmCmpXchg(h->Flag, Expected, New));
-    return LqWrkBossCloseEvnt(h);
-}
-
-LQ_EXTERN_C int LQ_CALL LqEvntSetRemove3(void* Conn) {
-    return LqWrkBossRemoveEvnt((LqEvntHdr*)Conn);
-}
-
-LQ_EXTERN_C int LQ_CALL LqEvntFdAdd(LqEvntFd* Evnt) {
-    return LqWrkBossAddEvntAsync((LqEvntHdr*)Evnt);
-}
-
-LQ_EXTERN_C int LQ_CALL LqEvntFdAdd2(LqEvntFd* Evnt) {
-    return LqWrkBossAddEvntSync((LqEvntHdr*)Evnt);
-}
-
 int LqConnRecive(LqConn* c, void* Buf, int ReadSize, int Flags) {
     return recv(c->Fd, (char*)Buf, ReadSize, Flags);
 }
@@ -703,7 +616,7 @@ size_t LqConnSkipSSL(LqConn* c, size_t Count, SSL* ssl) {
 
 #endif
 
-LQ_EXTERN_C int LQ_CALL LqSockCountPendingData(LqConn* c) {
+LQ_EXTERN_C int LQ_CALL LqConnCountPendingData(LqConn* c) {
 #ifdef LQPLATFORM_WINDOWS
     u_long res = -1;
     if(ioctlsocket(c->Fd, FIONREAD, &res) == -1)
@@ -716,7 +629,7 @@ LQ_EXTERN_C int LQ_CALL LqSockCountPendingData(LqConn* c) {
     return res;
 }
 
-LQ_EXTERN_C int LQ_CALL LqSockSwitchNonBlock(int Fd, int IsNonBlock) {
+LQ_EXTERN_C int LQ_CALL LqConnSwitchNonBlock(int Fd, int IsNonBlock) {
 #ifdef LQPLATFORM_WINDOWS
     u_long nonBlocking = IsNonBlock;
     if(ioctlsocket(Fd, FIONBIO, &nonBlocking) == -1)

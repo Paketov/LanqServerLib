@@ -23,6 +23,18 @@ inline void LqAtmIntrlkAdd(volatile T& Val, T2 AddVal) {
 }
 
 template<typename T, typename T2>
+inline void LqAtmIntrlkOr(volatile T& Val, T2 NewVal) {
+	static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
+	((std::atomic<T>&)Val) |= NewVal;
+}
+
+template<typename T, typename T2>
+inline void LqAtmIntrlkAnd(volatile T& Val, T2 NewVal) {
+	static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
+	((std::atomic<T>&)Val) &= NewVal;
+}
+
+template<typename T, typename T2>
 inline void LqAtmIntrlkSub(volatile T& Val, T2 SubVal) {
     static_assert(sizeof(std::atomic<T>) == sizeof(T), "sizeof(std::atomic<T>) != sizeof(T), use another method this");
     ((std::atomic<T>&)Val) -= SubVal;

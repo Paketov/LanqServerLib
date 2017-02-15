@@ -20,7 +20,7 @@
 #include "LqOs.h"
 #include "LqLock.hpp"
 #include "LqLog.h"
-
+#include "Lanq.h"
 
 
 #pragma pack(push)
@@ -105,6 +105,7 @@ public:
     template<typename ValType>
     bool Push(TypeCommand tCommand, ValType Val);
 
+	bool Push(LqEvntHdr* Val, void* WorkerOwner);
     /*
     * Add only type command to the start of the queue.
     */
@@ -255,6 +256,28 @@ bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand, ValType Val) {
     return true;
 }
 
+template<typename TypeCommand>
+bool LqQueueCmd<TypeCommand>::Push(LqEvntHdr* Val, void* WorkerOwner) {
+	auto NewCommand = LqFastAlloc::New<Element<LqEvntHdr*>>();
+	if(NewCommand == nullptr) {
+		LQ_LOG_ERR("LqQueueCmd<TypeCommand>::Push() not alloc memory\n");
+		return false;
+	}
+	NewCommand->Header.Next = nullptr;
+	NewCommand->Header.Type = 0;
+	NewCommand->Value = Val;
+	Locker.LockWriteYield();
+	LqAtmLkWr(Val->Lk);
+	Val->WrkOwner = WorkerOwner;
+	LqAtmUlkWr(Val->Lk);
+	if(End != nullptr)
+		End->Next = &(NewCommand->Header);
+	else
+		Begin = &(NewCommand->Header);
+	End = &(NewCommand->Header);
+	Locker.UnlockWrite();
+	return true;
+}
 
 template<typename TypeCommand>
 template<typename ValType>

@@ -83,43 +83,9 @@ LqFileSz LqConnReciveInFile(LqConn* c, int OutFd, LqFileSz Count);
 intptr_t LqConnReciveInStream(LqConn* c, LqSbuf* Stream, intptr_t Count);
 LQ_EXTERN_C_BEGIN
 
-LQ_IMPORTEXPORT int LQ_CALL LqSockCountPendingData(LqConn* c);
+LQ_IMPORTEXPORT int LQ_CALL LqConnCountPendingData(LqConn* c);
 /* Return -1 is err. */
-LQ_IMPORTEXPORT int LQ_CALL LqSockSwitchNonBlock(int Fd, int IsNonBlock);
-
-/*
-* @Conn - Target connection or children of connection.
-* @Flag - New flags LQEVNT_FLAG_RD, LQEVNT_FLAG_WR, LQEVNT_FLAG_HUP, LQEVNT_FLAG_RDHUP
-* @return: 0 - Time out, 1 - thread work set a new value
-*/
-LQ_IMPORTEXPORT int LQ_CALL LqEvntSetFlags(void* Conn, LqEvntFlag Flag, LqTimeMillisec WaitTime /* Wait while worker set new events value*/);
-
-/*
-* Set close connection. (In async mode)
-*  @Conn: LqConn or LqEvntFd
-*/
-LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose(void* lqain Conn);
-
-/*
-* Set close immediately(call close handler in worker owner)
-*  !!! Be careful when use this function !!!
-*  @Conn: LqConn or LqEvntFd
-*/
-LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose2(void* lqain Conn, LqTimeMillisec WaitTime);
-
-/*
-* Set close force immediately(call close handler if found event header immediately)
-*  @Conn: LqConn or LqEvntFd
-*  @return: 1- when close handle called, <= 0 - when not deleted
-*/
-LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose3(void* lqain Conn);
-
-/*
-* Remove event from main worker boss immediately(not call close handler)
-*  @Conn: LqConn or LqEvntFd
-*  @return: 1- when removed, <= 0 - when not removed
-*/
-LQ_IMPORTEXPORT int LQ_CALL LqEvntSetRemove3(void* lqain Conn);
+LQ_IMPORTEXPORT int LQ_CALL LqConnSwitchNonBlock(int Fd, int IsNonBlock);
 
 LQ_IMPORTEXPORT int LQ_CALL LqConnBind(const char* Host, const char* Port, int RouteProto, int SockType, int TransportProto, int MaxConnections, bool IsNonBlock);
 
@@ -128,20 +94,6 @@ LQ_IMPORTEXPORT int LQ_CALL LqConnConnect(const char* lqain Address, const char*
 LQ_IMPORTEXPORT int LQ_CALL LqConnStrToRowIp(int TypeIp, const char* lqain SourseStr, LqConnAddr* lqaout DestAddress);
 
 LQ_IMPORTEXPORT int LQ_CALL LqConnRowIpToStr(LqConnAddr* lqain SourceAddress, char* lqaout DestStr, size_t DestStrLen);
-
-LQ_IMPORTEXPORT void LQ_CALL __LqEvntFdDfltHandler(LqEvntFd* Instance, LqEvntFlag Flags);
-
-LQ_IMPORTEXPORT void LQ_CALL __LqEvntFdDfltCloseHandler(LqEvntFd*);
-
-/*
-* Add new file descriptor to follow async
-*/
-LQ_IMPORTEXPORT int LQ_CALL LqEvntFdAdd(LqEvntFd* lqain Evnt);
-
-/*
-* Add new file descriptor force immediately
-*/
-LQ_IMPORTEXPORT int LQ_CALL LqEvntFdAdd2(LqEvntFd* lqain Evnt);
 
 /*
 * @return: SSL_CTX
@@ -157,44 +109,6 @@ LQ_IMPORTEXPORT void* LQ_CALL LqConnSslCreate(
 );
 
 LQ_EXTERN_C_END
-
-#define LqConnInit(Conn, NewFd, NewProto, NewFlags)                     \
-    ((LqConn*)(Conn))->Fd = NewFd;                                      \
-    ((LqConn*)(Conn))->Proto = NewProto;                                \
-    ((LqConn*)(Conn))->Flag = _LQEVNT_FLAG_NOW_EXEC | _LQEVNT_FLAG_CONN;\
-    LqEvntSetFlags(Conn, NewFlags, 0);                                  \
-    ((LqConn*)(Conn))->Flag &= ~_LQEVNT_FLAG_NOW_EXEC;
-
-static inline void LQ_CALL __LqProtoEmptyHandler(LqConn*, LqEvntFlag) {}
-static inline void LQ_CALL __LqProtoEmptyCloseHandler(LqConn*) {}
-static inline bool LQ_CALL __LqProtoEmptyCmpAddressProc(LqConn*, const void*) { return false; }
-static inline bool LQ_CALL __LqProtoEmptyKickByTimeOutProc(LqConn*, LqTimeMillisec, LqTimeMillisec) { return false; }
-static inline char* LQ_CALL __LqProtoEmptyDebugInfoProc(LqConn*) { return nullptr; }
-
-#define LqProtoInit(Proto) \
-    ((LqProto*)Proto)->Handler = __LqProtoEmptyHandler;\
-    ((LqProto*)Proto)->CloseHandler = __LqProtoEmptyCloseHandler;\
-    ((LqProto*)Proto)->KickByTimeOutProc = __LqProtoEmptyKickByTimeOutProc;\
-    ((LqProto*)Proto)->CmpAddressProc = __LqProtoEmptyCmpAddressProc;\
-    ((LqProto*)Proto)->DebugInfoProc = __LqProtoEmptyDebugInfoProc;
-
-#define LqEvntHdrClose(Event)                                           \
-    (((LqEvntHdr*)(Event))->Flag |= _LQEVNT_FLAG_NOW_EXEC,              \
-    ((((LqEvntHdr*)(Event))->Flag & _LQEVNT_FLAG_CONN)?                 \
-    ((LqConn*)(Event))->Proto->CloseHandler(((LqConn*)(Event))):         \
-    (((LqEvntFd*)(Event))->CloseHandler((LqEvntFd*)(Event)))))
-
-#define LqEvntFdInit(Evnt, NewFd, NewFlags)                             \
-    ((LqEvntFd*)(Evnt))->Fd = (NewFd);                                  \
-    ((LqEvntFd*)(Evnt))->Flag = _LQEVNT_FLAG_NOW_EXEC ;                 \
-    LqEvntSetFlags((LqEvntFd*)(Evnt), NewFlags, 0);                     \
-    ((LqEvntFd*)(Evnt))->Flag &= ~_LQEVNT_FLAG_NOW_EXEC;
-
-
-
-#define LqConnIsClose(Conn) (((LqConn*)(Conn))->Flag | LQEVNT_FLAG_END)
-#define LqEvntFdIgnoreHandler(Evnt) (((LqEvntFd*)(Evnt))->Handler = __LqEvntFdDfltHandler)
-#define LqEvntFdIgnoreCloseHandler(Evnt) (((LqEvntFd*)(Evnt))->CloseHandler = __LqEvntFdDfltCloseHandler)
 
 #if defined(HAVE_OPENSSL)
 

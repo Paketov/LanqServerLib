@@ -531,7 +531,7 @@ static void LQ_CALL BindedReciveProc(LqConn* Conn, LqEvntFlag) {
 		Envs.push_back(nullptr);
 		int Dev = LqFileOpen(LQ_NULLDEV, LQ_O_WR, 0);
 
-		LqSockSwitchNonBlock(fd, 1);
+		LqConnSwitchNonBlock(fd, 1);
 		LqFileProcessCreate(Args[0], Args.data() + 1, Envs.data(), nullptr, fd, fd, Dev, nullptr, false);
 		closesocket(fd);
 		LqFileClose(Dev);
@@ -610,8 +610,8 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 	ioctlsocket(sock, 0x98000001, &flag);
 #else	
 	int sockUdp = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);
-	LqSockSwitchNonBlock(sockUdp, 1);
-	LqSockSwitchNonBlock(sock, 1);
+	LqConnSwitchNonBlock(sockUdp, 1);
+	LqConnSwitchNonBlock(sock, 1);
 	int Fl = 1;
 	setsockopt(sock, IPPROTO_IP, IP_HDRINCL, &Fl, sizeof(Fl));
 	setsockopt(sockUdp, IPPROTO_IP, IP_HDRINCL, &Fl, sizeof(Fl));

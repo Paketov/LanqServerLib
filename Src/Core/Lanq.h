@@ -13,6 +13,7 @@
 
 #include "LqOs.h"
 #include "LqDef.h"
+#include <stdint.h>
 
 LQ_EXTERN_C_BEGIN
 
@@ -26,17 +27,12 @@ typedef struct LqConn LqConn;
 typedef struct LqEvntFd LqEvntFd;
 typedef struct LqProto LqProto;
 
+#define LQEVNT_FLAG_RD                          ((LqEvntFlag)1)          /*Ready for read*/
+#define LQEVNT_FLAG_WR                          ((LqEvntFlag)2)          /*Ready for write*/
 #if defined(LQPLATFORM_WINDOWS)
-
-#define LQEVNT_FLAG_CONNECT                     ((LqEvntFlag)2048)       /*Ready for read*/
-#define LQEVNT_FLAG_ACCEPT                      ((LqEvntFlag)4096)       /*Ready for write*/
-
-#define LQEVNT_FLAG_RD                          ((LqEvntFlag)1)          /*Ready for read*/
-#define LQEVNT_FLAG_WR                          ((LqEvntFlag)2)          /*Ready for write*/
+#define LQEVNT_FLAG_CONNECT                     ((LqEvntFlag)1024)       /*Ready for connect*/
+#define LQEVNT_FLAG_ACCEPT                      ((LqEvntFlag)2048)       /*Ready for accept client*/
 #else
-#define LQEVNT_FLAG_RD                          ((LqEvntFlag)1)          /*Ready for read*/
-#define LQEVNT_FLAG_WR                          ((LqEvntFlag)2)          /*Ready for write*/
-
 #define LQEVNT_FLAG_CONNECT                     LQEVNT_FLAG_WR           /*Ready for read*/
 #define LQEVNT_FLAG_ACCEPT                      LQEVNT_FLAG_RD           /*Ready for write*/
 #endif
@@ -46,10 +42,12 @@ typedef struct LqProto LqProto;
 #define LQEVNT_FLAG_END                         ((LqEvntFlag)16)         /*Want end session*/
 #define LQEVNT_FLAG_ERR                         ((LqEvntFlag)32)         /*Have error in event descriptor*/
 
-#define _LQEVNT_FLAG_SYNC                       ((LqEvntFlag)64)         /*Use for check sync*/
-#define _LQEVNT_FLAG_NOW_EXEC                   ((LqEvntFlag)128)        /*Exec by protocol handles*/
-#define _LQEVNT_FLAG_USER_SET                   ((LqEvntFlag)256)        /*Is set by user*/
-#define _LQEVNT_FLAG_CONN                       ((LqEvntFlag)1024)       /*Use for check sync*/
+#define _LQEVNT_FLAG_ONLY_ONE_BOSS              ((LqEvntFlag)64)         /*When move to another boss, calling close handler*/
+#define _LQEVNT_FLAG_SYNC                       ((LqEvntFlag)128)        /*Use for check sync*/
+#define _LQEVNT_FLAG_NOW_EXEC                   ((LqEvntFlag)256)        /*Exec by handles*/
+#define _LQEVNT_FLAG_CONN                       ((LqEvntFlag)512)        /*Use for check is connection*/
+
+
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
@@ -57,7 +55,10 @@ typedef struct LqProto LqProto;
 
 #define LQ_CONN_COMMON_EVNT_HDR                         \
     LqEvntFlag          Flag;                           \
-    int                 Fd      /*Sock descriptor*/
+	uint16_t			Lk;								\
+    int                 Fd;      /*Sock descriptor*/	\
+	void*		        WrkOwner;
+
 
 
 struct LqEvntHdr {
@@ -80,7 +81,6 @@ struct LqEvntFd {
     LQ_CONN_COMMON_EVNT_HDR;
     void (LQ_CALL      *Handler)(LqEvntFd* Fd, LqEvntFlag RetFlags);
     void (LQ_CALL      *CloseHandler)(LqEvntFd* Fd);
-    uintptr_t           UserData;
 #if defined(LQPLATFORM_WINDOWS)
     struct {
         union {
@@ -93,8 +93,8 @@ struct LqEvntFd {
 };
 
 #define LqEvntIsConn(Hdr) (((LqEvntHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)
-#define LqEvntToConn(Hdr) ((((LqEvntHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)? ((LqConn*)(Hdr)): ((LqConn*)nullptr))
-#define LqEvntToFd(Hdr) ((((LqEvntHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)? ((LqEvntFd*)nullptr): ((LqEvntFd*)(Hdr)))
+#define LqEvntToConn(Hdr) ((((LqEvntHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)? ((LqConn*)(Hdr)): ((LqConn*)NULL))
+#define LqEvntToFd(Hdr) ((((LqEvntHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)? ((LqEvntFd*)NULL): ((LqEvntFd*)(Hdr)))
 
 #pragma pack(pop)
 

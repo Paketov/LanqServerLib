@@ -20,6 +20,5 @@ typedef std::condition_variable                 LqCondVar;
 typedef std::thread                             LqSystemThread;
 template<typename Type>
 using LqAtomic = std::atomic<Type>;
-inline void LqThreadYield() { std::this_thread::yield(); }
 template<typename NumType>
 inline LqString LqToString(NumType Num) { return std::to_string(Num); }

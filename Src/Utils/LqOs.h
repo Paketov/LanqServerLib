@@ -142,14 +142,14 @@
 #ifndef LQSTRUCT_ALIGN_FAST
 /* Set struct or class align */
 # ifdef LQARCH_32
-#  define LQSTRUCT_ALIGN_FAST 4
+#  define LQSTRUCT_ALIGN_FAST 4 /* Optimize for CPU cash */
 # else
-#  define LQSTRUCT_ALIGN_FAST 8
+#  define LQSTRUCT_ALIGN_FAST 8 /* Optimize for CPU cash */
 # endif
 #endif
 
 #ifndef LQSTRUCT_ALIGN_MEM
-# define LQSTRUCT_ALIGN_MEM 1
+# define LQSTRUCT_ALIGN_MEM 1 /* Optimize for memory */
 #endif
 
 #define __STDINT_LIMITS

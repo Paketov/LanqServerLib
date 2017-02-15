@@ -145,7 +145,7 @@ typedef struct LqFileEnm {
 */
 
 typedef struct LqFilePathEvnt {
-    int Fd; /*This event can use in LqEvnt or LqFilePoll*/
+    int Fd; /*This event can use in LqSysPoll or LqFilePoll*/
 
     /*Internal data*/
 #if defined(LQPLATFORM_WINDOWS)
@@ -268,14 +268,14 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileReadAsync(int Fd, void* lqaout DestBuf, i
 /*
 * Async write in file
 *  @Fd: File descriptor for write. Must be created with LQ_O_NONBLOCK flag
-*  @DestBuf: Output buffer
+*  @SourceBuf: Input buffer
 *  @SizeBuf: Size buffer
 *  @Offset: Offset in file
 *  @EventFd: Event created by LqFileEventCreate(). Before call must be set to zero.
 *  @Target: Target LqAsync structure
 *  @return: -1 - on error(chaeck lq_errno), 0 - on success
 */
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileWriteAsync(int Fd, const void* lqain DestBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* lqaout Target);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileWriteAsync(int Fd, const void* lqain SourceBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* lqaout Target);
 
 /*
 * Cancel async read/write operation
@@ -346,7 +346,7 @@ LQ_IMPORTEXPORT short LQ_CALL LqFilePollCheckSingle(int Fd, short Events, LqTime
 * destroy by LqFileClose function
 *  @InheritFlags: Can be LQ_O_NOINHERIT or LQ_O_INHERIT
 *  @return: new event or -1;
-*   Note: Use LQ_POLLIN for LqFilePoll or LQEVNT_FLAG_RD for LqEvnt.
+*   Note: Use LQ_POLLIN for LqFilePoll or LQEVNT_FLAG_RD for LqSysPoll.
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFileEventCreate(int InheritFlag);
 LQ_IMPORTEXPORT int LQ_CALL LqFileEventSet(int FileEvent);
@@ -359,7 +359,7 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileEventReset(int FileEvent);
 * Timer
 *  @InheritFlags: Can be LQ_O_NOINHERIT or LQ_O_INHERIT
 *  @return: new  timer event or -1;
-*   Note: Use LQ_POLLIN for LqFilePoll or LQEVNT_FLAG_RD for LqEvnt.
+*   Note: Use LQ_POLLIN for LqFilePoll or LQEVNT_FLAG_RD for LqSysPoll.
 *   When timer event has been set in signal state you must set LqFileTimerSet for new period
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFileTimerCreate(int InheritFlags);
@@ -406,7 +406,7 @@ LQ_IMPORTEXPORT bool LQ_CALL LqFileIsSocket(int Fd);
 *  @StdErr: -1 - use std err of current process, otherwise use spec. dev or pipe or file. You can use null devices Ex. LqFileOpen(LQ_NULLDEV, LQ_O_WR, 0)
 *  @StdDscr: If set, then returned standart in/out pipes to child process. If not set, then uses parent std in/out.
 *  @EventKill: Is set non null, get event completion for process. For correct get event on all platforms use flags
-        (LQ_POLLHUP | LQ_POLLIN) for LqFilePoll or (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP) for LqEvnt.
+        (LQ_POLLHUP | LQ_POLLIN) for LqFilePoll or (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP) for LqSysPoll.
 *  @return: PID to new process, or -1 is have error.
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFileProcessCreate(
@@ -518,7 +518,9 @@ LQ_IMPORTEXPORT bool LQ_CALL LqMutexLock(LqMutex* lqaio Dest);
 LQ_IMPORTEXPORT bool LQ_CALL LqMutexUnlock(LqMutex* lqaio Dest);
 LQ_IMPORTEXPORT bool LQ_CALL LqMutexClose(LqMutex* lqain Dest);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqThreadId();
+LQ_IMPORTEXPORT int LQ_CALL LqThreadId();
+
+LQ_IMPORTEXPORT void LQ_CALL LqThreadYield();
 
 LQ_EXTERN_C_END
 

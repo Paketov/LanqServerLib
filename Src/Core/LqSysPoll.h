@@ -2,7 +2,7 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-* LqEvnt... - Multiplatform abstracted event follower.
+* LqSysPoll... - Multiplatform abstracted event follower.
 * This part of server support:
 *       +Windows WSAAsyncSelect (Creates window in each worker thread).
 *       +linux epoll.
@@ -60,7 +60,7 @@ typedef struct __LqArr3
     bool     IsRemoved;
 } __LqArr3;
 
-typedef struct LqEvnt
+typedef struct LqSysPoll
 {   
     intptr_t            DeepLoop;
     intptr_t            CommonCount;
@@ -84,78 +84,78 @@ typedef struct LqEvnt
     __LqArr3            EvntFdArr;
     int                 EventEnumIndex;
 #endif
-} LqEvnt;
+} LqSysPoll;
 
 #pragma pack(pop)
 
 #if defined(LQEVNT_WIN_EVENT)
-#define __LqEvntIsRestruct(EventFollower)  (((--(EventFollower)->DeepLoop) <= 0) && ((EventFollower)->EvntFdArr.IsRemoved || (EventFollower)->ConnArr.IsRemoved))
+#define __LqSysPollIsRestruct(EventFollower)  (((--(EventFollower)->DeepLoop) <= 0) && ((EventFollower)->EvntFdArr.IsRemoved || (EventFollower)->ConnArr.IsRemoved))
 #elif defined(LQEVNT_KEVENT)
 
 #elif defined(LQEVNT_EPOLL)
-#define __LqEvntIsRestruct(EventFollower)  (((--(EventFollower)->DeepLoop) <= 0) && (EventFollower)->ClientArr.IsRemoved)
+#define __LqSysPollIsRestruct(EventFollower)  (((--(EventFollower)->DeepLoop) <= 0) && (EventFollower)->ClientArr.IsRemoved)
 #elif defined(LQEVNT_POLL)
-#define __LqEvntIsRestruct(EventFollower)  (((--(EventFollower)->DeepLoop) <= 0) && (EventFollower)->EvntFdArr.IsRemoved)
+#define __LqSysPollIsRestruct(EventFollower)  (((--(EventFollower)->DeepLoop) <= 0) && (EventFollower)->EvntFdArr.IsRemoved)
 #endif
 
 
 
 
-#define lqevnt_enum_changes_do(EventFollower, EventFlags) {for(LqEvntFlag EventFlags = __LqEvntEnumEventBegin(&(EventFollower)); EventFlags != 0; EventFlags = __LqEvntEnumEventNext(&(EventFollower)))
-#define lqevnt_enum_changes_while(EventFollower)  if(__LqEvntIsRestruct(&(EventFollower))) __LqEvntRestructAfterRemoves(&(EventFollower));}
+#define lqsyspoll_enum_changes_do(EventFollower, EventFlags) {for(LqEvntFlag EventFlags = __LqSysPollEnumEventBegin(&(EventFollower)); EventFlags != 0; EventFlags = __LqEvntEnumEventNext(&(EventFollower)))
+#define lqsyspoll_enum_changes_while(EventFollower)  if(__LqSysPollIsRestruct(&(EventFollower))) __LqSysPollRestructAfterRemoves(&(EventFollower));}
 
-#define lqevnt_enum_do(EventFollower, IndexName) {LqEvntInterator IndexName; for(auto __r = __LqEvntEnumBegin(&EventFollower, &IndexName); __r; __r = __LqEvntEnumNext(&EventFollower, &IndexName))
-#define lqevnt_enum_while(EventFollower)  if(__LqEvntIsRestruct(&(EventFollower))) __LqEvntRestructAfterRemoves(&(EventFollower));}
+#define lqsyspoll_enum_do(EventFollower, IndexName) {LqEvntInterator IndexName; for(auto __r = __LqSysPollEnumBegin(&EventFollower, &IndexName); __r; __r = __LqSysPollEnumNext(&EventFollower, &IndexName))
+#define lqsyspoll_enum_while(EventFollower)  if(__LqSysPollIsRestruct(&(EventFollower))) __LqSysPollRestructAfterRemoves(&(EventFollower));}
 
 /*
-* Init LqEvnt struct.
+* Init LqSysPoll struct.
 */
-bool LqEvntInit(LqEvnt* Dest);
+bool LqSysPollInit(LqSysPoll* Dest);
 
 #if defined(LQEVNT_WIN_EVENT)
-bool LqEvntThreadInit(LqEvnt* Dest);
+bool LqSysPollThreadInit(LqSysPoll* Dest);
 
-void LqEvntThreadUninit(LqEvnt* Dest);
+void LqSysPollThreadUninit(LqSysPoll* Dest);
 #else
-#define LqEvntThreadInit(Dest) (true)
+#define LqSysPollThreadInit(Dest) (true)
 
-#define LqEvntThreadUninit(Dest) ((void)0)
+#define LqSysPollThreadUninit(Dest) ((void)0)
 #endif
 
 /*
-* Uninit LqEvnt struct.
+* Uninit LqSysPoll struct.
 */
-void LqEvntUninit(LqEvnt* Dest);
+void LqSysPollUninit(LqSysPoll* Dest);
 
 /*
 * Add connection in event follower list.
 */
-bool LqEvntAddHdr(LqEvnt* Dest, LqEvntHdr* Client);
+bool LqSysPollAddHdr(LqSysPoll* Dest, LqEvntHdr* Client);
 
 /*
 * Start enumerate events by internal interator.
 *  @return - 0 - is not have event, otherwise flag LQEVNT_FLAG_RD, LQEVNT_FLAG_WR, LQEVNT_FLAG_HUP
 */
-LqEvntFlag __LqEvntEnumEventBegin(LqEvnt* Events);
+LqEvntFlag __LqSysPollEnumEventBegin(LqSysPoll* Events);
 
 /*
 * Enumerate next event by internal interator.
 *  @return - 0 - is not have event, otherwise flag LQEVNT_FLAG_RD, LQEVNT_FLAG_WR, LQEVNT_FLAG_HUP
 */
-LqEvntFlag __LqEvntEnumEventNext(LqEvnt* Events);
+LqEvntFlag __LqEvntEnumEventNext(LqSysPoll* Events);
 
 /*
 * Remove connection by internal event interator.
 */
-void LqEvntRemoveCurrent(LqEvnt* Events);
+void LqSysPollRemoveCurrent(LqSysPoll* Events);
 
-void __LqEvntRestructAfterRemoves(LqEvnt* Events);
+void __LqSysPollRestructAfterRemoves(LqSysPoll* Events);
 
 /*
 * Get client struct by internal interator.
 *  @return - ptr on event connection.
 */
-LqEvntHdr* LqEvntGetHdrByCurrent(LqEvnt* Events);
+LqEvntHdr* LqSysPollGetHdrByCurrent(LqSysPoll* Events);
 
 
 #if defined(LQEVNT_WIN_EVENT)
@@ -163,44 +163,44 @@ LqEvntHdr* LqEvntGetHdrByCurrent(LqEvnt* Events);
 * Use only in Windows
 *  Call before enum next coonnection
 */
-void LqEvntUnuseCurrent(LqEvnt* Events);
+void LqSysPollUnuseCurrent(LqSysPoll* Events);
 #else
-#define LqEvntUnuseCurrent(Events) ((void)0)
+#define LqSysPollUnuseCurrent(Events) ((void)0)
 #endif
 
 /*
 * Set event mask for connection by internal interator.
 *  @return - true is success
 */
-bool LqEvntSetMaskByCurrent(LqEvnt* Events);
+bool LqSysPollSetMaskByCurrent(LqSysPoll* Events);
 
 /*
 * Set new mask for onnection or object, by header
 *  @return - true - is mask setted, otherwise - false.
 */
-int LqEvntUpdateAllMask(LqEvnt* Events, void* UserData, void(*DelProc)(void*, LqEvntInterator*), bool IsRestruct);
+int LqSysPollUpdateAllMask(LqSysPoll* Events, void* UserData, void(*DelProc)(void*, LqEvntInterator*), bool IsRestruct);
 
 /*
 * Start enumerate connections.
 *  @Interator - Index
 *  @return - true - is have element
 */
-bool __LqEvntEnumBegin(LqEvnt* Events, LqEvntInterator* Interator);
+bool __LqSysPollEnumBegin(LqSysPoll* Events, LqEvntInterator* Interator);
 
 /*
 * Enumerate next connection.
 *  @Interator - Index
 *  @return - true - is have next element
 */
-bool __LqEvntEnumNext(LqEvnt* Events, LqEvntInterator* Interator);
+bool __LqSysPollEnumNext(LqSysPoll* Events, LqEvntInterator* Interator);
 
 /*
 * Start enumerate by interator.
 *  @Interator - Index
 *  @return - true - is have next element
 */
-LqEvntHdr* LqEvntRemoveByInterator(LqEvnt* Events, LqEvntInterator* Interator);
-LqEvntHdr* LqEvntGetHdrByInterator(LqEvnt* Events, LqEvntInterator* Interator);
+LqEvntHdr* LqSysPollRemoveByInterator(LqSysPoll* Events, LqEvntInterator* Interator);
+LqEvntHdr* LqSysPollGetHdrByInterator(LqSysPoll* Events, LqEvntInterator* Interator);
 
 
 /*
@@ -208,13 +208,13 @@ LqEvntHdr* LqEvntGetHdrByInterator(LqEvnt* Events, LqEvntInterator* Interator);
 *  @WaitTime - Wait time in millisec.
 *  @return - -1 - catch error, 0 - timeout, > 0 caught events.
 */
-int LqEvntCheck(LqEvnt* Events, LqTimeMillisec WaitTime);
+int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime);
 
 /*
 * Routine return count connections.
 *  @return - count connections in event poll.
 */
-size_t LqEvntCount(const LqEvnt* Events);
+size_t LqSysPollCount(const LqSysPoll* Events);
 
 
 #endif

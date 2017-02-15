@@ -7,78 +7,169 @@
 
 #include "LqZmbClr.h"
 #include "LqFile.h"
-#include "LqWrkBoss.h"
+#include "LqWrkBoss.hpp"
 #include "LqLog.h"
-
-#include <string.h>
+#include "LqAtm.hpp"
+#include "LqSockBuf.h"
 
 #define __METHOD_DECLS__
 #include "LqAlloc.hpp"
 
+#define LQZMBCLR_FLAG_USED ((unsigned char)1)
+#define LQZMBCLR_FLAG_WORK ((unsigned char)2)
 
-struct LqZmbClrAdditionalInfo {
-    LqTimeMillisec          TimeLive;
-    const LqProto*          Proto;
-    volatile bool           IsUsed;
-    void*                   UserData;
-    bool(*RemoveProc)(LqEvntFd* Evnt, void* UserData);
-};
+extern LqProto ___SockBufProto;
 
+static void _ZmbClrLock(LqZmbClr* ZmbClr) {
+    int CurThread = LqThreadId();
+
+    while(true) {
+        LqAtmLkWr(ZmbClr->Lk);
+        if((ZmbClr->ThreadOwnerId == 0) || (ZmbClr->ThreadOwnerId == CurThread)) {
+            ZmbClr->ThreadOwnerId = CurThread;
+            ZmbClr->Deep++;
+            CurThread = 0;
+        }
+        LqAtmUlkWr(ZmbClr->Lk);
+        if(CurThread == 0)
+            return;
+        LqThreadYield();
+    }
+}
+
+static void _ZmbClrUnlock(LqZmbClr* ZmbClr) {
+    LqAtmLkWr(ZmbClr->Lk);
+    ZmbClr->Deep--;
+    if(ZmbClr->Deep == 0) {
+        ZmbClr->ThreadOwnerId = 0;
+        if(!(ZmbClr->Flags & (LQZMBCLR_FLAG_USED | LQZMBCLR_FLAG_WORK))) {
+            LqFileClose(ZmbClr->EvntFd.Fd);
+            LqFastAlloc::Delete(ZmbClr);
+            return;
+        }
+    }
+    LqAtmUlkWr(ZmbClr->Lk);
+}
 
 static void LQ_CALL LqZmbClrHandler(LqEvntFd* Fd, LqEvntFlag RetFlags) {
-    auto Proto = ((LqZmbClrAdditionalInfo*)Fd->UserData)->Proto;
-    auto TimeLive = ((LqZmbClrAdditionalInfo*)Fd->UserData)->TimeLive;
+    LqZmbClr* ZmbClr = (LqZmbClr*)Fd;
+    _ZmbClrLock(ZmbClr);
+    if(ZmbClr->Flags & LQZMBCLR_FLAG_USED) {
+        if(ZmbClr->WrkBoss) {
+            if(ZmbClr->Proto)
+                ((LqWrkBoss*)ZmbClr->WrkBoss)->CloseConnByTimeoutAsync(ZmbClr->Proto, ZmbClr->Period);
+            else
+                ((LqWrkBoss*)ZmbClr->WrkBoss)->CloseConnByTimeoutAsync(ZmbClr->Period);
+        }
+        LqFileTimerSet(Fd->Fd, ZmbClr->Period);
+    }
+    _ZmbClrUnlock(ZmbClr);
+}
 
-    LqWrkBossCloseConnByProtoTimeoutAsync(Proto, TimeLive);
-    LqFileTimerSet(Fd->Fd, TimeLive / 2);
+static unsigned AsyncClrProc(void* UserData, size_t UserDataSize, void*Wrk, LqEvntHdr* EvntHdr, LqTimeMillisec CurTime) {
+    LqTimeMillisec TimeDiff;
+    LqSockBuf* SockBuf = (LqSockBuf*)EvntHdr;
+    if(SockBuf->UserData2 == *((void**)UserData)) {
+        TimeDiff = CurTime - SockBuf->LastExchangeTime;
+        if(TimeDiff > SockBuf->KeepAlive)
+            return 2;
+    }
+    return 0;
+}
+
+static void LQ_CALL LqZmbClrHandlerForSockBuf(LqEvntFd* Fd, LqEvntFlag RetFlags) {
+    LqZmbClr* ZmbClr = (LqZmbClr*)Fd;
+    _ZmbClrLock(ZmbClr);
+    if(ZmbClr->Flags & LQZMBCLR_FLAG_USED) {
+		if(ZmbClr->WrkBoss)
+			((LqWrkBoss*)ZmbClr->WrkBoss)->EnumCloseRmEvntAsync(AsyncClrProc, &___SockBufProto, &ZmbClr->UserData2, sizeof(ZmbClr->UserData2));
+        LqFileTimerSet(Fd->Fd, ZmbClr->Period);
+    }
+    _ZmbClrUnlock(ZmbClr);
 }
 
 static void LQ_CALL LqZmbClrHandlerClose(LqEvntFd* Fd) {
-    auto AddInfo = (LqZmbClrAdditionalInfo*)Fd->UserData;
-    if((AddInfo->RemoveProc == nullptr) || (AddInfo->RemoveProc(Fd, AddInfo->UserData))) {
-        Fd->UserData = 0;
-        LqFastAlloc::Delete(AddInfo);
-        LqFileClose(Fd->Fd);
-        Fd->Fd = -1;
-    }
+    LqZmbClr* ZmbClr = (LqZmbClr*)Fd;
+    _ZmbClrLock(ZmbClr);
+    ZmbClr->Flags &= ~LQZMBCLR_FLAG_WORK;
+	ZmbClr->WrkBoss = NULL;
+    if(ZmbClr->CloseHandler != NULL)
+        ZmbClr->CloseHandler(ZmbClr);
+    _ZmbClrUnlock(ZmbClr);
 }
 
-LQ_EXTERN_C int LQ_CALL LqZmbClrInit(LqEvntFd* Dest, const LqProto* Proto, LqTimeMillisec TimeLive, bool(*RemoveProc)(LqEvntFd* Evnt, void* UserData), void* UserData) {
-    auto AddInfo = LqFastAlloc::New<LqZmbClrAdditionalInfo>();
-    if(AddInfo == nullptr)
-        return -1;
+LQ_EXTERN_C LqZmbClr* LQ_CALL LqZmbClrCreate(const void* ProtoOrUserData2ForSockBuf, LqTimeMillisec Period, void* UserData, bool IsSockBuf) {
+    LqZmbClr* NewZmbClr;
+
+    if((NewZmbClr = LqFastAlloc::New<LqZmbClr>()) == nullptr) {
+        lq_errno_set(ENOMEM);
+        return NULL;
+    }
     int TimerFd = LqFileTimerCreate(LQ_O_NOINHERIT);
     if(TimerFd == -1) {
-        LQ_LOG_ERR("LqZmbClrInit() LqFileTimerCreate(LQ_O_NOINHERIT) not create timer \"%s\"\n", strerror(lq_errno));
-        LqFastAlloc::Delete(AddInfo);
-        return -1;
+        LqFastAlloc::Delete(NewZmbClr);
+        return NULL;
     }
-    LqEvntFdInit(Dest, TimerFd, LQEVNT_FLAG_RD | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_HUP);
-    Dest->Handler = LqZmbClrHandler;
-    Dest->CloseHandler = LqZmbClrHandlerClose;
+    LqEvntFdInit(&NewZmbClr->EvntFd, TimerFd, LQEVNT_FLAG_RD | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_HUP, (IsSockBuf)? LqZmbClrHandlerForSockBuf: LqZmbClrHandler, LqZmbClrHandlerClose);
+	LqEvntSetOnlyOneBoss(NewZmbClr, true); /* Call close handler, when evnt trying move to another boss*/
+    LqAtmLkInit(NewZmbClr->Lk);
+	NewZmbClr->WrkBoss = NULL;
+    NewZmbClr->ThreadOwnerId = 0;
+    NewZmbClr->Deep = 0;
 
-    Dest->UserData = (uintptr_t)AddInfo;
-    AddInfo->Proto = Proto;
-    AddInfo->TimeLive = TimeLive;
-    AddInfo->IsUsed = 1;
-
-    AddInfo->UserData = UserData;
-    AddInfo->RemoveProc = RemoveProc;
-
-    LqFileTimerSet(Dest->Fd, TimeLive / 2);
-    return 0;
+    NewZmbClr->Period = Period;
+    NewZmbClr->UserData2 = ProtoOrUserData2ForSockBuf;
+    NewZmbClr->CloseHandler = NULL;
+    NewZmbClr->UserData = UserData;
+    NewZmbClr->Flags = LQZMBCLR_FLAG_USED;
+    LqFileTimerSet(TimerFd, Period);
+    return NewZmbClr;
 }
 
-LQ_EXTERN_C int LQ_CALL LqZmbClrSetTimeLive(LqEvntFd* Dest, LqTimeMillisec TimeLive) {
-    if(Dest->UserData == 0)
-        return -1;
-    auto AddInfo = (LqZmbClrAdditionalInfo*)Dest->UserData;
-    AddInfo->TimeLive = TimeLive;
-    LqFileTimerSet(Dest->Fd, TimeLive / 2);
-    return 0;
+LQ_EXTERN_C bool LQ_CALL LqZmbClrGoWork(LqZmbClr* ZmbClr, void* WrkBoss) {
+    bool Res = false;
+    _ZmbClrLock(ZmbClr);
+    if(ZmbClr->Flags & LQZMBCLR_FLAG_WORK)
+        goto lblOut;
+	ZmbClr->WrkBoss = (WrkBoss == NULL) ? LqWrkBossGet() : WrkBoss;
+    if(LqEvntAdd(&ZmbClr->EvntFd, WrkBoss)) {
+        ZmbClr->Flags |= LQZMBCLR_FLAG_WORK;
+        Res = true;
+        goto lblOut;
+    }
+lblOut:
+    _ZmbClrUnlock(ZmbClr);
+    return Res;
 }
 
-LQ_EXTERN_C int LQ_CALL LqZmbClrUninit(LqEvntFd* Dest) {
-    LqEvntSetClose3(Dest);
-    return 0;
+LQ_EXTERN_C bool LQ_CALL LqZmbClrInterruptWork(LqZmbClr* ZmbClr) {
+    bool Res;
+    _ZmbClrLock(ZmbClr);
+	if(Res = LqEvntSetRemove3(&ZmbClr->EvntFd)) {
+		ZmbClr->WrkBoss = NULL;
+		ZmbClr->Flags &= ~LQZMBCLR_FLAG_WORK;
+	}
+    _ZmbClrUnlock(ZmbClr);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqZmbClrSetPeriod(LqZmbClr* ZmbClr, LqTimeMillisec Period) {
+    bool Res = false;
+    _ZmbClrLock(ZmbClr);
+    ZmbClr->Period = Period;
+    Res = LqFileTimerSet(ZmbClr->EvntFd.Fd, Period) >= 0;
+    _ZmbClrUnlock(ZmbClr);
+    return Res;
+}
+
+LQ_EXTERN_C int LQ_CALL LqZmbClrDelete(LqZmbClr* ZmbClr) {
+    _ZmbClrLock(ZmbClr);
+    ZmbClr->UserData = NULL;
+    ZmbClr->CloseHandler = NULL;
+	ZmbClr->WrkBoss = NULL;
+    ZmbClr->Flags &= ~LQZMBCLR_FLAG_USED;
+    if(ZmbClr->Flags & LQZMBCLR_FLAG_WORK)
+        LqEvntSetClose(&ZmbClr->EvntFd);
+    _ZmbClrUnlock(ZmbClr);
+    return true;
 }

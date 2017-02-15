@@ -38,6 +38,14 @@ typedef enum LqHttpPrsUrlStatEnm
     LQPRS_URL_ERR_QUERY,
 } LqHttpPrsUrlStatEnm;
 
+LQ_IMPORTEXPORT LqHttpPrsUrlStatEnm LQ_CALL LqHttpPrsHostPort
+(
+	char* String,
+	char** HostStart, char** HostEnd,
+	char** PortStart, char** PortEnd,
+	char* HostType
+);
+
 LQ_IMPORTEXPORT LqHttpPrsUrlStatEnm LQ_CALL LqHttpPrsUrl
 (
     char* String,

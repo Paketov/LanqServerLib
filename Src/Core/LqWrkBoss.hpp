@@ -22,7 +22,7 @@ class LqWrkBoss;
 class LqWrk;
 
 #include "LqQueueCmd.hpp"
-#include "LqEvnt.h"
+#include "LqSysPoll.h"
 
 #include "LqThreadBase.hpp"
 
@@ -52,7 +52,9 @@ class LQ_IMPORTEXPORT LqWrkBoss {
     static size_t MaxBusy(const WrkArray::interator& AllWrks, size_t* MaxCount = LqDfltPtr());
     size_t        MinBusy(size_t* MinCount = LqDfltPtr());
 
-    size_t TransferAllEvntFromWrkList(WrkArray& SourceWrks);
+    size_t TransferAllEvntFromWrkList(WrkArray& SourceWrks, bool ByThisBoss);
+
+	size_t      _TransferAllEvnt(LqWrk* Source, bool ByThisBoss);
 
 public:
 
@@ -138,6 +140,13 @@ public:
     */
     size_t      EnumCloseRmEvntByProto(unsigned(*Proc)(void* UserData, LqEvntHdr* EvntHdr), const LqProto* Proto, void* UserData = nullptr) const;
 
+    bool        EnumCloseRmEvntAsync(
+                    unsigned(*EventAct)(void* UserData, size_t UserDataSize, void*Wrk, LqEvntHdr* EvntHdr, LqTimeMillisec CurTime),
+                    const LqProto* Proto,
+                    void* UserData,
+                    size_t UserDataSize
+                ) const;
+
     /*
       Just remove event from workers. (In sync mode)
         @EvntHdr: Target event
@@ -168,8 +177,8 @@ public:
         @Source - Source worker or worker list(Boss).
         @return - count transfered events
     */
-    size_t      TransferAllEvnt(LqWrk* Source);
-    size_t      TransferAllEvnt(LqWrkBoss& Source);
+	size_t      TransferAllEvnt(LqWrk* Source) { return _TransferAllEvnt(Source, false);  }
+    size_t      TransferAllEvnt(LqWrkBoss* Source);
 
     size_t      KickAllWorkers();
 

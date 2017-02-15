@@ -425,7 +425,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqSbufRead(LqSbuf* StreamBuf, void* DestBuf, intptr
         HdrPage = (PageHeader*)StreamBuf->Page0;
         PageDataSize = HdrPage->EndOffset - HdrPage->StartOffset;
         ReadSize = lq_min(PageDataSize, Size);
-        if(DestBuf != nullptr)
+        if(DestBuf != NULL)
             memcpy((char*)DestBuf + CommonReadedSize, (char*)(HdrPage + 1) + HdrPage->StartOffset, ReadSize);
         CommonReadedSize += ReadSize;
         Size -= ReadSize;
@@ -444,7 +444,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqSbufRead(LqSbuf* StreamBuf, void* DestBuf, intptr
 LQ_EXTERN_C intptr_t LQ_CALL LqSbufPeek(const LqSbuf* StreamBuf, void* DataDest, intptr_t Size) {
     intptr_t ReadedSize = 0, LenRead;
     PageHeader* Hdr;
-    for(Hdr = (PageHeader*)StreamBuf->Page0; (Size > ReadedSize) && (Hdr != nullptr); Hdr = (PageHeader*)Hdr->NextPage) {
+    for(Hdr = (PageHeader*)StreamBuf->Page0; (Size > ReadedSize) && (Hdr != NULL); Hdr = (PageHeader*)Hdr->NextPage) {
         LenRead = lq_min(Size - ReadedSize, Hdr->EndOffset - Hdr->StartOffset);
         memcpy((char*)DataDest + ReadedSize, (char*)(Hdr + 1) + Hdr->StartOffset, LenRead);
         ReadedSize += LenRead;
@@ -467,7 +467,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqSbufCopy(LqSbuf* StreamDest, const LqSbuf* Stream
     PageHeader* Hdr, *NewHdr;
     for(Hdr = (PageHeader*)StreamSource->Page0; (Hdr != nullptr); Hdr = (PageHeader*)Hdr->NextPage) {
         NewHdr = LqSbufCreatePage(StreamDest, Hdr->SizePage);
-        if(NewHdr == nullptr)
+        if(NewHdr == NULL)
             return -1;
         memcpy(((char*)(NewHdr + 1)) + Hdr->StartOffset, ((char*)(Hdr + 1)) + Hdr->StartOffset, Hdr->EndOffset - Hdr->StartOffset);
         NewHdr->StartOffset = Hdr->StartOffset;
@@ -962,7 +962,7 @@ typedef struct LqFbuf_state {
 
 #ifdef LQPLATFORM_WINDOWS
 
-static intptr_t _TermWriteProc(LqFbuf* Context, char* Buf, size_t Size) {
+static intptr_t LQ_CALL _TermWriteProc(LqFbuf* Context, char* Buf, size_t Size) {
     DWORD Written;
     if(WriteConsoleA((HANDLE)Context->UserData, Buf, Size, &Written, NULL) == FALSE) {
         Context->Flags |= ((LQERR_IS_WOULD_BLOCK) ? LQFBUF_WRITE_WOULD_BLOCK : LQFBUF_WRITE_ERROR);
@@ -971,7 +971,7 @@ static intptr_t _TermWriteProc(LqFbuf* Context, char* Buf, size_t Size) {
     return Size;
 }
 
-static intptr_t _TermReadProc(LqFbuf* Context, char* Buf, size_t Size) {
+static intptr_t LQ_CALL _TermReadProc(LqFbuf* Context, char* Buf, size_t Size) {
     wchar_t Buf1[3] = {0};
     DWORD Readed;
     if(Size <= 0)
@@ -992,7 +992,7 @@ static intptr_t _TermReadProc(LqFbuf* Context, char* Buf, size_t Size) {
 
 #endif
 
-static intptr_t _SockWriteProc(LqFbuf* Context, char* Buf, size_t Size) {
+static intptr_t LQ_CALL _SockWriteProc(LqFbuf* Context, char* Buf, size_t Size) {
     int Written;
     if((Written = send((int)Context->UserData, Buf, Size, 0)) == -1) {
         Context->Flags |= ((LQERR_IS_WOULD_BLOCK) ? LQFBUF_WRITE_WOULD_BLOCK : LQFBUF_WRITE_ERROR);
@@ -1001,7 +1001,7 @@ static intptr_t _SockWriteProc(LqFbuf* Context, char* Buf, size_t Size) {
     return Written;
 }
 
-static intptr_t _SockReadProc(LqFbuf* Context, char* Buf, size_t Size) {
+static intptr_t LQ_CALL _SockReadProc(LqFbuf* Context, char* Buf, size_t Size) {
     int Readed;
     if((Readed = recv((int)Context->UserData, Buf, Size, 0)) == -1) {
         Context->Flags |= ((LQERR_IS_WOULD_BLOCK) ? LQFBUF_READ_WOULD_BLOCK : LQFBUF_READ_ERROR);
@@ -1010,11 +1010,11 @@ static intptr_t _SockReadProc(LqFbuf* Context, char* Buf, size_t Size) {
     return Readed;
 }
 
-static intptr_t _SockCloseProc(LqFbuf* Context) {
+static intptr_t LQ_CALL _SockCloseProc(LqFbuf* Context) {
     return closesocket((int)Context->UserData);
 }
 
-static intptr_t _FileWriteProc(LqFbuf* Context, char* Buf, size_t Size) {
+static intptr_t LQ_CALL _FileWriteProc(LqFbuf* Context, char* Buf, size_t Size) {
     intptr_t Written;
     if((Written = LqFileWrite((int)Context->UserData, Buf, Size)) == -1) {
         Context->Flags |= ((LQERR_IS_WOULD_BLOCK) ? LQFBUF_WRITE_WOULD_BLOCK : LQFBUF_WRITE_ERROR);
@@ -1023,7 +1023,7 @@ static intptr_t _FileWriteProc(LqFbuf* Context, char* Buf, size_t Size) {
     return Written;
 }
 
-static intptr_t _FileReadProc(LqFbuf* Context, char* Buf, size_t Size) {
+static intptr_t LQ_CALL _FileReadProc(LqFbuf* Context, char* Buf, size_t Size) {
     intptr_t Readed;
     if(Size == 0)
         return 0;
@@ -1037,42 +1037,42 @@ static intptr_t _FileReadProc(LqFbuf* Context, char* Buf, size_t Size) {
     return Readed;
 }
 
-static intptr_t _FileSeekProc(LqFbuf* Context, int64_t Offset, int Flags) {
+static intptr_t LQ_CALL _FileSeekProc(LqFbuf* Context, int64_t Offset, int Flags) {
     return LqFileSeek((int)Context->UserData, Offset, Flags);
 }
 
-static bool _FileCopyProc(LqFbuf* Dest, LqFbuf*Source) {
+static bool LQ_CALL _FileCopyProc(LqFbuf* Dest, LqFbuf*Source) {
     Dest->UserData = (void*)LqFileDescrDup((int)Source->UserData, LQ_O_NOINHERIT);
     return true;
 }
 
-static intptr_t _FileCloseProc(LqFbuf* Context) {
+static intptr_t LQ_CALL _FileCloseProc(LqFbuf* Context) {
     return LqFileClose((int)Context->UserData);
 }
 
-static intptr_t _EmptySeekProc(LqFbuf*, int64_t, int) {
+static intptr_t LQ_CALL _EmptySeekProc(LqFbuf*, int64_t, int) {
     return -1;
 }
 
-static intptr_t _EmptyReadProc(LqFbuf* Context, char*, size_t) {
+static intptr_t LQ_CALL _EmptyReadProc(LqFbuf* Context, char*, size_t) {
     Context->Flags |= LQFBUF_READ_ERROR;
     return 0;
 }
 
-static intptr_t _EmptyWriteProc(LqFbuf* Context, char*, size_t) {
+static intptr_t LQ_CALL _EmptyWriteProc(LqFbuf* Context, char*, size_t) {
     Context->Flags |= LQFBUF_WRITE_ERROR;
     return 0;
 }
 
-static intptr_t _EmptyCloseProc(LqFbuf* Context) {
+static intptr_t LQ_CALL _EmptyCloseProc(LqFbuf* Context) {
     return 0;
 }
 
-static intptr_t _VirtPipeWriteProc(LqFbuf* Context, char* Buf, size_t Size) {
+static intptr_t LQ_CALL _VirtPipeWriteProc(LqFbuf* Context, char* Buf, size_t Size) {
     return LqSbufWrite(&Context->InBuf, Buf, Size);
 }
 
-static intptr_t _VirtPipeReadProc(LqFbuf* Context, char* Buf, size_t Size) {
+static intptr_t LQ_CALL _VirtPipeReadProc(LqFbuf* Context, char* Buf, size_t Size) {
     Context->Flags |= LQFBUF_READ_EOF;
     return -1;
 }
@@ -1093,6 +1093,23 @@ static void _LqFbuf_unlock(LqFbuf* Context) {
     }
 }
 
+static intptr_t LQ_CALL _NullReadProc(LqFbuf*, char* Dest, size_t Size) {
+    memset(Dest, 0, Size);
+    return Size;
+}
+
+static intptr_t LQ_CALL _NullWriteProc(LqFbuf*, char*, size_t Size) {
+    return Size;
+}
+
+static intptr_t LQ_CALL _NullSeekProc(LqFbuf*, int64_t, int) {
+    return 0;
+}
+
+static intptr_t LQ_CALL _NullCloseProc(LqFbuf*) {
+    return 0;
+}
+
 static intptr_t _LqFbuf_vscanf(LqFbuf_state* State, int Flags, const char* Fmt, va_list va);
 static intptr_t _LqFbuf_vprintf(LqFbuf* Context, const char* Fmt, va_list va);
 static intptr_t _LqFbuf_write(LqFbuf* Context, const void* Buf, size_t Size);
@@ -1105,6 +1122,14 @@ static LqFbufCookie _EmptyCookie = {
     _EmptySeekProc,
     NULL,
     _EmptyCloseProc
+};
+
+static LqFbufCookie _NullCookie = {
+    _NullReadProc,
+    _NullWriteProc,
+    _NullSeekProc,
+    NULL,
+    _NullCloseProc
 };
 static LqFbufCookie _SocketCookie = {
     _SockReadProc,
@@ -1220,6 +1245,15 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_stream(LqFbuf* Context) {
     return LqFbuf_open_cookie(Context, nullptr, &_VirtPipeCookie, LQFBUF_FAST_LK | LQFBUF_STREAM, 0, 0, 1);
 }
 
+LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_null(LqFbuf* Context) {
+    return LqFbuf_open_cookie(Context, nullptr, &_NullCookie, LQFBUF_FAST_LK, 0, 0, 1);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqFbuf_eof(LqFbuf* Context) {
+    if(Context->Flags & LQFBUF_POINTER)
+        return (Context->BufPtr.StreamBuf->GlobOffset + Context->BufPtr.StreamBuf->Len) <= Context->BufPtr.GlobOffset;
+    return (Context->Flags & (LQFBUF_READ_EOF | LQFBUF_STREAM)) && (Context->InBuf.Len <= 0);
+}
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_make_ptr(LqFbuf* DestSource) {
     LqFbufVirtual* NewBuf;
@@ -1348,12 +1382,12 @@ LQ_EXTERN_C size_t LQ_CALL LqFbuf_sizes(const LqFbuf* Context, size_t* OutBuf, s
     return a + b;
 }
 
-LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_transfer(LqFbuf* Dest, LqFbuf* Source, size_t Size) {
-    intptr_t WriteMax, Size3;
+LQ_EXTERN_C LqFileSz LQ_CALL LqFbuf_transfer(LqFbuf* Dest, LqFbuf* Source, LqFileSz Size) {
+    intptr_t Size3;
     LqSbufReadRegion RegionR;
     LqSbufWriteRegion RegionW;
     LqSbufReadRegionPtr RegionPtr;
-    size_t Size2;
+    LqFileSz Size2, WriteMax;
     if(Dest->Flags & LQFBUF_POINTER)
         return -1;
     _LqFbuf_lock(Dest);
@@ -1362,7 +1396,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_transfer(LqFbuf* Dest, LqFbuf* Source, size_
     Source->Flags &= ~(LQFBUF_READ_ERROR | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_EOF);
 
     if(Source->Flags & LQFBUF_POINTER) {
-        for(bool __r = LqSbufReadRegionPtrFirst(&Source->BufPtr, &RegionPtr, Size); __r; __r = LqSbufReadRegionPtrNext(&RegionPtr)) {
+        for(bool __r = LqSbufReadRegionPtrFirst(&Source->BufPtr, &RegionPtr, lq_min(Size, ((LqFileSz)INTPTR_MAX))); __r; __r = LqSbufReadRegionPtrNext(&RegionPtr)) {
             RegionPtr.Written = _LqFbuf_write(Dest, RegionPtr.Source, RegionPtr.SourceLen);
             RegionPtr.Fin = Dest->Flags & (LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK);
         }
@@ -1372,15 +1406,15 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_transfer(LqFbuf* Dest, LqFbuf* Source, size_
     } else {
         Size2 = Size;
 lblWrite:
-        for(bool __r = LqSbufReadRegionFirst(&Source->InBuf, &RegionR, Size); __r; __r = LqSbufReadRegionNext(&RegionR)) {
+        for(bool __r = LqSbufReadRegionFirst(&Source->InBuf, &RegionR, lq_min(Size, ((LqFileSz)INTPTR_MAX))); __r; __r = LqSbufReadRegionNext(&RegionR)) {
             RegionR.Written = _LqFbuf_write(Dest, RegionR.Source, RegionR.SourceLen);
             RegionR.Fin = Dest->Flags & (LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK);
         }
-        Size -= RegionR.CommonWritten;
+        Size -= ((LqFileSz)RegionR.CommonWritten);
         if(RegionR.Fin || (Size <= 0))
             goto lblOut2;
         if(Dest->MaxFlush < 4096) {
-            for(bool __r = LqSbufWriteRegionFirst(&Source->InBuf, &RegionW, Size); __r; __r = LqSbufWriteRegionNext(&RegionW)) {
+            for(bool __r = LqSbufWriteRegionFirst(&Source->InBuf, &RegionW, lq_min(Size, ((LqFileSz)INTPTR_MAX))); __r; __r = LqSbufWriteRegionNext(&RegionW)) {
                 if((RegionW.Readed = Source->Cookie->ReadProc(Source, (char*)RegionW.Dest, RegionW.DestLen)) < 0) {
                     RegionW.Readed = 0;
                     RegionW.Fin = true;
@@ -1396,7 +1430,7 @@ lblWrite:
                         RegionW.Readed = 0;
                         RegionW.Fin = true;
                     }
-                Size -= RegionW.CommonReaded;
+                Size -= ((LqFileSz)RegionW.CommonReaded);
                 if(Dest->OutBuf.Len > Dest->MinFlush) {
                     Size3 = Dest->OutBuf.Len;
                     if(_LqFbuf_flush(Dest) < Size3)
@@ -1414,6 +1448,170 @@ lblOut2:
 lblOut:
     _LqFbuf_unlock(Source);
     _LqFbuf_unlock(Dest);
+    return Size2;
+}
+
+#define LqFbuf_transfer_save_state_ptr() \
+{\
+    SavedMs = ms;\
+    SavedSs = ss;\
+    SavedMaxReg = MaxReg;\
+    memcpy(&SavedRegionPtr, &RegionPtr, sizeof(SavedRegionPtr));\
+    LqSbufPtrCopy(&SavedBufPtr, SbufPtr);\
+}
+
+#define LqFbuf_transfer_restore_state_ptr() \
+{\
+    ms = SavedMs;\
+    ss = SavedSs;\
+    MaxReg = SavedMaxReg;\
+    memcpy(&RegionPtr, &SavedRegionPtr, sizeof(SavedRegionPtr));\
+    LqSbufPtrCopy(SbufPtr, &SavedBufPtr);\
+}
+
+static intptr_t LqFbuf_transfer_by_ptr(LqFbuf* Dest, LqSbufPtr* SbufPtr, LqFileSz Size, const char* Seq, size_t SeqSize, bool* _Fin) {
+    char* s, *ss, *MaxReg, *SavedMaxReg, *ms, *c, *MaxSeq = ((char*)Seq) + SeqSize, *SavedSs, *SavedMs, *LastSeq;
+    bool Fin = false;
+    LqSbufReadRegionPtr RegionPtr, SavedRegionPtr;
+    LqSbufPtr SavedBufPtr;
+    LastSeq = (char*)Seq;
+    intptr_t sz;
+    for(bool __r = LqSbufReadRegionPtrFirst(SbufPtr, &RegionPtr, lq_min(Size, ((LqFileSz)INTPTR_MAX))); __r; __r = LqSbufReadRegionPtrNext(&RegionPtr)) {
+        ss = (char*)RegionPtr.Source;
+        MaxReg = ss + RegionPtr.SourceLen;
+        ms = MaxReg - SeqSize + 1;
+
+        if(LastSeq > Seq) {
+            for(s = ss, c = LastSeq; ; s++, c++) {
+                if(s >= MaxReg) {/* ƒостигнут конец региона*/
+                    if(LqSbufReadRegionPtrIsEos(&RegionPtr) || ((RegionPtr.CommonWritten + RegionPtr.SourceLen) >= Size)) {
+                        LqFbuf_transfer_restore_state_ptr();
+                        goto lblContinue4;
+                    }
+                    RegionPtr.Written = RegionPtr.SourceLen;
+                    LastSeq = c;
+                    goto lblContinue1;
+                }
+                if(c >= MaxSeq) {/* ƒостигнут конец контрольной последовательности*/
+                    Fin |= true;
+                    LqFbuf_transfer_restore_state_ptr();
+                    RegionPtr.Written = _LqFbuf_write(Dest, RegionPtr.Source, ss - (char*)RegionPtr.Source);
+                    RegionPtr.Fin = true;
+                    Fin |= true;
+                    goto lblContinue1;
+                }
+                if(*c != *s) {
+                    LqFbuf_transfer_restore_state_ptr();
+                    LastSeq = (char*)Seq;
+                    ss++;
+                    goto lblContinue3;
+                }
+            }
+        }
+        for(; ss < ms; ss++) {
+            for(s = ss, c = (char*)Seq; ; s++, c++) {
+                if(c >= MaxSeq) {
+                    RegionPtr.Written = _LqFbuf_write(Dest, RegionPtr.Source, ss - (char*)RegionPtr.Source);
+                    RegionPtr.Fin = true;
+                    Fin |= true;
+                    goto lblContinue1;
+                }
+                if(*c != *s)
+                    break;
+            }
+        }
+lblContinue3:
+        for(; ss < MaxReg; ss++) {
+            for(s = ss, c = (char*)Seq; s < MaxReg; s++, c++) {
+                if(*c != *s) goto lblContinue2;
+            }
+            if(LqSbufReadRegionPtrIsEos(&RegionPtr) || ((RegionPtr.CommonWritten + RegionPtr.SourceLen) >= Size)) {
+lblContinue4:
+                if(ss > (char*)RegionPtr.Source)
+                    RegionPtr.Written = _LqFbuf_write(Dest, RegionPtr.Source, ss - (char*)RegionPtr.Source);
+                else
+                    RegionPtr.Written = 0;
+                RegionPtr.Fin = true;
+                goto lblContinue1;
+            }
+            LqFbuf_transfer_save_state_ptr();
+            RegionPtr.Written = RegionPtr.SourceLen;
+            RegionPtr.Fin = false;
+            LastSeq = c;
+            goto lblContinue1;
+lblContinue2:;
+        }
+        LastSeq = (char*)Seq;
+        RegionPtr.Written = _LqFbuf_write(Dest, RegionPtr.Source, RegionPtr.SourceLen);
+        RegionPtr.Fin = Dest->Flags & (LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK);
+lblContinue1:;
+    }
+    *_Fin = Fin;
+    return RegionPtr.CommonWritten;
+}
+
+LQ_EXTERN_C LqFileSz LQ_CALL LqFbuf_transfer_while_not_same(LqFbuf* Dest, LqFbuf* Source, LqFileSz Size, const char* Seq, size_t SeqSize, bool* IsFound) {
+    intptr_t Size3;
+    LqSbufWriteRegion RegionW;
+    LqSbufPtr BufPtr;
+    LqFileSz Size2, WriteMax, Size1;
+    bool Fin = false;
+    if(Dest->Flags & LQFBUF_POINTER)
+        return -1;
+    _LqFbuf_lock(Dest);
+    _LqFbuf_lock(Source);
+    Dest->Flags &= ~(LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK);
+    Source->Flags &= ~(LQFBUF_READ_ERROR | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_EOF);
+    if(Source->Flags & LQFBUF_POINTER) {
+        Size2 = LqFbuf_transfer_by_ptr(Dest, &Source->BufPtr, Size, Seq, SeqSize, &Fin);
+        if((Source->BufPtr.StreamBuf->GlobOffset + Source->BufPtr.StreamBuf->Len) <= Source->BufPtr.GlobOffset)
+            Source->Flags |= LQFBUF_READ_EOF;
+    } else {
+        Size2 = Size;
+lblWrite:
+        LqSbufPtrSet(&BufPtr, &Source->InBuf);
+        Size1 = LqFbuf_transfer_by_ptr(Dest, &BufPtr, Size, Seq, SeqSize, &Fin);
+        if(Size1 > 0)
+            LqSbufRead(&Source->InBuf, NULL, Size1);
+        Size -= Size1;
+        if(Fin || (Size <= 0))
+            goto lblOut2;
+        if(Dest->MaxFlush < 4096) {
+            for(bool __r = LqSbufWriteRegionFirst(&Source->InBuf, &RegionW, lq_min(Size, ((LqFileSz)INTPTR_MAX))); __r; __r = LqSbufWriteRegionNext(&RegionW)) {
+                if((RegionW.Readed = Source->Cookie->ReadProc(Source, (char*)RegionW.Dest, RegionW.DestLen)) < 0) {
+                    RegionW.Readed = 0;
+                    RegionW.Fin = true;
+                }
+            }
+            if(RegionW.CommonReaded > 0)
+                goto lblWrite;
+        } else {
+            while(true) {
+                WriteMax = lq_max(Dest->MaxFlush - Dest->OutBuf.Len, 0);
+                for(bool __r = LqSbufWriteRegionFirst(&Dest->OutBuf, &RegionW, lq_min(Size, WriteMax)); __r; __r = LqSbufWriteRegionNext(&RegionW))
+                    if((RegionW.Readed = Source->Cookie->ReadProc(Source, (char*)RegionW.Dest, RegionW.DestLen)) < 0) {
+                        RegionW.Readed = 0;
+                        RegionW.Fin = true;
+                    }
+                Size -= ((LqFileSz)RegionW.CommonReaded);
+                if(Dest->OutBuf.Len > Dest->MinFlush) {
+                    Size3 = Dest->OutBuf.Len;
+                    if(_LqFbuf_flush(Dest) < Size3)
+                        goto lblOut2;
+                }
+                if((Size <= 0) ||
+                    (Dest->Flags & (LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK)) ||
+                   (Source->Flags & (LQFBUF_READ_EOF | LQFBUF_READ_ERROR | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_WOULD_BLOCK)))
+                    goto lblOut2;
+            }
+        }
+lblOut2:
+        Size2 -= Size;
+    }
+lblOut:
+    _LqFbuf_unlock(Source);
+    _LqFbuf_unlock(Dest);
+    *IsFound = Fin;
     return Size2;
 }
 
@@ -1523,15 +1721,20 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_flush(LqFbuf* Context) {
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_seek(LqFbuf* Context, int64_t Offset, int Flags) {
-    if(Context->Flags & LQFBUF_POINTER)
+    intptr_t Res = -1;
+    if(Context->Flags & (LQFBUF_POINTER | LQFBUF_STREAM))
         return -1;
     _LqFbuf_lock(Context);
-    intptr_t Res = Context->Cookie->SeekProc(Context, Offset, Flags);
+    _LqFbuf_flush(Context);
+    if(Context->OutBuf.Len > 0)
+        goto lblOut;
+    Res = Context->Cookie->SeekProc(Context, Offset, Flags);
     if(Res >= 0) {
-        _LqFbuf_flush(Context);
+        Context->Flags &= ~(LQFBUF_READ_EOF | LQFBUF_READ_ERROR | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK);
         LqSbufRead(&Context->OutBuf, nullptr, Context->OutBuf.Len);
         LqSbufRead(&Context->InBuf, nullptr, Context->InBuf.Len);
     }
+lblOut:
     _LqFbuf_unlock(Context);
     return Res;
 }
@@ -1948,13 +2151,14 @@ static inline void LqFbuf_RestoreState(LqFbuf_state* Dest, LqFbuf_state* Source)
 }
 
 #define ReadPortionBegin(ProcName, Args, ...) \
-static intptr_t ProcName(LqFbuf_state* State, char* Dst, size_t DstLen, ##__VA_ARGS__ ){\
-    bool Fin = false, Eof, WithoutCopy = Dst == nullptr, __r, t = true; \
-    char* Dest = Dst, *MaxDest = Dst + DstLen, *Source; Args;\
-    LqSbufReadRegionPtr Region;\
+static intptr_t ProcName(LqFbuf_state* State, char* Dst, intptr_t DstLen, ##__VA_ARGS__ ){\
+    bool Fin = false, Eof, SavedEof, WithoutCopy = Dst == nullptr, __r, t = true; \
+    char* Dest = Dst, *MaxDest = (DstLen == ((intptr_t)-1))?((char*)INTPTR_MAX): (Dst + DstLen), *Source, *SavedSource; Args;\
+    LqSbufPtr SavedPtr;\
+    LqSbufReadRegionPtr Region, _SavedReg;\
     LqSbufWriteRegion RegionW;\
     LqFbuf_state __MainState;\
-    size_t Res = 0;\
+    size_t Res = 0, SavedRes;\
     LqFbuf_SaveState(&__MainState, State);\
     if(State->IsString){\
         Eof = __r = true;\
@@ -2002,19 +2206,35 @@ __lblContinueRead:\
         }\
     }\
     WhenOutExec; \
-    if((!WithoutCopy) && ((Dest - Dst) < DstLen)) \
-        *Dest = '\0'; \
-    return Res; \
+    if((!WithoutCopy) && ((DstLen == ((intptr_t)-1)) || ((Dest - Dst) < DstLen))) \
+        *Dest = '\0';\
+    return Res;\
 lblNotMatch:\
     if(!State->IsString){\
         Region.Fin = true;\
         Region.Written = 0;\
-        __r = LqSbufReadRegionPtrNext(&Region); \
+        __r = LqSbufReadRegionPtrNext(&Region);\
     }\
 __lblNotMatch2:\
     LqFbuf_RestoreState(State ,&__MainState);\
     return -1;\
 }
+
+#define PortionSave() {\
+    SavedSource = Source;\
+    SavedRes = Res;\
+    SavedEof = Eof;\
+    LqSbufPtrCopy(&SavedPtr, &State->BufPtr);\
+    _SavedReg = Region;\
+  }
+    
+#define PortionRestore() {\
+    Source = SavedSource;\
+    Res = SavedRes;\
+    Eof = SavedEof;\
+    LqSbufPtrCopy(&State->BufPtr, &SavedPtr);\
+    Region = _SavedReg;\
+  }
 
 ReadPortionBegin(LqFbuf_ReadWhile, ((void)0), const char* ControlSeq, size_t ControlSeqSize)
     register char *Control = (char*)ControlSeq,
@@ -2041,9 +2261,8 @@ ReadPortionBegin(LqFbuf_ReadWhile, ((void)0), const char* ControlSeq, size_t Con
     Fin |= ((Dest >= MaxDest) || Eof);
 ReadPortionEnd(((void)0))
 
-ReadPortionBegin(LqFbuf_ReadWhileSame, ((void)0), const char* ControlSeq, size_t ControlSeqSize)
+ReadPortionBegin(LqFbuf_ReadWhileSame, char *MaxControl = (char*)ControlSeq + ControlSeqSize; , const char* ControlSeq, size_t ControlSeqSize)
     char *Control = (char*)ControlSeq,
-    *MaxControl = Control + ControlSeqSize,
     *MaxSource = Source + lq_min(lq_min(Region.SourceLen, MaxDest - Dest), MaxControl - Control);
 
     if(WithoutCopy) {
@@ -2053,20 +2272,48 @@ ReadPortionBegin(LqFbuf_ReadWhileSame, ((void)0), const char* ControlSeq, size_t
             *Dest = *Source;
     }
     Fin |= ((Dest >= MaxDest) || (Control >= MaxControl));
-    if((Source < MaxSource) && (*Source != *Control) || (Eof && !Fin))
+    if(!Fin && ((Source < MaxSource) && (*Source != *Control) || Eof))
         goto lblNotMatch;
     ControlSeq = Control;
 ReadPortionEnd(((void)0))
 
-///////////////////////////////
-ReadPortionBegin(LqFbuf_ReadWhileNotSame, ((void)0), const char* ControlSeq, size_t ControlSeqSize)
-    char
-    *MaxControl = (char*)ControlSeq + ControlSeqSize,
-    *MaxSource = Source + lq_min(Region.SourceLen, MaxDest - Dest),
-    *s, *c, *ms;
+ ///////////////////////////////
+ReadPortionBegin(LqFbuf_ReadWhileNotSame, char* LastSeq = (char*)ControlSeq; char *MaxControl = (char*)ControlSeq + ControlSeqSize; , const char* ControlSeq, size_t ControlSeqSize)
+    char *MaxSource, *s, *c, *ms, *r, *k;
+    MaxSource = (char*)Region.Source + lq_min(Region.SourceLen, MaxDest - Dest);
     ms = MaxSource - ControlSeqSize + 1;
+
     if(WithoutCopy) {
-        for(; Source < ms; Source++, Dest++)
+        if(LastSeq > ControlSeq) {
+            for(s = Source, c = LastSeq; ; s++, c++) {
+                if(s >= MaxSource) {/* ƒостигнут конец региона*/
+                    Source = s;
+                    if(Eof) {
+                        for(s = (char*)ControlSeq; (Dest < MaxDest) && (s < c); Dest++, s++);
+                        Fin |= true;
+                        goto lblOut2;
+                    }
+                    LastSeq = c;
+                    goto lblOut;
+                }
+                if(c >= MaxControl) {/* ƒостигнут конец контрольной последовательности*/
+                    Fin |= true;
+                    PortionRestore();
+                    goto lblOut;
+                }
+                if(*c != *s) {
+                    PortionRestore();
+                    MaxSource = (char*)Region.Source + lq_min(Region.SourceLen, MaxDest - Dest);
+                    ms = MaxSource - ControlSeqSize + 1;
+                    LastSeq = (char*)ControlSeq;
+                    if(Dest < MaxDest)
+                        Dest++;
+                    Source++;
+                    goto lblContinue8;
+                }
+            }
+        }
+        for(; Source < ms; Source++, Dest++) {
             for(s = Source, c = (char*)ControlSeq; ; s++, c++) {
                 if(c >= MaxControl) {
                     Fin |= true; goto lblOut;
@@ -2074,7 +2321,53 @@ ReadPortionBegin(LqFbuf_ReadWhileNotSame, ((void)0), const char* ControlSeq, siz
                 if(*c != *s)
                     break;
             }
+        }
+        if(!State->IsString && !Eof) {
+lblContinue8:
+            for(; Source < MaxSource; Source++) {
+                for(s = Source, c = (char*)ControlSeq; s < MaxSource; s++, c++) {
+                    if(*c != *s) goto lblContinue9;
+                }
+                PortionSave();
+                Source = MaxSource;
+                LastSeq = c;
+                goto lblOut;
+lblContinue9:
+                Dest++;
+            }
+            LastSeq = (char*)ControlSeq;
+        }
     } else {
+        if(LastSeq > ControlSeq) {
+            for(s = Source, c = LastSeq; ; s++, c++) {
+                if(s >= MaxSource) {/* ƒостигнут конец региона*/
+                    Source = s;
+                    if(Eof) {
+                        for(s = (char*)ControlSeq; (Dest < MaxDest) && (s < c); Dest++, s++)
+                            *(Dest++) = *s;
+                        Fin |= true;
+                        goto lblOut2;
+                    }
+                    LastSeq = c;
+                    goto lblOut;
+                }
+                if(c >= MaxControl) {/* ƒостигнут конец контрольной последовательности*/
+                    Fin |= true;
+                    PortionRestore();
+                    goto lblOut;
+                }
+                if(*c != *s) {
+                    PortionRestore();
+                    MaxSource = (char*)Region.Source + lq_min(Region.SourceLen, MaxDest - Dest);
+                    ms = MaxSource - ControlSeqSize + 1;
+                    LastSeq = (char*)ControlSeq;
+                    if(Dest < MaxDest)
+                        *(Dest++) = *Source;
+                    Source++;
+                    goto lblContinue6;
+                }
+            }
+        }
         for(; Source < ms; Source++, Dest++) {
             for(s = Source, c = (char*)ControlSeq; ; s++, c++) {
                 if(c >= MaxControl) {
@@ -2085,8 +2378,24 @@ ReadPortionBegin(LqFbuf_ReadWhileNotSame, ((void)0), const char* ControlSeq, siz
             }
             *Dest = *Source;
         }
+        if(!State->IsString && !Eof) {
+lblContinue6:
+            for(; Source < MaxSource; Source++) {
+                for(s = Source, c = (char*)ControlSeq; s < MaxSource; s++, c++) {
+                    if(*c != *s) goto lblContinue5;
+                }
+                PortionSave();
+                Source = MaxSource;
+                LastSeq = c;
+                goto lblOut;
+lblContinue5:
+                *Dest = *Source;
+                Dest++;
+            }
+            LastSeq = (char*)ControlSeq;
+        }
     }
-    lblOut:
+lblOut:
     Fin |= (Dest >= MaxDest);
     if(Eof && !Fin && (Source >= ms)) {
         Fin |= true;
@@ -2094,6 +2403,7 @@ ReadPortionBegin(LqFbuf_ReadWhileNotSame, ((void)0), const char* ControlSeq, siz
             if(!WithoutCopy)
                 *Dest = *Source;
     }
+lblOut2:;
 ReadPortionEnd(((void)0))
 
 
@@ -2169,7 +2479,7 @@ ReadPortionBegin(LqFbuf_ReadInt, bool Signed2 = !Signed; int HaveSign = 0, unsig
         }
     }
     if((Dest - Dst) > 30)
-    goto lblNotMatch;
+        goto lblNotMatch;
     Fin |= (Dest >= MaxDest) || (Eof && ((Dest - Dst) > HaveSign));
 ReadPortionEnd(((void)0))
 
@@ -2393,7 +2703,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_vssncanf(const char* Source, size_t LenSourc
     MainState.StringPos = (void*)Source;
     MainState.Buf = &Context;
     MainState.IsString = true;
-    return _LqFbuf_vscanf(&MainState, LQFRBUF_SCANF_PEEK, Fmt, va);
+    return _LqFbuf_vscanf(&MainState, LQFBUF_SCANF_PEEK, Fmt, va);
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_snscanf(const char* Source, size_t LenSource, const char* Fmt, ...) {
@@ -2416,7 +2726,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_vscanf(LqFbuf* Context, int Flags, const cha
     MainState.Buf = Context;
     MainState.IsString = false;
     intptr_t Res = _LqFbuf_vscanf(&MainState, Flags, Fmt, va);
-    if((Context->Flags & LQFBUF_POINTER) && !(LQFRBUF_SCANF_PEEK & Context->Flags)) {
+    if((Context->Flags & LQFBUF_POINTER) && !(LQFBUF_SCANF_PEEK & Context->Flags)) {
         LqSbufPtrCopy(&Context->BufPtr, &MainState.BufPtr);
         if(((Context->BufPtr.StreamBuf->GlobOffset + Context->BufPtr.StreamBuf->Len) - Context->BufPtr.GlobOffset) <= 0)
             Context->Flags |= LQFBUF_READ_EOF;
@@ -2568,13 +2878,14 @@ static intptr_t _LqFbuf_vscanf(LqFbuf_state* State, int FunFlags, const char* Fm
     const char* SeqStart;
     char* Dest;
     int* Written;
+    int t;
 
     Readed = 0;
     CountScanned = 0;
     Tflags = State->Buf->Flags;
 
-    if(FunFlags & LQFRBUF_SCANF_PEEK_WHEN_ERR)
-        FunFlags |= LQFRBUF_SCANF_PEEK;
+    if(FunFlags & LQFBUF_SCANF_PEEK_WHEN_ERR)
+        FunFlags |= LQFBUF_SCANF_PEEK;
     State->Buf->Flags &= ~(LQFBUF_READ_ERROR | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_EOF);
     for(; ;) {
         for(s = c; (*c != '\0') && (*c != '%'); c++);
@@ -2585,8 +2896,8 @@ static intptr_t _LqFbuf_vscanf(LqFbuf_state* State, int FunFlags, const char* Fm
             Readed += TempReaded;
         }
         if(*c == '\0') {
-            if(FunFlags & LQFRBUF_SCANF_PEEK_WHEN_ERR)
-                FunFlags &= ~LQFRBUF_SCANF_PEEK;
+            if(FunFlags & LQFBUF_SCANF_PEEK_WHEN_ERR)
+                FunFlags &= ~LQFBUF_SCANF_PEEK;
             goto lblOut;
         }
         c++;
@@ -2670,17 +2981,17 @@ lblGetSzBit:
                 c++;
                 if(*c == '^') {
                     c++;
-                    SeqEnd = c;
+                    SeqEnd = c + 1; /*For use ']' in control sequence, be careful when written fmt(not use empty seq)*/
                     for(; *SeqEnd != ']' && *SeqEnd != '\0'; SeqEnd++);
                     if(*SeqEnd == '\0')
                         goto lblOut;
-                    TempReaded = LqFbuf_ReadTo(State, (Width == -2) ? nullptr : va_arg(va, char*), (Width2 == -1) ? INT_MAX : Width2, c, SeqEnd - c);
+                    TempReaded = LqFbuf_ReadTo(State, (Width == -2) ? nullptr : va_arg(va, char*), (Width2 == -1) ? (intptr_t)-1 : Width2, c, SeqEnd - c);
                 } else {
-                    SeqEnd = c;
+                    SeqEnd = c + 1; /*For use ']' in control sequence, be careful when written fmt*/
                     for(; *SeqEnd != ']' && *SeqEnd != '\0'; SeqEnd++);
                     if(*SeqEnd == '\0')
                         goto lblOut;
-                    TempReaded = LqFbuf_ReadWhile(State, (Width == -2) ? nullptr : va_arg(va, char*), (Width2 == -1) ? INT_MAX : Width2, c, SeqEnd - c);
+                    TempReaded = LqFbuf_ReadWhile(State, (Width == -2) ? nullptr : va_arg(va, char*), (Width2 == -1) ? (intptr_t)-1 : Width2, c, SeqEnd - c);
                 }
                 if(TempReaded <= 0) {
                     if(Flags & FL_QUE)
@@ -2693,12 +3004,20 @@ lblGetSzBit:
                 CountScanned++;
                 continue;
             case '{':
-                Dest = (Width == -2) ? nullptr : va_arg(va, char*);
+                Dest = (Width == -2) ? NULL : va_arg(va, char*);
                 if(c[1] == '^') {
                     c += 2;
                     SeqEnd = c;
-                    for(; (*SeqEnd != '}') && (*SeqEnd != '\0'); SeqEnd++);
-                    TempReaded = LqFbuf_ReadWhileNotSame(State, Dest, (Width2 == -1) ? INT_MAX : Width2, c, SeqEnd - c);
+                    if(*c == '}') {/* Used for define any seq (Ex. "%{}6:hello\0" )*/
+                        c++;
+                        for(t = 0; (*c >= '0') && (*c <= '9'); c++)
+                            t = t * 10 + (*c - '0');
+                        c++;
+                        SeqEnd = c + t;
+                    } else {
+                        for(; (*SeqEnd != '}') && (*SeqEnd != '\0'); SeqEnd++);
+                    }
+                    TempReaded = LqFbuf_ReadWhileNotSame(State, Dest, (Width2 == -1) ? (intptr_t)-1 : Width2, c, SeqEnd - c);
                     if(TempReaded <= 0) {
                         if(Flags & FL_QUE)
                             TempReaded = 0;
@@ -2715,7 +3034,7 @@ lblGetSzBit:
                     while(1) {
                         SeqStart = ++SeqEnd;
                         for(; (*SeqEnd != '}') && (*SeqEnd != '\0') && (*SeqEnd != '|'); SeqEnd++);
-                        TempReaded = LqFbuf_ReadWhileSame(State, Dest, (Width2 == -1) ? INT_MAX : Width2, SeqStart, SeqEnd - SeqStart);
+                        TempReaded = LqFbuf_ReadWhileSame(State, Dest, (Width2 == -1) ? (intptr_t)-1 : Width2, SeqStart, SeqEnd - SeqStart);
                         if(TempReaded >= (SeqEnd - SeqStart)) {
                             Readed += TempReaded;
                             break;
@@ -2737,7 +3056,7 @@ lblGetSzBit:
             case 'B':
                 /*Base64 now here*/
                 Written = (Flags & FL_DOLLAR) ? va_arg(va, int*) : &Exp;
-                TempReaded = LqFbuf_ReadBase64(State, (Width == -2) ? nullptr : va_arg(va, char*), (Width2 == -1) ? INT_MAX : Width2, *c == 'B', Flags & FL_SHARP, Written);
+                TempReaded = LqFbuf_ReadBase64(State, (Width == -2) ? nullptr : va_arg(va, char*), (Width2 == -1) ? (intptr_t)-1 : Width2, *c == 'B', Flags & FL_SHARP, Written);
                 c++;
                 if(TempReaded <= 0) {
                     if(Flags & FL_QUE)
@@ -2752,7 +3071,7 @@ lblGetSzBit:
             case 'V':
                 /*hex too*/
                 Written = (Flags & FL_DOLLAR) ? va_arg(va, int*) : &Exp;
-                TempReaded = LqFbuf_ReadHex(State, (Width == -2) ? nullptr : va_arg(va, char*), (Width2 == -1) ? INT_MAX : Width2, Written);
+                TempReaded = LqFbuf_ReadHex(State, (Width == -2) ? nullptr : va_arg(va, char*), (Width2 == -1) ? (intptr_t)-1 : Width2, Written);
                 c++;
                 if(TempReaded <= 0) {
                     if(Flags & FL_QUE)
@@ -2765,7 +3084,7 @@ lblGetSzBit:
                 continue;
             case 's':
                 c++;
-                TempReaded = LqFbuf_ReadTo(State, (Width == -2) ? nullptr : va_arg(va, char*), (Width2 == -1) ? INT_MAX : Width2, " \n\r\t\0", sizeof(" \n\r\t\0") - 1);
+                TempReaded = LqFbuf_ReadTo(State, (Width == -2) ? nullptr : va_arg(va, char*), (Width2 == -1) ? (intptr_t)-1 : Width2, " \n\r\t\0", sizeof(" \n\r\t\0") - 1);
                 if(TempReaded <= 0) {
                     if(Flags & FL_QUE)
                         TempReaded = 0;
@@ -2866,7 +3185,7 @@ lblPrintDouble:
         }
     }
 lblOut:
-    if(!(State->Buf->Flags & LQFBUF_POINTER) && !(FunFlags & LQFRBUF_SCANF_PEEK)) {
+    if(!(State->Buf->Flags & LQFBUF_POINTER) && !(FunFlags & LQFBUF_SCANF_PEEK)) {
         LqSbufRead(&State->Buf->InBuf, nullptr, Readed);
     }
     return CountScanned;
