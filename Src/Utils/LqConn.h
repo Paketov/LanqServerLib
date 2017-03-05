@@ -72,22 +72,14 @@ typedef union LqConnAddr {
 } LqConnAddr;
 
 #pragma pack(pop)
-LqFileSz LqSockSendFromFile(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count);
-intptr_t LqConnSendFromStream(LqConn* c, LqSbuf* Stream, intptr_t Count);
-size_t LqConnSend(LqConn* c, const void* Buf, size_t WriteSize);
 
-int LqConnRecive(LqConn* c, void* Buf, int ReadSize, int Flags);
-size_t LqConnSkip(LqConn* c, size_t Count);
-
-LqFileSz LqConnReciveInFile(LqConn* c, int OutFd, LqFileSz Count);
-intptr_t LqConnReciveInStream(LqConn* c, LqSbuf* Stream, intptr_t Count);
 LQ_EXTERN_C_BEGIN
 
 LQ_IMPORTEXPORT int LQ_CALL LqConnCountPendingData(LqConn* c);
 /* Return -1 is err. */
 LQ_IMPORTEXPORT int LQ_CALL LqConnSwitchNonBlock(int Fd, int IsNonBlock);
 
-LQ_IMPORTEXPORT int LQ_CALL LqConnBind(const char* Host, const char* Port, int RouteProto, int SockType, int TransportProto, int MaxConnections, bool IsNonBlock);
+LQ_IMPORTEXPORT int LQ_CALL LqConnBind(const char* lqain Host, const char* lqain Port, int RouteProto, int SockType, int TransportProto, int MaxConnections, bool IsNonBlock);
 
 LQ_IMPORTEXPORT int LQ_CALL LqConnConnect(const char* lqain Address, const char* lqain Port, int RouteProto, int SockType, int TransportProto, void* lqaout lqaopt IpPrtAddress, socklen_t* lqaio lqaopt IpPrtAddressLen, bool IsNonBlock);
 
@@ -108,21 +100,8 @@ LQ_IMPORTEXPORT void* LQ_CALL LqConnSslCreate(
     const char* lqain lqaopt DhpFile
 );
 
+LQ_IMPORTEXPORT void LQ_CALL LqConnSslDelete(void* Ctx);
+
 LQ_EXTERN_C_END
-
-#if defined(HAVE_OPENSSL)
-
-LqFileSz LqConnSendFromFileSSL(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count, SSL* ssl);
-intptr_t LqConnSendFromStreamSSL(LqConn* c, LqSbuf* Stream, intptr_t Count, SSL* ssl);
-size_t LqConnSendSSL(LqConn* c, const void* Buf, size_t WriteSize, SSL* ssl);
-
-int LqConnReciveSSL(LqConn* c, void* Buf, int ReadSize, int Flags, SSL* ssl);
-LqFileSz LqConnReciveInFileSSL(LqConn* c, int OutFd, LqFileSz Count, SSL* ssl);
-intptr_t LqConnReciveInStreamSSL(LqConn* c, LqSbuf* Stream, intptr_t Count, SSL* ssl);
-
-int LqConnCountPendingDataSSL(LqConn* c, SSL* ssl);
-size_t LqConnSkipSSL(LqConn* c, size_t Count, SSL* ssl);
-
-#endif
 
 #endif

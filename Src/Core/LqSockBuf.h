@@ -3,6 +3,7 @@
 * Solodov A. N. (hotSAN)
 * 2016
 * LqSockBuf... - Hi-level async socket.
+*   Used queue for recive or send data.
 */
 
 #ifndef __LQ_SOCK_BUF_HAS_INCLUDED_H__
@@ -17,14 +18,21 @@
 #include "LqZmbClr.h"
 
 
-#define LQSOCKBUF_ERR_INPUT           1
-#define LQSOCKBUF_ERR_OUTPUT_DATA     2
-#define LQSOCKBUF_ERR_WRITE_SOCKET    4
-#define LQSOCKBUF_ERR_READ_SOCKET     8
-#define LQSOCKBUF_ERR_UNKNOWN_SOCKET  16
+#define LQSOCKBUF_ERR_INPUT               1
+#define LQSOCKBUF_ERR_OUTPUT_DATA         2
+#define LQSOCKBUF_ERR_WRITE_SOCKET        4
+#define LQSOCKBUF_ERR_READ_SOCKET         8
+#define LQSOCKBUF_ERR_UNKNOWN_SOCKET      16
 
-#define LQSOCKBUF_PEEK                LQFBUF_SCANF_PEEK
-#define LQSOCKBUF_PEEK_WHEN_ERR       LQFBUF_SCANF_PEEK_WHEN_ERR
+#define LQSOCKBUF_PEEK                    LQFBUF_SCANF_PEEK
+#define LQSOCKBUF_PEEK_WHEN_ERR           LQFBUF_SCANF_PEEK_WHEN_ERR
+
+#define LQSOCKBUF_FLAGS_WRITE_ERROR       LQFBUF_WRITE_ERROR
+#define LQSOCKBUF_FLAGS_WRITE_WOULD_BLOCK LQFBUF_WRITE_WOULD_BLOCK
+#define LQSOCKBUF_FLAGS_READ_ERROR        LQFBUF_READ_ERROR
+#define LQSOCKBUF_FLAGS_READ_WOULD_BLOCK  LQFBUF_READ_WOULD_BLOCK
+
+typedef LqFbufFlag LqSockBufErrFlags;
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
@@ -37,6 +45,7 @@ struct LqSockBuf {
     LqListHdr      Rsp;
 
     LqListHdr      Rcv;
+    LqListHdr      Rcv2;
 
     LqTimeMillisec StartTime;
     LqTimeMillisec LastExchangeTime;
@@ -55,6 +64,9 @@ struct LqSockBuf {
     int16_t        Deep;
     volatile int   ThreadOwnerId;
     uint32_t       RWPortion;
+
+    int64_t        ReadOffset;
+    int64_t        WriteOffset;
 };
 
 typedef struct LqSockBuf LqSockBuf;
@@ -90,7 +102,7 @@ LQ_IMPORTEXPORT LqSockBuf* LQ_CALL LqSockBufCreate(int SockFd, void* lqain UserD
   Create socket buffer from SSL context
     @SockFd - Socket descriptor
     @SslCtx - SSL_CTX context
-    @IsAccept - true- is accept, false- is connect
+    @IsAccept - true- is accept, false- is connect (for @SslCtx)
     @UserData - User data
 */
 LQ_IMPORTEXPORT LqSockBuf* LQ_CALL LqSockBufCreateSsl(int SockFd, void* lqain SslCtx, bool IsAccept, void* lqain UserData);
@@ -99,14 +111,13 @@ LQ_IMPORTEXPORT LqSockBuf* LQ_CALL LqSockBufCreateSsl(int SockFd, void* lqain Ss
 * Uninit and delete LqSockBuf, you can use them in handlers(SockBuf thread protected)
 */
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufDelete(LqSockBuf* lqain lqats SockBuf);
+
+LQ_IMPORTEXPORT bool LQ_CALL LqSockBufSetClose(LqSockBuf* lqain lqats SockBuf);
 /*
 * Give task to workers
 */
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufGoWork(LqSockBuf* lqaio lqats SockBuf, void* lqain lqaopt WrkBoss);
 
-/*
-* 
-*/
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufInterruptWork(LqSockBuf* lqaio lqats SockBuf);
 
 LQ_IMPORTEXPORT void LQ_CALL LqSockBufSetAutoHdr(LqSockBuf* lqaio lqats SockBuf, bool Val);
@@ -117,10 +128,10 @@ LQ_IMPORTEXPORT void LQ_CALL LqSockBufSetAutoHdr(LqSockBuf* lqaio lqats SockBuf,
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufSetInstanceCache(LqSockBuf* lqaio lqats SockBuf, LqFche* lqain lqamrelease Cache);
 LQ_IMPORTEXPORT LqFche* LQ_CALL LqSockBufGetInstanceCache(LqSockBuf* lqaio lqats SockBuf);
 
-LQ_IMPORTEXPORT void LQ_CALL LqSockBufSetKeepAlive(LqSockBuf* lqaio SockBuf, LqTimeMillisec NewValue);
+LQ_IMPORTEXPORT void LQ_CALL LqSockBufSetKeepAlive(LqSockBuf* lqaio lqats SockBuf, LqTimeMillisec NewValue);
 LQ_IMPORTEXPORT LqTimeMillisec LQ_CALL LqSockBufGetKeepAlive(LqSockBuf* lqain SockBuf);
 
-LQ_IMPORTEXPORT bool LQ_CALL LqSockBufNotifyRspCompletion(LqSockBuf* lqaio lqats SockBuf, void(LQ_CALL *CompletionProc)(void*, LqSockBuf*), void* lqain UserData);
+LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRspNotifyCompletion(LqSockBuf* lqaio lqats SockBuf, void* lqain UserData, void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf*, void*));
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRspFile(LqSockBuf* lqaio lqats SockBuf, const char* lqain Path);
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRspFilePart(LqSockBuf* lqaio lqats SockBuf, const char* lqain Path, LqFileSz OffsetInFile, LqFileSz Count);
 
@@ -128,18 +139,14 @@ LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRspFilePart(LqSockBuf* lqaio lqats SockBuf
 * Response stream or pointer on virt file.
 *  When you want send other type file, Size must be >= 0, otherwise can be -1.
 */
-LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRspStream(LqSockBuf* lqaio lqats SockBuf, LqFbuf* lqain lqamrelease File, LqFileSz Size);
+LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRspFbuf(LqSockBuf* lqaio lqats SockBuf, LqFbuf* lqain lqamrelease File, LqFileSz Size);
 
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRspFd(LqSockBuf* lqaio lqats SockBuf, int InFd);
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRspFdPart(LqSockBuf* lqaio lqats SockBuf, int InFd, LqFileSz OffsetInFile, LqFileSz Count);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufPrintf(LqSockBuf* lqaio lqats SockBuf, const char* lqain Fmt, ...);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufPrintfVa(LqSockBuf* lqaio lqats SockBuf, const char* lqain Fmt, va_list Va);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufWrite(LqSockBuf* lqaio lqats SockBuf, const void* lqain Data, size_t SizeData);
-
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufPrintfHdr(LqSockBuf* lqaio lqats SockBuf, const char* lqain Fmt, ...);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufPrintfVaHdr(LqSockBuf* lqaio lqats SockBuf, const char* lqain Fmt, va_list Va);
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufWriteHdr(LqSockBuf* lqaio lqats SockBuf, const void* lqain Data, size_t SizeData);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufPrintf(LqSockBuf* lqaio lqats SockBuf, bool IsHdr, const char* lqain Fmt, ...);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufPrintfVa(LqSockBuf* lqaio lqats SockBuf, bool IsHdr, const char* lqain Fmt, va_list Va);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufWrite(LqSockBuf* lqaio lqats SockBuf, bool IsHdr, const void* lqain Data, size_t SizeData);
 
 /* Clear all response data queue */
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRspClear(LqSockBuf* lqaio lqats SockBuf);
@@ -153,45 +160,91 @@ LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRspSetHdr(LqSockBuf* lqaio lqats SockBuf);
 /* Unset forward header */
 LQ_IMPORTEXPORT void LQ_CALL LqSockBufRspUnsetHdr(LqSockBuf* lqaio lqats SockBuf);
 
-/*
-    Get summary length date after header
-*/
-LQ_IMPORTEXPORT LqFileSz LQ_CALL LqSockBufRspLen(LqSockBuf* lqaio lqats SockBuf);
-LQ_IMPORTEXPORT LqFileSz LQ_CALL LqSockBufRspHdrLen(LqSockBuf* lqaio lqats SockBuf);
-
-/*Call RcvProc, when data has been recived and match by Fmt*/
-LQ_IMPORTEXPORT bool LQ_CALL LqSockBufNotifyWhenMatch(LqSockBuf* lqaio lqats SockBuf, void* lqain UserData, void(LQ_CALL *RcvProc)(void* UserData, LqSockBuf* Buf), const char* Fmt, int MatchCount, size_t MaxSize);
-LQ_IMPORTEXPORT int LQ_CALL LqSockBufScanf(LqSockBuf* lqaio lqats SockBuf, int Flags, const char* Fmt, ...);
-LQ_IMPORTEXPORT int LQ_CALL LqSockBufScanfVa(LqSockBuf* lqaio lqats SockBuf, int Flags, const char* Fmt, va_list Va);
-
-LQ_IMPORTEXPORT bool LQ_CALL LqSockBufNotifyWhenCompleteRead(LqSockBuf* lqaio lqats SockBuf, void* lqain UserData, intptr_t(LQ_CALL *RcvProc)(void* UserData, LqSockBuf* Buf), void* Dest, size_t Size);
-LQ_IMPORTEXPORT int LQ_CALL LqSockBufRead(LqSockBuf* lqaio lqats SockBuf, void* lqaout lqaopt Dest, size_t Size);
-LQ_IMPORTEXPORT int LQ_CALL LqSockBufPeek(LqSockBuf* lqaio lqats SockBuf, void* lqaout lqaopt Dest, size_t Size);
-
-LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRecvInFbuf(
-    LqSockBuf* SockBuf,
-    LqFbuf* DestStream,
-    void* UserData,
-    void(LQ_CALL *CompleteProc)(LqSockBuf* Buf, LqFbuf* DestStream, void* UserData),
-    void(LQ_CALL *CancelProc)(LqFbuf* DestStream, void* UserData),
-    LqFileSz Size
-);
-
-LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRecvInFbufWhileNotSeq(
+LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvNotifyCompletion(
     LqSockBuf* lqaio lqats SockBuf,
-    LqFbuf* lqain DestStream,
     void* lqain UserData,
-    void(LQ_CALL *CompleteProc)(LqSockBuf* Buf, LqFbuf* DestStream, void* UserData),
-    void(LQ_CALL *CancelProc)(LqFbuf* DestStream, void* UserData),
-    const char* ControlSeq,
-    LqFileSz MaxSize
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData),
+    bool IsSecondQueue
 );
 
-LQ_IMPORTEXPORT int LQ_CALL LqSockBufReadInStream(LqSockBuf* lqaio lqats SockBuf, LqFbuf* lqaout lqats Dest, size_t Size);
+LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvNotifyWhenMatch(
+    LqSockBuf* lqaio lqats SockBuf,
+    void* lqain UserData,
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData),
+    const char* lqain Fmt,
+    int MatchCount,
+    size_t MaxSize,
+    bool IsSecondQueue
+);
 
-LQ_IMPORTEXPORT bool LQ_CALL LqSockBufNotifyWhenCompleteRecvData(LqSockBuf* lqaio lqats SockBuf, void* lqain UserData, intptr_t(LQ_CALL *RcvProc)(void* UserData, LqSockBuf* Buf));
+LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvInRegion(
+    LqSockBuf* lqaio lqats SockBuf,
+    void* lqain UserData,
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* Dest, size_t Written, void* UserData),
+    void* lqaout Dest,
+    size_t Size,
+    bool IsSecondQueue
+);
 
-LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvCancelLastOperation(LqSockBuf* lqaio lqats SockBuf);
+LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvInFbuf(
+    LqSockBuf* lqaio lqats SockBuf,
+    LqFbuf* lqaout lqaopt DestStream,
+    void* lqain UserData,
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf*, LqFbuf*, LqFileSz, void*),
+    LqFileSz Size,
+    bool IsSecondQueue
+);
+
+LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvInFbufAboveSeq(
+    LqSockBuf* lqaio lqats SockBuf,
+    LqFbuf* lqaout lqaopt DestStream,
+    void* lqain UserData,
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf*, LqFbuf*, LqFileSz, void*, bool),
+    const char* lqain ControlSeq,
+    size_t ControlSeqSize,
+    LqFileSz MaxSize,
+    bool IsCaseIndepended,
+    bool IsSecondQueue
+);
+
+LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvPulseRead(
+    LqSockBuf* lqaio lqats SockBuf,
+    void* lqain UserData,
+    intptr_t(LQ_CALL *CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData),
+    bool IsSecondQueue
+);
+/*
+    LqSockBufRcvWaitLenData
+        Notify when recived length of data in internal buffer
+*/
+
+LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvWaitLenData(
+    LqSockBuf* lqaio lqats SockBuf,
+    void* lqain UserData,
+    void(LQ_CALL *CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData),
+    size_t TargetLen,  /* !! Be careful when set the large size of this parameter !! */
+    bool IsSecondQueue
+);
+
+LQ_IMPORTEXPORT LqSockBufErrFlags LQ_CALL LqSockBufGetErrFlags(LqSockBuf* lqaio lqats SockBuf);
+
+LQ_IMPORTEXPORT size_t LQ_CALL LqSockBufRcvBufSz(LqSockBuf* lqaio lqats SockBuf);
+LQ_IMPORTEXPORT size_t LQ_CALL LqSockBufRspBufSz(LqSockBuf* lqaio lqats SockBuf);
+
+LQ_IMPORTEXPORT LqFileSz LQ_CALL LqSockBufRspLen(LqSockBuf* lqaio lqats SockBuf, bool IsHdr);
+
+LQ_IMPORTEXPORT size_t LQ_CALL LqSockBufRcvQueueLen(LqSockBuf* lqaio lqats SockBuf, bool IsSecondQueue);
+
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufScanf(LqSockBuf* lqaio lqats SockBuf, int Flags, const char* Fmt, ...);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufScanfVa(LqSockBuf* lqaio lqats SockBuf, int Flags, const char* Fmt, va_list Va);
+
+
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufRead(LqSockBuf* lqaio lqats SockBuf, void* lqaout lqaopt Dest, size_t Size);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufPeek(LqSockBuf* lqaio lqats SockBuf, void* lqaout lqaopt Dest, size_t Size);
+
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufReadInStream(LqSockBuf* lqaio lqats SockBuf, LqFbuf* lqaout lqats Dest, size_t Size);
+
+LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvCancelLastOperation(LqSockBuf* lqaio lqats SockBuf, bool IsSecondQueue);
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvClear(LqSockBuf* lqaio lqats SockBuf);
 
 LQ_IMPORTEXPORT void LQ_CALL LqSockBufFlush(LqSockBuf* lqaio lqats SockBuf);
@@ -207,6 +260,14 @@ LQ_IMPORTEXPORT size_t LQ_CALL LqSockBufCloseByUserData2(void* lqain UserData2, 
 
 LQ_IMPORTEXPORT void* LQ_CALL LqSockBufGetSsl(LqSockBuf* lqaio lqats SockBuf);
 
+LQ_IMPORTEXPORT void LQ_CALL LqSockBufRcvResetCount(LqSockBuf* lqaio lqats SockBuf);
+
+LQ_IMPORTEXPORT void LQ_CALL LqSockBufRspResetCount(LqSockBuf* lqaio lqats SockBuf);
+
+LQ_IMPORTEXPORT int64_t LQ_CALL LqSockBufRcvGetCount(LqSockBuf* lqaio lqats SockBuf);
+
+LQ_IMPORTEXPORT int64_t LQ_CALL LqSockBufRspGetCount(LqSockBuf* lqaio lqats SockBuf);
+
 /* 
 * Recursive lock for sock buffer (there is no need to use for LqSockBuf... functions, only for the atomization multiple operations)
 * You can use for operate with UserData or UserData2
@@ -214,6 +275,10 @@ LQ_IMPORTEXPORT void* LQ_CALL LqSockBufGetSsl(LqSockBuf* lqaio lqats SockBuf);
 */
 LQ_IMPORTEXPORT void LQ_CALL LqSockBufLock(LqSockBuf* lqaio lqats SockBuf);
 LQ_IMPORTEXPORT void LQ_CALL LqSockBufUnlock(LqSockBuf* lqaio lqats SockBuf);
+/*
+* @Proc - must return 0 - if you want continue, 2 - for close conn,  -1 - interrupt
+*/
+LQ_IMPORTEXPORT size_t LQ_CALL LqSockBufEnum(void* WrkBoss, int(LQ_CALL*Proc)(void*, LqSockBuf*), void* UserData);
 
 /* Sock acceptor */
 LQ_IMPORTEXPORT LqSockAcceptor* LQ_CALL LqSockAcceptorCreate(
@@ -239,6 +304,7 @@ LQ_IMPORTEXPORT LqSockBuf* LQ_CALL LqSockAcceptorAcceptSsl(LqSockAcceptor* lqain
 LQ_IMPORTEXPORT bool LQ_CALL LqSockAcceptorSetInstanceCache(LqSockAcceptor* lqain lqats SockAcceptor, LqFche* lqain lqamrelease Cache);
 LQ_IMPORTEXPORT LqFche* LQ_CALL LqSockAcceptorGetInstanceCache(LqSockAcceptor* lqain lqats SockAcceptor);
 
+LQ_IMPORTEXPORT int LQ_CALL LqSockAcceptorGetFd(LqSockAcceptor* lqain lqats SockAcceptor);
 /*
 * Recursive lock for sock acceptor (there is no need to use for LqSockAcceptor... functions, only for the atomization multiple operations)
 */

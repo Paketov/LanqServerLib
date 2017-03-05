@@ -61,10 +61,10 @@ class LqMdlPathFollowTask {
 public:
     LqEvntFd                     TimerFd;
     std::vector<LqFilePathEvnt*> Dirs;
-    std::vector<LqFilePoll>      DirsPoll;
+    std::vector<LqPoll>      DirsPoll;
     LqLocker<uintptr_t>          PathsLocker;
     LqLocker<uintptr_t>          ModuleLocker;
-    LqHttpProtoBase*             RegDest;
+    LqHttp*                      RegDest;
     struct Module {
         LqString        ModuleName;
         uintptr_t       Handle;
@@ -75,12 +75,12 @@ public:
 
 
     static void WorkingMethod(LqEvntFd* Fd, LqEvntFlag RetFlags) {
-        LqFileTimerSet(Fd->Fd, 3000);
+        LqTimerSet(Fd->Fd, 3000);
 
         LqFilePathEvntEnm* Paths = nullptr;
-        auto Ft = (LqMdlPathFollowTask*)Fd->UserData;
+        auto Ft = (LqMdlPathFollowTask*)(Fd - ((uintptr_t)&((LqMdlPathFollowTask*)0)->TimerFd));
         Ft->PathsLocker.LockWriteYield();
-        int CountEvents = LqFilePollCheck(Ft->DirsPoll.data(), Ft->DirsPoll.size(), 2);
+        int CountEvents = LqPollCheck(Ft->DirsPoll.data(), Ft->DirsPoll.size(), 2);
         if(CountEvents <= 0) {
             Ft->PathsLocker.UnlockWrite();
             return;
@@ -177,7 +177,7 @@ static void UnloadAllModules() {
     Task.ModuleLocker.UnlockWrite();
 }
 
-LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHttpProtoBase* Reg, uintptr_t ModuleHandle, const char* LibPath, void* UserData) {
+LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHttp* Reg, uintptr_t ModuleHandle, const char* LibPath, void* UserData) {
     LqHttpMdlInit(Reg, &Mod, "MdlAutoLoad", ModuleHandle);
 
     Mod.ReciveCommandProc =
@@ -226,7 +226,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                 /*Adding new dir event */
                 Task.PathsLocker.LockWrite();
 
-                LqFilePoll Pl;
+                LqPoll Pl;
                 Pl.fd = DirEvent->Fd;
                 Pl.events = LQ_POLLIN;
 
@@ -315,19 +315,20 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     };
     Task.RegDest = Reg;
     //Add task to worker boss
-    auto NewTimer = LqFileTimerCreate(LQ_O_NOINHERIT);
-    LqFileTimerSet(NewTimer, 3000);
+    auto NewTimer = LqTimerCreate(LQ_O_NOINHERIT);
+    LqTimerSet(NewTimer, 3000);
 
-    LqEvntFdInit(&Task.TimerFd, NewTimer, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP);
-    Task.TimerFd.UserData = (uintptr_t)&Task;
-    Task.TimerFd.Handler = Task.WorkingMethod;
-    Task.TimerFd.CloseHandler = [](LqEvntFd* Fd) {
-        LqFileClose(Fd->Fd);
-        Fd->Fd = -1;
-    };
-
-    LqEvntFdAdd(&Task.TimerFd);
-
+    LqEvntFdInit(
+        &Task.TimerFd, 
+        NewTimer,
+        LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP,
+        Task.WorkingMethod, 
+        [](LqEvntFd* Fd) {
+            LqFileClose(Fd->Fd);
+            Fd->Fd = -1;
+        }
+    );
+    LqEvntAdd(&Task.TimerFd, NULL);
     return LQHTTPMDL_REG_OK;
 }
 

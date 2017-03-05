@@ -43,7 +43,7 @@ int LqWrkBoss::AddWorkers(size_t Count, bool IsStart) {
     for(size_t i = 0; i < Count; i++) {
         auto NewWorker = LqWrk::New(IsStart);
         if(NewWorker == nullptr) {
-            LQ_LOG_ERR("LqWrkBoss::AddWorkers() not alloc new worker\n");
+            LqLogErr("LqWrkBoss::AddWorkers() not alloc new worker\n");
             continue;
         }
         Wrks.push_back(NewWorker);
@@ -143,19 +143,19 @@ size_t LqWrkBoss::TransferAllEvntFromWrkList(WrkArray& SourceWrks, bool ByThisBo
         LqWrkBoss* This;
         LqWrk* Wrk;
         size_t Res;
-		bool ByThisBoss;
+        bool ByThisBoss;
         static void Handler(void* Data) {
             auto v = (AsyncData*)Data;
             v->Res = v->This->_TransferAllEvnt(v->Wrk, v->ByThisBoss);
-            LqFileEventSet(v->Fd);
+            LqEventSet(v->Fd);
         }
     };
     size_t Res = 0;
     size_t CountTryng = 0;
     AsyncData Context;
-    Context.Fd = LqFileEventCreate(LQ_O_NOINHERIT);
+    Context.Fd = LqEventCreate(LQ_O_NOINHERIT);
     Context.This = this;
-	Context.ByThisBoss = ByThisBoss;
+    Context.ByThisBoss = ByThisBoss;
     for(auto& i : SourceWrks) {
         if(i->IsThisThread() || i->IsThreadEnd()) {
             _TransferAllEvnt(i.Get(), ByThisBoss);
@@ -165,7 +165,7 @@ size_t LqWrkBoss::TransferAllEvntFromWrkList(WrkArray& SourceWrks, bool ByThisBo
             i->AsyncCall(AsyncData::Handler, &Context);
             CountTryng = 0;
 lblWaitAgain:
-            if(LqFilePollCheckSingle(Context.Fd, LQ_POLLIN, 700) == 0) {
+            if(LqPollCheckSingle(Context.Fd, LQ_POLLIN, 700) == 0) {
                 if(((++CountTryng) >= 3) || i->IsThreadEnd()) {
                     i->CancelAsyncCall(AsyncData::Handler, &Context, false);
                     Res += _TransferAllEvnt(i.Get(), ByThisBoss);
@@ -175,7 +175,7 @@ lblWaitAgain:
             } else {
                 Res += Context.Res;
             }
-            LqFileEventReset(Context.Fd);
+            LqEventReset(Context.Fd);
         }
     }
     LqFileClose(Context.Fd);
@@ -281,22 +281,24 @@ size_t LqWrkBoss::CloseConnByProtoSync(const LqProto* Proto) const {
     return Res;
 }
 
-size_t LqWrkBoss::EnumCloseRmEvnt(unsigned(*Proc)(void *UserData, LqEvntHdr* EvntHdr), void * UserData) const {
+size_t LqWrkBoss::EnumCloseRmEvnt(int(LQ_CALL*Proc)(void *, LqEvntHdr*), void * UserData) const {
     size_t Res = 0;
-    for(auto i = Wrks.begin(); !i.is_end(); i++)
-        Res += (*i)->EnumCloseRmEvnt(Proc, UserData);
+    bool IsIterrupted = false;
+    for(auto i = Wrks.begin(); !i.is_end() && !IsIterrupted; i++)
+        Res += (*i)->EnumCloseRmEvnt(Proc, UserData, &IsIterrupted);
     return Res;
 }
 
-size_t LqWrkBoss::EnumCloseRmEvntByProto(unsigned(*Proc)(void *UserData, LqEvntHdr *EvntHdr), const LqProto* Proto, void * UserData) const {
+size_t LqWrkBoss::EnumCloseRmEvntByProto(int(LQ_CALL*Proc)(void *, LqEvntHdr*), const LqProto* Proto, void * UserData) const {
     size_t Res = 0;
-    for(auto i = Wrks.begin(); !i.is_end(); i++)
-        Res += (*i)->EnumCloseRmEvntByProto(Proc, Proto, UserData);
+    bool IsIterrupted = false;
+    for(auto i = Wrks.begin(); !i.is_end() && !IsIterrupted; i++)
+        Res += (*i)->EnumCloseRmEvntByProto(Proc, Proto, UserData, &IsIterrupted);
     return Res;
 }
 
 bool LqWrkBoss::EnumCloseRmEvntAsync(
-    unsigned(*EventAct)(void* UserData, size_t UserDataSize, void*Wrk, LqEvntHdr* EvntHdr, LqTimeMillisec CurTime),
+    int(LQ_CALL*EventAct)(void*, size_t, void*, LqEvntHdr*, LqTimeMillisec),
     const LqProto* Proto,
     void* UserData,
     size_t UserDataSize
@@ -335,7 +337,7 @@ size_t LqWrkBoss::UpdateAllEvntFlagSync() const {
     return Res;
 }
 
-bool LqWrkBoss::AsyncCall(void(*AsyncProc)(void* Data), void* UserData) {
+bool LqWrkBoss::AsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData) {
     bool Res = true;
     auto LocalWrks = Wrks.begin();
     if(LocalWrks.size() <= 0) {
@@ -351,7 +353,7 @@ bool LqWrkBoss::AsyncCall(void(*AsyncProc)(void* Data), void* UserData) {
     return LocalWrks[IndexMinUsed]->AsyncCall(AsyncProc, UserData);
 }
 
-size_t LqWrkBoss::CancelAsyncCall(void(*AsyncProc)(void* Data), void* UserData, bool IsAll) {
+size_t LqWrkBoss::CancelAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData, bool IsAll) {
     size_t Res = 0;
     for(auto i = Wrks.begin(); !i.is_end() && (IsAll || (Res <= 0)); i++)
         Res += (*i)->CancelAsyncCall(AsyncProc, UserData, IsAll);
@@ -396,7 +398,7 @@ LQ_EXTERN_C int LQ_CALL LqEvntSetFlags(void* EvntOrConn, LqEvntFlag Flag, LqTime
     LqEvntFlag Expected, New;
     bool IsSync;
     LqTimeMillisec Start;
-	Expected = LqEvntGetFlags(h);
+    Expected = LqEvntGetFlags(h);
     if(Expected & LQEVNT_FLAG_END)
         return 0;
     do {
@@ -411,7 +413,7 @@ LQ_EXTERN_C int LQ_CALL LqEvntSetFlags(void* EvntOrConn, LqEvntFlag Flag, LqTime
             if(WaitTime <= 0)
                 return 1;
             Start = LqTimeGetLocMillisec();
-			for(volatile LqEvntFlag* Flag = &h->Flag; *Flag & _LQEVNT_FLAG_SYNC;) {
+            for(volatile LqEvntFlag* Flag = &h->Flag; *Flag & _LQEVNT_FLAG_SYNC;) {
                 LqThreadYield();
                 if((LqTimeGetLocMillisec() - Start) > WaitTime)
                     return 1;
@@ -425,7 +427,7 @@ LQ_EXTERN_C int LQ_CALL LqEvntSetClose(void* EvntOrConn) {
     LqEvntHdr* h = (LqEvntHdr*)EvntOrConn;
     LqEvntFlag Expected, New;
     bool IsSync;
-	Expected = LqEvntGetFlags(h);
+    Expected = LqEvntGetFlags(h);
     do {
         New = Expected | LQEVNT_FLAG_END;
         if(IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC))
@@ -444,7 +446,7 @@ LQ_EXTERN_C int LQ_CALL LqEvntSetClose2(void* EvntOrConn, LqTimeMillisec WaitTim
     LqEvntFlag Expected, New;
     LqTimeMillisec Start;
     bool IsSync;
-	Expected = LqEvntGetFlags(h);
+    Expected = LqEvntGetFlags(h);
     do {
         New = Expected | LQEVNT_FLAG_END;
         if(IsSync = !(Expected & _LQEVNT_FLAG_NOW_EXEC))
@@ -457,7 +459,7 @@ LQ_EXTERN_C int LQ_CALL LqEvntSetClose2(void* EvntOrConn, LqTimeMillisec WaitTim
             if(WaitTime <= 0)
                 return 1;
             Start = LqTimeGetLocMillisec();
-			for(volatile LqEvntFlag* Flag = &h->Flag; *Flag & _LQEVNT_FLAG_SYNC;) {
+            for(volatile LqEvntFlag* Flag = &h->Flag; *Flag & _LQEVNT_FLAG_SYNC;) {
                 if((LqTimeGetLocMillisec() - Start) > WaitTime)
                     return 1;
             }
@@ -470,7 +472,7 @@ LQ_EXTERN_C bool LQ_CALL LqEvntSetClose3(void * EvntOrConn) {
     LqEvntHdr* h = (LqEvntHdr*)EvntOrConn;
     bool Res;
     LqEvntFlag Expected, New;
-	Expected = LqEvntGetFlags(h);
+    Expected = LqEvntGetFlags(h);
     do {
         New = Expected | LQEVNT_FLAG_END;
     } while(!LqAtmCmpXchg(h->Flag, Expected, New));
@@ -516,7 +518,7 @@ LQ_EXTERN_C void LQ_CALL LqConnInit(void* Conn, int NewFd, void* NewProto, LqEvn
     ((LqConn*)(Conn))->Proto = (LqProto*)NewProto;
     ((LqConn*)(Conn))->Flag = _LQEVNT_FLAG_NOW_EXEC | _LQEVNT_FLAG_CONN;
     LqEvntSetFlags(Conn, NewFlags, 0);
-	LqAtmIntrlkAnd(((LqConn*)(Conn))->Flag, ~_LQEVNT_FLAG_NOW_EXEC);
+    LqAtmIntrlkAnd(((LqConn*)(Conn))->Flag, ~_LQEVNT_FLAG_NOW_EXEC);
 }
 
 static void LQ_CALL __LqEvntFdDfltHandler(LqEvntFd * Instance, LqEvntFlag Flags) {}
@@ -529,23 +531,23 @@ LQ_EXTERN_C void LQ_CALL LqEvntFdInit(void* Evnt, int NewFd, LqEvntFlag NewFlags
     ((LqEvntFd*)(Evnt))->Flag = _LQEVNT_FLAG_NOW_EXEC;
     LqEvntSetFlags((LqEvntFd*)(Evnt), NewFlags, 0);
     ((LqEvntFd*)(Evnt))->Flag &= ~_LQEVNT_FLAG_NOW_EXEC;
-	((LqEvntFd*)(Evnt))->Handler = (Handler) ? Handler : __LqEvntFdDfltHandler;
-	((LqEvntFd*)(Evnt))->CloseHandler = (CloseHandler) ? CloseHandler : __LqEvntFdDfltCloseHandler;
+    ((LqEvntFd*)(Evnt))->Handler = (Handler) ? Handler : __LqEvntFdDfltHandler;
+    ((LqEvntFd*)(Evnt))->CloseHandler = (CloseHandler) ? CloseHandler : __LqEvntFdDfltCloseHandler;
 }
 
 LQ_EXTERN_C void LQ_CALL LqEvntCallCloseHandler(void * EvntHdr) {
-	LqAtmIntrlkOr(((LqEvntHdr*)(EvntHdr))->Flag, _LQEVNT_FLAG_NOW_EXEC);
-	if(LqEvntGetFlags(EvntHdr) & _LQEVNT_FLAG_CONN)
-		((LqConn*)(EvntHdr))->Proto->CloseHandler((LqConn*)(EvntHdr));
-	else
-		((LqEvntFd*)(EvntHdr))->CloseHandler((LqEvntFd*)(EvntHdr));
+    LqAtmIntrlkOr(((LqEvntHdr*)(EvntHdr))->Flag, _LQEVNT_FLAG_NOW_EXEC);
+    if(LqEvntGetFlags(EvntHdr) & _LQEVNT_FLAG_CONN)
+        ((LqConn*)(EvntHdr))->Proto->CloseHandler((LqConn*)(EvntHdr));
+    else
+        ((LqEvntFd*)(EvntHdr))->CloseHandler((LqEvntFd*)(EvntHdr));
 }
 
 LQ_EXTERN_C void LQ_CALL LqEvntSetOnlyOneBoss(void * EvntHdr, bool State) {
-	if(State)
-		LqAtmIntrlkOr(((LqEvntHdr*)EvntHdr)->Flag, _LQEVNT_FLAG_ONLY_ONE_BOSS);
-	else
-		LqAtmIntrlkAnd(((LqEvntHdr*)EvntHdr)->Flag, ~_LQEVNT_FLAG_ONLY_ONE_BOSS);
+    if(State)
+        LqAtmIntrlkOr(((LqEvntHdr*)EvntHdr)->Flag, _LQEVNT_FLAG_ONLY_ONE_BOSS);
+    else
+        LqAtmIntrlkAnd(((LqEvntHdr*)EvntHdr)->Flag, ~_LQEVNT_FLAG_ONLY_ONE_BOSS);
 }
 
 /*
@@ -590,19 +592,19 @@ LQ_EXTERN_C int LQ_CALL LqWrkBossCloseConnByTimeoutAsync(LqTimeMillisec TimeLive
 
 LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseConnByTimeoutSync(LqTimeMillisec TimeLive) { return Boss.CloseConnByTimeoutSync(TimeLive); }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossCloseConnByProtoTimeoutAsync(const LqProto * Proto, LqTimeMillisec TimeLive) { return Boss.CloseConnByTimeoutAsync(Proto, TimeLive) ? 0 : -1; }
+LQ_EXTERN_C int LQ_CALL LqWrkBossCloseConnByProtoTimeoutAsync(const LqProto* Proto, LqTimeMillisec TimeLive) { return Boss.CloseConnByTimeoutAsync(Proto, TimeLive) ? 0 : -1; }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseConnByProtoTimeoutSync(const LqProto * Proto, LqTimeMillisec TimeLive) { return Boss.CloseConnByTimeoutSync(Proto, TimeLive) ? 0 : -1; }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseConnByProtoTimeoutSync(const LqProto* Proto, LqTimeMillisec TimeLive) { return Boss.CloseConnByTimeoutSync(Proto, TimeLive) ? 0 : -1; }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossEnumCloseRmEvntByProto(unsigned(*Proc)(void *UserData, LqEvntHdr *Conn), const LqProto* Proto, void* UserData) { 
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossEnumCloseRmEvntByProto(int(LQ_CALL*Proc)(void*, LqEvntHdr*), const LqProto* Proto, void* UserData) {
     return Boss.EnumCloseRmEvntByProto(Proc, Proto, UserData);
 }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossEnumCloseRmEvnt(unsigned(*Proc)(void *UserData, LqEvntHdr *Conn), void * UserData) { return Boss.EnumCloseRmEvnt(Proc, UserData); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossEnumCloseRmEvnt(int(LQ_CALL*Proc)(void*, LqEvntHdr*), void * UserData) { return Boss.EnumCloseRmEvnt(Proc, UserData); }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossAsyncCall(void(*AsyncProc)(void* Data), void* UserData) { return Boss.AsyncCall(AsyncProc, UserData) ? 0 : -1; }
+LQ_EXTERN_C int LQ_CALL LqWrkBossAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData) { return Boss.AsyncCall(AsyncProc, UserData) ? 0 : -1; }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossCancelAsyncCall(void(*AsyncProc)(void* Data), void* UserData, bool IsAll) { return Boss.CancelAsyncCall(AsyncProc, UserData, IsAll); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCancelAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData, bool IsAll) { return Boss.CancelAsyncCall(AsyncProc, UserData, IsAll); }
 
 LQ_EXTERN_C size_t LQ_CALL LqWrkBossSetMinWrkCount(size_t NewCount) { return Boss.SetWrkMinCount(NewCount); }
 

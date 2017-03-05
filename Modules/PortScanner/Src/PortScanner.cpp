@@ -40,10 +40,10 @@ int main(int argc, char* argv[])
 #if !defined(LQPLATFORM_WINDOWS)
     signal(SIGPIPE, SIG_IGN);
 #endif
-	LqCpSet(LQCP_UTF_8);
-	LqFbuf_fdopen(&StdIn, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH, LQ_STDIN, 0, 50, 4096, 20);
-	LqFbuf_fdopen(&StdOut, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH, LQ_STDOUT, 0, 50, 4096, 20);
-	LqFbuf_fdopen(&StdErr, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH, LQ_STDERR, 0, 50, 4096, 20);
+    LqCpSet(LQCP_UTF_8);
+    LqFbuf_fdopen(&StdIn, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH, LQ_STDIN, 0, 4096, 20);
+    LqFbuf_fdopen(&StdOut, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH, LQ_STDOUT, 0, 4096, 20);
+    LqFbuf_fdopen(&StdErr, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH, LQ_STDERR, 0, 4096, 20);
 
     intptr_t CountWorkers = 1;
     int BeepFreg = -1, BeepLen = -1;
@@ -81,11 +81,11 @@ int main(int argc, char* argv[])
                 if(Readed == 1) {
                     EndRange = StartRange;
                 } else if((Readed < 1) || (StartRange > EndRange)) {
-					LqFbuf_printf(&StdErr, "ERROR: Invalid port range (%i, %i)\n", StartRange, EndRange);
+                    LqFbuf_printf(&StdErr, "ERROR: Invalid port range (%i, %i)\n", StartRange, EndRange);
                     return -1;
                 }
                 if(StartRange <= 0) {
-					LqFbuf_printf(&StdErr, "ERROR: Invalid port range (%i, %i)\n", StartRange, EndRange);
+                    LqFbuf_printf(&StdErr, "ERROR: Invalid port range (%i, %i)\n", StartRange, EndRange);
                     return -1;
                 }
                 Ports.push_back(std::pair<uint16_t, uint16_t>(StartRange, EndRange));
@@ -102,11 +102,11 @@ int main(int argc, char* argv[])
                     BeepFreg = TmpFreg;
                     BeepLen = TmpLen;
                 } else if(Readed < 1) {
-					LqFbuf_printf(&StdErr, "ERROR: Invalid beep params\n");
+                    LqFbuf_printf(&StdErr, "ERROR: Invalid beep params\n");
                     return -1;
                 }
                 if((BeepFreg < 0) || (BeepFreg > 20000) || (BeepLen < 0)) {
-					LqFbuf_printf(&StdErr, "ERROR: Invalid beep params\n");
+                    LqFbuf_printf(&StdErr, "ERROR: Invalid beep params\n");
                     return -1;
                 }
             }
@@ -117,7 +117,7 @@ int main(int argc, char* argv[])
                 LqFileStat Stat;
                 auto StatRes = LqFileGetStat(LogFileName.c_str(), &Stat);
                 if((StatRes >= 0) && !(Stat.Type & LQ_F_REG)) {
-					LqFbuf_printf(&StdErr, "ERROR: Invalid file name (%s)\n", LogFileName.c_str());
+                    LqFbuf_printf(&StdErr, "ERROR: Invalid file name (%s)\n", LogFileName.c_str());
                     return -1;
                 }
             }
@@ -125,7 +125,7 @@ int main(int argc, char* argv[])
             case 'w': {
                 WaitMillisec = LqParseInt(argv[i]);
                 if(WaitMillisec < 30) {
-					LqFbuf_printf(&StdErr, "ERROR: Invalid wait time\n");
+                    LqFbuf_printf(&StdErr, "ERROR: Invalid wait time\n");
                     return -1;
                 }
             }
@@ -141,7 +141,7 @@ int main(int argc, char* argv[])
                     switch(argv[i][1]) {
                         case 'e': IsOutEmpty = true; break;
                         case 'h':
-							LqFbuf_printf(&StdOut,
+                            LqFbuf_printf(&StdOut,
                                 "Lanq Port Scanner\n"
                                 "hotSAN 2016\n"
                                 " Only for TCP\n"
@@ -165,12 +165,12 @@ int main(int argc, char* argv[])
         Next = '\0';
     }
     if(Addr.Addr.sa_family == 0) {
-		LqFbuf_printf(&StdErr, "ERROR: Not specified ip or host address\n");
+        LqFbuf_printf(&StdErr, "ERROR: Not specified ip or host address\n");
         return -1;
     }
 
     if(Ports.empty()) {
-		LqFbuf_printf(&StdErr, "ERROR: Port rage not specified\n");
+        LqFbuf_printf(&StdErr, "ERROR: Port rage not specified\n");
         return -1;
     }
 
@@ -178,7 +178,7 @@ int main(int argc, char* argv[])
     LqWrkBossAddWrks(CountWorkers, true);
     std::vector<uint16_t> OpenPorts;
     if(!LqPrtScanDo(&Addr, Ports, 2000, WaitMillisec, OpenPorts)) {
-		LqFbuf_printf(&StdErr, "ERROR: Not scan remote host\n");
+        LqFbuf_printf(&StdErr, "ERROR: Not scan remote host\n");
         return -1;
     }
 

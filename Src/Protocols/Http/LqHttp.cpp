@@ -13,21 +13,16 @@
 #include "LqLog.h"
 #include "LqHttpPrs.h"
 #include "LqHttpPth.hpp"
-#include "LqHttpRsp.h"
 #include "LqTime.h"
 #include "LqHttpMdl.h"
 #include "LqAtm.hpp"
-#include "LqHttpRcv.h"
 #include "LqHttpMdlHandlers.h"
 #include "LqFileTrd.h"
-#include "LqHttpLogging.h"
 #include "LqDfltRef.hpp"
 #include "LqStr.hpp"
 #include "LqWrkBoss.h"
 #include "LqZmbClr.h"
 #include "LqShdPtr.hpp"
-
-#include "LqFche.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -36,275 +31,78 @@
 #define __METHOD_DECLS__
 #include "LqAlloc.hpp"
 
+typedef struct _LqRecvStream {
+	LqFbuf DestFbuf;
+	void* UserData;
+	bool(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*);
+} _LqRecvStream;
 
-static void LQ_CALL _ErrHandler(LqSockBuf* SockBuf, int Err);
-static void LQ_CALL _CloseHandler(LqSockBuf* SockBuf);
-static void LQ_CALL _RcvHdrProc(void* UserData, LqSockBuf* SockBuf);
+typedef struct _LqRecvStreamFbuf {
+	void* UserData;
+	void(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*);
+} _LqRecvStreamFbuf;
 
-static void LQ_CALL _AcceptProc(LqSockAcceptor* Acceptor) {
-	LqSockBuf* SockBuf;
-	LqHttpConnData* ConnData;
-	LqHttpData* HttpData;
-	HttpData = (LqHttpData*)Acceptor->UserData;
+typedef struct _LqRcvMultipartHdrsData {
+	void(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*);
+	void* UserData;
+	char* Boundary;
+	size_t MaxLen;
+} _LqRcvMultipartHdrsData;
 
-	if(HttpData->CountPtrs > HttpData->MaxCountConn) {
-		LqSockAcceptorSkip(Acceptor);
-		return;
-	}
-	ConnData = LqFastAlloc::New<LqHttpConnData>();
-	if(HttpData->SslCtx != NULL) {
-		SockBuf = LqSockAcceptorAcceptSsl(Acceptor, ConnData, HttpData->SslCtx);
-	} else {
-		SockBuf = LqSockAcceptorAccept(Acceptor, ConnData);
-	}
-	if(SockBuf == NULL) {
-		LqFastAlloc::Delete(ConnData);
-		return;
-	}
-	SockBuf->CloseHandler = _CloseHandler;
-	SockBuf->ErrHandler = _ErrHandler;
+typedef struct _LqHttpMultipartFbufNext {
+	void* UserData;
+	LqFbuf* Target;
+	char* Boundary;
+	LqFileSz MaxLen;
+	LqHttpMultipartHdrs* Hdrs;
+	void(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*);
+} _LqHttpMultipartFbufNext;
 
-	SockBuf->UserData2 = Acceptor;
-	HttpData->CountPtrs++;
-	ConnData->LenRspConveyor = HttpData->MaxLenRspConveyor;
-	ConnData->Flags = 0;
-	LqSockBufSetKeepAlive(SockBuf, HttpData->WaitHdrTime);
-	//LqSockBufSetAutoHdr(SockBuf, true);
+typedef struct _LqHttpConnRcvRcvMultipartFileStruct {
+	void* UserData;
+	LqFbuf Fbuf;
+	bool(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*);
+} _LqHttpConnRcvRcvMultipartFileStruct;
 
-	LqSockBufGoWork(SockBuf, NULL);
+typedef struct _LqHttpConnRcvWaitLenStruct {
+	void* UserData;
+	void(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*);
+}_LqHttpConnRcvWaitLenStruct;
 
-	LqSockBufNotifyWhenMatch(SockBuf, NULL, _RcvHdrProc, "%*.32700{^\r\n\r\n}", 1, 32700);
+typedef struct _LqHttpEnumConnProcData {
+	void* UserData;
+	LqHttp* Http;
+	int(LQ_CALL* Proc)(void*, LqHttpConn*);
+}_LqHttpEnumConnProcData;
+
+static int LQ_CALL _LqHttpEnumConnProc(void* UserData, LqHttpConn* HttpConn) {
+	int Res = 0;
+	if(HttpConn->UserData2 == ((_LqHttpEnumConnProcData*)UserData)->Http)
+		Res = ((_LqHttpEnumConnProcData*)UserData)->Proc(((_LqHttpEnumConnProcData*)UserData)->UserData, HttpConn);
+	return Res;
 }
 
-static void LQ_CALL _SockAcceptorCloseHandler(LqSockAcceptor* Acceptor) {
-
+static intptr_t LQ_CALL _EmptyReadProc(LqFbuf* Context, char*, size_t) {
+	Context->Flags |= LQFBUF_READ_ERROR;
+	return 0;
 }
 
-static void LQ_CALL _ErrHandler(LqSockBuf* SockBuf, int Err) {
-
+static intptr_t LQ_CALL _EmptyWriteProc(LqFbuf* Context, char*, size_t) {
+	Context->Flags |= LQFBUF_WRITE_ERROR;
+	return 0;
 }
 
-static void LQ_CALL _CloseHandler(LqSockBuf* SockBuf) {
-	LqSockBufLock(SockBuf);
-	LqSockBufDelete(SockBuf);
+static LqFbufCookie TrdCookie = {_EmptyReadProc, _EmptyWriteProc, NULL, NULL, NULL};
 
-	LqSockBufUnlock(SockBuf);
-}
+static void _LqHttpConnAfterCallUserHandler(LqHttpConn* HttpConn);
+static void LQ_CALL _LqHttpConnErrHandler(LqSockBuf* SockBuf, int Err);
+static void LQ_CALL _LqHttpConnCloseHandler(LqSockBuf* SockBuf);
+static void LQ_CALL _LqHttpConnRcvHdrProc(LqSockBuf* SockBuf, void* UserData);
 
-void LQ_CALL LqHttpRspeeError(LqHttpConn* HttpConn, int Code);
-
-void LQ_CALL _RcvHdrProc(void* UserData, LqSockBuf* SockBuf) {
-	LqHttpConnData* ConnData;
-	LqHttpRcvHdrs* Hdrs;
-	LqHttpRcvHdr* NewHdrs;
-
-	int LenHdr, ScannedLen, ScannedLen2, LenBuffer, NewSize, AllocCountHdrs = 0;
-	char *CurPos, *EndBuf, *NewEnd, *Buffer2, *Name, *Val,
-		 *HdrName, *HdrVal, *HostStart, *HostEnd, *PortStart, *PortEnd, HostType;
-
-
-	ConnData = (LqHttpConnData*)SockBuf->UserData;
-	LenHdr = -1;
-	ConnData->LenRspConveyor--;
-	if(ConnData->LenRspConveyor <= 0) 
-		ConnData->Flags |= LQHTTPCONN_FLAG_CLOSE;
-	LqSockBufRspSetHdr(SockBuf);
-	if((LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK, "%*.32700{^\r\n\r\n}%*{\r\n\r\n}%n", &LenHdr) < 2) || (LenHdr == -1)) {
-	
-	}
-	LenBuffer = LenHdr + (sizeof(LqHttpRcvHdrs) + 4);
-	Buffer2 = CurPos = (char*)___malloc(LenBuffer);
-	if(CurPos == NULL) {
-	
-	}
-	Hdrs = (LqHttpRcvHdrs*)CurPos;
-	memset(Hdrs, 0, sizeof(LqHttpRcvHdrs));
-	EndBuf = Buffer2 + LenBuffer;
-	CurPos += (sizeof(LqHttpRcvHdrs) + 1);
-	if(LqSockBufScanf(SockBuf, 0, "%.*[^ \r\n\t]%n%*[ \t]", EndBuf - CurPos, CurPos, &ScannedLen) < 2) {
-		
-	}
-	Hdrs->Method = CurPos;
-	CurPos += ScannedLen + 1;
-	if(LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "%.*[a-zA-Z]%n%*{://}", EndBuf - CurPos, CurPos, &ScannedLen) == 2) {
-		Hdrs->Scheme = CurPos;
-		CurPos += ScannedLen + 1;
-	}
-	if(LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "%.*[^/@: \n\r\t]%*{@}", EndBuf - CurPos, CurPos) == 2) {
-		NewEnd = LqHttpPrsEscapeDecodeSz(CurPos, CurPos);
-		*NewEnd = '\0';
-		Hdrs->UserInfo = CurPos;
-		CurPos = (NewEnd + 1);
-	}
-
-	if((LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "[%.*[^]/ \r\n\t]%*{]}", EndBuf - CurPos, CurPos) == 2) ||
-	   (LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "%.*[^/: \r\n\t]", EndBuf - CurPos, CurPos) == 1)) {
-		NewEnd = LqHttpPrsEscapeDecodeSz(CurPos, CurPos);
-		*NewEnd = '\0';
-		Hdrs->Host = CurPos;
-		CurPos = (NewEnd + 1);
-	}
-	if(LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, ":%.*[0-9]", EndBuf - CurPos, CurPos) == 1) {
-		Hdrs->Port = CurPos;
-		CurPos = (NewEnd + 1);
-	}
-	if((LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK, "%*{/}") == 1) && (LqSockBufScanf(SockBuf, 0, "%.*[^?# \r\n]", EndBuf - CurPos, CurPos) == 1)) {
-		NewEnd = LqHttpPrsEscapeDecodeSz(CurPos, CurPos);
-		*NewEnd = '\0';
-		Hdrs->Path = CurPos;
-		CurPos = (NewEnd + 1);
-	} else {
-
-
-	}
-
-	if(LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "?%.*[^# \r\n]", EndBuf - CurPos, CurPos) == 1) {
-		NewEnd = LqHttpPrsEscapeDecodeSz(CurPos, CurPos);
-		*NewEnd = '\0';
-		Hdrs->Args = CurPos;
-		CurPos = (NewEnd + 1);
-	}
-	if(LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "#%.*[^ \r\n]", EndBuf - CurPos, CurPos) == 1) {
-		NewEnd = LqHttpPrsEscapeDecodeSz(CurPos, CurPos);
-		*NewEnd = '\0';
-		Hdrs->Fragment = CurPos;
-		CurPos = (NewEnd + 1);
-	}
-	LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "%*[ \t]HTTP/%q8u.%q8u", &Hdrs->MajorVer, &Hdrs->MinorVer);
-	LqSockBufScanf(SockBuf, 0, "%?*{^\r\n}%*{\r\n}");
-	HdrName = CurPos;
-	for(;;) {
-		if(LqSockBufScanf(SockBuf, 0, "%*{\r\n}") == 1)
-			break;
-
-		if(LqSockBufScanf(SockBuf, 0, "%?*[ \t]%n%.*[^: \r\n]%n*?[ \t]", &ScannedLen, EndBuf - CurPos,  CurPos, &ScannedLen2) < 2) {
-			//Error
-		}
-		HdrName = CurPos;
-		CurPos += ((ScannedLen2 - ScannedLen) + 1);
-		if(LqSockBufScanf(SockBuf, 0, ":%?*[ \t]%n%?.*{^\r\n}%n%*{\r\n}", &ScannedLen, EndBuf - CurPos, CurPos, &ScannedLen2) < 3) {
-			//Error
-		}
-		HdrVal = CurPos;
-		CurPos += ((ScannedLen2 - ScannedLen) + 1);
-		if(Hdrs->CountHdrs >= AllocCountHdrs) {
-			AllocCountHdrs += 8;
-			if((NewHdrs = (LqHttpRcvHdr*)___realloc(Hdrs->Hdrs, AllocCountHdrs * sizeof(LqHttpRcvHdr))) == NULL) {
-				//Error
-			}
-			Hdrs->Hdrs = NewHdrs;
-		}
-		Hdrs->Hdrs[Hdrs->CountHdrs].Name = HdrName;
-		Hdrs->Hdrs[Hdrs->CountHdrs].Val = HdrVal;
-		if(LqStrUtf8CmpCase(HdrName, "host")) {
-			Hdrs->Host = HdrVal;
-		}
-		Hdrs->CountHdrs++;
-	}
-	LqHttpRspeeError(SockBuf, 404);
-	int yys = 0;
-	return;
-lblErr:
-	if(CurPos != NULL)
-		___free(CurPos);
-	SockBuf->CloseHandler(SockBuf);
-	return;
-}
-
-void LQ_CALL LqHttpRspeeError(LqHttpConn* HttpConn, int Code) {
-	LqFileSz HdrLen, RspLen;
-	LqHttpConnData* HttpConnData;
-	LqHttpData* HttpData;
-	char ServerNameBuf[1024];
-	tm ctm;
-	LqHttpConnGetMdl(HttpConn)->RspErrorProc(HttpConn, Code);
-	HttpConnData = LqHttpConnGetData(HttpConn);
-	HttpData = LqHttpConnGetHttpData(HttpConn);
-	HdrLen = LqSockBufRspHdrLen(HttpConn);
-	RspLen = LqSockBufRspLen(HttpConn);
-	LqSockBufRspUnsetHdr(HttpConn);
-	if(HdrLen == 0) {
-		if(RspLen == 0) {
-			LqTimeGetGmtTm(&ctm);
-			LqSockBufPrintfHdr(
-				HttpConn,
-				"HTTP/%s 500 Internal Server Error\r\n"
-				"Content-Type: text/html; charset=\"UTF-8\"\r\n"
-				"Cache-Control: no-cache\r\n"
-				"Connection: %s\r\n"
-				"Date: " PRINTF_TIME_TM_FORMAT_GMT "\r\n"
-				"%s%s%s"
-				"Content-Length: %lli\r\n",
-				HttpData->HTTPProtoVer,
-				(HttpConnData->Flags & LQHTTPCONN_FLAG_CLOSE) ? "close" : "Keep-Alive",
-				PRINTF_TIME_TM_ARG_GMT(ctm),
-				((ServerNameBuf[0] == '\0') ? "" : "Server: "), (char*)ServerNameBuf, ((ServerNameBuf[0] == '\0') ? "" : "\r\n"),
-				(long long)RspLen
-			);
-		}
-	}
-}
-
-
-LQ_EXTERN_C LqHttp* LQ_CALL LqHttpCreate(const char* Host, const char* Port, int RouteProto, void* SslCtx, bool IsSetCache, bool IsSetZmbClr) {
-	LqHttpData* HttpData;
-	LqSockAcceptor* SockAcceptor;
-	LqFche* Cache;
-	if((HttpData = LqFastAlloc::New<LqHttpData>()) == NULL) {
-		lq_errno_set(ENOMEM);
-		goto lblErr;
-	}
-	SockAcceptor = LqSockAcceptorCreate(Host, Port, RouteProto, SOCK_STREAM, IPPROTO_TCP, 32768, true, HttpData);
-	if(SockAcceptor == NULL)
-		goto lblErr;
-	SockAcceptor->AcceptProc = _AcceptProc;
-	SockAcceptor->CloseHandler = _SockAcceptorCloseHandler;
-
-	HttpData->MaxHeadersSize = 32 * 1024; //32 kByte
-	HttpData->MaxMultipartHeadersSize = 32 * 1024;
-	HttpData->SslCtx = SslCtx;
-	HttpData->PeriodChangeDigestNonce = 5; //5 Sec
-
-	HttpData->MaxLenRspConveyor = 10;
-	HttpData->MaxCountConn = 32768;
-
-	HttpData->LiveTime = 1 * 60 * 1000;
-	HttpData->WaitHdrTime = 5 * 60 * 1000;
-
-	HttpData->UseDefaultDmn = true;
-
-	LqHttpSetNameServer(SockAcceptor, "Lanq(Lan Quick) 1.0");
-	HttpData->CountPtrs = 1;
-	if(IsSetCache) {
-		Cache = LqFcheCreate();
-		if(Cache != NULL) {
-			LqFcheSetMaxSize(Cache, 1024 * 1024 * 400);
-			LqFcheSetMaxSizeFile(Cache, 1024 * 1024 * 27);
-			LqSockAcceptorSetInstanceCache(SockAcceptor, Cache);
-			LqFcheDelete(Cache);
-		}
-	}
-	if(IsSetZmbClr) {
-		HttpData->ZmbClr = LqZmbClrCreate(SockAcceptor, 10 * 1000, SockAcceptor, true);
-	} else {
-		HttpData->ZmbClr = NULL;
-	}
-	LqFbuf_snprintf(HttpData->HTTPProtoVer, sizeof(HttpData->HTTPProtoVer) - 2, "1.1");
-	LqHttpMdlInit(SockAcceptor, &HttpData->StartModule, "StartModule", 0);
-	LqHttpPthDmnCreate(SockAcceptor, "*");
-	return SockAcceptor;
-lblErr:
-	if(HttpData != NULL)
-		LqFastAlloc::Delete(HttpData);
-	if(SockAcceptor != NULL)
-		LqSockAcceptorDelete(SockAcceptor);
-	return NULL;
-}
-
-LQ_EXTERN_C int LQ_CALL LqHttpDelete(LqHttp* Http) {
+static void _LqHttpDereference(LqHttp* Http) {
 	LqHttpData* HttpData;
 	LqSockAcceptorLock(Http);
-	HttpData = (LqHttpData*)Http->UserData;
+	HttpData = LqHttpGetHttpData(Http);
 	HttpData->CountPtrs--;
 	if(HttpData->CountPtrs <= 0) {
 		LqHttpMdlFreeAll(Http);
@@ -316,1392 +114,2425 @@ LQ_EXTERN_C int LQ_CALL LqHttpDelete(LqHttp* Http) {
 		if(HttpData->SslCtx != NULL)
 			SSL_CTX_free((SSL_CTX*)HttpData->SslCtx);
 #endif
-		LqSockAcceptorUnlock(Http);
-	} else {
-		LqSockAcceptorUnlock(Http);
-		LqSockAcceptorInterruptWork(Http);
-		LqSockBufCloseByUserData2(Http, NULL);
 	}
-	return 0;
+	LqSockAcceptorUnlock(Http);
 }
 
-LQ_EXTERN_C bool LQ_CALL LqHttpGoWork(LqHttp* Http, void* WrkBoss){
-	LqHttpData* HttpData;
-	bool Res = true;
-	LqSockAcceptorLock(Http);
-	HttpData = (LqHttpData*)Http->UserData;
-	if(HttpData->ZmbClr) {
-		if(!(Res = LqZmbClrGoWork(HttpData->ZmbClr, WrkBoss)))
-			goto lblOut;
+static void LQ_CALL _LqHttpConnRcvFileProc(LqSockBuf* HttpConn, LqFbuf* DestStream, LqFileSz Written, void* UserData) {
+	_LqRecvStream* RecvStream = (_LqRecvStream*)UserData;
+	bool Commit = HttpConn != NULL;
+	int CommitRes;
+	LqHttpConnData* HttpConnData;
+	LqHttpConnRcvResult RcvRes;
+
+	LqFbuf_flush(DestStream);
+	if(RecvStream->CompleteOrCancelProc) {
+		memset(&RcvRes, 0, sizeof(RcvRes));
+		RcvRes.HttpConn = HttpConn;
+		RcvRes.UserData = RecvStream->UserData;
+		RcvRes.Written = Written;
+		Commit = RecvStream->CompleteOrCancelProc(&RcvRes);
 	}
-	Res = LqSockAcceptorGoWork(Http, WrkBoss);
-lblOut:
-	LqSockAcceptorUnlock(Http);
+	DestStream->Cookie = &TrdCookie;
+	if(Commit) {
+		CommitRes = LqFileTrdCommit((int)DestStream->UserData);
+		if((RecvStream->CompleteOrCancelProc == NULL) && (HttpConn != NULL)) {
+			if(CommitRes == 1) {
+				LqHttpConnRspError(HttpConn, 201); /* Created */
+			} else if(CommitRes == 0) {
+				LqHttpConnRspError(HttpConn, 200); /* OK */
+			} else {
+				LqHttpConnRspError(HttpConn, 500); /* Internal server error */
+			}
+		}
+	} else {
+		LqFileTrdCancel((int)DestStream->UserData);
+		if((RecvStream->CompleteOrCancelProc == NULL) && (HttpConn != NULL)) {
+			LqHttpConnRspError(HttpConn, 500); /* Internal server error */
+		}
+	}
+	LqFbuf_close(DestStream);
+	LqFastAlloc::Delete(RecvStream);
+	if(HttpConn)
+		_LqHttpConnAfterCallUserHandler(HttpConn);
+}
+
+static void LQ_CALL _LqHttpConnRcvFileSeqProc(LqSockBuf* HttpConn, LqFbuf* DestStream, LqFileSz Written, void* UserData, bool IsFound) {
+	_LqRecvStream* RecvStream = (_LqRecvStream*)UserData;
+	bool Commit = HttpConn != NULL;
+	int CommitRes;
+	LqHttpConnRcvResult RcvRes;
+
+	LqFbuf_flush(DestStream);
+	if(RecvStream->CompleteOrCancelProc) {
+		memset(&RcvRes, 0, sizeof(RcvRes));
+		RcvRes.HttpConn = HttpConn;
+		RcvRes.UserData = RecvStream->UserData;
+		RcvRes.Written = Written;
+		RcvRes.IsFoundedSeq = IsFound;
+		Commit = RecvStream->CompleteOrCancelProc(&RcvRes);
+	}
+	DestStream->Cookie = &TrdCookie;
+	if(Commit) {
+		CommitRes = LqFileTrdCommit((int)DestStream->UserData);
+		if((RecvStream->CompleteOrCancelProc == NULL) && (HttpConn != NULL)) {
+			if(CommitRes == 1) {
+				LqHttpConnRspError(HttpConn, 201); /* Created */
+			} else if(CommitRes == 0) {
+				LqHttpConnRspError(HttpConn, 200); /* OK */
+			} else {
+				LqHttpConnRspError(HttpConn, 500); /* Internal server error */
+			}
+		}
+	} else {
+		LqFileTrdCancel((int)DestStream->UserData);
+		if((RecvStream->CompleteOrCancelProc == NULL) && (HttpConn != NULL)) {
+			LqHttpConnRspError(HttpConn, 500); /* Internal server error */
+		}
+	}
+	LqFbuf_close(DestStream);
+	LqFastAlloc::Delete(RecvStream);
+	if(HttpConn)
+		_LqHttpConnAfterCallUserHandler(HttpConn);
+}
+
+static void LQ_CALL _LqHttpConnRcvFbufProc(LqSockBuf* HttpConn, LqFbuf* DestStream, LqFileSz Written, void* UserData) {
+	_LqRecvStreamFbuf* RecvStream = (_LqRecvStreamFbuf*)UserData;
+	LqHttpConnRcvResult RcvRes;
+
+	LqFbuf_flush(DestStream);
+	if(RecvStream->CompleteOrCancelProc) {
+		memset(&RcvRes, 0, sizeof(RcvRes));
+		RcvRes.HttpConn = HttpConn;
+		RcvRes.UserData = RecvStream->UserData;
+		RcvRes.Written = Written;
+		RcvRes.TargetFbuf = DestStream;
+		RecvStream->CompleteOrCancelProc(&RcvRes);
+	}
+	LqFastAlloc::Delete(RecvStream);
+	if(HttpConn)
+		_LqHttpConnAfterCallUserHandler(HttpConn);
+}
+
+static void LQ_CALL _LqHttpConnRcvFbufSeqProc(LqSockBuf* HttpConn, LqFbuf* DestStream, LqFileSz Written, void* UserData, bool IsFound) {
+	_LqRecvStreamFbuf* RecvStream = (_LqRecvStreamFbuf*)UserData;
+	LqHttpConnRcvResult RcvRes;
+
+	LqFbuf_flush(DestStream);
+	if(RecvStream->CompleteOrCancelProc) {
+		memset(&RcvRes, 0, sizeof(RcvRes));
+		RcvRes.HttpConn = HttpConn;
+		RcvRes.UserData = RecvStream->UserData;
+		RcvRes.Written = Written;
+		RcvRes.TargetFbuf = DestStream;
+		RcvRes.IsFoundedSeq = IsFound;
+		RecvStream->CompleteOrCancelProc(&RcvRes);
+	}
+	LqFastAlloc::Delete(RecvStream);
+	if(HttpConn)
+		_LqHttpConnAfterCallUserHandler(HttpConn);
+}
+
+static LqHttpMultipartHdrs* _LqHttpMultipartHdrsRead(LqSockBuf* HttpConn, const char* Boundary, size_t MaxLength) {
+	char Buf[4096], *StartBuf, *EndBuf, *CurPos, *HdrName, *HdrVal;
+	int Start, End, n, ScannedLen, ScannedLen2, AllocCountHdrs;
+	LqHttpMultipartHdrs* Res;
+	LqHttpRcvHdr*NewHdrs;
+
+	if(LqFbuf_snprintf(Buf, sizeof(Buf) - 1, "\r\n--%s--%*{\r\n}", Boundary) > (sizeof(Buf) - 3)) {
+		lq_errno_set(EOVERFLOW);
+		return NULL;
+	}
+	if(LqSockBufScanf(HttpConn, LQSOCKBUF_PEEK, Buf) == 1) {
+		LqSockBufScanf(HttpConn, 0, Buf);
+		lq_errno_set(ESPIPE);
+		return NULL;
+	}
+	if(LqFbuf_snprintf(Buf, sizeof(Buf) - 1, "\r\n--%s\r\n%n%%n%%*.%lli{^\r\n\r\n}%%n%%*{\r\n\r\n}", Boundary, &n, (long long)MaxLength) > (sizeof(Buf) - 3)) {
+		lq_errno_set(EOVERFLOW);
+		return NULL;
+	}
+	if(LqSockBufScanf(HttpConn, LQSOCKBUF_PEEK, Buf, &Start, &End) < 2) {
+		lq_errno_set(EIO);
+		return NULL;
+	}
+	if((End - Start) > (MaxLength - 2)) {
+		lq_errno_set(E2BIG);
+		return NULL;
+	}
+	LqFbuf_snprintf(Buf, sizeof(Buf) - 1, "\r\n--%s%%*{\r\n}", Boundary);
+	LqSockBufScanf(HttpConn, 0, Buf);
+
+	CurPos = (char*)___malloc((End - Start) + sizeof(LqHttpMultipartHdrs) + 20);
+
+	Res = (LqHttpMultipartHdrs*)CurPos;
+	memset(Res, 0, sizeof(LqHttpMultipartHdrs));
+	EndBuf = CurPos + ((End - Start) + sizeof(LqHttpMultipartHdrs) + 20);
+	CurPos = (char*)(((LqHttpMultipartHdrs*)CurPos) + 1);
+	for(;;) {
+		if(LqSockBufScanf(HttpConn, 0, "%*{\r\n}") == 1)
+			break;
+
+		if(LqSockBufScanf(HttpConn, 0, "%?*[ \t]%n%.*[^: \r\n]%n*?[ \t]", &ScannedLen, EndBuf - CurPos, CurPos, &ScannedLen2) < 2) {
+			if(Res->Hdrs)
+				___free(Res->Hdrs);
+			___free(Res);
+			lq_errno_set(EIO);
+			return NULL;
+		}
+		HdrName = CurPos;
+		CurPos += ((ScannedLen2 - ScannedLen) + 1);
+		if(LqSockBufScanf(HttpConn, 0, ":%?*[ \t]%n%?.*{^\r\n}%n%*{\r\n}", &ScannedLen, EndBuf - CurPos, CurPos, &ScannedLen2) < 3) {
+			if(Res->Hdrs)
+				___free(Res->Hdrs);
+			___free(Res);
+			lq_errno_set(EIO);
+			return NULL;
+		}
+		HdrVal = CurPos;
+		CurPos += ((ScannedLen2 - ScannedLen) + 1);
+		if(Res->CountHdrs >= AllocCountHdrs) {
+			AllocCountHdrs += 8;
+			if((NewHdrs = (LqHttpRcvHdr*)___realloc(Res->Hdrs, AllocCountHdrs * sizeof(LqHttpRcvHdr))) == NULL) {
+				if(Res->Hdrs)
+					___free(Res->Hdrs);
+				___free(Res);
+				lq_errno_set(ENOMEM);
+				return NULL;
+			}
+			Res->Hdrs = NewHdrs;
+		}
+		Res->Hdrs[Res->CountHdrs].Name = HdrName;
+		Res->Hdrs[Res->CountHdrs].Val = HdrVal;
+		Res->CountHdrs++;
+	}
 	return Res;
 }
 
-LQ_EXTERN_C bool LQ_CALL LqHttpInterruptWork(LqHttp* Http) {
-	LqHttpData* HttpData;
-	bool Res = false;
-	LqSockAcceptorLock(Http);
-	HttpData = (LqHttpData*)Http->UserData;
-	if(HttpData->ZmbClr) {
-		Res |= LqZmbClrInterruptWork(HttpData->ZmbClr);
+static void LQ_CALL _LqHttpConnRcvMultipartHdrsProc(LqSockBuf* HttpConn, void* UserData) {
+	_LqRcvMultipartHdrsData* Data = (_LqRcvMultipartHdrsData*)UserData;
+	LqHttpMultipartHdrs* Hdrs;
+	LqHttpConnRcvResult RcvRes;
+
+	if(HttpConn == NULL) {
+		memset(&RcvRes, 0, sizeof(RcvRes));
+		RcvRes.HttpConn = HttpConn;
+		RcvRes.UserData = Data->UserData;
+		Data->CompleteOrCancelProc(&RcvRes);
+	} else {
+		Hdrs = _LqHttpMultipartHdrsRead(HttpConn, Data->Boundary, Data->MaxLen);
+		memset(&RcvRes, 0, sizeof(RcvRes));
+		RcvRes.HttpConn = HttpConn;
+		RcvRes.UserData = Data->UserData;
+		RcvRes.IsMultipartEnd = lq_errno == ESPIPE;
+		RcvRes.MultipartHdrs = Hdrs;
+		Data->CompleteOrCancelProc(&RcvRes);
+		if(RcvRes.MultipartHdrs != NULL) {
+			LqHttpMultipartHdrsDelete(RcvRes.MultipartHdrs);
+		}
 	}
-	Res |= LqSockAcceptorInterruptWork(Http);
+	free(Data->Boundary);
+	LqFastAlloc::Delete(Data);
+	if(HttpConn)
+		_LqHttpConnAfterCallUserHandler(HttpConn);
+}
+
+static void LQ_CALL _LqHttpConnRcvFbufNextProc(LqHttpConnRcvResult* RcvRes) {
+	_LqHttpMultipartFbufNext* Data = (_LqHttpMultipartFbufNext*)RcvRes->UserData;
+
+	RcvRes->MultipartHdrs = Data->Hdrs;
+	if(Data->CompleteOrCancelProc)
+		Data->CompleteOrCancelProc(RcvRes);
+	if(RcvRes->MultipartHdrs != NULL) {
+		LqHttpMultipartHdrsDelete(RcvRes->MultipartHdrs);
+		RcvRes->MultipartHdrs = NULL;
+	}
+	if(Data->Boundary)
+		free(Data->Boundary);
+	LqFastAlloc::Delete(Data);
+}
+
+static void LQ_CALL _LqHttpConnRcvMultipartHdrsNextProc(LqHttpConnRcvResult* RcvRes) {
+	_LqHttpMultipartFbufNext* Data = (_LqHttpMultipartFbufNext*)RcvRes->UserData;
+	if((RcvRes->HttpConn == NULL) || (RcvRes->MultipartHdrs == NULL)) {
+		RcvRes->UserData = Data->UserData;
+		RcvRes->TargetFbuf = Data->Target;
+		if(Data->CompleteOrCancelProc)
+			Data->CompleteOrCancelProc(RcvRes);
+		goto lblErr;
+	} else {
+		Data->Hdrs = RcvRes->MultipartHdrs;
+		if(!LqHttpConnRcvFbufAboveBoundary(RcvRes->HttpConn, Data->Target, _LqHttpConnRcvFbufNextProc, Data, Data->Boundary, Data->MaxLen)) {
+			RcvRes->UserData = Data->UserData;
+			RcvRes->TargetFbuf = Data->Target;
+			if(Data->CompleteOrCancelProc)
+				Data->CompleteOrCancelProc(RcvRes);
+			goto lblErr;
+		}
+	}
+
+	return;
+lblErr:
+	if(Data->Boundary)
+		free(Data->Boundary);
+	LqFastAlloc::Delete(Data);
+}
+
+static void LQ_CALL _LqHttpConnRcvMultipartFileNextProc(LqHttpConnRcvResult* RcvRes) {
+	_LqHttpConnRcvRcvMultipartFileStruct* Data = (_LqHttpConnRcvRcvMultipartFileStruct*)RcvRes->UserData;
+	bool Commit = (RcvRes->HttpConn != NULL) && (RcvRes->IsFoundedSeq) && (RcvRes->MultipartHdrs != NULL);
+	int CommitRes;
+	LqHttpConnData* HttpConnData;
+
+	LqFbuf_flush(&Data->Fbuf);
+	if(Data->CompleteOrCancelProc) {
+		RcvRes->TargetFbuf = NULL;
+		Commit = Data->CompleteOrCancelProc(RcvRes);
+	}
+	Data->Fbuf.Cookie = &TrdCookie;
+	if(Commit) {
+		CommitRes = LqFileTrdCommit((int)Data->Fbuf.UserData);
+		if((Data->CompleteOrCancelProc == NULL) && (RcvRes->HttpConn != NULL)) {
+			if(CommitRes == 1) {
+				LqHttpConnRspError(RcvRes->HttpConn, 201); /* Created */
+			} else if(CommitRes == 0) {
+				LqHttpConnRspError(RcvRes->HttpConn, 200); /* OK */
+			} else {
+				LqHttpConnRspError(RcvRes->HttpConn, 500); /* Internal server error */
+			}
+		}
+	} else {
+		LqFileTrdCancel((int)Data->Fbuf.UserData);
+		if((Data->CompleteOrCancelProc == NULL) && (RcvRes->HttpConn != NULL)) {
+			LqHttpConnRspError(RcvRes->HttpConn, 500); /* Internal server error */
+		}
+	}
+	LqFbuf_close(&Data->Fbuf);
+	LqFastAlloc::Delete(Data);
+}
+
+static void LQ_CALL _LqHttpConnRcvWaitLenProc(LqSockBuf* SockBuf, void* UserData) {
+	_LqHttpConnRcvWaitLenStruct* Data = (_LqHttpConnRcvWaitLenStruct*)UserData;
+	LqHttpConnRcvResult RcvRes;
+	if(Data->CompleteOrCancelProc) {
+		memset(&RcvRes, 0, sizeof(RcvRes));
+		RcvRes.HttpConn = SockBuf;
+		RcvRes.UserData = Data->UserData;
+		Data->CompleteOrCancelProc(&RcvRes);
+	}
+	LqFastAlloc::Delete(Data);
+	if(SockBuf)
+		_LqHttpConnAfterCallUserHandler(SockBuf);
+}
+
+static void LQ_CALL _LqHttpAcceptProc(LqSockAcceptor* Acceptor) {
+    LqSockBuf* SockBuf;
+    LqHttpConnData* HttpConnData;
+    LqHttpData* HttpData;
+	size_t MaxHdrLen;
+	char Buf[1024];
+    HttpData = LqHttpGetHttpData(Acceptor);
+
+    if(HttpData->CountPtrs > HttpData->MaxCountConn) {
+        LqSockAcceptorSkip(Acceptor);
+        return;
+    }
+    HttpConnData = LqFastAlloc::New<LqHttpConnData>();
+    if(HttpData->SslCtx != NULL) {
+        SockBuf = LqSockAcceptorAcceptSsl(Acceptor, HttpConnData, HttpData->SslCtx);
+    } else {
+        SockBuf = LqSockAcceptorAccept(Acceptor, HttpConnData);
+    }
+    if(SockBuf == NULL) {
+        LqFastAlloc::Delete(HttpConnData);
+        return;
+    }
+    memset(HttpConnData, 0, sizeof(HttpConnData));
+    SockBuf->CloseHandler = _LqHttpConnCloseHandler;
+    SockBuf->ErrHandler = _LqHttpConnErrHandler;
+
+    SockBuf->UserData2 = Acceptor;
+	LqSockAcceptorLock(Acceptor);
+	HttpData->CountPtrs++;
+	MaxHdrLen = HttpData->MaxHeadersSize;
+	LqSockAcceptorUnlock(Acceptor);
+
+    HttpConnData->LenRspConveyor = HttpData->MaxLenRspConveyor;
+    HttpConnData->Flags = 0;
+    LqSockBufSetKeepAlive(SockBuf, HttpData->KeepAlive);
+    //LqSockBufSetAutoHdr(SockBuf, true);
+
+    LqSockBufGoWork(SockBuf, HttpData->WrkBoss);
+	HttpData->ConnectHndls.Call(SockBuf);
+	LqFbuf_snprintf(Buf, sizeof(Buf) - 2, "%%*.%zu{^\r\n\r\n}", MaxHdrLen + ((size_t)4));
+    LqSockBufRcvNotifyWhenMatch(SockBuf, (void*)MaxHdrLen, _LqHttpConnRcvHdrProc, Buf, 1, MaxHdrLen, false);
+}
+
+static void LQ_CALL _LqHttpCloseHandler(LqSockAcceptor* Acceptor) {
+    int Fd;
+    int Errno = 0;
+    socklen_t Len;
+    LqSockAcceptorLock(Acceptor);
+    Fd = LqSockAcceptorGetFd(Acceptor);
+    Len = sizeof(Errno);
+    getsockopt(Fd, SOL_SOCKET, SO_ERROR, (char*)&Errno, &Len);
+    LqLogErr("LqHttp: Src %s:%i; _LqHttpCloseHandler called. Accept process has been interrupted. Error: %s", __FILE__, __LINE__, strerror(Errno));
+    LqSockAcceptorUnlock(Acceptor);
+
+}
+
+static void LQ_CALL _LqHttpConnErrHandler(LqSockBuf* SockBuf, int Err) {
+    LqSockBufSetClose(SockBuf);
+}
+
+static void _LqHttpConnRcvHdrRemove(LqHttpConn* HttpConn) {
+    LqHttpConnData* HttpConnData;
+    LqSockBufLock(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    if(HttpConnData->RcvHdr != NULL) {
+        if(HttpConnData->RcvHdr->Hdrs != NULL) {
+            ___free(HttpConnData->RcvHdr->Hdrs);
+        }
+        ___free(HttpConnData->RcvHdr);
+        HttpConnData->RcvHdr = NULL;
+    }
+    LqSockBufUnlock(HttpConn);
+}
+
+static void LQ_CALL _LqHttpConnCloseHandler(LqSockBuf* SockBuf) {
+    LqHttpConnData* HttpConnData;
+	LqHttpData* HttpData;
+	LqHttp* Http;
+
+    LqSockBufLock(SockBuf);
+    HttpConnData = LqHttpConnGetData(SockBuf);
+    HttpData = LqHttpConnGetHttpData(SockBuf);
+	Http = LqHttpConnGetHttp(SockBuf);
+	HttpData->DisconnectHndls.Call(SockBuf);
+
+    if(HttpConnData->LongPollCloseHandler) {
+        HttpConnData->Flags |= LQHTTPCONN_FLAG_IN_LONG_POLL_CLOSE_HANDLER;
+        LqSockBufUnlock(SockBuf);
+        HttpConnData->LongPollCloseHandler(SockBuf);
+        LqSockBufLock(SockBuf);
+        HttpConnData->Flags &= ~LQHTTPCONN_FLAG_IN_LONG_POLL_CLOSE_HANDLER;
+		HttpConnData->Flags |= LQHTTPCONN_FLAG_MUST_DELETE;
+        if(HttpConnData->Flags & LQHTTPCONN_FLAG_LONG_POLL_OP) {
+            LqSockBufUnlock(SockBuf);
+            return;
+        }
+    }
+	
+    if(HttpConnData->RspFileName) {
+        free(HttpConnData->RspFileName);
+        HttpConnData->RspFileName = NULL;
+    }
+    if(HttpConnData->BoundaryOrContentRangeOrLocation) {
+        free(HttpConnData->BoundaryOrContentRangeOrLocation);
+        HttpConnData->BoundaryOrContentRangeOrLocation = NULL;
+    }
+    if(HttpConnData->AdditionalHdrs) {
+        free(HttpConnData->AdditionalHdrs);
+        HttpConnData->AdditionalHdrs = NULL;
+    }
+	if(HttpConnData->UserData != NULL) {
+		LqFastAlloc::ReallocCount<LqHttpUserData>(HttpConnData->UserData, HttpConnData->UserDataCount, 0);
+		HttpConnData->UserDataCount = 0;
+		HttpConnData->UserData = NULL;
+	}
+    _LqHttpConnRcvHdrRemove(SockBuf);
+    LqHttpConnPthRemove(SockBuf);
+    LqSockBufDelete(SockBuf);
+    LqFastAlloc::Delete(HttpConnData);
+    LqSockBufUnlock(SockBuf);
+	_LqHttpDereference(Http);
+}
+
+static void LQ_CALL _LqHttpConnRcvHdrProc(LqSockBuf* SockBuf, void* UserData) {
+    LqHttpConnData* HttpConnData;
+    LqHttpRcvHdrs* Hdrs;
+    LqHttpRcvHdr* NewHdrs;
+    LqHttpMdl* Mdl;
+	LqHttpData* HttpData;
+	size_t HdrLen;
+	char Buf[1024];
+    long long TempLength;
+    int LenHdr, ScannedLen, ScannedLen2, LenBuffer, NewSize, AllocCountHdrs = 0;
+    char *CurPos, *EndBuf, *NewEnd, *Buffer2, *Name, *Val,
+         *HdrName, *HdrVal, *HostStart, *HostEnd, *PortStart, *PortEnd, HostType;
+    if(SockBuf == NULL)
+        return;
+    HttpConnData = LqHttpConnGetData(SockBuf);
+	HttpData = LqHttpConnGetHttpData(SockBuf);
+    if(HttpConnData->Flags & LQHTTPCONN_FLAG_CLOSE)
+        return;
+    LenHdr = -1;
+    HttpConnData->Flags = 0;
+    HttpConnData->LenRspConveyor--;
+    if(HttpConnData->LenRspConveyor <= 0)
+        HttpConnData->Flags |= LQHTTPCONN_FLAG_CLOSE;
+    LqSockBufRspSetHdr(SockBuf);
+    LqHttpConnPthRemove(SockBuf);
+    if(HttpConnData->RspFileName) {
+        free(HttpConnData->RspFileName);
+        HttpConnData->RspFileName = NULL;
+    }
+    if(HttpConnData->BoundaryOrContentRangeOrLocation) {
+        free(HttpConnData->BoundaryOrContentRangeOrLocation);
+        HttpConnData->BoundaryOrContentRangeOrLocation = NULL;
+    }
+    if(HttpConnData->AdditionalHdrs) {
+        free(HttpConnData->AdditionalHdrs);
+        HttpConnData->AdditionalHdrs = NULL;
+        HttpConnData->AdditionalHdrsLen = 0;
+    }
+	if(HttpConnData->UserData != NULL) {
+		LqFastAlloc::ReallocCount<LqHttpUserData>(HttpConnData->UserData, HttpConnData->UserDataCount, 0);
+		HttpConnData->UserDataCount = 0;
+		HttpConnData->UserData = NULL;
+	}
+    _LqHttpConnRcvHdrRemove(SockBuf);
+    HttpConnData->RspStatus = 200;
+    HttpConnData->ContentLength = -((LqFileSz)1);
+	HdrLen = (size_t)UserData;
+	LqFbuf_snprintf(Buf, sizeof(Buf) - 2, "%%*.%zu{^\r\n\r\n}%%*{\r\n\r\n}%%n", HdrLen);
+    if((LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK, Buf, &LenHdr) < 2) || (LenHdr == -1)) {
+        HttpConnData->Flags |= LQHTTPCONN_FLAG_CLOSE;
+        LqHttpConnRspError(SockBuf, 400);
+        goto lblOut;
+    }
+    LenBuffer = LenHdr + (sizeof(LqHttpRcvHdrs) + 4);
+    Buffer2 = CurPos = (char*)___malloc(LenBuffer);
+    if(CurPos == NULL) {
+        LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
+        HttpConnData->Flags |= LQHTTPCONN_FLAG_CLOSE;
+        LqHttpConnRspError(SockBuf, 500);
+        goto lblOut;
+    }
+    Hdrs = (LqHttpRcvHdrs*)CurPos;
+    memset(Hdrs, 0, sizeof(LqHttpRcvHdrs));
+    EndBuf = Buffer2 + LenBuffer;
+    CurPos += (sizeof(LqHttpRcvHdrs) + 1);
+    if(LqSockBufScanf(SockBuf, 0, "%.*[^ \r\n\t]%n%*[ \t]", EndBuf - CurPos, CurPos, &ScannedLen) < 2) {/* Read method*/
+        HttpConnData->Flags |= LQHTTPCONN_FLAG_CLOSE;
+        ___free(Buffer2);
+        LqHttpConnRspError(SockBuf, 405);
+        goto lblOut;
+    }
+    Hdrs->Method = CurPos;
+    CurPos += ScannedLen + 1;
+    if(LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "%.*[a-zA-Z]%n%*{://}", EndBuf - CurPos, CurPos, &ScannedLen) == 2) {
+        Hdrs->Scheme = CurPos;
+        CurPos += ScannedLen + 1;
+    }
+    if(LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "%.*[^/@: \n\r\t]%*{@}", EndBuf - CurPos, CurPos) == 2) {
+        NewEnd = LqHttpPrsEscapeDecodeSz(CurPos, CurPos);
+        *NewEnd = '\0';
+        Hdrs->UserInfo = CurPos;
+        CurPos = (NewEnd + 1);
+    }
+
+    if((LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "[%.*[^]/ \r\n\t]%*{]}", EndBuf - CurPos, CurPos) == 2) ||
+       (LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "%.*[^/: \r\n\t]", EndBuf - CurPos, CurPos) == 1)) {
+        NewEnd = LqHttpPrsEscapeDecodeSz(CurPos, CurPos);
+        *NewEnd = '\0';
+        Hdrs->Host = CurPos;
+        CurPos = (NewEnd + 1);
+    }
+    if(LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, ":%.*[0-9]", EndBuf - CurPos, CurPos) == 1) {
+        Hdrs->Port = CurPos;
+        CurPos = (NewEnd + 1);
+    }
+    if((LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK, "%*{/}") == 1) && (LqSockBufScanf(SockBuf, 0, "%.*[^?# \r\n]", EndBuf - CurPos, CurPos) == 1)) {
+        NewEnd = LqHttpPrsEscapeDecodeSz(CurPos, CurPos);
+        *NewEnd = '\0';
+        Hdrs->Path = CurPos;
+        CurPos = (NewEnd + 1);
+    } else {
+        ___free(Buffer2);
+        HttpConnData->Flags |= LQHTTPCONN_FLAG_CLOSE;
+        LqHttpConnRspError(SockBuf, 400);
+        goto lblOut;
+    }
+
+    if(LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "?%.*[^# \r\n]", EndBuf - CurPos, CurPos) == 1) {
+        NewEnd = LqHttpPrsEscapeDecodeSz(CurPos, CurPos);
+        *NewEnd = '\0';
+        Hdrs->Args = CurPos;
+        CurPos = (NewEnd + 1);
+    }
+    if(LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "#%.*[^ \r\n]", EndBuf - CurPos, CurPos) == 1) {
+        NewEnd = LqHttpPrsEscapeDecodeSz(CurPos, CurPos);
+        *NewEnd = '\0';
+        Hdrs->Fragment = CurPos;
+        CurPos = (NewEnd + 1);
+    }
+    LqSockBufScanf(SockBuf, LQSOCKBUF_PEEK_WHEN_ERR, "%*[ \t]HTTP/%q8u.%q8u", &Hdrs->MajorVer, &Hdrs->MinorVer);
+    LqSockBufScanf(SockBuf, 0, "%?*{^\r\n}%*{\r\n}");
+    HdrName = CurPos;
+    
+    for(;;) {
+        if(LqSockBufScanf(SockBuf, 0, "%*{\r\n}") == 1)
+            break;
+
+        if(LqSockBufScanf(SockBuf, 0, "%?*[ \t]%n%.*[^: \r\n]%n*?[ \t]", &ScannedLen, EndBuf - CurPos,  CurPos, &ScannedLen2) < 2) {
+            if(Hdrs->Hdrs)
+                ___free(Hdrs->Hdrs);
+            ___free(Buffer2);
+            HttpConnData->Flags |= LQHTTPCONN_FLAG_CLOSE;
+            LqHttpConnRspError(SockBuf, 400);
+            goto lblOut;
+        }
+        HdrName = CurPos;
+        CurPos += ((ScannedLen2 - ScannedLen) + 1);
+        if(LqSockBufScanf(SockBuf, 0, ":%?*[ \t]%n%?.*{^\r\n}%n%*{\r\n}", &ScannedLen, EndBuf - CurPos, CurPos, &ScannedLen2) < 3) {
+            if(Hdrs->Hdrs)
+                ___free(Hdrs->Hdrs);
+            ___free(Buffer2);
+            HttpConnData->Flags |= LQHTTPCONN_FLAG_CLOSE;
+            LqHttpConnRspError(SockBuf, 400);
+            goto lblOut;
+        }
+        HdrVal = CurPos;
+        CurPos += ((ScannedLen2 - ScannedLen) + 1);
+        if(Hdrs->CountHdrs >= AllocCountHdrs) {
+            AllocCountHdrs += 8;
+            if((NewHdrs = (LqHttpRcvHdr*)___realloc(Hdrs->Hdrs, AllocCountHdrs * sizeof(LqHttpRcvHdr))) == NULL) {
+                if(Hdrs->Hdrs)
+                    ___free(Hdrs->Hdrs);
+                ___free(Buffer2);
+                HttpConnData->Flags |= LQHTTPCONN_FLAG_CLOSE;
+                LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
+                LqHttpConnRspError(SockBuf, 500);
+                goto lblOut;
+            }
+            Hdrs->Hdrs = NewHdrs;
+        }
+        Hdrs->Hdrs[Hdrs->CountHdrs].Name = HdrName;
+        Hdrs->Hdrs[Hdrs->CountHdrs].Val = HdrVal;
+        if(LqStrUtf8CmpCase(HdrName, "host")) {
+            Hdrs->Host = HdrVal;
+        } else if(LqStrUtf8CmpCase(HdrName, "connection")) {
+            if(LqStrUtf8CmpCaseLen(HdrVal, "close", sizeof("close") - 1))
+                HttpConnData->Flags |= LQHTTPCONN_FLAG_CLOSE;
+        } else if(LqStrUtf8CmpCase(HdrName, "content-length")) {
+            TempLength = 0ll;
+            LqFbuf_snscanf(HdrVal, 100, "%?*[ \t]%lli", &TempLength);
+            if(TempLength >= 0ll)
+                HttpConnData->ContentLength = TempLength;
+        }
+        Hdrs->CountHdrs++;
+    }
+    LqSockBufRcvResetCount(SockBuf);
+    HttpConnData->RcvHdr = Hdrs;
+    LqHttpPthRecognize(SockBuf);
+    if(HttpConnData->Pth == NULL) {
+        LqHttpConnRspError(SockBuf, 404);
+        goto lblOut;
+    }
+    Mdl = LqHttpConnGetMdl(SockBuf);
+	HttpData->StartQueryHndls.Call(SockBuf);
+    Mdl->MethodHandlerProc(SockBuf);
 lblOut:
+    _LqHttpConnAfterCallUserHandler(SockBuf);
+    return;
+}
+
+static void LQ_CALL _LqHttpConnProcForClose(LqSockBuf* Buf, void*) {
+    if(Buf == NULL)
+        return;
+    LqSockBufSetClose(Buf);
+}
+
+static void LQ_CALL _LongPollCloseHandler(LqHttpConn* HttpConn) {
+}
+
+static void _LqHttpConnAfterCallUserHandler(LqHttpConn* HttpConn) {
+	LqFileSz HdrLen, RspLen, ContentLengthLeft;
+	size_t RcvQueueLen;
+	LqHttpConnData* HttpConnData;
+	LqHttpData* HttpData;
+	LqHttpMdl* Mdl;
+	char ServerNameBuf[1024];
+	char MimeBuf[1024];
+	char CacheControl[1024];
+	char Etag[1024];
+	char AllowBuf[1024];
+	char Buf[1024];
+	uint32_t AdditionalHdrsHave = 0;
+	LqTimeSec LastModif = -1ll;
+	LqTimeSec Expires = -1ll;
+	const char *StatusMsg;
+	char *c, *sc, *ec;
+	tm ctm;
+	int RspStatus;
+	int64_t i64;
+	size_t MaxHdrLen;
+
+	Mdl = LqHttpConnGetMdl(HttpConn);
+	HttpConnData = LqHttpConnGetData(HttpConn);
+	HttpData = LqHttpConnGetHttpData(HttpConn);
+	HdrLen = LqSockBufRspLen(HttpConn, true);
+	RspLen = LqSockBufRspLen(HttpConn, false);
+	RcvQueueLen = LqSockBufRcvQueueLen(HttpConn, false);
+	RspStatus = HttpConnData->RspStatus;
+
+	if(RcvQueueLen <= 0) {
+		if(HttpConnData->Flags & (LQHTTPCONN_FLAG_LONG_POLL_OP | LQHTTPCONN_FLAG_MUST_DELETE))
+			return;
+		if(HdrLen <= 0) {
+			AllowBuf[0] = CacheControl[0] = Etag[0] = MimeBuf[0] = '\0';
+			StatusMsg = LqHttpPrsGetMsgByStatus(RspStatus);
+			if(HttpConnData->AdditionalHdrs) {
+				c = HttpConnData->AdditionalHdrs;
+				while(*c != '\0') {
+					for(; (*c == ' ') || (*c == '\t'); c++);
+					sc = c;
+					for(; (*c != ':') && (*c != '\t') && (*c != ' ') && (*c != '\r') && (*c != '\0'); c++);
+					ec = c;
+					for(; (*c != '\r') && (*c != '\0'); c++);
+					if(*c == '\r') {
+						c++;
+						if(*c == '\n')
+							c++;
+					}
+					LQSTR_SWITCH_NI(sc, ec - sc) {
+						LQSTR_CASE_I("connection") AdditionalHdrsHave |= 0x00000001; break;
+						LQSTR_CASE_I("date") AdditionalHdrsHave |= 0x00000002; break;
+						LQSTR_CASE_I("cache-control") AdditionalHdrsHave |= 0x00000004; break;
+						LQSTR_CASE_I("server") AdditionalHdrsHave |= 0x00000008; break;
+						LQSTR_CASE_I("etag") AdditionalHdrsHave |= 0x00000010; break;
+						LQSTR_CASE_I("last-modified") AdditionalHdrsHave |= 0x00000020; break;
+						LQSTR_CASE_I("expires") AdditionalHdrsHave |= 0x00000040; break;
+						LQSTR_CASE_I("allow") AdditionalHdrsHave |= 0x00000080; break;
+						LQSTR_CASE_I("content-type") AdditionalHdrsHave |= 0x00000100; break;
+						LQSTR_CASE_I("location") AdditionalHdrsHave |= 0x00000200; break;
+						LQSTR_CASE_I("content-range") AdditionalHdrsHave |= 0x00000400; break;
+						LQSTR_CASE_I("content-length") AdditionalHdrsHave |= 0x00000800; break;
+					}
+				}
+			}
+			LqTimeGetGmtTm(&ctm);
+			if(!(AdditionalHdrsHave & 0x00000080) && ((RspStatus == 501) || (RspStatus == 405))) {
+				Mdl->AllowProc(HttpConn, AllowBuf, sizeof(AllowBuf) - 1);
+			}
+			if(HttpConnData->RspFileName) {
+				Mdl->GetMimeProc(HttpConnData->RspFileName, HttpConn, MimeBuf, sizeof(MimeBuf) - 1);
+				Mdl->GetCacheInfoProc(HttpConnData->RspFileName, HttpConn, CacheControl, sizeof(CacheControl) - 1, Etag, sizeof(Etag) - 1, &LastModif, &Expires);
+			} else if(RspStatus != 304) {
+				memcpy(CacheControl, "no-cache", sizeof("no-cache"));
+			}
+			if((MimeBuf[0] == '\0') && (HttpConnData->Flags & LQHTTPCONN_FLAG_BIN_RSP)) {
+				memcpy(MimeBuf, "application/octet-stream", sizeof("application/octet-stream"));
+			}
+			if(RspLen <= 0) {
+				switch(RspStatus) {
+					case 200:
+					case 304:
+					case 201:
+					case 202:
+						break;
+					default:
+						LqSockBufPrintf(
+							HttpConn,
+							false,
+							"<html><head></head><body>%i %s</body></html>",
+							RspStatus,
+							StatusMsg
+						);
+						RspLen = LqSockBufRspLen(HttpConn, false);
+				}
+			}
+
+			LqSockBufPrintf(
+				HttpConn,
+				true,
+				"HTTP/%s %i %s\r\n",
+				HttpData->HTTPProtoVer, RspStatus, StatusMsg
+			);
+			if(!(AdditionalHdrsHave & 0x00000001)) {
+				LqSockBufPrintf(HttpConn, true, "Connection: %s\r\n", (HttpConnData->Flags & LQHTTPCONN_FLAG_CLOSE) ? "close" : "Keep-Alive");
+			}
+			if(!(AdditionalHdrsHave & 0x00000002)) {
+				LqSockBufPrintf(HttpConn, true, "Date: " PRINTF_TIME_TM_FORMAT_GMT "\r\n", PRINTF_TIME_TM_ARG_GMT(ctm));
+			}
+			if((CacheControl[0] != '\0') && !(AdditionalHdrsHave & 0x00000004)) {
+				LqSockBufPrintf(HttpConn, true, "Cache-Control: %s\r\n", CacheControl);
+			}
+			if(!(AdditionalHdrsHave & 0x00000008)) {
+				ServerNameBuf[0] = '\0';
+				Mdl->ServerNameProc(HttpConn, ServerNameBuf, sizeof(ServerNameBuf));
+				if(ServerNameBuf[0] != '\0') {
+					LqSockBufPrintf(HttpConn, true, "Server: %s\r\n", ServerNameBuf);
+				}
+			}
+			if((Etag[0] != '\0') && !(AdditionalHdrsHave & 0x00000010)) {
+				LqSockBufPrintf(HttpConn, true, "ETag: %s\r\n", Etag);
+			}
+			if((LastModif != -1ll) && !(AdditionalHdrsHave & 0x00000020)) {
+				LqTimeLocSecToGmtTm(&ctm, LastModif);
+				LqSockBufPrintf(HttpConn, true, "Last-Modified: " PRINTF_TIME_TM_FORMAT_GMT "\r\n", PRINTF_TIME_TM_ARG_GMT(ctm));
+			}
+			if((Expires != -1ll) && !(AdditionalHdrsHave & 0x00000040)) {
+				LqTimeLocSecToGmtTm(&ctm, Expires);
+				LqSockBufPrintf(HttpConn, true, "Expires: " PRINTF_TIME_TM_FORMAT_GMT "\r\n", PRINTF_TIME_TM_ARG_GMT(ctm));
+			}
+			if(AllowBuf[0] != '\0') {
+				LqSockBufPrintf(HttpConn, true, "Allow: %s\r\n", AllowBuf);
+			}
+			if(RspStatus != 304) {
+				if(HttpConnData->BoundaryOrContentRangeOrLocation != NULL) {
+					if(HttpConnData->Flags & LQHTTPCONN_FLAG_BOUNDARY) {
+						if(!(AdditionalHdrsHave & 0x00000100))
+							LqSockBufPrintf(HttpConn, true, "Content-Type: multipart/byteranges; boundary=%s\r\n", HttpConnData->BoundaryOrContentRangeOrLocation);
+					} else if(HttpConnData->Flags & LQHTTPCONN_FLAG_LOCATION) {
+						if(!(AdditionalHdrsHave & 0x00000100))
+							LqSockBufPrintf(HttpConn, true, "Content-Type: %s\r\n", (MimeBuf[0] != '\0') ? MimeBuf : "text/html; charset=\"UTF-8\"");
+						if(!(AdditionalHdrsHave & 0x00000200))
+							LqSockBufPrintf(HttpConn, true, "Location: %s\r\n", HttpConnData->BoundaryOrContentRangeOrLocation);
+					} else {
+						if(!(AdditionalHdrsHave & 0x00000100))
+							LqSockBufPrintf(HttpConn, true, "Content-Type: %s\r\n", (MimeBuf[0] != '\0') ? MimeBuf : "text/html; charset=\"UTF-8\"");
+						if(!(AdditionalHdrsHave & 0x00000400))
+							LqSockBufPrintf(HttpConn, true, "Content-Range: bytes %s\r\n", HttpConnData->BoundaryOrContentRangeOrLocation);
+					}
+				} else if(!(AdditionalHdrsHave & 0x00000100)) {
+					LqSockBufPrintf(HttpConn, true, "Content-Type: %s\r\n", (MimeBuf[0] != '\0') ? MimeBuf : "text/html; charset=\"UTF-8\"");
+				}
+				if(!(AdditionalHdrsHave & 0x00000800))
+					LqSockBufPrintf(HttpConn, true, "Content-Length: %lli\r\n", (long long)RspLen);
+			}
+			if(HttpConnData->AdditionalHdrs)
+				LqSockBufPrintf(HttpConn, true, "%s", HttpConnData->AdditionalHdrs);
+			LqSockBufPrintf(HttpConn, true, "\r\n");
+			HdrLen = LqSockBufRspLen(HttpConn, true);
+		}
+		HttpData->EndResponseHndls.Call(HttpConn);
+		if(HttpConnData->RspFileName) {
+			free(HttpConnData->RspFileName);
+			HttpConnData->RspFileName = NULL;
+		}
+		if(HttpConnData->BoundaryOrContentRangeOrLocation) {
+			free(HttpConnData->BoundaryOrContentRangeOrLocation);
+			HttpConnData->BoundaryOrContentRangeOrLocation = NULL;
+		}
+		if(HttpConnData->AdditionalHdrs) {
+			free(HttpConnData->AdditionalHdrs);
+			HttpConnData->AdditionalHdrsLen = 0;
+			HttpConnData->AdditionalHdrs = NULL;
+		}
+		if((HttpConnData->Flags & LQHTTPCONN_FLAG_NO_BODY) && (RspLen > ((LqFileSz)0))) {
+			LqSockBufRspClearAfterHdr(HttpConn);
+		}
+		ContentLengthLeft = LqHttpConnRcvGetContentLengthLeft(HttpConn);
+		if(ContentLengthLeft > ((LqFileSz)0)) {
+			if(ContentLengthLeft > HttpData->MaxSkipContentLength) {
+				RspLen = HdrLen = ((LqFileSz)1);
+				HttpConnData->Flags |= LQHTTPCONN_FLAG_CLOSE;
+			} else {
+				LqSockBufRcvInFbuf(HttpConn, NULL, NULL, NULL, ContentLengthLeft, false);
+			}
+		}
+		if((HttpConnData->Flags & LQHTTPCONN_FLAG_CLOSE) && ((HdrLen > ((LqFileSz)0)) || (RspLen > ((LqFileSz)0)))) {
+			LqSockBufRspNotifyCompletion(HttpConn, NULL, _LqHttpConnProcForClose);
+		}
+		MaxHdrLen = HttpData->MaxHeadersSize;
+		LqFbuf_snprintf(Buf, sizeof(Buf) - 2, "%%*.%zu{^\r\n\r\n}", MaxHdrLen + ((size_t)4));
+		LqSockBufRcvNotifyWhenMatch(HttpConn, (void*)MaxHdrLen, _LqHttpConnRcvHdrProc, Buf, 1, MaxHdrLen, true);
+		LqSockBufRspUnsetHdr(HttpConn);
+	}
+}
+
+static int _LqHttpRspCheckMatching(char* HdrVal, char* Etag) {
+	char* p = HdrVal;
+	char t = 1;
+	char* i;
+	while(true) {
+		for(; *p == ' '; p++);
+		if(*p == '*') {
+			p++;
+		} else {
+			//Compare Etag
+			for(i = Etag; ; p++, i++) {
+				if(*p != *i) {
+					if(*i == '\0')
+						return 0;
+					else
+						break;
+				}
+				if(*i == '\0')
+					return 0;
+			}
+		}
+		for(; *p == ' '; p++);
+		if(*p == ',') {
+			p++;
+			continue;
+		} else {
+			return 1;
+		}
+	}
+}
+
+static int _LqHttpRspCheckTimeModifyng(char* Hdr, LqTimeSec TimeModify) {
+	LqTimeSec ReqGmtTime = 0;
+	if((LqTimeStrToGmtSec(Hdr, &ReqGmtTime) == -1) || (TimeModify > ReqGmtTime))
+		return 1;
+	return 0;
+}
+
+LQ_EXTERN_C void LQ_CALL LqHttpConnAsyncClose(LqHttpConn* HttpConn) {
+	LqSockBufSetClose(HttpConn);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRspBeginLongPoll(LqHttpConn* HttpConn, void (LQ_CALL *LongPollCloseHandler)(LqHttpConn*)) {
+    LqHttpConnData* HttpConnData;
+    bool Res = false;
+    LqSockBufLock(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    if(HttpConnData->Flags & LQHTTPCONN_FLAG_LONG_POLL_OP) {
+        lq_errno_set(EALREADY);
+        goto lblErr;
+    }
+    HttpConnData->Flags |= LQHTTPCONN_FLAG_LONG_POLL_OP;
+    HttpConnData->LongPollCloseHandler = ((LongPollCloseHandler != NULL)? LongPollCloseHandler: _LongPollCloseHandler);
+lblErr:
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRspEndLongPoll(LqHttpConn* HttpConn) {
+    LqHttpConnData* HttpConnData;
+    bool Res = false;
+    LqSockBufLock(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    if(!(HttpConnData->Flags & LQHTTPCONN_FLAG_LONG_POLL_OP)) {
+        lq_errno_set(ENOENT);
+        goto lblErr;
+    }
+    HttpConnData->Flags &= ~LQHTTPCONN_FLAG_LONG_POLL_OP;
+    HttpConnData->LongPollCloseHandler = NULL;
+    if(HttpConnData->Flags & LQHTTPCONN_FLAG_IN_LONG_POLL_CLOSE_HANDLER) {
+        Res = true;
+        goto lblErr;
+    }
+    if(HttpConnData->Flags & LQHTTPCONN_FLAG_MUST_DELETE)
+        _LqHttpConnCloseHandler(HttpConn);
+    else
+        _LqHttpConnAfterCallUserHandler(HttpConn);
+	Res = true;
+lblErr:
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C void LQ_CALL LqHttpConnRspError(LqHttpConn* HttpConn, int Code) {
+    LqHttpConnData* HttpConnData;
+    LqHttpMdl* Mdl;
+
+    LqSockBufLock(HttpConn);
+    Mdl = LqHttpConnGetMdl(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    HttpConnData->RspStatus = Code;
+    Mdl->RspErrorProc(HttpConn, Code);
+    LqSockBufUnlock(HttpConn);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRspFile(LqHttpConn* HttpConn, const char* PathToFile) {
+    LqHttpConnData* HttpConnData;
+    bool Res = false;
+
+    LqSockBufLock(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    if(PathToFile == NULL) {
+        if((PathToFile = LqHttpConnRcvGetFileName(HttpConn)) == NULL) {
+            lq_errno_set(ENODATA);
+            goto lblOut;
+        }
+    }
+    if(Res = LqSockBufRspFile(HttpConn, PathToFile)) {
+        HttpConnData = LqHttpConnGetData(HttpConn);
+        if(HttpConnData->RspFileName)
+            free(HttpConnData->RspFileName);
+        HttpConnData->RspFileName = LqStrDuplicate(PathToFile);
+    }
+lblOut:
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRspFilePart(LqHttpConn* HttpConn, const char* PathToFile, LqFileSz OffsetInFile, LqFileSz Length) {
+    LqHttpConnData* HttpConnData;
+    bool Res = false;
+    LqSockBufLock(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    if(PathToFile == NULL) {
+        if((PathToFile = LqHttpConnRcvGetFileName(HttpConn)) == NULL) {
+            lq_errno_set(ENODATA);
+            goto lblOut;
+        }
+    }
+    if(Res = LqSockBufRspFilePart(HttpConn, PathToFile, OffsetInFile, Length)) {
+        if(HttpConnData->RspFileName)
+            free(HttpConnData->RspFileName);
+        HttpConnData->RspFileName = LqStrDuplicate(PathToFile);
+    }
+lblOut:
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRspRedirection(LqHttpConn* HttpConn, int StatusCode, const char* Link) {
+    LqHttpConnData* HttpConnData;
+    bool Res = false;
+    LqSockBufLock(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    if((Link == NULL) || (StatusCode == 0)) {
+        if((HttpConnData->Pth != NULL) && ((HttpConnData->Pth->Type & LQHTTPPTH_TYPE_SEP) == LQHTTPPTH_TYPE_FILE_REDIRECTION)) {
+            if(StatusCode == 0)
+                StatusCode = HttpConnData->Pth->StatusCode;
+            if(Link == NULL) 
+                Link = HttpConnData->Pth->Location;
+        } else {
+            lq_errno_set(ENODATA);
+            goto lblOut;
+        }
+    }
+    HttpConnData->BoundaryOrContentRangeOrLocation = LqStrDuplicate(Link);
+    HttpConnData->Flags |= LQHTTPCONN_FLAG_LOCATION;
+    HttpConnData->RspStatus = StatusCode;
+    Res = true;
+lblOut:
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C int LQ_CALL LqHttpConnRetrieveResponseStatus(LqHttpConn* HttpConn, const char* PathToFile) {
+    LqHttpConnData* HttpConnData;
+    LqHttpRcvHdrs* RcvHdr;
+    LqHttpPth* Pth;
+    LqHttpMdl* Mdl;
+    int Res = 0;
+    size_t i;
+    char Etag[1024];
+    LqTimeSec LastModificate = -1;
+    int IfNoneMatch = -1;
+    int IfMatch = -1;
+    int IfModSince = -1;
+    int IfUnmodSince = -1;
+    int IfRange = -1;
+    bool IsHaveCond = false;
+    char* RangeHdr = NULL;
+
+    Etag[0] = Etag[sizeof(Etag) - 1] = '\0';
+    LqSockBufLock(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    Mdl = LqHttpConnGetMdl(HttpConn);
+    Pth = HttpConnData->Pth;
+    if(PathToFile == NULL) {
+        if((PathToFile = LqHttpConnRcvGetFileName(HttpConn)) == NULL) {
+            Res = 404;
+            goto lblOut;
+        }
+    }
+
+    Mdl->GetCacheInfoProc(PathToFile, HttpConn, NULL, 0, Etag, sizeof(Etag) - 1, &LastModificate, NULL);
+    if((RcvHdr = HttpConnData->RcvHdr) == NULL) {
+        Res = 200;
+        goto lblOut;
+    }
+
+    for(i = 0 ;i < RcvHdr->CountHdrs;i++) {
+        LQSTR_SWITCH_I(RcvHdr->Hdrs[i].Name) {
+            LQSTR_CASE_I("if-range") {
+                if(IfRange != -1) {
+                    Res = 200;
+                    goto lblOut;
+                }
+                IfRange = _LqHttpRspCheckMatching(RcvHdr->Hdrs[i].Val, Etag);
+                break;
+            }
+            LQSTR_CASE_I("if-none-match") {
+                if(IfNoneMatch != -1) {
+                    Res = 200;
+                    goto lblOut;
+                }
+                IfNoneMatch = _LqHttpRspCheckMatching(RcvHdr->Hdrs[i].Val, Etag);
+                IsHaveCond = true;
+                break;
+            }
+            LQSTR_CASE_I("if-match") {
+                if(IfMatch != -1) {
+                    Res = 200;
+                    goto lblOut;
+                }
+                IfMatch = _LqHttpRspCheckMatching(RcvHdr->Hdrs[i].Val, Etag);
+                break;
+            }
+            LQSTR_CASE_I("if-modified-since") {
+                if(IfModSince != -1) {
+                    Res = 200;
+                    goto lblOut;
+                }
+                IfModSince = _LqHttpRspCheckTimeModifyng(RcvHdr->Hdrs[i].Val, LastModificate);
+                IsHaveCond = true;
+                break;
+            }
+            LQSTR_CASE_I("if-unmodified-since") {
+                if(IfUnmodSince != -1) {
+                    Res = 200;
+                    goto lblOut;
+                }
+                IfUnmodSince = _LqHttpRspCheckTimeModifyng(RcvHdr->Hdrs[i].Val, LastModificate);
+                break;
+            }
+            LQSTR_CASE_I("range") {
+                if(RangeHdr != NULL) {
+                    Res = 200;
+                    goto lblOut;
+                }
+                RangeHdr = RcvHdr->Hdrs[i].Val;
+                break;
+            }
+        }
+    }
+    if((IfMatch == 1) || (IfUnmodSince == 1)) {
+        Res = 412;
+        goto lblOut;
+    }
+    if(IsHaveCond && (IfNoneMatch < 1) && (IfModSince < 1)) {
+        Res = 304;
+        goto lblOut;
+    } else {
+        if((RangeHdr != NULL) && (IfRange < 1)) {
+            Res = 206;
+            goto lblOut;
+        }
+    }
+    Res = 200;
+lblOut:
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRspFileMultipart(LqHttpConn* HttpConn, const char* PathToFile, const char* Boundary, const LqFileSz* Ranges, int CountRanges) {
+    LqHttpConnData* HttpConnData;
+    LqHttpMdl* Mdl;
+    LqFileStat FileStat;
+    size_t i;
+    LqFileSz MultipartRanges[20 * 2];
+    const LqFileSz* CurRng;
+    char MimeBuf[1024];
+    bool Res = false;
+    LqFileSz StartPos, EndPos;
+
+    MimeBuf[sizeof(MimeBuf) - 1] = MimeBuf[0] = '\0';
+    LqSockBufLock(HttpConn);
+    Mdl = LqHttpConnGetMdl(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    if(PathToFile == NULL) {
+        if((PathToFile = LqHttpConnRcvGetFileName(HttpConn)) == NULL) {
+            lq_errno_set(ENODATA);
+            goto lblOut;
+        }
+    }
+    if((Ranges == NULL) || (CountRanges < 0)) {
+        CountRanges = LqHttpConnRspRetrieveMultipartRanges(HttpConn, MultipartRanges, 19);
+        if(CountRanges <= 0) {
+            lq_errno_set(ENOENT);
+            goto lblOut;
+        }
+    }
+    Mdl->GetMimeProc(PathToFile, HttpConn, MimeBuf, sizeof(MimeBuf) - 1);
+    if(Boundary == NULL) {
+        Boundary = "z3d6b6a416f9b53e416f9b5z";
+    }
+    if(LqFileGetStat(PathToFile, &FileStat) < 0) {
+        goto lblOut;
+    }
+    CurRng = Ranges;
+    for(i = 0; i < CountRanges; i++, CurRng += 2) {
+        StartPos = (CurRng[0] > FileStat.Size) ? FileStat.Size : CurRng[0];
+        if(StartPos < 0) {
+            StartPos = (StartPos < FileStat.Size) ? (FileStat.Size + StartPos) : 0;
+        }
+        EndPos = (CurRng[1] > FileStat.Size) ? FileStat.Size : CurRng[1];
+        if(EndPos < 0) {
+            EndPos = (EndPos < FileStat.Size) ? (FileStat.Size + EndPos) : 0;
+        }
+        if(StartPos >= EndPos) {
+            lq_errno_set(EINVAL);
+            goto lblOut;
+        }
+    }
+    if(CountRanges > 1) {
+        CurRng = Ranges;
+        for(i = 0; i < CountRanges; i++, CurRng += 2) {
+            StartPos = (CurRng[0] > FileStat.Size) ? FileStat.Size : CurRng[0];
+            if(StartPos < 0) {
+                StartPos = (StartPos < FileStat.Size) ? (FileStat.Size + StartPos) : 0;
+            }
+            EndPos = (CurRng[1] > FileStat.Size) ? FileStat.Size : CurRng[1];
+            if(EndPos < 0) {
+                EndPos = (EndPos < FileStat.Size) ? (FileStat.Size + EndPos) : 0;
+            }
+            LqSockBufPrintf(
+                HttpConn,
+                false,
+                "\r\n--%s\r\n"
+                "Content-Type: %s\r\n"
+                "Content-Range: bytes %lli-%lli/%lli\r\n"
+                "\r\n",
+                Boundary,
+                ((MimeBuf[0] == '\0') ? "application/octet-stream" : MimeBuf),
+                (long long)StartPos, (long long)(EndPos - 1), (long long)FileStat.Size
+            );
+
+            if(!LqSockBufRspFilePart(HttpConn, PathToFile, StartPos, EndPos - StartPos)) {
+                LqSockBufRspClearAfterHdr(HttpConn);
+                goto lblOut;
+            }
+            LqSockBufPrintf(
+                HttpConn,
+                false,
+                "\r\n--%s--",
+                Boundary
+            );
+        }
+    }
+    if(HttpConnData->BoundaryOrContentRangeOrLocation != NULL) {
+        free(HttpConnData->BoundaryOrContentRangeOrLocation);
+        HttpConnData->BoundaryOrContentRangeOrLocation = NULL;
+    }
+    HttpConnData->Flags &= ~(LQHTTPCONN_FLAG_BOUNDARY | LQHTTPCONN_FLAG_LOCATION);
+    if(HttpConnData->RspFileName != NULL) {
+        free(HttpConnData->RspFileName);
+        HttpConnData->RspFileName = NULL;
+    }
+    if(CountRanges == 1) {
+        if(!LqSockBufRspFilePart(HttpConn, PathToFile, StartPos, EndPos - StartPos)) {
+            goto lblOut;
+        }
+        LqFbuf_snprintf(MimeBuf, sizeof(MimeBuf), "%lli-%lli/%lli", (long long)StartPos, (long long)(EndPos - 1), (long long)FileStat.Size);
+        HttpConnData->BoundaryOrContentRangeOrLocation = LqStrDuplicate(MimeBuf);
+    } else {
+        HttpConnData->BoundaryOrContentRangeOrLocation = LqStrDuplicate(Boundary);
+        HttpConnData->Flags |= LQHTTPCONN_FLAG_BOUNDARY;
+    }
+    HttpConnData->RspFileName = LqStrDuplicate(PathToFile);
+    HttpConnData->RspStatus = 206;
+    Res = true;
+lblOut:
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C int LQ_CALL LqHttpConnRspRetrieveMultipartRanges(LqHttpConn* HttpConn, LqFileSz* DestRanges, int CountRanges) {
+    int Res = -1;
+    const char* RangeHdrVal;
+    size_t SourceLen;
+    int n, n2, n3, k;
+    long long FilePos, FilePos2;
+    LqFileSz* CurRng;
+
+    LqSockBufLock(HttpConn);
+    if((RangeHdrVal = LqHttpConnRcvHdrGet(HttpConn, "range")) == NULL) {
+        lq_errno_set(ENOENT);
+        goto lblOut;
+    }
+    SourceLen = LqStrLen(RangeHdrVal);
+    n = -1;
+    LqFbuf_snscanf(RangeHdrVal, SourceLen, "%#*{bytes=}%n", &n);
+    if(n == -1) {
+        goto lblOut;
+    }
+    k = n;
+    for(Res = 0; (Res < CountRanges) && (k < SourceLen); DestRanges += 2, Res++) {
+        CurRng = DestRanges;
+        n2 = n3 = n = -1;
+        FilePos = FilePos2 = LQ_MAX_CONTENT_LEN;
+        LqFbuf_snscanf(RangeHdrVal + k, SourceLen - k, "%?*[ \t]%lli%?*[ \t]%n-%n%?*[ \t]%lli%?*[ \t,]%n", &FilePos, &n, &n2, &FilePos2, &n3);
+        if(n < 0) {
+            break;
+        }
+        CurRng[0] = FilePos;
+        CurRng[1] = FilePos2 + 1;
+        if(n3 > 0)
+            k += n3;
+        else if(n2 > 0)
+            k += n2;
+        else
+            k += n;
+    }
+lblOut:
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C const char* LQ_CALL LqHttpConnRcvGetFileName(LqHttpConn* HttpConn) {
+    LqHttpConnData* HttpConnData;
+    const char* Res = NULL;
+    LqSockBufLock(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    if(HttpConnData->Pth == NULL) {
+        goto lblOut;
+    }
+    switch(HttpConnData->Pth->Type & LQHTTPPTH_TYPE_SEP) {
+        case LQHTTPPTH_TYPE_DIR: case LQHTTPPTH_TYPE_FILE:
+            Res = HttpConnData->Pth->RealPath;
+            break;
+        default:
+            goto lblOut;
+    }
+lblOut:
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRspFileAuto(LqHttpConn* HttpConn, const char* PathToFile, const char* Boundary) {
+    int Status;
+    bool Res = false;
+    LqFileSz MultipartRanges[20 * 2];
+    int MultipartRangesCount;
+    char Buf[1024];
+    LqFileStat FileStat;
+    LqHttpConnData* HttpConnData;
+
+    LqSockBufLock(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    Status = LqHttpConnRetrieveResponseStatus(HttpConn, PathToFile);
+    switch(Status) {
+        case 200:
+            if(!(Res = LqHttpConnRspFile(HttpConn, PathToFile))) {
+                if(lq_errno == ENOENT) {
+                    LqHttpConnRspError(HttpConn, 404);
+                } else {
+                    LqHttpConnRspError(HttpConn, 500);
+                }
+            }
+            break;
+        case 206:
+            MultipartRangesCount = LqHttpConnRspRetrieveMultipartRanges(HttpConn, MultipartRanges, 19);
+            if(MultipartRangesCount <= 0) {
+                if(PathToFile == NULL) {
+                    if((PathToFile = LqHttpConnRcvGetFileName(HttpConn)) == NULL)
+                        goto lblOut2;
+                }
+                if(LqFileGetStat(PathToFile, &FileStat) < 0) {
+lblOut2:
+                    LqHttpConnRspError(HttpConn, 404);
+                    Res = true;
+                    goto lblOut;
+                }
+                LqFbuf_snprintf(Buf, sizeof(Buf) - 1, "*/%lli", (long long)FileStat.Size);
+                if(HttpConnData->BoundaryOrContentRangeOrLocation) {
+                    free(HttpConnData->BoundaryOrContentRangeOrLocation);
+                }
+                HttpConnData->Flags &= ~(LQHTTPCONN_FLAG_BOUNDARY | LQHTTPCONN_FLAG_LOCATION);
+                HttpConnData->BoundaryOrContentRangeOrLocation = LqStrDuplicate(Buf);
+                LqHttpConnRspError(HttpConn, 416);
+                Res = true;
+                goto lblOut;
+            }
+            Res = LqHttpConnRspFileMultipart(HttpConn, PathToFile, Boundary, MultipartRanges, MultipartRangesCount);
+            break;
+        default:
+            LqHttpConnRspError(HttpConn, Status);
+            Res = true;
+    }
+lblOut:
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnRspPrintf(LqHttpConn* HttpConn, const char* Fmt, ...) {
+    va_list Va;
+    intptr_t Res;
+    va_start(Va, Fmt);
+    Res = LqSockBufPrintfVa(HttpConn, false, Fmt, Va);
+    va_end(Va);
+    return Res;
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnRspPrintfVa(LqHttpConn* HttpConn, const char* Fmt, va_list Va) {
+    return LqSockBufPrintfVa(HttpConn, false, Fmt, Va);
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnRspHdrPrintf(LqHttpConn* HttpConn, const char* Fmt, ...) {
+    va_list Va;
+    intptr_t Res;
+    va_start(Va, Fmt);
+    Res = LqSockBufPrintfVa(HttpConn, true, Fmt, Va);
+    va_end(Va);
+    return Res;
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnRspHdrPrintfVa(LqHttpConn* HttpConn, const char* Fmt, va_list Va) {
+    return LqSockBufPrintfVa(HttpConn, true, Fmt, Va);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRspHdrInsert(LqHttpConn* HttpConn, const char* HeaderName, const char* HeaderVal) {
+	bool Res = false;
+	LqHttpConnData* HttpConnData;
+	char*c, *StartNameHdr, *EndNameHdr,  *StartLine, *EndLine, *StartBuf;
+	int HdrValLen = -1, HdrNameLen, DeleteSize, AppendSize, NewLength;
+
+	if(HeaderVal != NULL)
+		HdrValLen = LqStrLen(HeaderVal);
+	HdrNameLen = LqStrLen(HeaderName);
+	LqSockBufLock(HttpConn);
+	HttpConnData = LqHttpConnGetData(HttpConn);
+	StartBuf = c = HttpConnData->AdditionalHdrs;
+	if(c != NULL) {
+		while(*c != '\0') {
+			StartLine = c;
+			for(; (*c == ' ') || (*c == '\t'); c++);
+			StartNameHdr = c;
+			for(; (*c != ':') && (*c != '\t') && (*c != ' ') && (*c != '\r') && (*c != '\n') && (*c != '\0'); c++);
+			EndNameHdr = c;
+			for(; (*c != '\r') && (*c != '\n') && (*c != '\0'); c++);
+			for(; (*c == '\r') || (*c == '\n'); c++);
+			if(((EndNameHdr - StartNameHdr) == HdrNameLen) && LqStrUtf8CmpCaseLen(HeaderName, StartNameHdr, HdrNameLen)) {
+				EndLine = c;
+				DeleteSize = EndLine - StartLine;
+				memmove(StartLine, EndLine, ((StartBuf + HttpConnData->AdditionalHdrsLen) - EndLine) + 1);
+				if(HdrValLen == -1) { /* If we want delete line*/
+					HttpConnData->AdditionalHdrs = (char*)realloc(StartBuf, (HttpConnData->AdditionalHdrsLen - DeleteSize) + 1);
+					Res = true;
+				}
+				HttpConnData->AdditionalHdrsLen -= DeleteSize;
+				break;
+			}
+		}
+	}
+	if(HdrValLen != -1) {
+		NewLength = HttpConnData->AdditionalHdrsLen + HdrNameLen + HdrValLen + (sizeof(": \r\n") - 1);
+		if((StartBuf = (char*)realloc(HttpConnData->AdditionalHdrs, NewLength + 1)) == NULL) {
+			lq_errno_set(ENOMEM);
+			goto lblErr;
+		}
+		HttpConnData->AdditionalHdrs = (char*)StartBuf;
+		LqFbuf_snprintf(HttpConnData->AdditionalHdrs + HttpConnData->AdditionalHdrsLen, 0xffff, "%s: %s\r\n", HeaderName, HeaderVal);
+		HttpConnData->AdditionalHdrsLen = NewLength;
+		Res = true;
+	}
+lblErr:
+	LqSockBufUnlock(HttpConn);
+	return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRspHdrGet(LqHttpConn* HttpConn, const char* HeaderName, const char** StartVal, size_t* Len) {
+	bool Res = false;
+	LqHttpConnData* HttpConnData;
+	char*c, *StartNameHdr, *EndNameHdr, *StartValHdr, *EndValHdr;
+	int HdrNameLen;
+
+	HdrNameLen = LqStrLen(HeaderName);
+	LqSockBufLock(HttpConn);
+	if((c = LqHttpConnGetData(HttpConn)->AdditionalHdrs) != NULL) {
+		while(*c != '\0') {
+			for(; (*c == ' ') || (*c == '\t'); c++);
+			StartNameHdr = c;
+			for(; (*c != ':') && (*c != '\t') && (*c != ' ') && (*c != '\r') && (*c != '\n') && (*c != '\0'); c++);
+			EndNameHdr = c;
+			for(; (*c == ' ') || (*c == '\t') || (*c == ':'); c++);
+			StartValHdr = c;
+			for(; (*c != '\r') && (*c != '\n') && (*c != '\0'); c++);
+			EndValHdr = c;
+			if(((EndNameHdr - StartNameHdr) == HdrNameLen) && LqStrUtf8CmpCaseLen(HeaderName, StartNameHdr, HdrNameLen)) {
+				*StartVal = StartValHdr;
+				*Len = EndValHdr - StartValHdr;
+				Res = true;
+				break;
+			}
+			for(; (*c == '\r') || (*c == '\n'); c++);
+		}
+	}
+	LqSockBufUnlock(HttpConn);
+	return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRspHdrEnumNext(LqHttpConn* HttpConn, const char** StartName, size_t* Len, const char** StartVal, size_t* ValLen) {
+	bool Res = false;
+	LqHttpConnData* HttpConnData;
+	char*c, *StartNameHdr, *EndNameHdr, *StartValHdr, *EndValHdr;
+	int HdrNameLen;
+
+	HdrNameLen = *Len;
+	LqSockBufLock(HttpConn);
+	if((c = LqHttpConnGetData(HttpConn)->AdditionalHdrs) != NULL) {
+		if(*StartName == NULL) {
+			for(; (*c == ' ') || (*c == '\t'); c++);
+			StartNameHdr = c;
+			for(; (*c != ':') && (*c != '\t') && (*c != ' ') && (*c != '\r') && (*c != '\n') && (*c != '\0'); c++);
+			EndNameHdr = c;
+			if(StartNameHdr != EndNameHdr) {
+				*StartName = StartNameHdr;
+				*Len = EndNameHdr - StartNameHdr;
+				if(StartVal != NULL) {
+					for(; (*c == ' ') || (*c == '\t') || (*c == ':'); c++);
+					StartValHdr = c;
+					for(; (*c != '\r') && (*c != '\n') && (*c != '\0'); c++);
+					EndValHdr = c;
+					*StartVal = StartValHdr;
+					*ValLen = EndValHdr - StartValHdr;
+				}
+				Res = true;
+			}
+		} else {
+			while(*c != '\0') {
+				for(; (*c == ' ') || (*c == '\t'); c++);
+				StartNameHdr = c;
+				for(; (*c != ':') && (*c != '\t') && (*c != ' ') && (*c != '\r') && (*c != '\n') && (*c != '\0'); c++);
+				EndNameHdr = c;
+				for(; (*c != '\r') && (*c != '\n') && (*c != '\0'); c++);
+				for(; (*c == '\r') || (*c == '\n'); c++);
+				if(((EndNameHdr - StartNameHdr) == HdrNameLen) && LqStrUtf8CmpCaseLen(*StartName, StartNameHdr, HdrNameLen)) {
+					for(; (*c == ' ') || (*c == '\t'); c++);
+					StartNameHdr = c;
+					for(; (*c != ':') && (*c != '\t') && (*c != ' ') && (*c != '\r') && (*c != '\n') && (*c != '\0'); c++);
+					EndNameHdr = c;
+					if(StartNameHdr != EndNameHdr) {
+						*StartName = StartNameHdr;
+						*Len = EndNameHdr - StartNameHdr;
+						if(StartVal != NULL) {
+							for(; (*c == ' ') || (*c == '\t') || (*c == ':'); c++);
+							StartValHdr = c;
+							for(; (*c != '\r') && (*c != '\n') && (*c != '\0'); c++);
+							EndValHdr = c;
+							*StartVal = StartValHdr;
+							*ValLen = EndValHdr - StartValHdr;
+						}
+						Res = true;
+					}
+					break;
+				}
+			}
+		}
+	}
+	LqSockBufUnlock(HttpConn);
+	return Res;
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnRspWrite(LqHttpConn* HttpConn, const void* Source, size_t Size) {
+    intptr_t Res;
+    LqHttpConnData* HttpConnData;
+
+    LqSockBufLock(HttpConn);
+    if((Res = LqSockBufWrite(HttpConn, false, Source, Size)) > 0) {
+        HttpConnData = LqHttpConnGetData(HttpConn);
+        HttpConnData->Flags |= LQHTTPCONN_FLAG_BIN_RSP;
+    }
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C const char* LQ_CALL LqHttpConnRcvHdrGet(LqHttpConn* HttpConn, const char* Name) {
+    LqHttpConnData* HttpConnData;
+    LqHttpRcvHdrs* Hdrs;
+    size_t i;
+
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    Hdrs = HttpConnData->RcvHdr;
+    if(Hdrs == NULL)
+        return NULL;
+    for(i = 0; i < Hdrs->CountHdrs; i++) {
+        if(LqStrUtf8CmpCase(Name, Hdrs->Hdrs[i].Name))
+            return Hdrs->Hdrs[i].Val;
+    }
+    return NULL;
+}
+
+LQ_EXTERN_C int LQ_CALL LqHttpConnRcvGetBoundary(LqHttpConn* HttpConn, char* Dest, int MaxDest) {
+    const char* ContentType;
+    size_t ContentTypeLen;
+    int n, n2, Res = -1;
+
+    LqSockBufLock(HttpConn);
+    if((ContentType = LqHttpConnRcvHdrGet(HttpConn, "content-type")) == NULL) {
+        lq_errno_set(ENODATA);
+        goto lblErr;
+    }
+    n2 = n = -1;
+    
+    ContentTypeLen = LqStrLen(ContentType);
+    if(Dest) {
+        Dest[0] = Dest[MaxDest - 1] = '\0';
+        LqFbuf_snscanf(ContentType, ContentTypeLen, "%?*[ \t]%#*{multipart/form-data}%#*{^boundary=}%#*{boundary=}%n%.*[^ ;\r\n]%n", &n, (int)(MaxDest - 1), Dest, &n2);
+    } else {
+        LqFbuf_snscanf(ContentType, ContentTypeLen, "%?*[ \t]%#*{multipart/form-data}%#*{^boundary=}%#*{boundary=}%n%*[^ ;\r\n]%n", &n, &n2);
+    }
+    if((n2 == -1) || (n == -1)) {
+        lq_errno_set(ENODATA);
+        goto lblErr;
+    }
+    Res = n2 - n;
+lblErr:
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C LqFileSz LQ_CALL LqHttpConnRcvGetContentLength(LqHttpConn* HttpConn) {
+    LqFileSz Res;
+    LqHttpConnData* HttpConnData;
+    LqSockBufLock(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    Res = HttpConnData->ContentLength;
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C LqFileSz LQ_CALL LqHttpConnRcvGetContentLengthLeft(LqHttpConn* HttpConn) {
+    LqFileSz Res;
+    LqHttpConnData* HttpConnData;
+    int64_t CounterVal;
+
+    LqSockBufLock(HttpConn);
+    CounterVal = LqSockBufRcvGetCount(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    if(HttpConnData->ContentLength == -((LqFileSz)1)) {
+        Res = -((LqFileSz)1);
+    }if(HttpConnData->ContentLength < CounterVal) {
+        Res = 0;
+    } else {    
+        Res = HttpConnData->ContentLength - CounterVal;
+    }
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnRcvTryScanf(LqHttpConn* HttpConn, int Flags, const char* Fmt, ...){
+	va_list Va;
+	intptr_t Res;
+
+	va_start(Va, Fmt);
+	Res = LqSockBufScanfVa(HttpConn, Flags, Fmt, Va);
+	va_end(Va);
+	return Res;
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnRcvTryScanfVa(LqHttpConn* HttpConn, int Flags, const char* Fmt, va_list Va) {
+	return LqSockBufScanfVa(HttpConn, Flags, Fmt, Va);
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnRcvTryRead(LqHttpConn* HttpConn, void* Buf, size_t Len) {
+	return LqSockBufRead(HttpConn, Buf, Len);
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqHttpConnRcvTryPeek(LqHttpConn* HttpConn, void* Buf, size_t Len) {
+	return LqSockBufPeek(HttpConn, Buf, Len);
+}
+
+LQ_EXTERN_C LqFileSz LQ_CALL LqHttpConnRspGetContentLength(LqHttpConn* HttpConn) {
+	return LqSockBufRspLen(HttpConn, false);
+}
+
+LQ_EXTERN_C void LQ_CALL LqHttpMultipartHdrsDelete(LqHttpMultipartHdrs* Target) {
+    if(Target->Hdrs)
+        ___free(Target->Hdrs);
+    ___free(Target);
+}
+
+LQ_EXTERN_C int LQ_CALL LqHttpConnRcvMultipartHdrs(
+    LqHttpConn* HttpConn,
+    void(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*),
+    void* UserData,
+    const char* Boundary,
+    LqHttpMultipartHdrs** Dest
+) {
+    int Res = -1, Start, End, n;
+    _LqRcvMultipartHdrsData* Data;
+    char Buf[4096], BoundaryBuf[4096];
+    LqFileSz MaxLength;
+    LqHttpMultipartHdrs* Hdrs;
+
+    LqSockBufLock(HttpConn);
+    if(Boundary == NULL) {
+        if(LqHttpConnRcvGetBoundary(HttpConn, BoundaryBuf, sizeof(BoundaryBuf)) <= 0) {
+            lq_errno_set(ENODATA);
+            goto lblErr;
+        }
+        Boundary = BoundaryBuf;
+    }
+    if(LqStrChr(Boundary, '%')) {
+        lq_errno_set(EINVAL);
+        goto lblErr;
+    }
+
+    if(LqFbuf_snprintf(Buf, sizeof(Buf) - 1, "\r\n--%s--%*{\r\n}", Boundary) > (sizeof(Buf) - 3)) {
+        lq_errno_set(EOVERFLOW);
+        goto lblErr;
+    }
+    if(LqSockBufScanf(HttpConn, LQSOCKBUF_PEEK, Buf) == 1) {
+        LqSockBufScanf(HttpConn, 0, Buf);
+        LqSockBufUnlock(HttpConn);
+        return 0;
+    }
+    MaxLength = LqHttpConnRcvGetContentLengthLeft(HttpConn);
+    if(MaxLength == -((LqFileSz)1)){
+        lq_errno_set(EFAULT);
+        goto lblErr;
+    }
+    if(MaxLength > 32768)
+        MaxLength = 32768;
+    if(LqFbuf_snprintf(Buf, sizeof(Buf) - 1, "\r\n--%s\r\n%n%%n%%*.%lli{^\r\n\r\n}%%n%%*{\r\n\r\n}", Boundary, &n, (long long)MaxLength) > (sizeof(Buf) - 3)) {
+        lq_errno_set(EOVERFLOW);
+        goto lblErr;
+    }
+    End = Start = -1;
+    if((LqSockBufScanf(HttpConn, LQSOCKBUF_PEEK, Buf, &Start, &End) < 2) || (Dest == NULL)) {
+        if((Start == -1) && (LqSockBufRcvBufSz(HttpConn) > n)) {
+            lq_errno_set(ESRCH);
+            goto lblErr;
+        }
+        if((End - Start) > (MaxLength - 2)) {
+            lq_errno_set(E2BIG);
+            goto lblErr;
+        }
+        if(LqSockBufGetErrFlags(HttpConn) & LQSOCKBUF_FLAGS_READ_ERROR) {
+            lq_errno_set(EPIPE);
+            goto lblErr;
+        }
+        if(CompleteOrCancelProc == NULL) {
+            Res = 0;
+            goto lblErr;
+        }
+        if((Data = LqFastAlloc::New<_LqRcvMultipartHdrsData>()) == NULL) {
+            lq_errno_set(ENOMEM);
+            goto lblErr;
+        }
+
+        if((Data->Boundary = LqStrDuplicate(Boundary)) == NULL) {
+            lq_errno_set(ENOMEM);
+            goto lblErr2;
+        }
+        Data->MaxLen = MaxLength;
+        Data->UserData = UserData;
+        Data->CompleteOrCancelProc = CompleteOrCancelProc;
+
+        LqFbuf_snprintf(Buf, sizeof(Buf) - 1, "\r\n--%s\r\n%%*.%lli{^\r\n\r\n}%%*{\r\n\r\n}", Boundary, (long long)MaxLength);
+        if(LqSockBufRcvNotifyWhenMatch(HttpConn, Data, _LqHttpConnRcvMultipartHdrsProc, Buf, 2, MaxLength, false)) {
+            Res = 0;
+        } else {
+            free(Data->Boundary);
+lblErr2:
+            LqFastAlloc::Delete(Data);
+        }
+        goto lblErr;
+    } else {
+        Hdrs = _LqHttpMultipartHdrsRead(HttpConn, Boundary, MaxLength);
+        if(Hdrs != NULL) {
+            *Dest = Hdrs;
+            Res = 1;
+        }
+    }
+lblErr:
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRcvFile(
+    LqHttpConn* HttpConn, 
+    const char* Path, 
+    bool(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*),
+    void* UserData,
+    LqFileSz ReadLen, 
+    int Access, 
+    bool IsReplace,
+    bool IsCreateSubdir
+) {
+    LqHttpConnData* HttpConnData;
+    bool Res;
+    int Fd;
+    _LqRecvStream* Dest;
+    const char* ContentLen;
+    long long SizeFile;
+
+    Res = false;
+    Dest = NULL;
+    Fd = -1;
+    LqSockBufLock(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    if(Path == NULL) {
+        if((Path = LqHttpConnRcvGetFileName(HttpConn)) == NULL) {
+            lq_errno_set(ENODATA);
+            goto lblErr;
+        }
+    }
+    if(ReadLen == -1) {
+        if((ReadLen = LqHttpConnRcvGetContentLengthLeft(HttpConn)) == -((LqFileSz)1)) {
+            lq_errno_set(ENODATA);
+            goto lblErr;
+        }
+    }
+    if((Dest = LqFastAlloc::New<_LqRecvStream>()) == NULL) {
+        LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
+        lq_errno_set(ENOMEM);
+        goto lblErr;
+    }
+    if((Fd = LqFileTrdCreate(Path, LQ_O_CREATE | LQ_O_BIN | LQ_O_WR | LQ_O_TRUNC | ((IsCreateSubdir) ? LQ_TC_SUBDIR : 0) | ((IsReplace) ? LQ_TC_REPLACE : 0), Access)) == -1)
+        goto lblErr;
+    LqFbuf_fdopen(&Dest->DestFbuf, LQFBUF_FAST_LK, Fd, 0, 4050, 10);
+    Dest->CompleteOrCancelProc = CompleteOrCancelProc;
+    Dest->UserData = UserData;
+    Res = LqSockBufRcvInFbuf(HttpConn, &Dest->DestFbuf, Dest, _LqHttpConnRcvFileProc, ReadLen, false);
+    if(!Res) {
+        Dest->DestFbuf.Cookie = &TrdCookie;
+        LqFbuf_close(&Dest->DestFbuf);
+        goto lblErr;
+    }
+    LqSockBufUnlock(HttpConn);
+    return Res;
+lblErr:
+    if(Dest)
+        LqFastAlloc::Delete(Dest);
+    if(Fd != -1)
+        LqFileTrdCancel(Fd);
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRcvFileAboveBoundary(
+    LqHttpConn* HttpConn,
+    const char* Path,
+    bool(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*),
+    void* UserData,
+    const char* Boundary,
+    LqFileSz MaxLen,
+    int Access,
+    bool IsReplace,
+    bool IsCreateSubdir
+) {
+    bool Res;
+    int Fd = -1;
+    _LqRecvStream* Dest;
+    size_t BndrLen;
+    intptr_t SeqLen;
+    char* FullSeq;
+    char BoundaryBuf[1024];
+
+
+    Dest = NULL;
+    FullSeq = NULL;
+    Res = false;
+    LqSockBufLock(HttpConn);
+    if(Path == NULL) {
+        if((Path = LqHttpConnRcvGetFileName(HttpConn)) == NULL) {
+            lq_errno_set(ENODATA);
+            goto lblErr;
+        }
+    }
+    if(MaxLen == -1) {
+        if((MaxLen = LqHttpConnRcvGetContentLengthLeft(HttpConn)) == -((LqFileSz)1)) {
+            lq_errno_set(ENOMEM);
+            goto lblErr;
+        }
+    }
+    if(Boundary == NULL) {
+        if(LqHttpConnRcvGetBoundary(HttpConn, BoundaryBuf, sizeof(BoundaryBuf) - 2) <= 0)
+            goto lblErr;
+        Boundary = BoundaryBuf;
+    }
+    if((Dest = LqFastAlloc::New<_LqRecvStream>()) == NULL) {
+        LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
+        lq_errno_set(ENOMEM);
+        goto lblErr;
+    }   
+    BndrLen = LqStrLen(Boundary);
+    if((FullSeq = (char*)___malloc(BndrLen + 20)) == NULL) {
+        LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
+        lq_errno_set(ENOMEM);
+        goto lblErr;
+    }
+    if((Fd = LqFileTrdCreate(Path, LQ_O_CREATE | LQ_O_BIN | LQ_O_WR | LQ_O_TRUNC | ((IsCreateSubdir) ? LQ_TC_SUBDIR : 0) | ((IsReplace) ? LQ_TC_REPLACE : 0), Access)) == -1) {
+        goto lblErr;
+    }
+    LqFbuf_fdopen(&Dest->DestFbuf, LQFBUF_FAST_LK, Fd, 0, 4050, 10);
+    Dest->CompleteOrCancelProc = CompleteOrCancelProc;
+    Dest->UserData = UserData;
+    SeqLen = LqFbuf_snprintf(FullSeq, BndrLen + 19, "\r\n--%s", Boundary);
+    Res = LqSockBufRcvInFbufAboveSeq(HttpConn, &Dest->DestFbuf, Dest, _LqHttpConnRcvFileSeqProc, FullSeq, SeqLen, MaxLen, false, false);
+    if(!Res) {
+        Dest->DestFbuf.Cookie = &TrdCookie;
+        LqFbuf_close(&Dest->DestFbuf);
+        goto lblErr;
+    }
+    ___free(FullSeq);
+    LqSockBufUnlock(HttpConn);
+    return Res;
+lblErr:
+    if(Dest)
+        LqFastAlloc::Delete(Dest);
+    if(FullSeq)
+        ___free(FullSeq);
+    if(Fd != -1)
+        LqFileTrdCancel(Fd);
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRcvFbuf(
+    LqHttpConn* HttpConn,
+    LqFbuf* Target,
+    void(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*),
+    void* UserData,
+    LqFileSz ReadLen
+) {
+    bool Res;
+    _LqRecvStreamFbuf* Dest;
+
+    Res = false;
+    Dest = NULL;
+    LqSockBufLock(HttpConn);
+    if(ReadLen == -((LqFileSz)1)) {
+        if((ReadLen = LqHttpConnRcvGetContentLengthLeft(HttpConn)) == -((LqFileSz)1)) {
+            lq_errno_set(ENODATA);
+            goto lblErr;
+        }
+    }
+    if((Dest = LqFastAlloc::New<_LqRecvStreamFbuf>()) == NULL) {
+        LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
+        lq_errno_set(ENOMEM);
+        goto lblErr;
+    }
+    Dest->CompleteOrCancelProc = CompleteOrCancelProc;
+    Dest->UserData = UserData;
+    Res = LqSockBufRcvInFbuf(HttpConn, Target, Dest, _LqHttpConnRcvFbufProc, ReadLen, false);
+    if(!Res) {
+        goto lblErr;
+    }
+    LqSockBufUnlock(HttpConn);
+    return Res;
+lblErr:
+    if(Dest)
+        LqFastAlloc::Delete(Dest);
+    LqSockBufUnlock(HttpConn);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRcvFbufAboveBoundary(
+    LqHttpConn* HttpConn,
+    LqFbuf* Target,
+    void(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*),
+    void* UserData,
+    const char* Boundary,
+    LqFileSz MaxLen
+) {
+    bool Res;
+    _LqRecvStreamFbuf* Dest;
+    size_t BndrLen;
+    intptr_t SeqLen;
+    char* FullSeq, BoundaryBuf[1024];
+
+
+    Dest = NULL;
+    FullSeq = NULL;
+    Res = false;
+    LqSockBufLock(HttpConn);
+    if(MaxLen == -1) {
+        if((MaxLen = LqHttpConnRcvGetContentLengthLeft(HttpConn)) == -((LqFileSz)1)) {
+            lq_errno_set(ENOMEM);
+            goto lblErr;
+        }
+    }
+    if(Boundary == NULL) {
+        if(LqHttpConnRcvGetBoundary(HttpConn, BoundaryBuf, sizeof(BoundaryBuf) - 2) <= 0)
+            goto lblErr;
+        Boundary = BoundaryBuf;
+    }
+    if((Dest = LqFastAlloc::New<_LqRecvStreamFbuf>()) == NULL) {
+        LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
+        lq_errno_set(ENOMEM);
+        goto lblErr;
+    }
+    BndrLen = LqStrLen(Boundary);
+    if((FullSeq = (char*)___malloc(BndrLen + 20)) == NULL) {
+        LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
+        lq_errno_set(ENOMEM);
+        goto lblErr;
+    }
+
+    Dest->CompleteOrCancelProc = CompleteOrCancelProc;
+    Dest->UserData = UserData;
+    SeqLen = LqFbuf_snprintf(FullSeq, BndrLen + 19, "\r\n--%s", Boundary);
+    Res = LqSockBufRcvInFbufAboveSeq(HttpConn, Target, Dest, _LqHttpConnRcvFbufSeqProc, FullSeq, SeqLen, MaxLen, false, false);
+    if(!Res) {
+        goto lblErr;
+    }
+    ___free(FullSeq);
+    LqSockBufUnlock(HttpConn);
+    return Res;
+lblErr:
+	LqSockBufUnlock(HttpConn);
+    if(Dest)
+        LqFastAlloc::Delete(Dest);
+    if(FullSeq)
+        ___free(FullSeq);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRcvMultipartFbufNext(
+    LqHttpConn* HttpConn,
+    LqFbuf* Target,
+    void(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult* RcvRes),
+    void* UserData,
+    const char* Boundary,
+    LqFileSz MaxLen
+) {
+    int MutipartHdrsRes;
+    LqHttpMultipartHdrs* Hdrs = NULL;
+    _LqHttpMultipartFbufNext* Data = NULL;
+    char BoundaryBuf[1024];
+
+    if((Data = LqFastAlloc::New<_LqHttpMultipartFbufNext>()) == NULL) {
+		LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
+        lq_errno_set(ENOMEM);
+		return false;
+    }
+	LqSockBufLock(HttpConn);
+    if(Boundary == NULL) {
+        if(LqHttpConnRcvGetBoundary(HttpConn, BoundaryBuf, sizeof(BoundaryBuf) - 2) <= 0)
+            goto lblErr;
+        Boundary = BoundaryBuf;
+    }
+    Data->Hdrs = NULL;
+    Data->MaxLen = MaxLen;
+    Data->CompleteOrCancelProc = CompleteOrCancelProc;
+    Data->Target = Target;
+    Data->UserData = UserData;
+    Data->Boundary = LqStrDuplicate(Boundary);
+    MutipartHdrsRes = LqHttpConnRcvMultipartHdrs(HttpConn, _LqHttpConnRcvMultipartHdrsNextProc, Data, Boundary, &Hdrs);
+    if(MutipartHdrsRes == -1) {
+        goto lblErr;
+    }
+    if(MutipartHdrsRes == 1) {
+        Data->Hdrs = Hdrs;
+        if(!LqHttpConnRcvFbufAboveBoundary(HttpConn, Target, _LqHttpConnRcvFbufNextProc, Data, Boundary, MaxLen))
+            goto lblErr;
+    }
+	LqSockBufUnlock(HttpConn);
+    return true;
+lblErr:
+	LqSockBufUnlock(HttpConn);
+    if(Data) {
+        if(Data->Boundary)
+            free(Data->Boundary);
+        LqFastAlloc::Delete(Data);
+    }
+    return false;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRcvMultipartFileNext(
+	LqHttpConn* HttpConn,
+	const char* Path,
+	bool(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*),
+	void* UserData,
+	const char* Boundary,
+	LqFileSz MaxLen,
+	int Access,
+	bool IsReplace,
+	bool IsCreateSubdir
+) {
+	int Fd = -1;
+	_LqHttpConnRcvRcvMultipartFileStruct* Data;
+
+
+	if((Data = LqFastAlloc::New<_LqHttpConnRcvRcvMultipartFileStruct>()) == NULL) {
+		lq_errno_set(ENOMEM);
+		return false;
+	}
+	LqSockBufLock(HttpConn);
+	if(Path == NULL) {
+		if((Path = LqHttpConnRcvGetFileName(HttpConn)) == NULL) {
+			LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
+			lq_errno_set(ENODATA);
+			goto lblErr;
+		}
+	}
+	Data->CompleteOrCancelProc = CompleteOrCancelProc;
+	Data->UserData = UserData;
+	if((Fd = LqFileTrdCreate(Path, LQ_O_CREATE | LQ_O_BIN | LQ_O_WR | LQ_O_TRUNC | ((IsCreateSubdir) ? LQ_TC_SUBDIR : 0) | ((IsReplace) ? LQ_TC_REPLACE : 0), Access)) == -1)
+		goto lblErr;
+	LqFbuf_fdopen(&Data->Fbuf, LQFBUF_FAST_LK, Fd, 0, 4050, 10);
+	if(!LqHttpConnRcvMultipartFbufNext(HttpConn, &Data->Fbuf, _LqHttpConnRcvMultipartFileNextProc, Data, Boundary, MaxLen))
+		goto lblErr;
+	LqSockBufUnlock(HttpConn);
+	return true;
+lblErr:
+	LqSockBufUnlock(HttpConn);
+	if(Fd != -1)
+		LqFileTrdCancel(Fd);
+	if(Data != NULL)
+		LqFastAlloc::Delete(Data);
+	return false;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnRcvWaitLen(
+	LqHttpConn* HttpConn,
+	void(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*),
+	void* UserData,
+	intptr_t TargetLen
+) {
+	_LqHttpConnRcvWaitLenStruct* Data;
+	LqFileSz FileSz;
+	if((Data = LqFastAlloc::New<_LqHttpConnRcvWaitLenStruct>()) == NULL) {
+		LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
+		lq_errno_set(ENOMEM);
+		return false;
+	}
+	Data->CompleteOrCancelProc = CompleteOrCancelProc;
+	Data->UserData = UserData;
+	if(TargetLen == -((intptr_t)1)) {
+		FileSz = LqHttpConnRcvGetContentLengthLeft(HttpConn);
+		if(FileSz == -((LqFileSz)1)) {
+			lq_errno_set(ENODATA);
+			return false;
+		}
+		TargetLen = FileSz;
+	}
+	if(!LqSockBufRcvWaitLenData(HttpConn, Data, _LqHttpConnRcvWaitLenProc, TargetLen, false)) {
+		LqFastAlloc::Delete(Data);
+		return false;
+	}
+	return true;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnGetRemoteIpStr(LqHttpConn* HttpConn, char* DestStr, size_t DestStrLen) {
+    return LqSockBufGetRemoteAddrStr(HttpConn, DestStr, DestStrLen);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnGetRemoteIp(LqHttpConn* HttpConn, LqConnAddr* AddrDest) {
+    return LqSockBufGetRemoteAddr(HttpConn, AddrDest);
+}
+
+LQ_EXTERN_C unsigned short LQ_CALL LqHttpConnGetRemotePort(LqHttpConn* HttpConn) {
+	LqConnAddr AddrDest = {0};
+	if(!LqSockBufGetRemoteAddr(HttpConn, &AddrDest))
+		return 0;
+	if(AddrDest.Addr.sa_family == AF_INET) {
+		return ntohs(AddrDest.AddrInet.sin_port);
+	}else if(AddrDest.Addr.sa_family == AF_INET6) {
+		return ntohs(AddrDest.AddrInet6.sin6_port);
+	} else {
+		return 0;
+	}
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnGetLocIpStr(LqHttpConn* HttpConn, char* DestStr, size_t DestStrLen) {
+    return LqSockBufGetLocAddrStr(HttpConn, DestStr, DestStrLen);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpConnGetLocIp(LqHttpConn* HttpConn, LqConnAddr* AddrDest) {
+    return LqSockBufGetLocAddr(HttpConn, AddrDest);
+}
+
+LQ_EXTERN_C LqHttp* LQ_CALL LqHttpCreate(const char* Host, const char* Port, int RouteProto, void* SslCtx, bool IsSetCache, bool IsSetZmbClr) {
+    LqHttpData* HttpData;
+    LqSockAcceptor* SockAcceptor;
+    LqFche* Cache;
+    if((HttpData = LqFastAlloc::New<LqHttpData>()) == NULL) {
+        lq_errno_set(ENOMEM);
+        goto lblErr;
+    }
+    SockAcceptor = LqSockAcceptorCreate(Host, Port, RouteProto, SOCK_STREAM, IPPROTO_TCP, 32768, true, HttpData);
+    if(SockAcceptor == NULL)
+        goto lblErr;
+    SockAcceptor->AcceptProc = _LqHttpAcceptProc;
+    SockAcceptor->CloseHandler = _LqHttpCloseHandler;
+
+    HttpData->MaxHeadersSize = 32 * 1024; //32 kByte
+    HttpData->SslCtx = SslCtx;
+    HttpData->PeriodChangeDigestNonce = 5; //5 Sec
+
+    HttpData->MaxLenRspConveyor = 10;
+    HttpData->MaxCountConn = 32768;
+
+    HttpData->KeepAlive = 5 * 60 * 1000;
+
+    HttpData->UseDefaultDmn = true;
+    HttpData->WrkBoss = NULL;
+    HttpData->MaxSkipContentLength = 1024ll * 1024ll * 1024ll * 5ll; /* 5 gb*/
+    LqHttpSetNameServer(SockAcceptor, "Lanq(Lan Quick) 1.0");
+    HttpData->CountPtrs = 1;
+    if(IsSetCache) {
+        Cache = LqFcheCreate();
+        if(Cache != NULL) {
+            LqFcheSetMaxSize(Cache, 1024 * 1024 * 400);
+            LqFcheSetMaxSizeFile(Cache, 1024 * 1024 * 27);
+            LqSockAcceptorSetInstanceCache(SockAcceptor, Cache);
+            LqFcheDelete(Cache);
+        }
+    }
+    if(IsSetZmbClr) {
+        HttpData->ZmbClr = LqZmbClrCreate(SockAcceptor, 5 * 1000, SockAcceptor, true);
+    } else {
+        HttpData->ZmbClr = NULL;
+    }
+    LqFbuf_snprintf(HttpData->HTTPProtoVer, sizeof(HttpData->HTTPProtoVer) - 2, "1.1");
+    LqHttpMdlInit(SockAcceptor, &HttpData->StartModule, "StartModule", 0);
+    LqHttpPthDmnCreate(SockAcceptor, "*");
+    return SockAcceptor;
+lblErr:
+    if(HttpData != NULL)
+        LqFastAlloc::Delete(HttpData);
+    if(SockAcceptor != NULL)
+        LqSockAcceptorDelete(SockAcceptor);
+    return NULL;
+}
+
+LQ_EXTERN_C int LQ_CALL LqHttpDelete(LqHttp* Http) {
+	LqHttpData* HttpData;
+	void* WrkBoss;
+
+	LqSockAcceptorLock(Http);
+	HttpData = LqHttpGetHttpData(Http);
+	WrkBoss = HttpData->WrkBoss;
+	_LqHttpDereference(Http);
+	LqSockAcceptorUnlock(Http);
+
+	LqSockAcceptorInterruptWork(Http);
+	LqSockBufCloseByUserData2(Http, WrkBoss);
+    return 0;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpGoWork(LqHttp* Http, void* WrkBoss){
+    LqHttpData* HttpData;
+    bool Res = true;
+    LqSockAcceptorLock(Http);
+    HttpData = LqHttpGetHttpData(Http);
+    if(HttpData->WrkBoss == NULL) {
+        HttpData->WrkBoss = WrkBoss;
+        if(HttpData->ZmbClr) {
+            if(!(Res = LqZmbClrGoWork(HttpData->ZmbClr, WrkBoss)))
+                goto lblOut;
+        }
+        Res = LqSockAcceptorGoWork(Http, WrkBoss);
+    } else {
+        Res = false;
+    }
+lblOut:
+    LqSockAcceptorUnlock(Http);
+    return Res;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpInterruptWork(LqHttp* Http) {
+    LqHttpData* HttpData;
+    bool Res = false;
+    LqSockAcceptorLock(Http);
+    HttpData = LqHttpGetHttpData(Http);
+    if(HttpData->WrkBoss != NULL) {
+        if(HttpData->ZmbClr) {
+            Res |= LqZmbClrInterruptWork(HttpData->ZmbClr);
+        }
+        Res |= LqSockAcceptorInterruptWork(Http);
+        HttpData->WrkBoss = NULL;
+    }
+lblOut:
+    LqSockAcceptorUnlock(Http);
+    return Res;
+}
+
+LQ_EXTERN_C void LQ_CALL LqHttpCloseAllConn(LqHttp* Http) {
+	LqSockBufCloseByUserData2(Http, LqHttpGetHttpData(Http)->WrkBoss);
+}
+
+LQ_EXTERN_C size_t LQ_CALL LqHttpCountConn(LqHttp* Http) {
+	size_t Res = 0;
+	LqSockAcceptorLock(Http);
+	Res = LqHttpGetHttpData(Http)->CountPtrs - 1;
 	LqSockAcceptorUnlock(Http);
 	return Res;
 }
 
 LQ_EXTERN_C size_t LQ_CALL LqHttpSetNameServer(LqHttp* Http, const char* NewName) {
     size_t SizeWritten = 0;
-	LqSockAcceptorLock(Http);
-    LqStrCopyMax(((LqHttpData*)Http->UserData)->ServName, NewName, sizeof(((LqHttpData*)Http->UserData)->ServName));
-    SizeWritten = LqStrLen(((LqHttpData*)Http->UserData)->ServName);
-	LqSockAcceptorUnlock(Http);
+    LqSockAcceptorLock(Http);
+    LqStrCopyMax(LqHttpGetHttpData(Http)->ServName, NewName, sizeof(LqHttpGetHttpData(Http)->ServName));
+    SizeWritten = LqStrLen(LqHttpGetHttpData(Http)->ServName);
+    LqSockAcceptorUnlock(Http);
     return SizeWritten;
 }
 
 LQ_EXTERN_C size_t LQ_CALL LqHttpGetNameServer(LqHttp* Http, char* Name, size_t SizeName) {
     size_t SizeWritten = 0;
-	LqSockAcceptorLock(Http);
-	LqStrCopyMax(Name, ((LqHttpData*)Http->UserData)->ServName, SizeName);
-	SizeWritten = LqStrLen(((LqHttpData*)Http->UserData)->ServName);
-	LqSockAcceptorUnlock(Http);
-	return SizeWritten;
+    LqSockAcceptorLock(Http);
+    LqStrCopyMax(Name, LqHttpGetHttpData(Http)->ServName, SizeName);
+    SizeWritten = LqStrLen(LqHttpGetHttpData(Http)->ServName);
+    LqSockAcceptorUnlock(Http);
+    return SizeWritten;
 }
 
+LQ_EXTERN_C void LQ_CALL LqHttpSetKeepAlive(LqHttp* Http, LqTimeMillisec Time) {
+	LqHttpGetHttpData(Http)->KeepAlive = Time;
+}
 
-intptr_t LqHttpConnHdrEnm(bool IsResponse, char* Buf, size_t SizeHeaders, char** HeaderNameResult, char** HeaderNameResultEnd, char** HeaderValResult, char** HeaderValEnd) {
-	if(SizeHeaders <= 0)
-		return -1;
-	char *Name, *NameEnd, *Val, *ValEnd;
-	char *i, *m = Buf + SizeHeaders - 1;
-	if(*HeaderNameResult == nullptr) {
-		i = Buf;
-		if(IsResponse) {
-			if(((i + 5) < m) && (i[0] == 'H') && (i[1] == 'T') && (i[2] == 'T') && (i[3] == 'P') && (i[4] == '/')) {
-				i += 5;
-				for(; ; i++) {
-					if(((i + 1) >= m))
-						return -1;
-					if((*i == '\r') && (i[1] == '\n')) {
-						i += 2;
-						if(((i + 2) >= m) || (*i == '\r') && (i[1] == '\n'))
-							return -1;
-						break;
-					}
-				}
-			}
-		} else {
-			for(; ; i++) {
-				if(((i + 1) >= m))
-					return -1;
-				if((*i == '\r') && (i[1] == '\n')) {
-					i += 2;
-					if(((i + 2) >= m) || (*i == '\r') && (i[1] == '\n'))
-						return -1;
-					break;
-				}
-			}
+LQ_EXTERN_C LqTimeMillisec LQ_CALL LqHttpGetKeepAlive(LqHttp* Http) {
+	return LqHttpGetHttpData(Http)->KeepAlive;
+}
+
+LQ_EXTERN_C LqFche* LQ_CALL LqHttpGetCache(LqHttp* Http) {
+	return LqSockAcceptorGetInstanceCache(Http);
+}
+
+LQ_EXTERN_C void LQ_CALL LqHttpConnLock(LqHttpConn* HttpConn) {
+	LqSockBufLock(HttpConn);
+}
+
+LQ_EXTERN_C void LQ_CALL LqHttpConnUnlock(LqHttpConn* HttpConn) {
+	LqSockBufUnlock(HttpConn);
+}
+
+LQ_EXTERN_C int LQ_CALL LqHttpConnDataStore(LqHttpConn* HttpConn, const void* Name, const void* Value) {
+	LqHttpConnData *HttpConnData;
+	LqHttpUserData *New, *UserData;
+	int Res = -1;
+	unsigned short i;
+	
+	LqSockBufLock(HttpConn);
+	HttpConnData = LqHttpConnGetData(HttpConn);
+	UserData = HttpConnData->UserData;
+	for(i = 0; i < HttpConnData->UserDataCount; i++) {
+		if(UserData[i].Name == Name) {
+			UserData[i].Data = (void*)Value;
+			Res = HttpConnData->UserDataCount;
+			LqSockBufUnlock(HttpConn);
+			return Res;
 		}
+	}
+	New = LqFastAlloc::ReallocCount<LqHttpUserData>(HttpConnData->UserData, HttpConnData->UserDataCount, HttpConnData->UserDataCount + 1);
+	if(New == NULL) {
+		LqSockBufUnlock(HttpConn);
+		return -1;
+	}
+	HttpConnData->UserData = New;
+	New[HttpConnData->UserDataCount].Name = (void*)Name;
+	New[HttpConnData->UserDataCount].Data = (void*)Value;
+	HttpConnData->UserDataCount++;
+	Res = HttpConnData->UserDataCount;
+	LqSockBufUnlock(HttpConn);
+	return Res;
+}
 
-	} else {
-		i = *HeaderValEnd + 2;
-		if(i >= m)
-			return -1;
-	}
+LQ_EXTERN_C int LQ_CALL LqHttpConnDataGet(LqHttpConn* HttpConn, const void* Name, void** Value) {
+	LqHttpConnData *HttpConnData;
+	LqHttpUserData *UserData;
+	unsigned short i;
 
-	for(; (i < m) && ((*i == ' ') || (*i == '\t')); i++);
-	Name = i;
-	for(;; i++) {
-		if(((i + 1) >= m) || (*i == '\r') && (i[1] == '\n'))
-			return -1;
-		if(*i == ':')
-			break;
+	LqSockBufLock(HttpConn);
+	HttpConnData = LqHttpConnGetData(HttpConn);
+	UserData = HttpConnData->UserData;
+	for(i = 0; i < HttpConnData->UserDataCount; i++) {
+		if(UserData[i].Name == Name) {
+			*Value = UserData[i].Data;
+			LqSockBufUnlock(HttpConn);
+			return 1;
+		}
 	}
-	NameEnd = i;
-	i++;
-	for(;; i++) {
-		if((i + 1) >= m)
-			return -1;
-		if((*i != ' ') && (*i != '\t'))
-			break;
-	}
-	Val = i;
-	for(; ; i++) {
-		if((i + 1) >= m)
-			return -1;
-		if((*i == '\r') && (i[1] == '\n'))
-			break;
-	}
-	ValEnd = i;
-	*HeaderNameResult = Name;
-	*HeaderNameResultEnd = NameEnd;
-	*HeaderValResult = Val;
-	*HeaderValEnd = ValEnd;
+	LqSockBufUnlock(HttpConn);
 	return 0;
 }
 
+LQ_EXTERN_C int LQ_CALL LqHttpConnDataUnstore(LqHttpConn* HttpConn, const void* Name) {
+	LqHttpConnData *HttpConnData;
+	LqHttpUserData *UserData;
+	int Res;
+	unsigned short i;
 
+	LqSockBufLock(HttpConn);
+	HttpConnData = LqHttpConnGetData(HttpConn);
+	UserData = HttpConnData->UserData;
+	for(i = 0; i < HttpConnData->UserDataCount; i++) {
+		if(UserData[i].Name == Name) {
+			HttpConnData->UserDataCount--;
+			UserData[i] = UserData[HttpConnData->UserDataCount];
+			HttpConnData->UserData = LqFastAlloc::ReallocCount<LqHttpUserData>(UserData, HttpConnData->UserDataCount + 1, HttpConnData->UserDataCount);
+			Res = HttpConnData->UserDataCount;
+			LqSockBufUnlock(HttpConn);
+			return Res;
+		}
+	}
+	LqSockBufUnlock(HttpConn);
+	return -1;
+}
 
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsRegisterQuery(LqHttp* Http, LqHttpNotifyFn QueryFunc) {
+	return LqHttpGetHttpData(Http)->StartQueryHndls.Add(QueryFunc);
+}
 
-//static void LQ_CALL LqHttpCoreHandler(LqConn* Connection, LqEvntFlag Flag) {
-//    LqHttpConn* c = (LqHttpConn*)Connection;
-//    c->TimeLastExchangeMillisec = LqTimeGetLocMillisec();
-//    LqHttpActState OldAct = (LqHttpActState)-1;
-//
-//    if(Flag & LQEVNT_FLAG_ERR) {
-//        LqEvntSetClose(Connection);
-//        LQHTTPLOG_ERR("LqHttpCoreErrorProc: have error when wait event on socket\n");
-//    } else if(Flag & LQEVNT_FLAG_WR) {
-//lblSwitch2:
-//        switch(OldAct = c->ActionState) {
-//            case LQHTTPACT_STATE_RSP:
-//                LqHttpCoreRspHdr(c);
-//lblResponseResult:
-//                switch(c->ActionResult) {
-//                    case LQHTTPACT_RES_PARTIALLY: return;
-//                    case LQHTTPACT_RES_OK:
-//                        LqHttpConnCallEvntAct(c);
-//                        if(c->Flags & LQHTTPCONN_FLAG_CLOSE) {
-//                            LqEvntSetClose(c);
-//                            return;
-//                        }
-//                        {
-//                            auto t = c->Response.HeadersStart;
-//                            c->Response.HeadersStart = 0;
-//                            ((LqHttpProto*)LqHttpProtoGetByConn(c))->EndResponseHndls.Call(c);
-//                            c->Response.HeadersStart = t;
-//                        }
-//                        LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
-//                        LqHttpActSwitchToRcv(c);
-//                        LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-//                        return;
-//                    default:
-//                        LqHttpConnCallEvntAct(c);
-//                        LqEvntSetClose(c);
-//                        return;
-//                }
-//            case LQHTTPACT_STATE_RSP_CACHE:
-//                LqHttpCoreRspCache(c);
-//                goto lblResponseResult;
-//            case LQHTTPACT_STATE_RSP_FD:
-//                LqHttpCoreRspFd(c);
-//                goto lblResponseResult;
-//            case LQHTTPACT_STATE_RSP_STREAM:
-//                LqHttpCoreRspStream(c);
-//                goto lblResponseResult;
-//            case LQHTTPACT_STATE_RSP_INIT_HANDLE:
-//                LqHttpConnCallEvntAct(c);
-//                if(OldAct != c->ActionState)
-//                    return LqHttpCoreHandler(&c->CommonConn, LQEVNT_FLAG_RD);
-//                if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-//                    LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-//                return;
-//            case LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE:
-//            case LQHTTPACT_STATE_QUERY_SSL_HANDSHAKE:
-//            {
-//#ifdef HAVE_OPENSSL
-//                auto SslAcptErr = SSL_accept(c->ssl);
-//                if(SslAcptErr < 0) {
-//                    if(((SslAcptErr == SSL_ERROR_WANT_READ) || (SslAcptErr == SSL_ERROR_WANT_WRITE))) {
-//                        return;
-//                    } else {
-//                        c->ActionResult = LQHTTPACT_RES_SSL_FAILED_HANDSHAKE;
-//                        LqEvntSetClose(c);
-//                        return;
-//                    }
-//                }
-//                LqEvntSetFlags(c, ((OldAct == LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE) ? LQEVNT_FLAG_RD : LQEVNT_FLAG_WR) | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-//                c->ActionState = LQHTTPACT_STATE_GET_HDRS;
-//#endif
-//            }
-//            return;
-//            case LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS:
-//            case LQHTTPACT_STATE_QUERY_HANDLE_PROCESS:
-//            {
-//                LqHttpActState OldAct = (LqHttpActState)-1;
-//
-//                LqHttpConnCallEvntAct(c);
-//
-//                if((c->CommonConn.Flag & (LQEVNT_FLAG_RD | LQEVNT_FLAG_WR)) == 0) //Is locked read or write
-//                    return;
-//                if((OldAct == c->ActionState) && (c->ActionResult != LQHTTPACT_RES_BEGIN)) {
-//                    //If EventAct don`t change state
-//                    LQHTTPLOG_ERR("module \"%s\" dont change action state", LqHttpMdlGetByConn(c)->Name);
-//                    if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER) {
-//                        static const char ErrCode[] =
-//                            "HTTP/1.1 500 Internal Server Error\r\n"
-//                            "Connection: close\r\n"
-//                            "Content-Type: text/html; charset=\"UTF-8\"\r\n"
-//                            "Content-Length: 25\r\n"
-//                            "\r\n"
-//                            "500 Internal Server Error";
-//                        LqHttpConnSend_Native(c, ErrCode, sizeof(ErrCode) - 1);
-//                    }
-//                    c->ActionResult = LQHTTPACT_RES_INVALID_ACT_CHAIN;
-//                    LqEvntSetClose(c);
-//                    return;
-//                }
-//            }
-//            goto lblSwitch2;
-//        }
-//        return;
-//    } else if(Flag & LQEVNT_FLAG_RD) {
-//lblSwitch:
-//        if((c->CommonConn.Flag & (LQEVNT_FLAG_RD | LQEVNT_FLAG_WR)) == 0) //Is locked read or write
-//            return;
-//
-//        if((OldAct == c->ActionState) && (c->ActionResult != LQHTTPACT_RES_BEGIN)) {
-//            //If EventAct don`t change state
-//            LQHTTPLOG_ERR("module \"%s\" don`t change action state\n", LqHttpMdlGetByConn(c)->Name);
-//            if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER) {
-//                static const char ErrCode[] =
-//                    "HTTP/1.1 500 Internal Server Error\r\n"
-//                    "Connection: close\r\n"
-//                    "Content-Type: text/html; charset=\"UTF-8\"\r\n"
-//                    "Content-Length: 25\r\n"
-//                    "\r\n"
-//                    "500 Internal Server Error";
-//                LqHttpConnSend_Native(c, ErrCode, sizeof(ErrCode) - 1);
-//            }
-//            c->ActionResult = LQHTTPACT_RES_INVALID_ACT_CHAIN;
-//            LqEvntSetClose(c);
-//            return;
-//        }
-//        switch(OldAct = c->ActionState) {
-//            case LQHTTPACT_STATE_GET_HDRS:
-//                LqHttpQurReadHeaders(c);
-//                if(c->ActionResult == LQHTTPACT_RES_PARTIALLY)
-//                    return;
-//                goto lblSwitch;
-//            case LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS:
-//            case LQHTTPACT_STATE_QUERY_HANDLE_PROCESS:
-//                LqHttpConnCallEvntAct(c);
-//                goto lblSwitch;
-//            case LQHTTPACT_STATE_RCV_FILE:
-//                if(LqHttpConnReciveInFile(c, c->Query.OutFd, c->Query.PartLen - c->ReadedBodySize) < 0) {
-//                    c->ActionResult = LQHTTPACT_RES_FILE_WRITE_ERR;
-//                } else if(c->ReadedBodySize < c->Query.PartLen) {
-//                    c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//                    return;
-//                } else {
-//                    c->ActionResult = LQHTTPACT_RES_OK;
-//                }
-//                LqHttpConnCallEvntAct(c);
-//                goto lblSwitch;
-//            case LQHTTPACT_STATE_RCV_STREAM:
-//                if(LqHttpConnReciveInStream(c, &c->Query.Stream, c->Query.PartLen - c->ReadedBodySize) < 0) {
-//                    c->ActionResult = LQHTTPACT_RES_STREAM_WRITE_ERR;
-//                } else if(c->ReadedBodySize < c->Query.PartLen) {
-//                    c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//                    return;
-//                } else {
-//                    c->ActionResult = LQHTTPACT_RES_OK;
-//                }
-//                LqHttpConnCallEvntAct(c);
-//                goto lblSwitch;
-//                ////////
-//            case LQHTTPACT_STATE_RCV_INIT_HANDLE:
-//                LqHttpConnCallEvntAct(c);
-//                if(OldAct != c->ActionState)
-//                    goto lblSwitch;
-//                return;
-//            case LQHTTPACT_STATE_RSP_INIT_HANDLE:
-//                LqHttpConnCallEvntAct(c);
-//                if(OldAct != c->ActionState)
-//                    goto lblSwitch;
-//                if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-//                    LqEvntSetFlags(c, LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-//                return;
-//                ////////
-//            case LQHTTPACT_STATE_MULTIPART_SKIP_TO_HDRS:
-//                LqHttpCoreRcvMultipartSkipToHdr(c);
-//                if(c->ActionResult == LQHTTPACT_RES_PARTIALLY) return;
-//                LqHttpConnCallEvntAct(c);
-//                goto lblSwitch;
-//            case LQHTTPACT_STATE_MULTIPART_SKIP_AND_GET_HDRS:
-//            {
-//                LqHttpCoreRcvMultipartSkipToHdr(c);
-//                switch(c->ActionResult) {
-//                    case LQHTTPACT_RES_PARTIALLY: return;
-//                    default:
-//                        LqHttpConnCallEvntAct(c);
-//                        goto lblSwitch;
-//                    case LQHTTPACT_RES_OK: OldAct = c->ActionState = LQHTTPACT_STATE_MULTIPART_RCV_HDRS;
-//                }
-//            }
-//            case LQHTTPACT_STATE_MULTIPART_RCV_HDRS:
-//            {
-//                LqHttpRcvMultipartReadHdr(c);
-//                if(c->ActionResult == LQHTTPACT_RES_PARTIALLY)
-//                    return;
-//                LqHttpConnCallEvntAct(c);
-//            }
-//            goto lblSwitch;
-//            case LQHTTPACT_STATE_MULTIPART_RCV_FILE:
-//            {
-//                LqHttpRcvMultipartReadInFile(c);
-//                if(c->ActionResult == LQHTTPACT_RES_PARTIALLY)
-//                    return;
-//                LqHttpConnCallEvntAct(c);
-//            }
-//            goto lblSwitch;
-//            case LQHTTPACT_STATE_MULTIPART_RCV_STREAM:
-//            {
-//                LqHttpRcvMultipartReadInStream(c);
-//                if(c->ActionResult == LQHTTPACT_RES_PARTIALLY)
-//                    return;
-//                LqHttpConnCallEvntAct(c);
-//            }
-//            goto lblSwitch;
-//            case LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE:
-//            case LQHTTPACT_STATE_QUERY_SSL_HANDSHAKE:
-//            {
-//#ifdef HAVE_OPENSSL
-//                auto SslAcptErr = SSL_accept(c->ssl);
-//                if(SslAcptErr < 0) {
-//                    if(((SslAcptErr == SSL_ERROR_WANT_READ) || (SslAcptErr == SSL_ERROR_WANT_WRITE))) {
-//                        return;
-//                    } else {
-//                        c->ActionResult = LQHTTPACT_RES_SSL_FAILED_HANDSHAKE;
-//                        LqEvntSetClose(c);
-//                        return;
-//                    }
-//                }
-//                LqEvntSetFlags(c, ((OldAct == LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE) ? LQEVNT_FLAG_RD : LQEVNT_FLAG_WR) | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-//                c->ActionState = LQHTTPACT_STATE_GET_HDRS;
-//#endif
-//            }
-//            return;
-//            ////////
-//            case LQHTTPACT_STATE_SKIP_QUERY_BODY: lblSkip:
-//            {
-//                c->Response.CountNeedRecive -= LqHttpConnSkip(c, c->Response.CountNeedRecive);
-//                if(c->Response.CountNeedRecive > 0) {
-//                    if(c->ActionState == LQHTTPACT_STATE_RSP) {
-//                        c->ActionState = LQHTTPACT_STATE_SKIP_QUERY_BODY;
-//                        if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-//                            LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-//                    }
-//                    return;
-//                } else {
-//                    if(c->Flags & LQHTTPCONN_FLAG_CLOSE) {
-//                        LqEvntSetClose(c);
-//                        return;
-//                    }
-//                    {
-//                        auto t = c->Response.HeadersStart;
-//                        c->Response.HeadersStart = 0;
-//                        ((LqHttpProto*)LqHttpProtoGetByConn(c))->EndResponseHndls.Call(c);
-//                        c->Response.HeadersStart = t;
-//                    }
-//                    LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
-//                    LqHttpActSwitchToRcv(c);
-//                    if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-//                        LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-//                    return;
-//                }
-//            }
-//            case LQHTTPACT_STATE_RSP:
-//                LqHttpCoreRspHdr(c);
-//lblResponseResult2:
-//                switch(c->ActionResult) {
-//                    case LQHTTPACT_RES_OK:
-//                        LqHttpConnCallEvntAct(c); //Send OK state event to user //If you dont want this event, then set empty function instead this
-//                        if(c->Response.CountNeedRecive > 0)
-//                            goto lblSkip;
-//                        if(c->Flags & LQHTTPCONN_FLAG_CLOSE) {
-//                            LqEvntSetClose(c);
-//                            return;
-//                        }
-//                        LqHttpEvntActSet(c, LqHttpMdlHandlersEmpty);
-//                        {
-//                            auto t = c->Response.HeadersStart;
-//                            c->Response.HeadersStart = 0;
-//                            ((LqHttpProto*)LqHttpProtoGetByConn(c))->EndResponseHndls.Call(c);
-//                            c->Response.HeadersStart = t;
-//                        }
-//                        LqHttpActSwitchToRcv(c);
-//                        LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-//                        return;
-//                    case LQHTTPACT_RES_PARTIALLY:
-//                        if(!(c->Flags & _LQEVNT_FLAG_USER_SET))
-//                            LqEvntSetFlags(c, LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-//                        return;
-//                    default:
-//                        LqHttpConnCallEvntAct(c); //Send Error event to user
-//                        LqEvntSetClose(c);
-//                        return;
-//                }
-//            case LQHTTPACT_STATE_RSP_CACHE:
-//                LqHttpCoreRspCache(c);
-//                goto lblResponseResult2;
-//            case LQHTTPACT_STATE_RSP_FD:
-//                LqHttpCoreRspFd(c);
-//                goto lblResponseResult2;
-//            case LQHTTPACT_STATE_RSP_STREAM:
-//                LqHttpCoreRspStream(c);
-//                goto lblResponseResult2;
-//            case LQHTTPACT_STATE_CLS_CONNECTION:
-//                LqEvntSetClose(c);
-//                return;
-//        }
-//    }
-//}
-//
-//
-///*============================================================
-//* Binded conn working
-//*/
-//
-///*
-//* Create new connection to client
-//*/
-//static void LQ_CALL LqHttpCoreAcceptHandler(LqConn* Connection, LqEvntFlag Flag) {
-//    if(Flag & LQEVNT_FLAG_ERR) {
-//        LqEvntSetClose(Connection);
-//        LQHTTPLOG_ERR("LqHttpCoreBindErrorProc() have error on binded socket\n");
-//        return;
-//    }
-//
-//    LqConnAddr ClientAddr;
-//    auto Proto = (LqHttpProto*)Connection->Proto->UserData;
-//    socklen_t ClientAddrLen = sizeof(ClientAddr);
-//    int ClientFd;
-//    LqHttpConn* c;
-//
-//    if((ClientFd = accept(Connection->Fd, &ClientAddr.Addr, &ClientAddrLen)) == -1) {
-//        LQHTTPLOG_ERR("LqHttpCoreAcceptHandler() client not accepted\n");
-//        return;
-//    }
-//
-//    switch(ClientAddr.Addr.sa_family) {
-//        case AF_INET:
-//        {
-//            auto r = LqFastAlloc::New<HttpConnIp4>();
-//            if(r == nullptr) {
-//                closesocket(ClientFd);
-//                LQHTTPLOG_ERR("LqHttpCoreAcceptHandler() not alloc memory for connection\n");
-//                return;
-//            }
-//            r->Ip4Addr = ClientAddr.AddrInet;
-//            c = (LqHttpConn*)r;
-//        }
-//        break;
-//        case AF_INET6:
-//        {
-//            auto r = LqFastAlloc::New<HttpConnIp6>();
-//            if(r == nullptr) {
-//                closesocket(ClientFd);
-//                LQHTTPLOG_ERR("LqHttpCoreAcceptHandler() not alloc memory for connection\n");
-//                return;
-//            }
-//            r->Ip6Addr = ClientAddr.AddrInet6;
-//            c = (LqHttpConn*)r;
-//        }
-//        break;
-//        default:
-//            LQHTTPLOG_ERR("LqHttpCoreAcceptHandler() unicknown connection protocol\n");
-//            closesocket(ClientFd);
-//            return;
-//    }
-//    LqConnInit(c, ClientFd, &Proto->Base.Proto, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD);
-//
-//    c->Buf = nullptr;
-//    c->BufSize = 0;
-//    c->_Reserved = 0;
-//
-//    c->TimeStartMillisec = c->TimeLastExchangeMillisec = LqTimeGetLocMillisec();
-//    c->Pth = nullptr;
-//
-//    LqHttpActSwitchToRcv(c);
-//
-//#ifdef HAVE_OPENSSL
-//    c->ssl = nullptr;
-//    LqAtmLkRd(Proto->Base.sslLocker);
-//    if(Proto->Base.ssl_ctx != nullptr) {
-//        if((c->ssl = SSL_new(Proto->Base.ssl_ctx)) == nullptr) {
-//            LqAtmUlkRd(Proto->Base.sslLocker);
-//            LqHttpCoreCloseHandler(&c->CommonConn);
-//            return;
-//        }
-//        LqAtmUlkRd(Proto->Base.sslLocker);
-//        if(SSL_set_fd(c->ssl, c->CommonConn.Fd) == 0) {
-//            SSL_free(c->ssl);
-//            c->ssl = nullptr;
-//            LqHttpCoreCloseHandler(&c->CommonConn);
-//            return;
-//        }
-//        auto SslAcptErr = SSL_accept(c->ssl);
-//        if(SslAcptErr < 0) {
-//            if(((SslAcptErr == SSL_ERROR_WANT_READ) || (SslAcptErr == SSL_ERROR_WANT_WRITE))) {
-//                c->ActionState = LQHTTPACT_STATE_RESPONSE_SSL_HANDSHAKE;
-//                LqEvntSetFlags(c, LQEVNT_FLAG_RD | LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
-//            } else {
-//                LqHttpCoreCloseHandler(&c->CommonConn);
-//                return;
-//            }
-//        }
-//    } else {
-//        LqAtmUlkRd(Proto->Base.sslLocker);
-//    }
-//#endif
-//    LqAtmIntrlkInc(Proto->Base.CountConnections);
-//    LqWrkBossAddEvntAsync((LqEvntHdr*)c);
-//    Proto->ConnectHndls.Call(c);
-//}
-//
-//static void LQ_CALL LqHttpCoreBindCloseHandler(LqConn* Connection) {
-//    auto Proto = (LqHttpProto*)Connection->Proto->UserData;
-//    LqHttpConn* c = (LqHttpConn*)Connection;
-//    if(Connection->Fd != -1)
-//        closesocket(Connection->Fd);
-//    Connection->Fd = -1;
-//    LQHTTPLOG_DEBUG("LqHttpCoreBindCloseHandler() disconnected\n");
-//    LqObPtrDereference<LqHttpProto, LqFastAlloc::Delete>(Proto);
-//}
-//
-//LQ_EXTERN_C LqEvntFlag LQ_CALL LqHttpEvntGetFlagByAct(LqHttpConn* Conn) {
-//    switch(LqHttpActGetClassByConn(Conn)) {
-//        case LQHTTPACT_CLASS_QER:
-//            return LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD;
-//        case LQHTTPACT_CLASS_RSP:
-//            return LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_WR;
-//        case LQHTTPACT_CLASS_CLS:
-//            return LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP;
-//    }
-//    return 0;
-//}
-//
-//LQ_EXTERN_C int LQ_CALL LqHttpEvntSetFlagByAct(LqHttpConn* Conn) {
-//    switch(LqHttpActGetClassByConn(Conn)) {
-//        case LQHTTPACT_CLASS_QER:
-//            return LqEvntSetFlags(Conn, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD, 0);
-//        case LQHTTPACT_CLASS_RSP:
-//            return LqEvntSetFlags(Conn, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_WR, 0);
-//        case LQHTTPACT_CLASS_CLS:
-//            return LqEvntSetClose(Conn);
-//    }
-//    return 0;
-//}
-//
-//static bool LQ_CALL LqHttpCoreCmpIpAddress(LqConn* c, const void* Address) {
-//    if(LqHttpConnGetRmtAddr(c)->sa_family != ((sockaddr*)Address)->sa_family)
-//        return false;
-//    switch(LqHttpConnGetRmtAddr(c)->sa_family) {
-//        case AF_INET: return memcmp(&((sockaddr_in*)LqHttpConnGetRmtAddr(c))->sin_addr, &((sockaddr_in*)Address)->sin_addr, sizeof(((sockaddr_in*)Address)->sin_addr)) == 0;
-//        case AF_INET6: return memcmp(&((sockaddr_in6*)LqHttpConnGetRmtAddr(c))->sin6_addr, &((sockaddr_in6*)Address)->sin6_addr, sizeof(((sockaddr_in6*)Address)->sin6_addr)) == 0;
-//    }
-//    return false;
-//}
-//
-//static void LQ_CALL LqHttpFreeProtoNotifyProc(LqProto* This) {
-//    LqHttpProto* CurReg = (LqHttpProto*)This;
-//    CurReg->Base.IsUnregister = true;
-//    LqHttpMdlFreeAll(&CurReg->Base);
-//    if(CurReg->Base.CountConnections == 0) {
-//#ifdef HAVE_OPENSSL
-//        if(CurReg->Base.ssl_ctx != nullptr)
-//            SSL_CTX_free(CurReg->Base.ssl_ctx);
-//#endif
-//        LqFastAlloc::Delete(CurReg);
-//    }
-//}
-//
-//static bool LQ_CALL LqHttpCoreKickByTimeOutProc(LqConn* Connection, LqTimeMillisec CurrentTimeMillisec, LqTimeMillisec EstimatedLiveTime) {
-//    LqHttpConn* c = (LqHttpConn*)Connection;
-//    LqTimeMillisec TimeDiff = CurrentTimeMillisec - c->TimeLastExchangeMillisec;
-//    return TimeDiff > EstimatedLiveTime;
-//}
-//
-//static char* LQ_CALL LqHttpCoreDbgInfoProc(LqConn* Connection) {
-//    char * Info = (char*)malloc(255);
-//    if(Info == nullptr)
-//        return nullptr;
-//    LqFbuf_snprintf(
-//        Info,
-//        254,
-//        "  HTTP connection. flags: %s%s%s",
-//        (Connection->Flag & LQEVNT_FLAG_RD) ? "RD " : "",
-//        (Connection->Flag & LQEVNT_FLAG_WR) ? "WR " : "",
-//        (Connection->Flag & LQEVNT_FLAG_HUP) ? "HUP " : ""
-//    );
-//    return Info;
-//}
-//
-///////////////////////////////////////////
-////Start Rsp
-///////////////////////////////////////////
-//
-//static bool LqHttpCoreRspRangesRestruct(LqHttpConn* c) {
-//    auto Module = LqHttpMdlGetByConn(c);
-//    c->Response.CurRange++;
-//    if(c->Response.CurRange < c->Response.CountRanges) {
-//        char* HedersBuf = LqHttpRspHdrResize(c, 4096);
-//        LqFileSz CommonLenFile;
-//        LqFileStat s;
-//        s.ModifTime = 0;
-//        if(c->Response.Fd != -1) {
-//            LqFileGetStatByFd(c->Response.Fd, &s);
-//            CommonLenFile = s.Size;
-//        } else if(c->Response.CacheInterator != nullptr) {
-//            CommonLenFile = ((LqFileChe<LqCachedFileHdr>::CachedFile*)c->Response.CacheInterator)->SizeFile;
-//        } else {
-//            CommonLenFile = 0;
-//        }
-//        char MimeBuf[1024];
-//        MimeBuf[0] = '\0';
-//        Module->GetMimeProc(c->Pth->RealPath, c, MimeBuf, sizeof(MimeBuf), (s.ModifTime == 0) ? nullptr : &s);
-//
-//        int LenWritten = LqHttpRspPrintRangeBoundaryHeaders
-//        (
-//            HedersBuf,
-//            c->BufSize,
-//            c,
-//            CommonLenFile,
-//            c->Response.Ranges[c->Response.CurRange].Start,
-//            c->Response.Ranges[c->Response.CurRange].End,
-//            (MimeBuf[0] == '\0') ? nullptr : MimeBuf
-//        );
-//        LqHttpRspHdrResize(c, LenWritten);
-//        return true;
-//    } else if(c->Response.CountRanges > 1) {
-//        char* HedersBuf = LqHttpRspHdrResize(c, 4096);
-//        int EndHederLen = LqHttpRspPrintEndRangeBoundaryHeader(HedersBuf, c->BufSize);
-//        LqHttpRspHdrResize(c, EndHederLen);
-//        return true;
-//    }
-//    return false;
-//}
-//
-//static void LqHttpCoreRspHdr(LqHttpConn* c) {
-//    if(c->Response.HeadersStart < c->Response.HeadersEnd) {
-//        auto SendedSize = LqHttpConnSend_Native(c, c->Buf + c->Response.HeadersStart, c->Response.HeadersEnd - c->Response.HeadersStart);
-//        c->Response.HeadersStart += SendedSize;
-//        if(c->Response.HeadersStart < c->Response.HeadersEnd) {
-//            c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//            return;
-//        }
-//    }
-//    c->ActionResult = LQHTTPACT_RES_OK;
-//}
-//
-//static void LqHttpCoreRspCache(LqHttpConn* c) {
-//    if(c->Response.HeadersStart < c->Response.HeadersEnd) {
-//lblOutHeader:
-//        auto SendedSize = LqHttpConnSend_Native(c, c->Buf + c->Response.HeadersStart, c->Response.HeadersEnd - c->Response.HeadersStart);
-//        if(c->Response.CurRange > 0)
-//            c->WrittenBodySize += SendedSize;
-//        c->Response.HeadersStart += SendedSize;
-//        if(c->Response.HeadersStart < c->Response.HeadersEnd) {
-//            c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//            return;
-//        }
-//    }
-//    LqFileSz ResponseSize = c->Response.Ranges[c->Response.CurRange].End - c->Response.Ranges[c->Response.CurRange].Start;
-//    LqFileSz SendedSize = LqHttpConnSend
-//    (
-//        c,
-//        (const char*)((LqFileChe<LqCachedFileHdr>::CachedFile*)c->Response.CacheInterator)->Buf +
-//        c->Response.Ranges[c->Response.CurRange].Start,
-//        ResponseSize
-//    );
-//    c->Response.Ranges[c->Response.CurRange].Start += SendedSize;
-//    if(c->Response.Ranges[c->Response.CurRange].End <= c->Response.Ranges[c->Response.CurRange].Start) {
-//        if(LqHttpCoreRspRangesRestruct(c))
-//            goto lblOutHeader;
-//    } else {
-//        c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//        return;
-//    }
-//    c->ActionResult = LQHTTPACT_RES_OK;
-//}
-//
-//static void LqHttpCoreRspFd(LqHttpConn* c) {
-//    if(c->Response.HeadersStart < c->Response.HeadersEnd) {
-//lblOutHeader:
-//        auto SendedSize = LqHttpConnSend_Native(c, c->Buf + c->Response.HeadersStart, c->Response.HeadersEnd - c->Response.HeadersStart);
-//        if(c->Response.CurRange > 0)
-//            c->WrittenBodySize += SendedSize;
-//        c->Response.HeadersStart += SendedSize;
-//        if(c->Response.HeadersStart < c->Response.HeadersEnd) {
-//            c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//            return;
-//        }
-//    }
-//    LqFileSz ResponseSize = c->Response.Ranges[c->Response.CurRange].End - c->Response.Ranges[c->Response.CurRange].Start;
-//    LqFileSz SendedSize = LqHttpConnSendFromFile(c, c->Response.Fd, c->Response.Ranges[c->Response.CurRange].Start, ResponseSize);
-//    c->Response.Ranges[c->Response.CurRange].Start += SendedSize;
-//    if(c->Response.Ranges[c->Response.CurRange].End <= c->Response.Ranges[c->Response.CurRange].Start) {
-//        if(LqHttpCoreRspRangesRestruct(c)) goto lblOutHeader;
-//    } else {
-//        c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//        return;
-//    }
-//    c->ActionResult = LQHTTPACT_RES_OK;
-//}
-//
-//static void LqHttpCoreRspStream(LqHttpConn* c) {
-//    if(c->Response.HeadersStart < c->Response.HeadersEnd) {
-//        auto SendedSize = LqHttpConnSend_Native(c, c->Buf + c->Response.HeadersStart, c->Response.HeadersEnd - c->Response.HeadersStart);
-//        if(c->Response.CurRange > 0)
-//            c->WrittenBodySize += SendedSize;
-//        c->Response.HeadersStart += SendedSize;
-//        if(c->Response.HeadersStart < c->Response.HeadersEnd) {
-//            c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//            return;
-//        }
-//    }
-//    LqHttpConnSendFromStream(c, &c->Response.Stream, c->Response.Stream.Len);
-//    if(c->Response.Stream.Len > 0) {
-//        c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//        return;
-//    }
-//    c->ActionResult = LQHTTPACT_RES_OK;
-//}
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsUnregisterQuery(LqHttp* Http, LqHttpNotifyFn QueryFunc) {
+	return LqHttpGetHttpData(Http)->StartQueryHndls.Rm(QueryFunc);
+}
 
-/////////////////////////////////////////
-//End Rsp
-/////////////////////////////////////////
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsRegisterResponse(LqHttp* Http, LqHttpNotifyFn ResponseFunc) {
+	return LqHttpGetHttpData(Http)->EndResponseHndls.Add(ResponseFunc);
+}
 
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsUnregisterResponse(LqHttp* Http, LqHttpNotifyFn ResponseFunc) {
+	return LqHttpGetHttpData(Http)->EndResponseHndls.Rm(ResponseFunc);
+}
 
-////////////////////////////////////////
-// Multipart data
-////////////////////////////////////////
-//
-//static void LqHttpCoreRcvMultipartSkipToHdr(LqHttpConn* c) {
-//    char Buf[LQCONN_MAX_LOCAL_SIZE];
-//    const static uint16_t BeginChain = *(uint16_t*)"--";
-//    const static uint16_t EndChain = *(uint16_t*)"\r\n";
-//    const static uint16_t EndChain2 = *(uint16_t*)"--";
-//
-//
-//    auto q = &c->Query;
-//    auto ReadedBodySize = c->ReadedBodySize;
-//    for(; q->MultipartHeaders != nullptr; q = &q->MultipartHeaders->Query)
-//        ReadedBodySize = q->MultipartHeaders->ReadedBodySize;
-//
-//    LqFileSz LeftContentLen = q->ContentLen - ReadedBodySize;
-//
-//    size_t BoundaryChainSize = (sizeof(BeginChain) + sizeof(EndChain)) + q->ContentBoundaryLen;
-//    LqFileSz InTactReaded = 0;
-//    LqFileSz MaxReciveSizeInTact = c->CommonConn.Proto->MaxReciveInSingleTime;
-//
-//    while(true) {
-//        LqFileSz CurSizeRead = LeftContentLen - InTactReaded;
-//        if(CurSizeRead <= BoundaryChainSize) {
-//            if(CurSizeRead > 0) {
-//                auto Skipped = LqHttpConnRecive_Native(c, Buf, CurSizeRead, 0);
-//                if(Skipped < 0) {
-//                    c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//                    goto lblOut;
-//                }
-//                InTactReaded += Skipped;
-//                if(Skipped < CurSizeRead) {
-//                    c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//                    goto lblOut;
-//                }
-//            }
-//            c->ActionResult = LQHTTPACT_RES_MULTIPART_END;
-//            goto lblOut;
-//        }
-//        if(CurSizeRead > (sizeof(Buf) - sizeof(BeginChain)))
-//            CurSizeRead = (sizeof(Buf) - sizeof(BeginChain));
-//        auto PeekRecived = LqHttpConnRecive_Native(c, Buf, CurSizeRead, MSG_PEEK);
-//        if(PeekRecived == -1) {
-//            c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//            goto lblOut;
-//        }
-//        *(int16_t*)(Buf + PeekRecived) = BeginChain;
-//        size_t Checked = 0;
-//        for(register char* i = Buf; ; i++) {
-//            if(*(uint16_t*)i == BeginChain) {
-//                if(((Checked = i - Buf) + BoundaryChainSize) > PeekRecived)
-//                    break;
-//                if(memcmp(q->ContentBoundary, i + sizeof(BeginChain), q->ContentBoundaryLen) == 0) {
-//                    if(EndChain == *(uint16_t*)(i + sizeof(BeginChain) + q->ContentBoundaryLen)) {
-//                        InTactReaded += LqHttpConnRecive_Native(c, Buf, Checked + BoundaryChainSize, 0);
-//                        c->ActionResult = LQHTTPACT_RES_OK;
-//                        goto lblOut;
-//                    } else if(EndChain2 == *(uint16_t*)(i + sizeof(BeginChain) + q->ContentBoundaryLen)) {
-//                        InTactReaded += LqHttpConnRecive_Native(c, Buf, Checked + BoundaryChainSize, 0);
-//                        c->ActionResult = LQHTTPACT_RES_MULTIPART_END;
-//                        goto lblOut;
-//                    }
-//                }
-//            }
-//        }
-//        InTactReaded += LqHttpConnRecive_Native(c, Buf, Checked, 0);
-//        if(InTactReaded > MaxReciveSizeInTact) {
-//            c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//            goto lblOut;
-//        }
-//    }
-//
-//lblOut:
-//    c->ReadedBodySize += InTactReaded;
-//    for(auto mh = c->Query.MultipartHeaders; mh != nullptr; mh = mh->Query.MultipartHeaders)
-//        mh->ReadedBodySize += InTactReaded;
-//}
-//
-///*
-//*
-//* Returned errors: SNDWD_STAT_OK, SNDWD_STAT_PARTIALLY, SNDWD_STAT_FULL_MAX, SNDWD_STAT_MULTIPART_END, SNDWD_STAT_MULTIPART_INVALID_HEADER
-//*/
-//
-//static void LqHttpRcvMultipartReadHdr(LqHttpConn* c) {
-//    char Buf[LQCONN_MAX_LOCAL_SIZE];
-//    static const uint32_t EndChain = *(uint32_t*)"\r\n\r\n";
-//    static const size_t BoundaryChainSize = sizeof(EndChain);
-//
-//    LqHttpMultipartHeaders* CurMultipart = (LqHttpMultipartHeaders*)c->_Reserved;
-//    LqFileSz HdrRecived = 0;
-//    if(CurMultipart != nullptr)
-//        HdrRecived = CurMultipart->BufSize;
-//
-//    auto q = &c->Query;
-//    auto ReadedBodySize = c->ReadedBodySize;
-//    for(; q->MultipartHeaders != nullptr; q = &q->MultipartHeaders->Query)
-//        ReadedBodySize = q->MultipartHeaders->ReadedBodySize;
-//    LqFileSz LeftContentLen = q->ContentLen - ReadedBodySize;
-//
-//    LqFileSz InTactReaded = 0;
-//    LqFileSz MaxReciveSizeInTact = c->CommonConn.Proto->MaxReciveInSingleTime;
-//    LqFileSz MaxHeadersSize = LqHttpProtoGetByConn(c)->MaxMultipartHeadersSize;
-//
-//    while(true) {
-//        LqFileSz CurSizeRead = LeftContentLen - InTactReaded;
-//        if(CurSizeRead <= BoundaryChainSize) {
-//            if(CurSizeRead > 0) {
-//                auto Skipped = LqHttpConnRecive_Native(c, Buf, CurSizeRead, 0);
-//                if(Skipped < 0) {
-//                    c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//                    goto lblPartial;
-//                }
-//                InTactReaded += Skipped;
-//                if(Skipped < CurSizeRead) {
-//                    c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//                    goto lblPartial;
-//                }
-//            }
-//            c->ActionResult = LQHTTPACT_RES_MULTIPART_END;
-//            goto lblOutErr;
-//        }
-//        if(CurSizeRead > (sizeof(Buf) - sizeof(EndChain)))
-//            CurSizeRead = (sizeof(Buf) - sizeof(EndChain));
-//        if((HdrRecived + InTactReaded) > MaxHeadersSize) {
-//            CurSizeRead = MaxHeadersSize - (InTactReaded + HdrRecived);
-//            if(CurSizeRead <= 0) {
-//                c->ActionResult = LQHTTPACT_RES_HEADERS_READ_MAX;
-//                goto lblOutErr;
-//            }
-//        }
-//        auto PeekRecived = LqHttpConnRecive_Native(c, Buf, CurSizeRead, MSG_PEEK);
-//        if(PeekRecived == -1) {
-//            c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//            goto lblPartial;
-//        }
-//
-//        *(uint32_t*)(Buf + PeekRecived) = EndChain;
-//        size_t Checked = 0;
-//        for(register char* i = Buf; ; i++) {
-//            if(EndChain == *(uint32_t*)i) {
-//                if(((Checked = i - Buf) + BoundaryChainSize) > PeekRecived)
-//                    break;
-//                if(!LqHttpMultipartAddHeaders(&CurMultipart, Buf, Checked + BoundaryChainSize)) {
-//                    c->ActionResult = LQHTTPACT_RES_NOT_ALLOC_MEM;
-//                    goto lblOutErr;
-//                }
-//                InTactReaded += LqHttpConnRecive_Native(c, Buf, Checked + BoundaryChainSize, 0);
-//                char* Start = CurMultipart->Buf;
-//                for(;;) {
-//                    char *StartKey, *EndKey, *StartVal, *EndVal, *EndHeader;
-//                    LqHttpPrsHdrStatEnm r = LqHttpPrsHeader(Start, &StartKey, &EndKey, &StartVal, &EndVal, &EndHeader);
-//                    switch(r) {
-//                        case LQPRS_HDR_SUCCESS:
-//                        {
-//                            char t = *EndKey;
-//                            *EndKey = '\0';
-//                            LqHttpParseHeader(c, &CurMultipart->Query, StartKey, StartVal, EndVal, LqDfltRef());
-//                            *EndKey = t;
-//                            Start = EndHeader;
-//                        }
-//                        continue;
-//                        case LQPRS_HDR_ERR:
-//                            c->ActionResult = LQHTTPACT_RES_INVALID_HEADER;
-//                            goto lblOutErr;
-//                    }
-//                    if(r == LQPRS_HDR_END) break;
-//                }
-//                c->ActionResult = LQHTTPACT_RES_OK;
-//                q->MultipartHeaders = CurMultipart;
-//                CurMultipart->Buf[CurMultipart->BufSize] = '\0';
-//                c->_Reserved = 0;
-//                goto lblOk;
-//            }
-//        }
-//        if(!LqHttpMultipartAddHeaders(&CurMultipart, Buf, Checked)) {
-//            c->ActionResult = LQHTTPACT_RES_NOT_ALLOC_MEM;
-//            goto lblOutErr;
-//        }
-//        InTactReaded += LqHttpConnRecive_Native(c, Buf, Checked, 0);
-//        if(InTactReaded > MaxReciveSizeInTact) {
-//            c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//            goto lblPartial;
-//        }
-//    }
-//lblOutErr:
-//    if(CurMultipart != nullptr) {
-//        free(CurMultipart);
-//        CurMultipart = nullptr;
-//    }
-//lblPartial:
-//    c->_Reserved = (uintptr_t)CurMultipart;
-//lblOk:
-//    c->ReadedBodySize += InTactReaded;
-//    for(auto mh = c->Query.MultipartHeaders; (mh != nullptr) && (q->MultipartHeaders != CurMultipart); mh = mh->Query.MultipartHeaders)
-//        mh->ReadedBodySize += InTactReaded;
-//}
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsRegisterConnect(LqHttp* Http, LqHttpNotifyFn ConnectFunc) {
+	return LqHttpGetHttpData(Http)->ConnectHndls.Add(ConnectFunc);
+}
 
-//static void LqHttpRcvMultipartReadInFile(LqHttpConn* c) {
-//    char Buf[LQCONN_MAX_LOCAL_SIZE];
-//    static const uint32_t BeginChain = *(uint32_t*)"\r\n--";
-//
-//    auto mph = c->Query.MultipartHeaders;
-//    if(mph == nullptr) {
-//        c->ActionResult = LQHTTPACT_RES_INVALID_HEADER;
-//        return;
-//    }
-//    auto bq = &c->Query;
-//    for(; ; mph = mph->Query.MultipartHeaders) {
-//        if(mph->Query.ContentBoundary)
-//            bq = &mph->Query;
-//        if(mph->Query.MultipartHeaders == nullptr)
-//            break;
-//    }
-//    int OutFd = c->Query.OutFd;
-//    size_t BoundaryChainSize = sizeof(BeginChain) + bq->ContentBoundaryLen;
-//    LqFileSz LeftContentLen = mph->Query.ContentLen - mph->ReadedBodySize;
-//    LqFileSz InTactReaded = 0;
-//    LqFileSz MaxReciveSizeInTact = c->CommonConn.Proto->MaxReciveInSingleTime;
-//
-//    while(true) {
-//        size_t CurSizeRead = LeftContentLen - InTactReaded;
-//        if(CurSizeRead <= BoundaryChainSize) {
-//            if(CurSizeRead > 0) {
-//                auto Skipped = LqHttpConnRecive_Native(c, Buf, CurSizeRead, 0);
-//                if(Skipped < 0) {
-//                    c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//                    goto lblOut;
-//                }
-//                InTactReaded += Skipped;
-//                if(Skipped < CurSizeRead) {
-//                    c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//                    goto lblOut;
-//                }
-//            }
-//            c->ActionResult = LQHTTPACT_RES_MULTIPART_END;
-//            goto lblOut;
-//        }
-//        if(CurSizeRead > (sizeof(Buf) - sizeof(BeginChain)))
-//            CurSizeRead = (sizeof(Buf) - sizeof(BeginChain));
-//        if((CurSizeRead + InTactReaded) > LeftContentLen) {
-//            if((CurSizeRead = LeftContentLen - InTactReaded) <= 0) {
-//                c->ActionResult = LQHTTPACT_RES_OK;
-//                goto lblOut;
-//            }
-//        }
-//        auto PeekRecived = LqHttpConnRecive_Native(c, Buf, CurSizeRead, MSG_PEEK);
-//        if(PeekRecived == -1) {
-//            c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//            goto lblOut;
-//        }
-//        *(uint32_t*)(Buf + PeekRecived) = BeginChain;
-//
-//        size_t Checked = 0;
-//        for(register char* i = Buf; ; i++) {
-//            if(BeginChain == *(uint32_t*)i) {
-//                if(((Checked = i - Buf) + BoundaryChainSize) > PeekRecived)
-//                    break;
-//                if(memcmp(bq->ContentBoundary, i + sizeof(BeginChain), bq->ContentBoundaryLen) == 0) {
-//                    auto Written = LqFileWrite(OutFd, Buf, Checked);
-//                    if(Written < 0) {
-//                        c->ActionResult = LQHTTPACT_RES_FILE_WRITE_ERR;
-//                        goto lblOut;
-//                    }
-//                    InTactReaded += LqHttpConnRecive_Native(c, Buf, Checked, 0);
-//                    c->ActionResult = LQHTTPACT_RES_OK;
-//                    goto lblOut;
-//                }
-//            }
-//        }
-//        auto Written = LqFileWrite(OutFd, Buf, Checked);
-//        if(Written < Checked) {
-//            c->ActionResult = LQHTTPACT_RES_FILE_WRITE_ERR;
-//            goto lblOut;
-//        }
-//        InTactReaded += LqHttpConnRecive_Native(c, Buf, Checked, 0);
-//        if(InTactReaded > MaxReciveSizeInTact) {
-//            c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//            goto lblOut;
-//        }
-//    }
-//
-//lblOut:
-//    c->ReadedBodySize += InTactReaded;
-//    for(auto mh = c->Query.MultipartHeaders; mh != nullptr; mh = mh->Query.MultipartHeaders)
-//        mh->ReadedBodySize += InTactReaded;
-//}
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsUnregisterConnect(LqHttp* Http, LqHttpNotifyFn ConnectFunc) {
+	return LqHttpGetHttpData(Http)->ConnectHndls.Rm(ConnectFunc);
+}
 
-//static void LqHttpRcvMultipartReadInStream(LqHttpConn* c) {
-//    char Buf[LQCONN_MAX_LOCAL_SIZE];
-//    static const uint32_t BeginChain = *(uint32_t*)"\r\n--";
-//
-//    auto mph = c->Query.MultipartHeaders;
-//    if(mph == nullptr) {
-//        c->ActionResult = LQHTTPACT_RES_INVALID_HEADER;
-//        return;
-//    }
-//    auto bq = &c->Query;
-//    for(; ; mph = mph->Query.MultipartHeaders) {
-//        if(mph->Query.ContentBoundary)
-//            bq = &mph->Query;
-//        if(mph->Query.MultipartHeaders == nullptr)
-//            break;
-//    }
-//    size_t BoundaryChainSize = sizeof(BeginChain) + bq->ContentBoundaryLen;
-//    LqFileSz LeftContentLen = mph->Query.ContentLen - mph->ReadedBodySize;
-//    LqFileSz InTactReaded = 0;
-//    LqFileSz MaxReciveSizeInTact = c->CommonConn.Proto->MaxReciveInSingleTime;
-//    while(true) {
-//        size_t CurSizeRead = LeftContentLen - InTactReaded;
-//        if(CurSizeRead <= BoundaryChainSize) {
-//            if(CurSizeRead > 0) {
-//                auto Skipped = LqHttpConnRecive_Native(c, Buf, CurSizeRead, 0);
-//                if(Skipped < 0) {
-//                    c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//                    goto lblOut;
-//                }
-//                InTactReaded += Skipped;
-//                if(Skipped < CurSizeRead) {
-//                    c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//                    goto lblOut;
-//                }
-//            }
-//            c->ActionResult = LQHTTPACT_RES_MULTIPART_END;
-//            goto lblOut;
-//        }
-//        if(CurSizeRead > (sizeof(Buf) - sizeof(BeginChain)))
-//            CurSizeRead = (sizeof(Buf) - sizeof(BeginChain));
-//        if((CurSizeRead + InTactReaded) > LeftContentLen) {
-//            if((CurSizeRead = LeftContentLen - InTactReaded) <= 0) {
-//                c->ActionResult = LQHTTPACT_RES_OK;
-//                goto lblOut;
-//            }
-//        }
-//        auto PeekRecived = LqHttpConnRecive_Native(c, Buf, CurSizeRead, MSG_PEEK);
-//        if(PeekRecived == -1) {
-//            c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//            goto lblOut;
-//        }
-//        *(uint32_t*)(Buf + PeekRecived) = BeginChain; //Set terminator for loop
-//        size_t Checked = 0;
-//        for(register char* i = Buf; ; i++) {
-//            if(BeginChain == *(uint32_t*)i) {
-//                if(((Checked = i - Buf) + BoundaryChainSize) > PeekRecived) //If have terninator
-//                    break;
-//                if(memcmp(bq->ContentBoundary, i + sizeof(BeginChain), bq->ContentBoundaryLen) == 0) {
-//                    auto Written = LqSbufWrite(&c->Query.Stream, Buf, Checked);
-//                    if(Written < Checked) {
-//                        c->ActionResult = LQHTTPACT_RES_NOT_ALLOC_MEM;
-//                        goto lblOut;
-//                    }
-//                    InTactReaded += LqHttpConnRecive_Native(c, Buf, Checked, 0);
-//                    c->ActionResult = LQHTTPACT_RES_OK;
-//                    goto lblOut;
-//                }
-//            }
-//        }
-//        auto Written = LqSbufWrite(&c->Query.Stream, Buf, Checked);
-//        if(Written < Checked) {
-//            c->ActionResult = LQHTTPACT_RES_NOT_ALLOC_MEM;
-//            goto lblOut;
-//        }
-//        InTactReaded += LqHttpConnRecive_Native(c, Buf, Checked, 0);
-//        if(InTactReaded > MaxReciveSizeInTact) {
-//            c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//            goto lblOut;
-//        }
-//    }
-//
-//lblOut:
-//    c->ReadedBodySize += InTactReaded;
-//    for(auto mh = c->Query.MultipartHeaders; mh != nullptr; mh = mh->Query.MultipartHeaders)
-//        mh->ReadedBodySize += InTactReaded;
-//}
-//
-//static bool LqHttpMultipartAddHeaders(LqHttpMultipartHeaders** CurMultipart, const char* Buf, size_t BufLen) {
-//    LqHttpMultipartHeaders* New;
-//    if(*CurMultipart == nullptr) {
-//        New = (LqHttpMultipartHeaders*)malloc(sizeof(LqHttpMultipartHeaders) + BufLen + 1);
-//        if(New == nullptr)
-//            return false;
-//        memset(New, 0, sizeof(LqHttpMultipartHeaders));
-//        New->Query.OutFd = -1;
-//        New->Query.ContentLen = LQ_MAX_CONTENT_LEN;
-//    } else {
-//        auto Old = CurMultipart[0];
-//        New = (LqHttpMultipartHeaders*)realloc(Old, sizeof(LqHttpMultipartHeaders) + Old->BufSize + BufLen + 1);
-//        if(New == nullptr)
-//            return false;
-//    }
-//    *CurMultipart = New;
-//    memcpy(New->Buf + New->BufSize, Buf, BufLen);
-//    New->BufSize += BufLen;
-//    return true;
-//}
-//
-//static void LqHttpQurReadHeaders(LqHttpConn* c) {
-//    int CountReaded;
-//    size_t NewAllocSize, ReadSize, SizeAllReaded, CountLines, UrlLength, LengthHeaders;
-//    char *EndQuery, *EndStartLine, *StartMethod = "", *EndMethod = StartMethod,
-//        *StartUri = StartMethod, *EndUri = StartMethod,
-//        *StartVer = StartMethod, *EndVer = StartMethod,
-//        *SchemeStart, *SchemeEnd, *UserInfoStart, *UserInfoEnd,
-//        *HostStart, *HostEnd, *PortStart, *PortEnd,
-//        *DirStart, *DirEnd, *QueryStart, *QueryEnd,
-//        *FragmentStart, *FragmentEnd, *End, TypeHost, *NewPlaceForUrl;
-//
-//    LqHttpProto* CurProto = LqHttpGetReg(c);
-//    auto q = &c->Query;
-//
-//
-//lblContinueRead:
-//    NewAllocSize = q->PartLen + 2045;
-//    if(c->BufSize < NewAllocSize) {
-//        if(!LqHttpConnBufferRealloc(c, (NewAllocSize > CurProto->Base.MaxHeadersSize) ? CurProto->Base.MaxHeadersSize : NewAllocSize)) {
-//            //Error allocate memory
-//            c->Flags = LQHTTPCONN_FLAG_CLOSE;
-//            LqHttpRspError(c, 500);
-//            return;
-//        }
-//    }
-//
-//    ReadSize = c->BufSize - q->PartLen - 2;
-//    if((CountReaded = LqHttpConnRecive_Native(c, c->Buf + q->PartLen, ReadSize, MSG_PEEK)) <= 0) {
-//        if((CountReaded < 0) && !LQERR_IS_WOULD_BLOCK) {
-//            //Error reading
-//            c->Flags = LQHTTPCONN_FLAG_CLOSE;
-//            LqHttpRspError(c, 500);
-//            return;
-//        }
-//        //Is empty buffer
-//        c->ActionResult = LQHTTPACT_RES_PARTIALLY;
-//        return;
-//    }
-//
-//    SizeAllReaded = q->PartLen + CountReaded;
-//    c->Buf[SizeAllReaded] = '\0';
-//    if((EndQuery = LqHttpPrsGetEndHeaders(c->Buf + q->PartLen, &CountLines)) == nullptr) {
-//        if((SizeAllReaded + 4) >= CurProto->Base.MaxHeadersSize) {
-//            //Error request to large
-//            q->PartLen = 0;
-//            c->Flags = LQHTTPCONN_FLAG_CLOSE;
-//            LqHttpRspError(c, 413);
-//            return;
-//        } else {
-//            LqHttpConnRecive_Native(c, c->Buf + q->PartLen, CountReaded, 0);
-//            q->PartLen = SizeAllReaded;
-//            //If data spawn in buffer, while we reading.
-//            if(LqHttpConnCountPendingData(c) > 0)
-//                goto lblContinueRead;
-//            //Is read part
-//            return;
-//        }
-//    }
-//
-//    LqHttpConnRecive_Native(c, c->Buf + q->PartLen, EndQuery - (c->Buf + q->PartLen), 0);
-//    *EndQuery = '\0';
-//    q->PartLen = 0;
-//    LengthHeaders = EndQuery - c->Buf;
-//
-//    /*
-//    Read start line.
-//    */
-//lblGetUrlAgain:
-//    switch(
-//        LqHttpPrsStartLine(
-//        c->Buf,
-//        &StartMethod, &EndMethod,
-//        &StartUri, &EndUri,
-//        &StartVer, &EndVer,
-//        &EndStartLine
-//        )) {
-//        case LQPRS_START_LINE_ERR:
-//            //Err invalid start line
-//            c->Flags = LQHTTPCONN_FLAG_CLOSE;
-//            LqHttpRspError(c, 400);
-//            return;
-//    }
-//
-//    UrlLength = LengthHeaders + (EndUri - StartUri) + 10;
-//
-//    if(UrlLength > c->BufSize) {
-//        if(!LqHttpConnBufferRealloc(c, UrlLength)) {
-//            free(c->Buf);
-//            c->Buf = nullptr;
-//            c->Flags = LQHTTPCONN_FLAG_CLOSE;
-//            LqHttpRspError(c, 500);
-//            return;
-//        }
-//        goto lblGetUrlAgain;
-//    }
-//
-//    memcpy(NewPlaceForUrl = (c->Buf + (LengthHeaders + 2)), StartUri, EndUri - StartUri);
-//    NewPlaceForUrl[EndUri - StartUri] = '\0';
-//    struct LocalFunc {
-//        static void EnumURIArg(void* QueryData, char* StartKey, char* EndKey, char* StartVal, char* EndVal) {}
-//    };
-//
-//    if(
-//        LqHttpPrsUrl
-//        (
-//        NewPlaceForUrl,
-//        &SchemeStart, &SchemeEnd,
-//        &UserInfoStart, &UserInfoEnd,
-//        &HostStart, &HostEnd,
-//        &PortStart, &PortEnd,
-//        &DirStart, &DirEnd,
-//        &QueryStart, &QueryEnd,
-//        &FragmentStart, &FragmentEnd,
-//        &End, &TypeHost,
-//        LocalFunc::EnumURIArg,
-//        q
-//        ) != LQPRS_URL_SUCCESS
-//        ) {
-//        if(*StartUri == '*') {
-//            DirEnd = (DirStart = StartUri) + 1;
-//        } else {
-//            //Err invalid uri in start line
-//            LqHttpRspError(c, 400);
-//            return;
-//        }
-//    } else {
-//        char* NewEnd;
-//
-//        if(UserInfoStart != nullptr) {
-//            q->UserInfo = LqHttpPrsEscapeDecode(UserInfoStart, UserInfoEnd, &NewEnd);
-//            q->UserInfoLen = NewEnd - UserInfoStart;
-//        }
-//        if(HostStart != nullptr) {
-//            q->Host = LqHttpPrsEscapeDecode(HostStart, HostEnd, &NewEnd);
-//            q->HostLen = NewEnd - HostStart;
-//        }
-//        if(DirStart != nullptr) {
-//            q->Path = LqHttpPrsEscapeDecode(DirStart, DirEnd, &NewEnd);
-//            q->PathLen = NewEnd - DirStart;
-//        }
-//        if(QueryStart != nullptr) {
-//            q->Arg = LqHttpPrsEscapeDecode(QueryStart, QueryEnd, &NewEnd);
-//            q->ArgLen = NewEnd - q->Arg;
-//        }
-//        if(FragmentStart != nullptr) {
-//            q->Fragment = LqHttpPrsEscapeDecode(FragmentStart, FragmentEnd, &NewEnd);
-//            q->FragmentLen = NewEnd - FragmentStart;
-//        }
-//    }
-//    if(StartVer < EndVer) {
-//        q->ProtoVer = StartVer;
-//        q->ProtoVerLen = EndVer - StartVer;
-//    }
-//    q->Method = StartMethod;
-//    q->MethodLen = EndMethod - StartMethod;
-//
-//
-//    /*
-//    Read all headers
-//    */
-//
-//    q->HeadersEnd = SizeAllReaded + 1;
-//    size_t RecognizedHeadersCount = 0;
-//    for(;;) {
-//        char *StartKey, *EndKey, *StartVal, *EndVal, *EndHeader;
-//        LqHttpPrsHdrStatEnm r = LqHttpPrsHeader(EndStartLine, &StartKey, &EndKey, &StartVal, &EndVal, &EndHeader);
-//        switch(r) {
-//            case LQPRS_HDR_SUCCESS:
-//            {
-//                char t = *EndKey;
-//                *EndKey = '\0';
-//                LqHttpParseHeader(c, &c->Query, StartKey, StartVal, EndVal, &RecognizedHeadersCount);
-//                *EndKey = t;
-//                EndStartLine = EndHeader;
-//            }
-//            continue;
-//            case LQPRS_HDR_ERR:
-//            {
-//                //Err invalid header in query
-//                LqHttpRspError(c, 400);
-//                return;
-//            }
-//        }
-//        if(r == LQPRS_HDR_END) break;
-//    }
-//    LqHttpPthRecognize(c);
-//    c->ActionState = LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS;
-//    c->ActionResult = LQHTTPACT_RES_OK;
-//
-//    CurProto->StartQueryHndls.Call(c);
-//
-//    if(auto MethodHandler = LqHttpMdlGetByConn(c)->GetActEvntHandlerProc(c))
-//        c->EventAct = MethodHandler;
-//    else
-//        LqHttpRspError(c, 405);
-//
-//}
-//
-//static void LqHttpParseHeader(LqHttpConn* c, LqHttpQuery* q, char* StartKey, char* StartVal, char* EndVal, size_t* CountHeders) {
-//    LQSTR_SWITCH_I(StartKey) {
-//        LQSTR_CASE_I("connection");
-//        {
-//            if(LqStrUtf8CmpCaseLen(StartVal, "close", sizeof("close") - 1))
-//                c->Flags |= LQHTTPCONN_FLAG_CLOSE;
-//        }
-//        break;
-//        LQSTR_CASE_I("content-length");
-//        {
-//            ullong InputLen = 0ULL;
-//            LqFbuf_snscanf(StartVal, EndVal - StartVal, "%llu", &InputLen);
-//            q->ContentLen = InputLen;
-//            //!!!!!!!!!!
-//        }
-//        break;
-//        LQSTR_CASE_I("host");
-//        {
-//            q->Host = StartVal;
-//            q->HostLen = EndVal - StartVal;
-//        }
-//        break;
-//        LQSTR_CASE_I("content-type");
-//        {
-//            if(LqStrUtf8CmpCaseLen(StartVal, "multipart/form-data", sizeof("multipart/form-data") - 1)) {
-//                for(char* i = StartVal + sizeof("multipart/form-data"), *m = EndVal - (sizeof("boundary=") - 1); i < m; i++) {
-//                    if(LqStrUtf8CmpCaseLen(i, "boundary=", sizeof("boundary=") - 1)) {
-//                        i += (sizeof("boundary=") - 1);
-//                        for(; *i == ' '; i++);
-//                        char* v = i;
-//                        for(; (*i != ';') && (*i != ' ') && (*i != '\0') && !((*i == '\r') && (i[1] == '\n')); i++);
-//                        if((i - v) <= 0)
-//                            break;
-//                        q->ContentBoundaryLen = i - (q->ContentBoundary = v);
-//                        q->ContentBoundary = v;
-//                        break;
-//                    }
-//                }
-//            }
-//        }
-//        break;
-//    }
-//}
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsRegisterDisconnect(LqHttp* Http, LqHttpNotifyFn DisconnectFunc) {
+	return LqHttpGetHttpData(Http)->DisconnectHndls.Add(DisconnectFunc);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqHttpHndlsUnregisterDisconnect(LqHttp* Http, LqHttpNotifyFn DisconnectFunc) {
+	return LqHttpGetHttpData(Http)->DisconnectHndls.Rm(DisconnectFunc);
+}
+
+LQ_EXTERN_C size_t LQ_CALL LqHttpEnumConn(LqHttp* Http, int(LQ_CALL* Proc)(void*, LqHttpConn*), void* UserData) {
+	LqHttpData* HttpData;
+	_LqHttpEnumConnProcData Data = {UserData, Http, Proc};
+	HttpData = LqHttpGetHttpData(Http);
+	return LqSockBufEnum(HttpData->WrkBoss, _LqHttpEnumConnProc, &Data);
+}
+
+LQ_EXTERN_C void LQ_CALL LqHttpSetMaxHdrsSize(LqHttp* Http, size_t NewSize) {
+	LqSockAcceptorLock(Http);
+	LqHttpGetHttpData(Http)->MaxHeadersSize = NewSize;
+	LqSockAcceptorUnlock(Http);
+}
+
+LQ_EXTERN_C size_t LQ_CALL LqHttpGetMaxHdrsSize(LqHttp* Http) {
+	size_t Res;
+	LqSockAcceptorLock(Http);
+	Res = LqHttpGetHttpData(Http)->MaxHeadersSize;
+	LqSockAcceptorUnlock(Http);
+	return Res;
+}
+
+LQ_EXTERN_C void LQ_CALL LqHttpSetNonceChangeTime(LqHttp* Http, LqTimeSec NewTime) {
+	LqSockAcceptorLock(Http);
+	LqHttpGetHttpData(Http)->PeriodChangeDigestNonce = NewTime;
+	LqSockAcceptorUnlock(Http);
+
+}
+
+LQ_EXTERN_C LqTimeSec LQ_CALL LqHttpGetNonceChangeTime(LqHttp* Http) {
+	LqTimeSec Res;
+	LqSockAcceptorLock(Http);
+	Res = LqHttpGetHttpData(Http)->PeriodChangeDigestNonce;
+	LqSockAcceptorUnlock(Http);
+	return Res;
+}
+
+LQ_EXTERN_C void LQ_CALL LqHttpSetLenConveyor(LqHttp* Http, size_t NewLen) {
+	LqSockAcceptorLock(Http);
+	LqHttpGetHttpData(Http)->MaxLenRspConveyor = NewLen;
+	LqSockAcceptorUnlock(Http);
+}
+
+LQ_EXTERN_C size_t LQ_CALL LqHttpGetLenConveyor(LqHttp* Http) {
+	size_t Res;
+	LqSockAcceptorLock(Http);
+	Res = LqHttpGetHttpData(Http)->MaxLenRspConveyor;
+	LqSockAcceptorUnlock(Http);
+	return Res;
+}

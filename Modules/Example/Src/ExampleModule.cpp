@@ -1,11 +1,8 @@
 
 #include "LqHttpMdl.h"
-#include "LqHttpConn.h"
-#include "LqHttpRsp.h"
-#include "LqHttpRcv.h"
+#include "LqHttp.h"
 #include "LqHttpPth.h"
 #include "LqHttpAtz.h"
-#include "LqHttpAct.h"
 #include "LqConn.h"
 
 #include <string>
@@ -14,7 +11,7 @@ LqHttpMdl Mod;
 
 
 
-LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHttpProtoBase* Reg, uintptr_t ModuleHandle, const char* LibPath, void* UserData)
+LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHttp* Reg, uintptr_t ModuleHandle, const char* LibPath, void* UserData)
 {
 
     LqHttpPthDmnCreate(Reg, "my.com");
@@ -35,9 +32,8 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
         [](LqHttpMdl* Mdl, const char* Command, void* Data)
         {
             const char * Cmd = Command;
-            if(Command[0] == '?')
-            {
-				LqFbuf_printf((LqFbuf*)Data, "Hello to console shell from module !");
+            if(Command[0] == '?'){
+                LqFbuf_printf((LqFbuf*)Data, "Hello to console shell from module !");
             }
         };
 
@@ -54,7 +50,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
         &Mod,
         "my.com",
         "/",
-        "http://192.168.1.2/",
+        "http://192.168.1.93/",
         301,
         LQHTTPATZ_PERM_READ | LQHTTPATZ_PERM_CHECK,
         nullptr,
@@ -66,7 +62,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
         &Mod,
         "*",
         "/",
-        "C:\\Users\\andr\\Desktop\\serv\\index.html",
+        "E:\\serv\\www\\index.html",
         LQHTTPATZ_PERM_READ | LQHTTPATZ_PERM_CHECK,
         nullptr,
         1
@@ -79,55 +75,32 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
         "*",
         "/dir2/",
         true,
-        [](LqHttpConn* c)
-        {
-            if(c->ActionState == LQHTTPACT_STATE_RESPONSE_HANDLE_PROCESS)
-            {
-                if(std::string(c->Query.Method, c->Query.MethodLen) == "POST")
-                {
-                    if(LqHttpRcvMultipartHdrRecive(c) != LQHTTPRCV_FILE_OK)
-                    {
-                        LqHttpEvntActSetIgnore(c);
-                        if(LqHttpRspError(c, 500))
-                            LqHttpActSwitchToClose(c);
-                    }
-                    return;
+        [](LqHttpConn* c) {
+            if(LqStrSame(LqHttpConnGetRcvHdrs(c)->Method, "POST")) {
+                if(LqHttpConnRcvGetBoundary(c, NULL, NULL) > 0) {
+                    LqHttpConnRcvMultipartFileNext(
+                        c, 
+                        NULL,
+                        [](LqHttpConnRcvResult* Res) -> bool {
+                            if(Res->IsFoundedSeq) {
+                                LqHttpConnRspError(Res->HttpConn, 200);
+                                return true; /* Must commit*/
+                            }
+                            LqHttpConnRspError(Res->HttpConn, 500);
+                            return false; /* Must cancel */
+                        },
+                        NULL,
+                        NULL,
+                        -((LqFileSz)1),
+                        0666,
+                        true,
+                        true
+                        );
+                } else {
+                    LqHttpConnRcvFile(c, NULL, NULL, NULL, -((LqFileSz)1), 0666, true, true);
                 }
-                std::string Name = "C:\\Users\\andr\\Desktop\\serv";
-                Name.append(c->Query.Path, c->Query.PathLen);
-
-                for(char* r = (char*)Name.c_str(); *r != '\0'; r++)
-                {
-                    if(*r == '/')
-                        *r = LQ_PATH_SEPARATOR;
-                }
-                LqHttpRspFileAuto(c, Name.c_str());
-                LqHttpEvntActSetIgnore(c);
-            } else if(c->ActionState == LQHTTPACT_STATE_MULTIPART_RCV_HDRS)
-            {
-
-                if(c->ActionResult != LQHTTPACT_RES_OK)
-                {
-                    LqHttpEvntActSetIgnore(c);
-                    if(LqHttpRspError(c, 500)) LqHttpActSwitchToClose(c);
-                    return;
-                }
-
-                char* HdrVal = nullptr, *HdrEnd = nullptr;
-                LqHttpRcvHdrSearch(c, 1000, "content-disposition", nullptr, &HdrVal, &HdrEnd);
-
-                if(HdrVal == nullptr)
-                {
-                    if(LqHttpRspError(c, 200))
-                        LqHttpActSwitchToClose(c);
-                    return;
-                }
-                std::string Name = "C:\\Users\\andr\\Desktop\\serv\\dir2\\";
-                LqHttpRcvMultipartInFile(c, "C:\\Users\\andr\\Desktop\\serv\\dir2\\dest_data.bin", 0666, true, true);
-                LqHttpEvntActSetIgnore(c);
-                return;
-            } else if(c->ActionState == LQHTTPACT_STATE_MULTIPART_RCV_FILE)
-            {
+            } else {
+                LqHttpConnRspFileAuto(c, NULL, NULL);
             }
         },
         0xff,
@@ -141,7 +114,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
         &Mod,
         "*",
         "/",
-        "C:\\Users\\andr\\Desktop\\serv",
+        "E:\\serv\\www",
         true,
         LQHTTPATZ_PERM_READ | LQHTTPATZ_PERM_CHECK | LQHTTPATZ_PERM_CREATE,
         c,
@@ -156,25 +129,8 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
         "/hello",
         [](LqHttpConn* c)
         {
-            LqEvntSetFlags(c, 0, 0);
-
-            LqHttpEvntActSetIgnore(c);
-
-            std::string Path(c->Query.Path, c->Query.PathLen);
-
-            LqHttpRspStatus(c, 200);
-
-            LqHttpRspHdrAdd(c, "Content-Type", "text/html");
-            LqHttpRspHdrAdd(c, "Connection", "Keep-Alive");
-            LqHttpRspHdrAdd(c, "Cache-Control", "no-cache");
-
-
-            LqHttpRspContentWritePrintf(c, "helloooooo weoooooooorllllllddd");
-            LqHttpRspContentWritePrintf(c, "&br<b>%i<b>", 56);
-
-            auto Sz = LqHttpRspContentGetSz(c);
-            LqHttpRspHdrAddPrintf(c, "Content-Length", "%i", (int)Sz);
-            LqEvntSetFlags(c, LqHttpEvntGetFlagByAct(c), 0);
+            LqHttpConnRspPrintf(c, "helloooooo weoooooooorllllllddd");
+            LqHttpConnRspPrintf(c, "&br<b>%i<b>", 56);
         },
         LQHTTPATZ_PERM_READ | LQHTTPATZ_PERM_CHECK,
         nullptr,

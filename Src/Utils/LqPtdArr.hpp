@@ -188,7 +188,7 @@ public:
         //Preincrement
         inline interator& operator++() { ++Index; return (*this); }
         inline interator operator++(int) { ++Index; return *this; }
-        inline interator& operator--() { ++Index; return (*this); }
+        inline interator& operator--() { --Index; return (*this); }
         inline interator operator--(int) { --Index; return *this; }
         inline TypeVal& operator*() const { return Ptr->Val[Index]; }
         inline TypeVal& operator[](size_t Index) const { return Ptr->Val[this->Index + Index]; }

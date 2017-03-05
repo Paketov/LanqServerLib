@@ -39,12 +39,6 @@
     <ClCompile Include="..\Src\Protocols\Http\LqHttpPth.cpp">
       <Filter>Protocols\HTTP</Filter>
     </ClCompile>
-    <ClCompile Include="..\Src\Protocols\Http\LqHttpRcv.cpp">
-      <Filter>Protocols\HTTP</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Src\Protocols\Http\LqHttpRsp.cpp">
-      <Filter>Protocols\HTTP</Filter>
-    </ClCompile>
     <ClCompile Include="..\Src\Protocols\Http\LqHttp.cpp">
       <Filter>Protocols\HTTP</Filter>
     </ClCompile>
@@ -119,9 +113,6 @@
     <ClInclude Include="..\Src\Core\Lanq.h">
       <Filter>Core</Filter>
     </ClInclude>
-    <ClInclude Include="..\Src\Protocols\Http\LqHttpLogging.h">
-      <Filter>Protocols\HTTP</Filter>
-    </ClInclude>
     <ClInclude Include="..\Src\Protocols\Http\LqHttpMdl.h">
       <Filter>Protocols\HTTP</Filter>
     </ClInclude>
@@ -135,12 +126,6 @@
       <Filter>Protocols\HTTP</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Protocols\Http\LqHttpPth.hpp">
-      <Filter>Protocols\HTTP</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Protocols\Http\LqHttpRcv.h">
-      <Filter>Protocols\HTTP</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Src\Protocols\Http\LqHttpRsp.h">
       <Filter>Protocols\HTTP</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Protocols\Http\LqHttp.h">

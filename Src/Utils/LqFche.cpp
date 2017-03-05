@@ -649,7 +649,7 @@ LQ_EXTERN_C void LQ_CALL LqFcheSetMaxSizeFile(LqFche* Che, size_t NewSize) {
 	LqAtmUlkWr(Che->Locker);
 }
 
-LQ_EXTERN_C size_t LQ_CALL GLqFcheGetEmployedSize(LqFche* Che) {
+LQ_EXTERN_C size_t LQ_CALL LqFcheGetEmployedSize(LqFche* Che) {
 	return Che->CurSize; 
 }
 

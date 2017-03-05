@@ -277,8 +277,8 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_seek(LqFbuf* lqaio lqats Context, int64_
                  c - read char
                  [<char>...<char2>-<char3>...] - read this chars
                  [^<char>...<char2>-<char3>...] - read all without this chars
-                 {<val>|<val2>|...} - reading one of these values
-                 {^<val>} - read while not same <val>
+                 {<val>|<val2>|...} - reading one of these values. #- used for case independet
+                 {^<val>} - read while not same <val>,  #- used for case independet
                  b - read tradition base64. Flag # used for read = char. Flag $ used for get written size(for get readed size use %n).
                  B - read URL base 64. Flag # used for read = char. Flag $ used for get written size(for get readed size use %n).
                  V, v - read HEX data.  Flag $ used for get written size(for get readed size use %n).
@@ -322,7 +322,15 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_copy(LqFbuf* lqats lqaout Dest, LqFbuf* 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_set_ptr_cookie(LqFbuf* lqats lqaout Dest, void* lqain UserData, LqFbufCookie* lqain Cookie);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_set_ptr_fd(LqFbuf* lqats lqaio Dest, int Fd);/* For write in file (use LqFbuf_flush())*/
 LQ_IMPORTEXPORT LqFileSz LQ_CALL LqFbuf_transfer(LqFbuf* lqats lqaio Dest, LqFbuf* lqats lqaio Source, LqFileSz Size); /* Transfer transfer data from pointer/file in to another file (Without double buffering)*/
-LQ_IMPORTEXPORT LqFileSz LQ_CALL LqFbuf_transfer_while_not_same(LqFbuf* lqats lqaio Dest, LqFbuf* lqats lqaio Source, LqFileSz Size, const char* lqain Seq, size_t SeqSize, bool* lqaout IsFound);
+LQ_IMPORTEXPORT LqFileSz LQ_CALL LqFbuf_transfer_while_not_same(
+    LqFbuf* lqats lqaio Dest, 
+    LqFbuf* lqats lqaio Source, 
+    LqFileSz Size,
+    const char* lqain Seq, 
+    size_t SeqSize,
+    bool IsCaseIndependet, 
+    bool* lqaout IsFound
+);
 //////////////////
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqStrToInt(int* Dest, const char* Source, unsigned char Radix);

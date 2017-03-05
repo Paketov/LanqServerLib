@@ -218,7 +218,7 @@ template<typename TypeCommand>
 bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand) {
     auto NewCommand = LqFastAlloc::New<ElementHeader>();
     if(NewCommand == nullptr) {
-        LQ_LOG_ERR("LqQueueCmd<TypeCommand>::Push() not alloc memory\n");
+        LqLogErr("LqQueueCmd<TypeCommand>::Push() not alloc memory\n");
         return false;
     }
     NewCommand->Next = nullptr;
@@ -239,7 +239,7 @@ template<typename ValType>
 bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand, ValType Val) {
     auto NewCommand = LqFastAlloc::New<Element<ValType>>();
     if(NewCommand == nullptr) {
-        LQ_LOG_ERR("LqQueueCmd<TypeCommand>::Push<ValType>() not alloc memory\n");
+        LqLogErr("LqQueueCmd<TypeCommand>::Push<ValType>() not alloc memory\n");
         return false;
     }
     NewCommand->Header.Next = nullptr;
@@ -260,7 +260,7 @@ template<typename TypeCommand>
 bool LqQueueCmd<TypeCommand>::Push(LqEvntHdr* Val, void* WorkerOwner) {
 	auto NewCommand = LqFastAlloc::New<Element<LqEvntHdr*>>();
 	if(NewCommand == nullptr) {
-		LQ_LOG_ERR("LqQueueCmd<TypeCommand>::Push() not alloc memory\n");
+		LqLogErr("LqQueueCmd<TypeCommand>::Push() not alloc memory\n");
 		return false;
 	}
 	NewCommand->Header.Next = nullptr;
@@ -284,7 +284,7 @@ template<typename ValType>
 bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand, ValType Val) {
     auto NewCommand = LqFastAlloc::New<Element<ValType>>();
     if(NewCommand == nullptr) {
-        LQ_LOG_ERR("LqQueueCmd<TypeCommand>::PushBegin<ValType>() not alloc memory\n");
+        LqLogErr("LqQueueCmd<TypeCommand>::PushBegin<ValType>() not alloc memory\n");
         return false;
     }
     NewCommand->Header.Type = tCommand;
@@ -303,7 +303,7 @@ template<typename TypeCommand>
 bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand) {
     auto NewCommand = LqFastAlloc::New<ElementHeader>();
     if(NewCommand == nullptr) {
-        LQ_LOG_ERR("LqQueueCmd<TypeCommand>::PushBegin() not alloc memory\n");
+        LqLogErr("LqQueueCmd<TypeCommand>::PushBegin() not alloc memory\n");
         return false;
     }
     NewCommand->Type = tCommand;

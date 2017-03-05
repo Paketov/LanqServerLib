@@ -13,268 +13,213 @@
 #include "LqHttpPth.hpp"
 #include "LqHttp.hpp"
 #include "LqHttpPrs.h"
-#include "LqHttpRsp.h"
-#include "LqHttpRcv.h"
 #include "LqHttpMdl.h"
 #include "LqHttpAtz.h"
 #include "LqAtm.hpp"
 #include "LqDfltRef.hpp"
 #include "LqTime.h"
+#include "LqLog.h"
 
+void LQ_CALL LqHttpMdlHandlerSockErr(LqHttpConn* HttpConn) {
+	int Fd;
+	int Errno = 0;
+	socklen_t Len;
+	char Buf[1024];
 
-//int LQ_CALL LqHttpMdlHandlersStatus(LqHttpConn* c, int Code) {
-//	const char* StatusMsg = LqHttpPrsGetMsgByStatus(Code);
-//	if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_QER)
-//		LqHttpActSwitchToRsp(c);
-//	if(char* Dest = LqHttpRspHdrResize(c, 4096)) {
-//		tm ctm;
-//		LqTimeGetGmtTm(&ctm);
-//		char ServerNameBuf[1024];
-//		ServerNameBuf[0] = '\0';
-//		LqHttpMdlGetByConn(c)->ServerNameProc(c, ServerNameBuf, sizeof(ServerNameBuf));
-//		auto l = LqFbuf_snprintf(
-//			Dest,
-//			c->BufSize,
-//			"HTTP/%s %u %s\r\n"
-//			"Connection: %s\r\n"
-//			"Accept-Ranges: bytes\r\n"
-//			"Date: " PRINTF_TIME_TM_FORMAT_GMT "\r\n"
-//			"%s%s%s"
-//			"\r\n",
-//			LqHttpGetReg(c)->Base.HTTPProtoVer, Code, StatusMsg,
-//			(char*)((c->Flags & LQHTTPCONN_FLAG_CLOSE) ? "close" : "Keep-Alive"),
-//			PRINTF_TIME_TM_ARG_GMT(ctm),
-//			((ServerNameBuf[0] == '\0') ? "" : "Server: "), (char*)ServerNameBuf, ((ServerNameBuf[0] == '\0') ? "" : "\r\n")
-//		);
-//		LqHttpRspHdrResize(c, l);
-//		if((Code == 501) || (Code == 405)) {
-//			char AllowBuf[1024];
-//			AllowBuf[0] = '\0';
-//			LqHttpMdlGetByConn(c)->AllowProc(c, AllowBuf, sizeof(AllowBuf) - 1);
-//			if(AllowBuf[0] != '\0')
-//				LqHttpRspHdrAdd(c, "Allow", AllowBuf);
-//		}
-//		c->Response.Status = Code;
-//		return 0;
-//	}
-//	return -1;
-//}
-//
-
-int LQ_CALL LqHttpMdlHandlersError(LqHttpConn* HttpConn, int Code) {
-	const char* StatusMsg;
-	LqHttpData* HttpData;
-	LqHttpConnData* HttpConnData;
-	LqFileSz RspLen;
-	tm ctm;
-	char ServerNameBuf[1024];
-	char AllowBuf[1024];
-
-	HttpData = LqHttpConnGetHttpData(HttpConn);
-	HttpConnData = LqHttpConnGetData(HttpConn);
-	StatusMsg = LqHttpPrsGetMsgByStatus(Code);
-	ServerNameBuf[0] = '\0';
-
-	LqTimeGetGmtTm(&ctm);
-
-	LqSockBufPrintf(
-		HttpConn,
-		"<html><head></head><body>%u %s</body></html>",
-		Code, 
-		StatusMsg
-	);
-	
-	RspLen = LqSockBufRspLen(HttpConn);
-
-	LqSockBufPrintfHdr(
-		HttpConn,
-		"HTTP/%s %i %s\r\n"
-		"Content-Type: text/html; charset=\"UTF-8\"\r\n"
-		"Cache-Control: no-cache\r\n"
-		"Connection: %s\r\n"
-		"Date: " PRINTF_TIME_TM_FORMAT_GMT "\r\n"
-		"%s%s%s"
-		"Content-Length: %lli\r\n",
-		HttpData->HTTPProtoVer, Code, StatusMsg,
-		(HttpConnData->Flags & LQHTTPCONN_FLAG_CLOSE) ? "close": "Keep-Alive",
-		PRINTF_TIME_TM_ARG_GMT(ctm),
-		((ServerNameBuf[0] == '\0') ? "" : "Server: "), (char*)ServerNameBuf, ((ServerNameBuf[0] == '\0') ? "" : "\r\n"),
-		(long long)RspLen
-	);
-
-	if((Code == 501) || (Code == 405)) {
-		char AllowBuf[1024];
-		AllowBuf[0] = '\0';
-		LqHttpConnGetMdl(HttpConn)->AllowProc(HttpConn, AllowBuf, sizeof(AllowBuf) - 1);
-		if(AllowBuf[0] != '\0') {
-			LqSockBufPrintfHdr(HttpConn, "Allow: %s\r\n", AllowBuf);
-		}
-	}
-	LqSockBufPrintfHdr(
-		HttpConn, 
-		"\r\n"
-	);
-	if(HttpConnData->Flags & LQHTTPCONN_FLAG_NO_BODY) {
-		LqSockBufRspClearAfterHdr(HttpConn);
-	}
-	return 0;
+	LqSockBufLock(HttpConn);
+	Fd = LqSockBufGetFd(HttpConn);
+	LqSockBufGetRemoteAddrStr(HttpConn, Buf, sizeof(Buf));
+	Len = sizeof(Errno);
+	getsockopt(Fd, SOL_SOCKET, SO_ERROR, (char*)&Errno, &Len);
+	LqLogErr("LqHttp: Src %s:%i; Error when connetcted to %s. Error: %s", __FILE__, __LINE__, Buf, strerror(Errno));
+	LqSockBufSetClose(HttpConn);
+	LqSockBufUnlock(HttpConn);
 }
 
-//void LQ_CALL LqHttpMdlHandlersResponseRedirection(LqHttpConn* c) {
-//	if((c->Pth != nullptr) && ((c->Pth->Type & LQHTTPPTH_TYPE_SEP) == LQHTTPPTH_TYPE_FILE_REDIRECTION)) {
-//		LqHttpRspError(c, c->Pth->StatusCode);
-//		if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_RSP) {
-//			LqHttpRspHdrChange(c, "Location", c->Pth->Location);
-//		}
-//	} else {
-//		LqHttpRspError(c, 500);
-//	}
-//	LqHttpEvntActSetIgnore(c);
-//}
-//
-//void LQ_CALL LqHttpMdlHandlersServerName(LqHttpConn* c, char* NameBuf, size_t NameBufSize) {
-//	auto Reg = LqHttpProtoGetByConn(c);
-//	LqAtmLkRd(Reg->ServNameLocker);
-//	LqStrCopyMax(NameBuf, Reg->ServName, NameBufSize);
-//	LqAtmUlkRd(Reg->ServNameLocker);
-//}
-//
-//void LQ_CALL LqHttpMdlHandlersAllowMethods(LqHttpConn* c, char* MethodBuf, size_t MethodBufSize) {
-//	LqStrCopyMax(MethodBuf, "GET, POST, PUT, HEAD, OPTIONS", MethodBufSize);
-//}
-//
-//LqHttpEvntHandlerFn LQ_CALL LqHttpMdlHandlersGetMethod(LqHttpConn* c) {
-//	if(c->Pth != nullptr)
-//		switch(c->Pth->Type & LQHTTPPTH_TYPE_SEP) {
-//			case LQHTTPPTH_TYPE_FILE_REDIRECTION:
-//				return (!LqHttpAtzDo(c, LQHTTPATZ_PERM_CHECK)) ? LqHttpMdlHandlersEmpty : LqHttpMdlGetByConn(c)->ResponseRedirectionProc;
-//		}
-//	LQSTR_SWITCH_NI(c->Query.Method, c->Query.MethodLen) {
-//		LQSTR_CASE_I("delete") {
-//			if(c->Pth == nullptr) {
-//				LqHttpRspError(c, 404);
-//				return LqHttpMdlHandlersEmpty;
-//			}
-//			if(!LqHttpAtzDo(c, LQHTTPATZ_PERM_DELETE))
-//				return LqHttpMdlHandlersEmpty;
-//
-//			switch(c->Pth->Type & LQHTTPPTH_TYPE_SEP) {
-//				case LQHTTPPTH_TYPE_DIR: case LQHTTPPTH_TYPE_FILE:
-//					if(LqFileRemove(c->Pth->RealPath) == -1) {
-//						LqHttpRspError(c, 500);
-//					} else {
-//						LqHttpRspError(c, 200);
-//					}
-//					return LqHttpEvntDfltIgnoreAnotherEventHandler;
-//				case LQHTTPPTH_TYPE_EXEC_DIR: case LQHTTPPTH_TYPE_EXEC_FILE:
-//					return c->Pth->ExecQueryProc;
-//			}
-//		}
-//		break;
-//		LQSTR_CASE_I("head") {
-//			c->Flags |= LQHTTPCONN_FLAG_NO_BODY;
-//		}
-//		LQSTR_CASE_I("get") {
-//			if(c->Pth == nullptr) {
-//				LqHttpRspError(c, 404);
-//				return LqHttpMdlHandlersEmpty;
-//			}
-//			if(!LqHttpAtzDo(c, LQHTTPATZ_PERM_READ))
-//				return LqHttpMdlHandlersEmpty;
-//			switch(c->Pth->Type & LQHTTPPTH_TYPE_SEP) {
-//				case LQHTTPPTH_TYPE_DIR: case LQHTTPPTH_TYPE_FILE:
-//					LqHttpRspFileAuto(c, nullptr);
-//					return LqHttpEvntDfltIgnoreAnotherEventHandler;
-//				case LQHTTPPTH_TYPE_EXEC_DIR: case LQHTTPPTH_TYPE_EXEC_FILE:
-//					return c->Pth->ExecQueryProc;
-//			}
-//		}
-//		break;
-//		LQSTR_CASE_I("post")
-//			LQSTR_CASE_I("put") {
-//			if(c->Pth == nullptr) {
-//				LqHttpRspError(c, 404);
-//				return LqHttpMdlHandlersEmpty;
-//			}
-//			auto q = &c->Query;
-//			auto np = c->Pth;
-//			uint8_t Authoriz = 0;
-//			switch(np->Type & LQHTTPPTH_TYPE_SEP) {
-//				case LQHTTPPTH_TYPE_DIR:
-//				case LQHTTPPTH_TYPE_FILE:
-//				{
-//					if(q->ContentLen > 0)
-//						Authoriz |= LQHTTPATZ_PERM_WRITE;
-//					if(LqFileGetStat(np->RealPath, LqDfltPtr()) == 0) {
-//						Authoriz |= LQHTTPATZ_PERM_MODIFY;
-//					} else {
-//						Authoriz |= LQHTTPATZ_PERM_CREATE;
-//
-//						int l = LqStrLen(np->RealPath);
-//						for(; l >= 0; l--) {
-//							if(np->RealPath[l] == LQ_PATH_SEPARATOR)
-//								break;
-//						}
-//						char UpDirPath[LQ_MAX_PATH];
-//						if(l > sizeof(UpDirPath))
-//							break;
-//						memcpy(UpDirPath, np->RealPath, l);
-//						char t = UpDirPath[l];
-//						UpDirPath[l] = '\0';
-//						LqFileStat Stat;
-//						if(LqFileGetStat(UpDirPath, &Stat) != 0) {
-//							Authoriz |= LQHTTPATZ_PERM_CREATE_SUBDIR;
-//						}
-//					}
-//				}
-//				break;
-//				case LQHTTPPTH_TYPE_EXEC_DIR:
-//				case LQHTTPPTH_TYPE_EXEC_FILE:
-//					Authoriz |= LQHTTPATZ_PERM_WRITE;
-//					break;
-//			}
-//			if(!LqHttpAtzDo(c, Authoriz))
-//				return LqHttpMdlHandlersEmpty;
-//			switch(c->Pth->Type & LQHTTPPTH_TYPE_SEP) {
-//				case LQHTTPPTH_TYPE_EXEC_DIR: case LQHTTPPTH_TYPE_EXEC_FILE:
-//					return c->Pth->ExecQueryProc;
-//				case LQHTTPPTH_TYPE_DIR:
-//					LqHttpRspError(c, 500);
-//					return LqHttpMdlHandlersEmpty;
-//			}
-//			switch(LqHttpRcvFile(c, nullptr, LQ_MAX_CONTENT_LEN, 0666, true, Authoriz & LQHTTPATZ_PERM_CREATE_SUBDIR)) {
-//				case LQHTTPRCV_ERR:
-//					LqHttpRspError(c, 500);
-//					return LqHttpMdlHandlersEmpty;
-//				case LQHTTPRCV_MULTIPART:
-//					LqHttpRspError(c, 501);
-//					return LqHttpMdlHandlersEmpty;
-//				case LQHTTPRCV_FILE_OK:
-//					return LqHttpEvntDfltIgnoreAnotherEventHandler;
-//			}
-//		}
-//		break;
-//		LQSTR_CASE_I("options") {
-//			if(c->Pth != nullptr) {
-//				switch(c->Pth->Type & LQHTTPPTH_TYPE_SEP) {
-//					case LQHTTPPTH_TYPE_EXEC_DIR: case LQHTTPPTH_TYPE_EXEC_FILE:
-//						return c->Pth->ExecQueryProc;
-//				}
-//			}
-//			LqHttpRspError(c, 200);
-//			if(LqHttpActGetClassByConn(c) == LQHTTPACT_CLASS_RSP) {
-//				char AllowBuf[1024];
-//				AllowBuf[0] = '\0';
-//				LqHttpMdlGetByConn(c)->AllowProc(c, AllowBuf, sizeof(AllowBuf) - 1);
-//				if(AllowBuf[0] != '\0')
-//					LqHttpRspHdrAdd(c, "Allow", AllowBuf);
-//			}
-//			return LqHttpMdlHandlersEmpty;
-//		}
-//		break;
-//	}
-//	return nullptr;
-//}
+void LQ_CALL LqHttpMdlHandlersError(LqHttpConn* HttpConn, int Code) {
+	return;
+}
+
+void LQ_CALL LqHttpMdlHandlersResponseRedirection(LqHttpConn* HttpConn) {
+	LqHttpConnData* HttpConnData;
+	HttpConnData = LqHttpConnGetData(HttpConn);
+	if(HttpConnData->Pth != NULL) {
+		switch(HttpConnData->Pth->Type & LQHTTPPTH_TYPE_SEP) {
+			case LQHTTPPTH_TYPE_FILE_REDIRECTION:
+				break;
+			default:
+				LqHttpConnRspError(HttpConn, 500);
+				return;
+		}
+	} else {
+		LqHttpConnRspError(HttpConn, 500);
+		return;
+	}
+	if(HttpConnData->BoundaryOrContentRangeOrLocation) {
+		free(HttpConnData->BoundaryOrContentRangeOrLocation);
+	}
+	HttpConnData->Flags |= LQHTTPCONN_FLAG_LOCATION;
+	HttpConnData->BoundaryOrContentRangeOrLocation = LqStrDuplicate(HttpConnData->Pth->Location);
+	LqHttpConnRspError(HttpConn, HttpConnData->Pth->StatusCode);
+}
+
+void LQ_CALL LqHttpMdlHandlersServerName(LqHttpConn* HttpConn, char* NameBuf, size_t NameBufSize) {
+	LqHttp* Http = LqHttpConnGetHttp(HttpConn);
+	LqHttpGetNameServer(Http, NameBuf, NameBufSize);
+}
+
+void LQ_CALL LqHttpMdlHandlersAllowMethods(LqHttpConn* HttpConn, char* MethodBuf, size_t MethodBufSize) {
+	LqStrCopyMax(MethodBuf, "GET, POST, PUT, HEAD, OPTIONS", MethodBufSize);
+}
+
+void LQ_CALL LqHttpMdlMethodHandler(LqHttpConn* HttpConn) {
+	LqHttpConnData* HttpConnData;
+	LqHttpData* HttpData;
+	LqHttpMdl* Mdl;
+	LqHttpRcvHdrs* RcvHdr;
+	LqHttpPth* Pth;
+	int l;
+	char UpDirPath[LQ_MAX_PATH], t;
+	LqFileStat Stat;
+	uint8_t Authoriz;
+	char AllowBuf[1024];
+
+	Mdl = LqHttpConnGetMdl(HttpConn);
+	HttpConnData = LqHttpConnGetData(HttpConn);
+	HttpData = LqHttpConnGetHttpData(HttpConn);
+	Pth = HttpConnData->Pth;
+
+	if(Pth != NULL)
+		switch(Pth->Type & LQHTTPPTH_TYPE_SEP) {
+			case LQHTTPPTH_TYPE_FILE_REDIRECTION:
+				if(LqHttpAtzDo(HttpConn, LQHTTPATZ_PERM_CHECK)) {
+					Mdl->ResponseRedirectionProc(HttpConn);
+				}
+				return;
+		}
+	LQSTR_SWITCH_I(HttpConnData->RcvHdr->Method) {
+		LQSTR_CASE_I("delete") {
+			if(Pth == NULL) {
+				LqHttpConnRspError(HttpConn, 404);
+				return;
+			}
+			if(!LqHttpAtzDo(HttpConn, LQHTTPATZ_PERM_DELETE))
+				return;
+
+			switch(Pth->Type & LQHTTPPTH_TYPE_SEP) {
+				case LQHTTPPTH_TYPE_DIR: case LQHTTPPTH_TYPE_FILE:
+					if(LqFileRemove(Pth->RealPath) == -1) {
+						LqHttpConnRspError(HttpConn, 500);
+					} else {
+						LqHttpConnRspError(HttpConn, 200);
+					}
+					return;
+				case LQHTTPPTH_TYPE_EXEC_DIR: case LQHTTPPTH_TYPE_EXEC_FILE:
+					Pth->ExecQueryProc(HttpConn);
+					return;
+			}
+		}
+		break;
+		LQSTR_CASE_I("head") {
+			HttpConnData->Flags |= LQHTTPCONN_FLAG_NO_BODY;
+		}
+		LQSTR_CASE_I("get") {
+			if(Pth == NULL) {
+				LqHttpConnRspError(HttpConn, 404);
+				return;
+			}
+			if(!LqHttpAtzDo(HttpConn, LQHTTPATZ_PERM_READ))
+				return;
+			switch(Pth->Type & LQHTTPPTH_TYPE_SEP) {
+				case LQHTTPPTH_TYPE_DIR: case LQHTTPPTH_TYPE_FILE:
+					LqHttpConnRspFileAuto(HttpConn, NULL, NULL);
+					return;
+				case LQHTTPPTH_TYPE_EXEC_DIR: case LQHTTPPTH_TYPE_EXEC_FILE:
+					Pth->ExecQueryProc(HttpConn);
+					return;
+			}
+		}
+		break;
+		LQSTR_CASE_I("post")
+		LQSTR_CASE_I("put") {
+			if(Pth == NULL) {
+				LqHttpConnRspError(HttpConn, 404);
+				return;
+			}
+			RcvHdr = HttpConnData->RcvHdr;
+			Authoriz = 0;
+			switch(Pth->Type & LQHTTPPTH_TYPE_SEP) {
+				case LQHTTPPTH_TYPE_DIR:
+				case LQHTTPPTH_TYPE_FILE:
+				{
+					if(HttpConnData->ContentLength > 0)
+						Authoriz |= LQHTTPATZ_PERM_WRITE;
+					if(LqFileGetStat(Pth->RealPath, LqDfltPtr()) == 0) {
+						Authoriz |= LQHTTPATZ_PERM_MODIFY;
+					} else {
+						Authoriz |= LQHTTPATZ_PERM_CREATE;
+
+						l = LqStrLen(Pth->RealPath);
+						for(; l >= 0; l--) {
+							if(Pth->RealPath[l] == LQ_PATH_SEPARATOR)
+								break;
+						}
+						if(l > sizeof(UpDirPath))
+							break;
+						memcpy(UpDirPath, Pth->RealPath, l);
+						t = UpDirPath[l];
+						UpDirPath[l] = '\0';
+						if(LqFileGetStat(UpDirPath, &Stat) != 0) {
+							Authoriz |= LQHTTPATZ_PERM_CREATE_SUBDIR;
+						}
+					}
+				}
+				break;
+				case LQHTTPPTH_TYPE_EXEC_DIR:
+				case LQHTTPPTH_TYPE_EXEC_FILE:
+					Authoriz |= LQHTTPATZ_PERM_WRITE;
+					break;
+			}
+			if(!LqHttpAtzDo(HttpConn, Authoriz))
+				return;
+			switch(HttpConnData->Pth->Type & LQHTTPPTH_TYPE_SEP) {
+				case LQHTTPPTH_TYPE_EXEC_DIR: case LQHTTPPTH_TYPE_EXEC_FILE:
+					HttpConnData->Pth->ExecQueryProc(HttpConn);
+					return;
+				case LQHTTPPTH_TYPE_DIR:
+					LqHttpConnRspError(HttpConn, 500);
+					return;
+			}
+			if(LqHttpConnRcvGetBoundary(HttpConn, NULL, 0) > 0) {
+				LqHttpConnRspError(HttpConn, 501);
+				return;
+			}
+			if(LqHttpConnRcvFile(HttpConn, NULL, NULL, NULL, -1, 0666, true, Authoriz & LQHTTPATZ_PERM_CREATE_SUBDIR)) {
+				return;
+			} else {
+				LqHttpConnRspError(HttpConn, 500);
+				return;
+			}
+		}
+		break;
+		LQSTR_CASE_I("options") {
+			if(HttpConnData->Pth != NULL) {
+				switch(HttpConnData->Pth->Type & LQHTTPPTH_TYPE_SEP) {
+					case LQHTTPPTH_TYPE_EXEC_DIR: case LQHTTPPTH_TYPE_EXEC_FILE:
+						HttpConnData->Pth->ExecQueryProc(HttpConn);
+						return;
+				}
+			}
+			LqHttpConnRspError(HttpConn, 200);
+			AllowBuf[0] = '\0';
+			Mdl->AllowProc(HttpConn, AllowBuf, sizeof(AllowBuf) - 1);
+			if(AllowBuf[0] != '\0')
+				LqHttpConnRspHdrInsert(HttpConn, "Allow", AllowBuf);
+			return;
+		}
+		break;
+	}
+}
 
 void LQ_CALL LqHttpMdlHandlersEmpty(LqHttpConn*) {}
 
@@ -294,34 +239,30 @@ void LQ_CALL LqHttpMdlHandlersCacheInfo (
 
 	LqTimeSec* LastModif, /*Local time. If after call LastModif == -1, then then no response Last-Modified.*/
 
-	LqTimeSec* Expires,
-
-	LqFileStat const* Stat /*(Something sends for optimizing)*/
+	LqTimeSec* Expires
 ) {
-	LqFileStat st;
-	if(Stat == nullptr) {
-		if(LqFileGetStat(Path, &st) != 0) return;
-		Stat = &st;
-	}
+	LqFileStat Stat;
+	if(LqFileGetStat(Path, &Stat) != 0) 
+		return;
 	if((EtagDestBuf != nullptr) && ((MTagLen + 1) < EtagDestBufSize)) {
-		if(Stat->Type == LQ_F_REG) {
+		if(Stat.Type == LQ_F_REG) {
 			static const char Hex[] = "0123456789abcdef";
 			char* s = EtagDestBuf;
 			*s++ = '\"';
 			{
-				auto t = Stat->Id;
+				auto t = Stat.Id;
 				for(int i = 0; i < (sizeof(t) * 2); i++, t >>= 4)
 					*s++ = Hex[t & 0xf];
 			}
 			*s++ = '-';
 			{
-				auto t = Stat->Size;
+				auto t = Stat.Size;
 				for(int i = 0; i < (sizeof(t) * 2); i++, t >>= 4)
 					*s++ = Hex[t & 0xf];
 			}
 			*s++ = '-';
 			{
-				auto t = Stat->ModifTime;
+				auto t = Stat.ModifTime;
 				for(int i = 0; i < (sizeof(t) * 2); i++, t >>= 4)
 					*s++ = Hex[t & 0xf];
 			}
@@ -330,10 +271,10 @@ void LQ_CALL LqHttpMdlHandlersCacheInfo (
 		}
 	}
 	if(LastModif != nullptr)
-		*LastModif = Stat->ModifTime;
+		*LastModif = Stat.ModifTime;
 }
 
-void LQ_CALL LqHttpMdlHandlersMime(const char* Path, LqHttpConn* Connection, char* MimeDestBuf, size_t MimeDestBufLen, LqFileStat const* Stat) {
+void LQ_CALL LqHttpMdlHandlersMime(const char* Path, LqHttpConn* Connection, char* MimeDestBuf, size_t MimeDestBufLen) {
     if(MimeDestBuf == nullptr)
         return;
     const char* f, *e;

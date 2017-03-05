@@ -69,6 +69,7 @@ typedef struct LqFche LqFche;
 LQ_EXTERN_C_BEGIN
 
 LQ_IMPORTEXPORT LqFche* LQ_CALL LqFcheCreate();
+/* Increment count of pointer */
 LQ_IMPORTEXPORT LqFche* LQ_CALL LqFcheCopy(LqFche* lqaio Che);
 LQ_IMPORTEXPORT void LQ_CALL LqFcheDelete(LqFche* lqain RmSrc);
 
@@ -83,7 +84,7 @@ LQ_IMPORTEXPORT bool LQ_CALL LqFcheUncache(LqFche* Che, const char* Path);
 
 LQ_IMPORTEXPORT size_t LQ_CALL LqFcheGetMaxSizeFile(LqFche* Che);
 LQ_IMPORTEXPORT void LQ_CALL LqFcheSetMaxSizeFile(LqFche* Che, size_t NewSize);
-LQ_IMPORTEXPORT size_t LQ_CALL GLqFcheGetEmployedSize(LqFche* Che);
+LQ_IMPORTEXPORT size_t LQ_CALL LqFcheGetEmployedSize(LqFche* Che);
 LQ_IMPORTEXPORT size_t LQ_CALL LqFcheGetMaxSize(LqFche* Che);
 LQ_IMPORTEXPORT void LQ_CALL LqFcheSetMaxSize(LqFche* Che, size_t NewSize);
 LQ_IMPORTEXPORT LqTimeMillisec LQ_CALL LqFcheGetPeriodUpdateStat(LqFche* Che);

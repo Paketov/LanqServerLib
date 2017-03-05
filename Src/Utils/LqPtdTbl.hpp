@@ -202,7 +202,7 @@ public:
         //Preincrement
         inline interator& operator++() { ++Index; return (*this); }
         inline interator operator++(int) { ++Index; return *this; }
-        inline interator& operator--() { ++Index; return (*this); }
+        inline interator& operator--() { --Index; return (*this); }
         inline interator operator--(int) { --Index; return *this; }
         inline TypeVal& operator*() const { return Ptr->Line[Index].Val; }
         inline TypeVal& operator[](TypeIndex Index) const { return Ptr->Line[this->Index + Index].Val; }

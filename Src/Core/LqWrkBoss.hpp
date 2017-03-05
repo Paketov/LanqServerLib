@@ -54,7 +54,7 @@ class LQ_IMPORTEXPORT LqWrkBoss {
 
     size_t TransferAllEvntFromWrkList(WrkArray& SourceWrks, bool ByThisBoss);
 
-	size_t      _TransferAllEvnt(LqWrk* Source, bool ByThisBoss);
+    size_t      _TransferAllEvnt(LqWrk* Source, bool ByThisBoss);
 
 public:
 
@@ -124,10 +124,10 @@ public:
        @UserData: Use in @Proc
        @Proc: Callback function
          @Conn: Event header
-         @return: 0 - just continue, 1 - remove, 2 - remove and close
+         @return: 0 - just continue, 1 - remove, 2 - remove and close, -1 - Interrupt enum
        @return: Count removed events.
     */
-    size_t      EnumCloseRmEvnt(unsigned(*Proc)(void* UserData, LqEvntHdr* EvntHdr), void* UserData = nullptr) const;
+    size_t      EnumCloseRmEvnt(int(LQ_CALL*Proc)(void* UserData, LqEvntHdr* EvntHdr), void* UserData = nullptr) const;
 
     /*
       Enum and remove or close event header, use @Proto as filter
@@ -135,13 +135,13 @@ public:
        @UserData: Use in @Proc
        @Proc: Callback function
          @Conn: Event header
-         @return: 0 - just continue, 1 - remove, 2 - remove and close
+         @return: 0 - just continue, 1 - remove, 2 - remove and close, -1 - Interrupt enum
        @return: Count removed events.
     */
-    size_t      EnumCloseRmEvntByProto(unsigned(*Proc)(void* UserData, LqEvntHdr* EvntHdr), const LqProto* Proto, void* UserData = nullptr) const;
+    size_t      EnumCloseRmEvntByProto(int(LQ_CALL*Proc)(void* UserData, LqEvntHdr* EvntHdr), const LqProto* Proto, void* UserData = nullptr) const;
 
     bool        EnumCloseRmEvntAsync(
-                    unsigned(*EventAct)(void* UserData, size_t UserDataSize, void*Wrk, LqEvntHdr* EvntHdr, LqTimeMillisec CurTime),
+                    int(*EventAct)(void* UserData, size_t UserDataSize, void*Wrk, LqEvntHdr* EvntHdr, LqTimeMillisec CurTime),
                     const LqProto* Proto,
                     void* UserData,
                     size_t UserDataSize
@@ -157,12 +157,12 @@ public:
 
 
     /*
-      Make async call procedure in in one of worker.
+      Make async call procedure in one of worker.
         @AsyncProc - Target procedure
         @UserData - User data for procedure
         @return - true is async task added
     */
-    bool         AsyncCall(void(*AsyncProc)(void* Data), void* UserData = nullptr);
+    bool         AsyncCall(void(LQ_CALL*AsyncProc)(void* Data), void* UserData = nullptr);
     /*
       Remove async task from worker(s) queue
         @AsyncProc - Target procedure
@@ -170,14 +170,14 @@ public:
         @IsAll - Is remove all added tasks
         @return - count removed tasks
     */
-    size_t       CancelAsyncCall(void(*AsyncProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
+    size_t       CancelAsyncCall(void(LQ_CALL*AsyncProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
 
     /*
        Transfer all events follovers to other workers.
         @Source - Source worker or worker list(Boss).
         @return - count transfered events
     */
-	size_t      TransferAllEvnt(LqWrk* Source) { return _TransferAllEvnt(Source, false);  }
+    size_t      TransferAllEvnt(LqWrk* Source) { return _TransferAllEvnt(Source, false);  }
     size_t      TransferAllEvnt(LqWrkBoss* Source);
 
     size_t      KickAllWorkers();

@@ -77,7 +77,7 @@ LQ_EXTERN_C int LQ_CALL LqConnBind(
     HostInfo.ai_protocol = (TransportProto == -1) ? IPPROTO_TCP : TransportProto; // IPPROTO_TCP;
     int res;
     if((res = getaddrinfo(((Host != nullptr) && (*Host != '\0')) ? Host : (const char*)nullptr, Port, &HostInfo, &Addrs)) != 0) {
-        LQ_LOG_ERR("LqConnBind() getaddrinfo(%s, %s, *, *) failed \"%s\" \n",
+        LqLogErr("LqConnBind() getaddrinfo(%s, %s, *, *) failed \"%s\" \n",
             ((Host != nullptr) && (*Host != '\0')) ? Host : "NULL",
                    Port,
                    gai_strerror(res));
@@ -87,31 +87,31 @@ LQ_EXTERN_C int LQ_CALL LqConnBind(
     for(auto i = Addrs; i != nullptr; i = i->ai_next) {
         if((s = socket(i->ai_family, i->ai_socktype, i->ai_protocol)) == -1)
             continue;
-        LqFileDescrSetInherit(s, 0);
+        LqDescrSetInherit(s, 0);
         if(setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char*)&True, sizeof(True)) == -1) {
-            LQ_LOG_ERR("LqConnBind() setsockopt(%i, SOL_SOCKET, SO_REUSEADDR, &1, sizeof(1)) failed \"%s\"\n", s, strerror(lq_errno));
+            LqLogErr("LqConnBind() setsockopt(%i, SOL_SOCKET, SO_REUSEADDR, &1, sizeof(1)) failed \"%s\"\n", s, strerror(lq_errno));
             continue;
         }
         if(IsNonBlock) {
             if(LqConnSwitchNonBlock(s, 1)) {
-                LQ_LOG_ERR("LqConnBind() LqConnSwitchNonBlock(%i, 1) failed \"%s\"\n", s, strerror(lq_errno));
+                LqLogErr("LqConnBind() LqConnSwitchNonBlock(%i, 1) failed \"%s\"\n", s, strerror(lq_errno));
                 continue;
             }
         }
         if(i->ai_family == AF_INET6) {
             if(setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&True, sizeof(True)) == -1) {
-                LQ_LOG_ERR("LqConnBind() setsockopt(%i, IPPROTO_IPV6, IPV6_V6ONLY, &1, sizeof(1)) failed \"%s\"\n", s, strerror(lq_errno));
+                LqLogErr("LqConnBind() setsockopt(%i, IPPROTO_IPV6, IPV6_V6ONLY, &1, sizeof(1)) failed \"%s\"\n", s, strerror(lq_errno));
                 continue;
             }
         }
         if(bind(s, i->ai_addr, i->ai_addrlen) == -1) {
-            LQ_LOG_ERR("LqConnBind() bind(%i, *, %i) failed \"%s\"\n", s, (int)i->ai_addrlen, strerror(lq_errno));
+            LqLogErr("LqConnBind() bind(%i, *, %i) failed \"%s\"\n", s, (int)i->ai_addrlen, strerror(lq_errno));
             closesocket(s);
             s = -1;
             continue;
         }
         if(listen(s, MaxConnections) == -1) {
-            LQ_LOG_ERR("LqConnBind() listen(%s, %i) failed \"%s\"\n", s, MaxConnections, strerror(lq_errno));
+            LqLogErr("LqConnBind() listen(%s, %i) failed \"%s\"\n", s, MaxConnections, strerror(lq_errno));
             closesocket(s);
             s = -1;
             continue;
@@ -122,7 +122,7 @@ LQ_EXTERN_C int LQ_CALL LqConnBind(
     if(Addrs != nullptr)
         freeaddrinfo(Addrs);
     if(s == -1) {
-        LQ_LOG_ERR("LqConnBind() not binded to sock\n");
+        LqLogErr("LqConnBind() not binded to sock\n");
         return -1;
     }
     return s;
@@ -139,7 +139,7 @@ LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, int
 
     int res;
     if((res = getaddrinfo(((Address != nullptr) && (*Address != '\0')) ? Address : (const char*)nullptr, Port, &hi, &ah)) != 0) {
-        LQ_LOG_ERR("LqConnConnect() getaddrinfo(%s, %s, *, *) failed \"%s\" \n",
+        LqLogErr("LqConnConnect() getaddrinfo(%s, %s, *, *) failed \"%s\" \n",
             ((Address != nullptr) && (*Address != '\0')) ? Address : "NULL",
                    Port,
                    gai_strerror(res));
@@ -160,7 +160,7 @@ LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, int
     if(i == nullptr) {
         if(ah != nullptr)
             freeaddrinfo(ah);
-        LQ_LOG_ERR("LqConnConnect() not connected\n");
+        LqLogErr("LqConnConnect() not connected\n");
         return -1;
     }
 
@@ -302,319 +302,19 @@ LQ_EXTERN_C void* LQ_CALL LqConnSslCreate
 	} while(false);
     return NewCtx;
 #else
+	lq_errno_set(ENOSYS);
     return NULL;
 #endif
 }
-
+LQ_EXTERN_C void LQ_CALL LqConnSslDelete(void* Ctx) {
+#ifdef HAVE_OPENSSL
+	SSL_CTX_free((SSL_CTX*)Ctx);
+#endif
+}
 
 LQ_EXTERN_C void LQ_CALL __LqEvntFdDfltHandler(LqEvntFd * Instance, LqEvntFlag Flags) {}
 
 LQ_EXTERN_C void LQ_CALL __LqEvntFdDfltCloseHandler(LqEvntFd*) {}
-
-/*
-* @return: count written in sock. Always >= 0.
-*/
-size_t LqConnSend(LqConn* c, const void* Buf, size_t WriteSize) {
-    int s;
-    size_t Sended = 0;
-    const auto MaxSendSizeInTact = c->Proto->MaxSendInTact;
-    const auto MaxSendSize = c->Proto->MaxSendInSingleTime;
-    while(WriteSize > 0) {
-        if(Sended > MaxSendSize)
-            break;
-        if((s = send(c->Fd, (const char*)Buf + Sended, (WriteSize > MaxSendSizeInTact) ? MaxSendSizeInTact : WriteSize, 0)) > 0) {
-            Sended += s;
-            if((WriteSize -= s) <= 0)
-                break;
-        } else {
-            break;
-        }
-    }
-    return Sended;
-}
-
-
-/*
-*  @return: count written in sock. Always >= 0.
-*/
-LqFileSz LqSockSendFromFile(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count) {
-    char Buf[LQCONN_MAX_LOCAL_SIZE];
-    LqFileSz Sended = 0;
-    intptr_t r, wr;
-    if(LqFileSeek(InFd, OffsetInFile, LQ_SEEK_SET) < 0)
-        return -1;
-    const auto MaxSendSize = c->Proto->MaxSendInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Sended) > 0; Sended += r) {
-        if(Sended > MaxSendSize)
-            break;
-        if(ReadSize > sizeof(Buf))
-            ReadSize = sizeof(Buf);
-        if((r = LqFileRead(InFd, Buf, ReadSize)) < 1)
-            break;
-        if((wr = send(c->Fd, Buf, r, 0)) == -1)
-            break;
-        if(wr < r)
-            return Sended + wr;
-    }
-    return Sended;
-}
-
-/*
-*  @return: count written in sock. Always >= 0.
-*/
-intptr_t LqConnSendFromStream(LqConn* c, LqSbuf* Stream, intptr_t Count) {
-    char Buf[LQCONN_MAX_LOCAL_SIZE];
-    size_t Sended = 0;
-    int r, wr;
-    const auto MaxSendSize = c->Proto->MaxSendInSingleTime;
-    for(intptr_t ReadSize; (ReadSize = Count - Sended) > 0; Sended += r) {
-        if(Sended > MaxSendSize)
-            break;
-        if(ReadSize > sizeof(Buf))
-            ReadSize = sizeof(Buf);
-        if(((r = LqSbufPeek(Stream, Buf, ReadSize)) < 1) || ((wr = send(c->Fd, Buf, r, 0)) == -1))
-            return Sended;
-        LqSbufRead(Stream, nullptr, wr);
-        if((wr < r) || (r < ReadSize))
-            return Sended + wr;
-    }
-    return Sended;
-}
-
-/*
-*                   Reciving functions.
-*/
-
-/*
-*  @return: count readed from sock. If is less than 0 - which means that not all the data has been written to file.
-*/
-LqFileSz LqConnReciveInFile(LqConn* c, int OutFd, LqFileSz Count) {
-    char Buf[LQCONN_MAX_LOCAL_SIZE];
-    int r;
-
-    LqFileSz Readed = 0;
-    const auto MaxReciveSize = c->Proto->MaxReciveInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; ) {
-        if(Readed > MaxReciveSize)
-            break;
-        if(ReadSize > sizeof(Buf))
-            ReadSize = sizeof(Buf);
-        if((r = recv(c->Fd, (char*)Buf, ReadSize, 0)) < 1)
-            break;
-        Readed += r;
-        if(LqFileWrite(OutFd, Buf, r) < r)
-            return -Readed;
-        if(r < ReadSize)
-            break;
-    }
-    return Readed;
-}
-
-/*
-* @return: count readed from sock. If is less than 0 - which means that not all the data has been written to stream.
-*/
-
-intptr_t LqConnReciveInStream(LqConn* c, LqSbuf* Stream, intptr_t Count) {
-    char Buf[LQCONN_MAX_LOCAL_SIZE];
-    int r;
-    LqFileSz Readed = 0;
-    const auto MaxReciveSize = c->Proto->MaxReciveInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; ) {
-        if(Readed > MaxReciveSize)
-            break;
-        if(ReadSize > sizeof(Buf))
-            ReadSize = sizeof(Buf);
-        if((r = recv(c->Fd, (char*)Buf, ReadSize, 0)) < 1)
-            break;
-        Readed += r;
-        if(LqSbufWrite(Stream, Buf, r) < r)
-            return -Readed;
-        if(r < ReadSize)
-            break;
-    }
-    return Readed;
-}
-
-int LqConnRecive(LqConn* c, void* Buf, int ReadSize, int Flags) {
-    return recv(c->Fd, (char*)Buf, ReadSize, Flags);
-}
-
-size_t LqConnSkip(LqConn* c, size_t Count) {
-    char Buf[LQCONN_MAX_LOCAL_SIZE];
-    int r;
-    LqFileSz Readed = 0;
-    const auto MaxReciveSize = c->Proto->MaxReciveInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; ) {
-        if(Readed > MaxReciveSize)
-            break;
-        if(ReadSize > sizeof(Buf))
-            ReadSize = sizeof(Buf);
-        if((r = recv(c->Fd, (char*)Buf, ReadSize, 0)) < 1)
-            break;
-        Readed += r;
-        if(r < ReadSize)
-            break;
-    }
-
-    return Readed;
-}
-
-
-////////////////SSL
-#if defined(HAVE_OPENSSL)
-/*
-* @return: count written in sock. Always >= 0.
-*/
-size_t LqConnSendSSL(LqConn* c, const void* Buf, size_t WriteSize, SSL* ssl) {
-    int s;
-    size_t Sended = 0;
-    const size_t MaxSendSizeInTact = c->Proto->MaxSendInTact;
-    const size_t MaxSendSize = c->Proto->MaxSendInSingleTime;
-    while(WriteSize > 0) {
-        if(Sended > MaxSendSize)
-            break;
-        if((s = SSL_write(ssl, (const char*)Buf + Sended, (WriteSize > MaxSendSizeInTact) ? MaxSendSizeInTact : WriteSize)) > 0) {
-            Sended += s;
-            if((WriteSize -= s) == 0)
-                break;
-        } else {
-            break;
-        }
-    }
-    return Sended;
-}
-
-/*
-*  @return: count written in sock. Always >= 0.
-*/
-LqFileSz LqConnSendFromFileSSL(LqConn* c, int InFd, LqFileSz OffsetInFile, LqFileSz Count, SSL* ssl) {
-    char Buf[LQCONN_MAX_LOCAL_SIZE];
-    LqFileSz Sended = 0;
-    intptr_t r, wr;
-    if(LqFileSeek(InFd, OffsetInFile, LQ_SEEK_SET) < 0)
-        return -1;
-    const auto MaxSendSize = c->Proto->MaxSendInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Sended) > 0; Sended += r) {
-        if(Sended > MaxSendSize)
-            break;
-        if(ReadSize > sizeof(Buf))
-            ReadSize = sizeof(Buf);
-        if((r = LqFileRead(InFd, Buf, ReadSize)) < 1)
-            break;
-        if((wr = SSL_write(ssl, Buf, r)) < 1)
-            break;
-        if(wr < r)
-            return Sended + wr;
-    }
-    return Sended;
-}
-
-/*
-*  @return: count written in sock. Always >= 0.
-*/
-intptr_t LqConnSendFromStreamSSL(LqConn* c, LqSbuf* Stream, intptr_t Count, SSL* ssl) {
-    char Buf[LQCONN_MAX_LOCAL_SIZE];
-    size_t Sended = 0;
-    int r, wr;
-    const auto MaxSendSize = c->Proto->MaxSendInSingleTime;
-    for(size_t ReadSize; (ReadSize = Count - Sended) > 0; Sended += r) {
-        if(Sended > MaxSendSize)
-            break;
-        if(ReadSize > sizeof(Buf))
-            ReadSize = sizeof(Buf);
-        if(((r = LqSbufPeek(Stream, Buf, ReadSize)) < 1) || ((wr = SSL_write(ssl, Buf, r)) < 1))
-            return Sended;
-        LqSbufRead(Stream, nullptr, wr);
-        if((wr < r) || (r < ReadSize))
-            return Sended + wr;
-    }
-    return Sended;
-}
-
-/*
-*                   Reciving functions.
-*/
-
-/*
-*  @return: count readed from sock. If is less than 0 - which means that not all the data has been written to file.
-*/
-LqFileSz LqConnReciveInFileSSL(LqConn* c, int OutFd, LqFileSz Count, SSL* ssl) {
-    char Buf[LQCONN_MAX_LOCAL_SIZE];
-    int r;
-
-    LqFileSz Readed = 0;
-    const auto MaxReciveSize = c->Proto->MaxReciveInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; ) {
-        if(Readed > MaxReciveSize)
-            break;
-        if(ReadSize > sizeof(Buf))
-            ReadSize = sizeof(Buf);
-        if((r = SSL_read(ssl, (char*)Buf, ReadSize)) < 1)
-            break;
-        Readed += r;
-        if(LqFileWrite(OutFd, Buf, r) < r)
-            return -Readed;
-        if(r < ReadSize)
-            break;
-    }
-    return Readed;
-}
-
-/*
-* @return: count readed from sock. If is less than 0 - which means that not all the data has been written to stream.
-*/
-
-intptr_t LqConnReciveInStreamSSL(LqConn* c, LqSbuf* Stream, intptr_t Count, SSL* ssl) {
-    char Buf[LQCONN_MAX_LOCAL_SIZE];
-    int r;
-    LqFileSz Readed = 0;
-    const auto MaxReciveSize = c->Proto->MaxReciveInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; ) {
-        if(Readed > MaxReciveSize)
-            break;
-        if(ReadSize > sizeof(Buf))
-            ReadSize = sizeof(Buf);
-        if((r = SSL_read(ssl, (char*)Buf, ReadSize)) < 1)
-            break;
-        Readed += r;
-        if(LqSbufWrite(Stream, Buf, r) < r)
-            return -Readed;
-        if(r < ReadSize)
-            break;
-    }
-    return Readed;
-}
-
-int LqConnReciveSSL(LqConn* c, void* Buf, int ReadSize, int Flags, SSL* ssl) {
-    return ((Flags & MSG_PEEK) ? SSL_peek : SSL_read)(ssl, Buf, ReadSize);
-}
-
-int LqConnCountPendingDataSSL(LqConn* c, SSL* ssl) {
-    auto res = SSL_pending(ssl);
-    if(res < 500) return 500;
-    return res;
-}
-
-size_t LqConnSkipSSL(LqConn* c, size_t Count, SSL* ssl) {
-    char Buf[LQCONN_MAX_LOCAL_SIZE];
-    int r;
-    LqFileSz Readed = 0;
-    const size_t MaxReciveSize = c->Proto->MaxReciveInSingleTime;
-    for(LqFileSz ReadSize; (ReadSize = Count - Readed) > 0; ) {
-        if(Readed > MaxReciveSize)
-            break;
-        if(ReadSize > sizeof(Buf))
-            ReadSize = sizeof(Buf);
-        if((r = SSL_read(ssl, (char*)Buf, ReadSize)) < 1)
-            break;
-        Readed += r;
-        if(r < ReadSize)
-            break;
-	}
-    return Readed;
-}
-
-#endif
 
 LQ_EXTERN_C int LQ_CALL LqConnCountPendingData(LqConn* c) {
 #ifdef LQPLATFORM_WINDOWS

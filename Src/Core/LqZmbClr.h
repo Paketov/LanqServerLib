@@ -24,7 +24,7 @@ typedef struct LqZmbClr {
         const void*    UserData2;
     };
 
-	void*              WrkBoss;
+    void*              WrkBoss;
     
     LqTimeMillisec     Period;
     uint8_t            Flags;

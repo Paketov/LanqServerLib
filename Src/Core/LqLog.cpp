@@ -10,7 +10,7 @@ static LqFbuf LogInfoBuf;
 static LqFbuf LogErr;
 
 
-void LQ_LOG_INFO(const char* Fmt, ...) {
+void LqLogInfo(const char* Fmt, ...) {
 #ifdef LQ_LOG_USER_HAVE
 	va_list va;
 	va_start(va, Fmt);
@@ -19,7 +19,7 @@ void LQ_LOG_INFO(const char* Fmt, ...) {
 #endif
 }
 
-void LQ_LOG_ERR(const char* Fmt, ...) {
+void LqLogErr(const char* Fmt, ...) {
 #ifdef LQ_ERR_HAVE
 	va_list va;
 	va_start(va, Fmt);

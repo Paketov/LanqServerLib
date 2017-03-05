@@ -32,7 +32,7 @@ typedef struct LqAsync {
 } LqAsync;
 # endif
 
-typedef struct pollfd LqFilePoll;
+typedef struct pollfd LqPoll;
 
 #define LQ_POLLIN   POLLIN
 #define LQ_POLLOUT  POLLOUT
@@ -59,11 +59,11 @@ LQ_EXTERN_C_END
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-typedef struct LqFilePoll {
+typedef struct LqPoll {
     int   fd;         /* file descriptor */
     short events;     /* requested events */
     short revents;    /* returned events */
-} LqFilePoll;
+} LqPoll;
 #pragma pack(pop)
 
 typedef struct LqAsync {
@@ -145,7 +145,7 @@ typedef struct LqFileEnm {
 */
 
 typedef struct LqFilePathEvnt {
-    int Fd; /*This event can use in LqSysPoll or LqFilePoll*/
+    int Fd; /*This event can use in LqSysPoll or LqPoll*/
 
     /*Internal data*/
 #if defined(LQPLATFORM_WINDOWS)
@@ -260,7 +260,7 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileWrite(int Fd, const void* lqain SourceBuf
 *  @DestBuf: Output buffer
 *  @SizeBuf: Size buffer
 *  @Offset: Offset in file
-*  @EventFd: Event created by LqFileEventCreate(). Before call must be set to zero.
+*  @EventFd: Event created by LqEventCreate(). Before call must be set to zero.
 *  @Target: Target LqAsync structure
 *  @return: -1 - on error(chaeck lq_errno), 0 - on success
 */
@@ -271,7 +271,7 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileReadAsync(int Fd, void* lqaout DestBuf, i
 *  @SourceBuf: Input buffer
 *  @SizeBuf: Size buffer
 *  @Offset: Offset in file
-*  @EventFd: Event created by LqFileEventCreate(). Before call must be set to zero.
+*  @EventFd: Event created by LqEventCreate(). Before call must be set to zero.
 *  @Target: Target LqAsync structure
 *  @return: -1 - on error(chaeck lq_errno), 0 - on success
 */
@@ -336,42 +336,42 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileFlush(int Fd);
 
 * In unix, function it behaves just like a standard poll
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFilePollCheck(LqFilePoll* Fds, size_t CountFds, LqTimeMillisec TimeoutMillisec);
+LQ_IMPORTEXPORT int LQ_CALL LqPollCheck(LqPoll* Fds, size_t CountFds, LqTimeMillisec TimeoutMillisec);
 
-LQ_IMPORTEXPORT short LQ_CALL LqFilePollCheckSingle(int Fd, short Events, LqTimeMillisec TimeoutMillisec);
+LQ_IMPORTEXPORT short LQ_CALL LqPollCheckSingle(int Fd, short Events, LqTimeMillisec TimeoutMillisec);
 
 /*
 *Event
-* This event can be pass in to LqFilePollCheck for intterupt waiting.
+* This event can be pass in to LqPollCheck for intterupt waiting.
 * destroy by LqFileClose function
 *  @InheritFlags: Can be LQ_O_NOINHERIT or LQ_O_INHERIT
 *  @return: new event or -1;
-*   Note: Use LQ_POLLIN for LqFilePoll or LQEVNT_FLAG_RD for LqSysPoll.
+*   Note: Use LQ_POLLIN for LqPoll or LQEVNT_FLAG_RD for LqSysPoll.
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileEventCreate(int InheritFlag);
-LQ_IMPORTEXPORT int LQ_CALL LqFileEventSet(int FileEvent);
+LQ_IMPORTEXPORT int LQ_CALL LqEventCreate(int InheritFlag);
+LQ_IMPORTEXPORT int LQ_CALL LqEventSet(int FileEvent);
 /*
 * return: -1 - error, 0 - resetted and previous state == 0, 1 - resetted and previous state == 1
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileEventReset(int FileEvent);
+LQ_IMPORTEXPORT int LQ_CALL LqEventReset(int FileEvent);
 
 /*------------------------------------------
 * Timer
 *  @InheritFlags: Can be LQ_O_NOINHERIT or LQ_O_INHERIT
 *  @return: new  timer event or -1;
-*   Note: Use LQ_POLLIN for LqFilePoll or LQEVNT_FLAG_RD for LqSysPoll.
-*   When timer event has been set in signal state you must set LqFileTimerSet for new period
+*   Note: Use LQ_POLLIN for LqPoll or LQEVNT_FLAG_RD for LqSysPoll.
+*   When timer event has been set in signal state you must set LqTimerSet for new period
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileTimerCreate(int InheritFlags);
-LQ_IMPORTEXPORT int LQ_CALL LqFileTimerSet(int TimerFd, LqTimeMillisec Time);
+LQ_IMPORTEXPORT int LQ_CALL LqTimerCreate(int InheritFlags);
+LQ_IMPORTEXPORT int LQ_CALL LqTimerSet(int TimerFd, LqTimeMillisec Time);
 
 /*------------------------------------------
 * Pipes
 *
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreate(int* lqaout lpReadPipe, int* lqaout lpWritePipe, uint32_t FlagsRead, uint32_t FlagsWrite);
-LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreateRw(int* lqaout Pipe1, int* lqaout Pipe2, uint32_t Flags1, uint32_t Flags2);
-LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreateNamed(const char* lqacp lqain NameOfPipe, uint32_t Flags);
+LQ_IMPORTEXPORT int LQ_CALL LqPipeCreate(int* lqaout lpReadPipe, int* lqaout lpWritePipe, uint32_t FlagsRead, uint32_t FlagsWrite);
+LQ_IMPORTEXPORT int LQ_CALL LqPipeCreateRw(int* lqaout Pipe1, int* lqaout Pipe2, uint32_t Flags1, uint32_t Flags2);
+LQ_IMPORTEXPORT int LQ_CALL LqPipeCreateNamed(const char* lqacp lqain NameOfPipe, uint32_t Flags);
 
 /*------------------------------------------
 * Descriptor parameters
@@ -379,8 +379,8 @@ LQ_IMPORTEXPORT int LQ_CALL LqFilePipeCreateNamed(const char* lqacp lqain NameOf
 * @IsInherit: LQ_O_NOINHERIT - if handle not transfer to child process
 * @return: New descriptor or -1 when have error
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileDescrDup(int Descriptor, int InheritFlag);
-LQ_IMPORTEXPORT int LQ_CALL LqFileDescrSetInherit(int Descriptor, int IsInherit);
+LQ_IMPORTEXPORT int LQ_CALL LqDescrDup(int Descriptor, int InheritFlag);
+LQ_IMPORTEXPORT int LQ_CALL LqDescrSetInherit(int Descriptor, int IsInherit);
 
 /*
 * Set standart descriptors
@@ -388,15 +388,15 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileDescrSetInherit(int Descriptor, int IsInherit)
 * @StdNo: LQ_STDERR, LQ_STDIN or LQ_STDOUT
 * @return: -1 - on error, 0 - on success
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileDescrDupToStd(int Descriptor, int StdNo);
+LQ_IMPORTEXPORT int LQ_CALL LqDescrDupToStd(int Descriptor, int StdNo);
 
-LQ_IMPORTEXPORT bool LQ_CALL LqFileIsTerminal(int Fd);
+LQ_IMPORTEXPORT bool LQ_CALL LqDescrIsTerminal(int Fd);
 
-LQ_IMPORTEXPORT bool LQ_CALL LqFileIsSocket(int Fd);
+LQ_IMPORTEXPORT bool LQ_CALL LqDescrIsSocket(int Fd);
 
 /*------------------------------------------
 * Process
-* LqFileProcessCreate
+* LqProcessCreate
 *  @FileName - Path to executible image
 *  @Argv: Arguments to programm. If set nullptr, then args not sended, otherwise before last arg must have nullptr
 *  @Envp: Enviroment arg. If set nullptr, then used enviroment parent process.
@@ -406,10 +406,10 @@ LQ_IMPORTEXPORT bool LQ_CALL LqFileIsSocket(int Fd);
 *  @StdErr: -1 - use std err of current process, otherwise use spec. dev or pipe or file. You can use null devices Ex. LqFileOpen(LQ_NULLDEV, LQ_O_WR, 0)
 *  @StdDscr: If set, then returned standart in/out pipes to child process. If not set, then uses parent std in/out.
 *  @EventKill: Is set non null, get event completion for process. For correct get event on all platforms use flags
-        (LQ_POLLHUP | LQ_POLLIN) for LqFilePoll or (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP) for LqSysPoll.
+        (LQ_POLLHUP | LQ_POLLIN) for LqPoll or (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP) for LqSysPoll.
 *  @return: PID to new process, or -1 is have error.
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileProcessCreate(
+LQ_IMPORTEXPORT int LQ_CALL LqProcessCreate(
     const char* lqain lqacp FileName,
     char* const lqaopt lqain Argv[],
     char* const lqaopt lqain Envp[],
@@ -421,17 +421,17 @@ LQ_IMPORTEXPORT int LQ_CALL LqFileProcessCreate(
     bool IsOwnerGroup
 );
 /*
-* LqFileProcessKill
+* LqProcessKill
 *  @Pid: pid to process
 *  @return: 0 - is success, -1 otherwise
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileProcessKill(int Pid);
+LQ_IMPORTEXPORT int LQ_CALL LqProcessKill(int Pid);
 
-LQ_IMPORTEXPORT int LQ_CALL LqFileProcessId();
+LQ_IMPORTEXPORT int LQ_CALL LqProcessId();
 
-LQ_IMPORTEXPORT int LQ_CALL LqFileProcessParentId();
+LQ_IMPORTEXPORT int LQ_CALL LqProcessParentId();
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileProcessName(int Pid, char* lqacp lqaout DestBuf, intptr_t SizeBuf);
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqProcessGetName(int Pid, char* lqacp lqaout DestBuf, intptr_t SizeBuf);
 
 /*------------------------------------------
 * Change or get current working directory
@@ -471,7 +471,7 @@ LQ_IMPORTEXPORT void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* lqaio Evnt);
 *  @SlaveFlags: Flags for slafe descriptor(LQ_O_NOINHERIT, LQ_O_NONBLOCK)
 *  @return: 0 - on success, -1 - on error
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileTermPairCreate(int* lqaout MasterFd, int* lqaout SlaveFd, int MasterFlags, int SlaveFlags);
+LQ_IMPORTEXPORT int LQ_CALL LqTermPairCreate(int* lqaout MasterFd, int* lqaout SlaveFd, int MasterFlags, int SlaveFlags);
 
 LQ_IMPORTEXPORT bool LQ_CALL LqFileDirIsRoot(const char* DirOrFile);
 
@@ -479,38 +479,38 @@ LQ_IMPORTEXPORT bool LQ_CALL LqFileDirIsRoot(const char* DirOrFile);
 /*------------------------------------------
 * Multiplatform environment (Used code page from LqCp...)
 */
-/*LqFileSetEnv
+/*LqEnvSet
 *  @Name: Name of env. var
 *  @Value: New value, or when == nullptr unsetted var
 *  @return: -1 - on error, 0 - on success
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileSetEnv(const char* lqain Name, const char* lqain Value);
+LQ_IMPORTEXPORT int LQ_CALL LqEnvSet(const char* lqain Name, const char* lqain Value);
 
-/*LqFileGetEnv
+/*LqEnvGet
 *  @Name: Name of env. var
 *  @Value: Buffer for value
 *  @ValueBufLen: Size of @Value buffer
 *  @return: -1 - on error, otherwise count written bytes
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileGetEnv(const char* lqain Name, char* lqaout Value, size_t ValueBufLen);
+LQ_IMPORTEXPORT int LQ_CALL LqEnvGet(const char* lqain Name, char* lqaout Value, size_t ValueBufLen);
 
-/*LqFileGetEnvs
+/*LqEnvGetAll
 *  @Buf: Dest buffer (Name1=Value1\0Name2=Value2\0\0)
 *  @BufLen: Length of @Buf
 *  @return: -1 - on error, otherwise count variables written
 */
-LQ_IMPORTEXPORT int LQ_CALL LqFileGetEnvs(char* lqaout Buf, size_t BufLen);
+LQ_IMPORTEXPORT int LQ_CALL LqEnvGetAll(char* lqaout Buf, size_t BufLen);
 
 /*------------------------------------------
 * Shared memory
 *
 */
 
-LQ_IMPORTEXPORT int LQ_CALL LqFileSharedCreate(int key, size_t Size, int DscrFlags, int UserAccess);
-LQ_IMPORTEXPORT int LQ_CALL LqFileSharedOpen(int key, size_t Size, int DscrFlags, int UserAccess);
-LQ_IMPORTEXPORT void* LQ_CALL LqFileSharedAt(int shmid, void* lqain lqaopt BaseAddress);
-LQ_IMPORTEXPORT int LQ_CALL LqFileSharedUnmap(void* lqain addr);
-LQ_IMPORTEXPORT int LQ_CALL LqFileSharedClose(int shmid);
+LQ_IMPORTEXPORT int LQ_CALL LqSharedCreate(int key, size_t Size, int DscrFlags, int UserAccess);
+LQ_IMPORTEXPORT int LQ_CALL LqSharedOpen(int key, size_t Size, int DscrFlags, int UserAccess);
+LQ_IMPORTEXPORT void* LQ_CALL LqSharedAt(int shmid, void* lqain lqaopt BaseAddress);
+LQ_IMPORTEXPORT int LQ_CALL LqSharedUnmap(void* lqain addr);
+LQ_IMPORTEXPORT int LQ_CALL LqSharedClose(int shmid);
 
 LQ_IMPORTEXPORT bool LQ_CALL LqMutexCreate(LqMutex* lqaout Dest);
 LQ_IMPORTEXPORT bool LQ_CALL LqMutexTryLock(LqMutex* lqaio Dest);

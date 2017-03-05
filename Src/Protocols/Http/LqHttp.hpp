@@ -13,8 +13,6 @@
 #include "LqFileTrd.h"
 #include "LqHttpPth.hpp"
 #include "LqMd5.h"
-#include "LqHttpRcv.h"
-#include "LqHttpRsp.h"
 #include "LqDfltRef.hpp"
 #include "LqHndls.hpp"
 #include "LqShdPtr.hpp"
@@ -33,28 +31,30 @@ typedef LqShdPtr<LqHttpMdl, __LqHttpMdlDelete, false, false> LqHttpMdlPtr;
 
 struct LqHttpData {
 	LqZmbClr*                ZmbClr;
-	size_t	                 CountPtrs;
+	
 	size_t					 MaxCountConn;
-
-	LqTimeMillisec			 WaitHdrTime;
-	LqTimeMillisec			 LiveTime;
+	size_t	                 CountPtrs;
+	LqTimeMillisec			 KeepAlive;
 
 	char                     ServName[1024];
 
 	LqHttpMdl                StartModule;
 
-	char                     HTTPProtoVer[16];
+	LqFileSz                 MaxSkipContentLength;
 
+	char                     HTTPProtoVer[16];
+	
 	LqTimeSec                PeriodChangeDigestNonce;
 	bool                     IsResponse429;
 	bool					 UseDefaultDmn;
 	void*					 SslCtx;
 
 	size_t                   MaxHeadersSize;
-	size_t                   MaxMultipartHeadersSize;
 	size_t					 MaxLenRspConveyor;
 
 	LqHttpDmnTbl             Dmns;
+
+	void*                    WrkBoss;
 
 	LqPtdArr<LqHttpMdlPtr>   Modules;
 
@@ -68,6 +68,7 @@ struct LqHttpData {
 #pragma pack(pop)
 
 #define LqHttpConnGetHttpData(HttpConn) ((LqHttpData*)((LqHttp*)(HttpConn)->UserData2)->UserData)
+#define LqHttpGetHttpData(Http) ((LqHttpData*)(Http)->UserData)
 #define LqHttpPthGetMdl(Path) (((Path)->Type & LQHTTPPTH_FLAG_CHILD) ? ((Path)->Parent->ParentModule) : (Path)->ParentModule)
 #define LqHttpConnGetMdl(Conn) ((LqHttpConnGetData(Conn)->Pth == nullptr)? (&LqHttpConnGetHttpData(Conn)->StartModule): (LqHttpPthGetMdl(LqHttpConnGetData(Conn)->Pth)))
 
@@ -78,513 +79,591 @@ inline bool operator!=(const LqString& Str) const { return Str != operator LqStr
 inline bool operator==(const char* Str) const { return Str == operator LqString(); }\
 inline bool operator!=(const char* Str) const { return Str != operator LqString(); }
 
-//
-//
-//#pragma pack(push)
-//#pragma pack(1)
-//
-///*
-//* C++ interface of Lanq API
-//* Use for simply create web apps.
-//*/
-//
-//
-//class LqHttpConnInterface {
-//public:
-//
-//    typedef std::vector<std::pair<LqString, LqString>> ArgsType;
-//    typedef std::vector<std::pair<LqString, LqString>> HdrsType;
-//    union {
-//        class _Quer {
-//        public:
-//
-//            inline operator bool() const { return LqHttpActGetClassByConn(Domen.Conn) == LQHTTPACT_CLASS_QER; }
-//
-//            union {
-//                class _Method {
-//                    LqHttpConn* Conn;
-//                public: DISABLE_COPY_CONSTRUCT(_Method) DEF_CMP_STRING
-//                    inline operator LqString() const { if(Conn->Query.Method == nullptr) return ""; return LqString(Conn->Query.Method, Conn->Query.MethodLen); }
-//                } Method;
-//                class _Domen {
-//                    friend LqHttpConnInterface;
-//                    friend _Quer;
-//                    LqHttpConn* Conn;
-//                public: DISABLE_COPY_CONSTRUCT(_Domen) DEF_CMP_STRING
-//                    inline operator LqString() const { if(Conn->Query.Host == nullptr) return ""; return LqString(Conn->Query.Host, Conn->Query.HostLen); }
-//                } Domen;
-//                class _User {
-//                    LqHttpConn* Conn;
-//                public: DISABLE_COPY_CONSTRUCT(_User) DEF_CMP_STRING
-//                    inline operator LqString() const { if(Conn->Query.UserInfo == nullptr) return ""; return LqString(Conn->Query.UserInfo, Conn->Query.UserInfoLen); }
-//                } User;
-//
-//                class _Path {
-//                    LqHttpConn* Conn;
-//                public: DISABLE_COPY_CONSTRUCT(_Path) DEF_CMP_STRING
-//                    inline operator LqString() const { if(Conn->Query.Path == nullptr) return ""; return LqString(Conn->Query.Path, Conn->Query.PathLen); }
-//                } Path;
-//                class _Fragment {
-//                    LqHttpConn* Conn;
-//                public:  DISABLE_COPY_CONSTRUCT(_Fragment) DEF_CMP_STRING
-//                    inline operator LqString() const { if(Conn->Query.Fragment == nullptr) return ""; return LqString(Conn->Query.Fragment, Conn->Query.FragmentLen); }
-//                } Fragment;
-//
-//                class _ProtoVer {
-//                    LqHttpConn* Conn;
-//                public: DISABLE_COPY_CONSTRUCT(_ProtoVer) DEF_CMP_STRING
-//                    inline operator LqString() const { if(Conn->Query.ProtoVer == nullptr) return ""; return LqString(Conn->Query.ProtoVer, Conn->Query.ProtoVerLen); }
-//                } ProtoVer;
-//
-//                class _Arg {
-//                    LqHttpConn* Conn;
-//                    inline LqString Inter(const char * Index, bool& IsHave = LqDfltRef()) const {
-//                        auto l = LqStrLen(Index);
-//                        char* c = Conn->Query.Arg, *m = c + Conn->Query.ArgLen;
-//                        while(c < m) {
-//                            char* a = c, *ea, *sv, *ev;
-//                            for(; (*c != '&') && (*c != '=') && (c < m); c++);
-//                            ea = c;
-//                            if((*c == '=') && (c < m)) {
-//                                c++;
-//                                sv = c;
-//                                for(; (*c != '&') && (c < m); c++);
-//                                ev = c;
-//                            } else {
-//                                sv = ev = c;
-//                            }
-//                            c++;
-//                            if((l == (ea - a)) && LqStrUtf8CmpCaseLen(Index, a, l)) {
-//                                IsHave = true;
-//                                return LqString(sv, ev - sv);
-//                            }
-//                        }
-//                        IsHave = false;
-//                        return LqString();
-//                    }
-//                public:  DISABLE_COPY_CONSTRUCT(_Arg)
-//
-//                    inline operator ArgsType() {
-//                    ArgsType Res;
-//                    char* c = Conn->Query.Arg, *m = c + Conn->Query.ArgLen;
-//                    while(c < m) {
-//                        char* a = c, *ea, *sv, *ev;
-//                        for(; (*c != '&') && (*c != '=') && (c < m); c++);
-//                        ea = c;
-//                        if((*c == '=') && (c < m)) {
-//                            c++;
-//                            sv = c;
-//                            for(; (*c != '&') && (c < m); c++);
-//                            ev = c;
-//                        } else {
-//                            sv = ev = c;
-//                        }
-//                        c++;
-//                        Res.push_back(std::pair<LqString, LqString>(LqString(a, ea - a), LqString(sv, ev - sv)));
-//                    }
-//                    return Res;
-//                }
-//
-//                         inline LqString operator[](const char* Index) const { return Inter(Index); }
-//                         inline LqString operator[](const LqString& Index) const { return operator[](Index.c_str()); }
-//                         inline bool IsHave(const LqString & Index) const { bool r;  Inter(Index.c_str(), r); return r; }
-//                         inline bool IsHave(const char* Index) const { bool r;  Inter(Index, r); return r; }
-//                         inline operator LqString() const { return LqString(Conn->Query.Arg, Conn->Query.ArgLen); }
-//                } Args;
-//
-//                class _ContentLen {
-//                    LqHttpConn* Conn;
-//                public: DISABLE_COPY_CONSTRUCT(_ContentLen)
-//                    inline operator LqFileSz() const { return Conn->Query.ContentLen; }
-//                } ContentLen;
-//
-//                class _StartLine {
-//                    LqHttpConn* Conn;
-//                public: DISABLE_COPY_CONSTRUCT(_StartLine) DEF_CMP_STRING
-//                    inline operator LqString() const {
-//                    if(Conn->Query.Method == nullptr)
-//                        return "";
-//                    char* c = Conn->Query.Method;
-//                    for(char* m = c + Conn->Query.HeadersEnd; ((c[0] != '\r') || (c[1] != '\n')) && (c < m); c++);
-//                    return LqString(Conn->Query.Method, c);
-//                }
-//                        bool Get(char**Start, char** End) {
-//                            if(Conn->Query.Method == nullptr)
-//                                return false;
-//                            char* c = Conn->Query.Method;
-//                            for(char* m = c + Conn->Query.HeadersEnd; ((c[0] != '\r') || (c[1] != '\n')) && (c < m); c++);
-//                            *Start = Conn->Query.Method;
-//                            *End = c;
-//                            return true;
-//                        }
-//                } StartLine;
-//
-//                class _Hdr {
-//                    LqHttpConn* Conn;
-//                    class _HdrsInterator {
-//                        friend _Hdr;
-//                        LqHttpConn* Conn;
-//                        const char* Name;
-//                        _HdrsInterator(LqHttpConn* NewConn, const char* NewName): Conn(NewConn), Name(NewName) {}
-//                    public: _HdrsInterator& operator =(const _HdrsInterator&) = delete; DEF_CMP_STRING
-//                        inline operator LqString() const { char* vs = "", *ve = vs; LqHttpRcvHdrSearch(Conn, 0, Name, nullptr, &vs, &ve); return LqString(vs, ve - vs); }
-//                            inline int Scanf(size_t Deep, const char* FormatStr, ...) {
-//                                va_list Va;
-//                                va_start(Va, FormatStr);
-//                                return LqHttpRcvHdrScanfVa(Conn, Deep, Name, FormatStr, Va);
-//                            }
-//                    };
-//                public: DISABLE_COPY_CONSTRUCT(_Hdr)
-//                    inline operator HdrsType() const {
-//                    HdrsType Res;
-//                    char* HeaderNameResult = nullptr, *HeaderNameResultEnd = nullptr, *HeaderValResult = nullptr, *HeaderValEnd = nullptr;
-//                    while(LqHttpRcvHdrEnum(Conn, &HeaderNameResult, &HeaderNameResultEnd, &HeaderValResult, &HeaderValEnd) >= 0)
-//                        Res.push_back(std::pair<LqString, LqString>(LqString(HeaderNameResult, HeaderNameResultEnd - HeaderNameResult), LqString(HeaderValResult, HeaderValEnd - HeaderValResult)));
-//                    return Res;
-//                }
-//                        inline operator LqString() const { return Conn->Buf; }
-//                        inline LqString operator[](const char* Index) const { return _HdrsInterator(Conn, Index); }
-//                        inline LqString operator[](const LqString& Index) const { return operator[](Index.c_str()); }
-//                } Hdrs;
-//
-//
-//
-//                struct _Stream {
-//                    class _Size {
-//                        friend _Stream;
-//                        LqHttpConn* Conn;
-//                    public: DISABLE_COPY_CONSTRUCT(_Size)
-//                        inline operator intptr_t() const {
-//                        if(Conn->ActionState == LQHTTPACT_STATE_RCV_STREAM)
-//                            return Conn->Query.Stream.Len;
-//                        return -1;
-//                    }
-//                    } Size;
-//                    DISABLE_COPY_CONSTRUCT(_Stream)
-//                        inline LqString & operator >> (LqString & Str) {
-//                        char Buf[1024];
-//                        for(;;) {
-//                            intptr_t Readed;
-//                            if((Readed = LqHttpRcvStreamRead(Size.Conn, Buf, sizeof(Buf))) < 0)
-//                                return (LqString&)Str;
-//                            Str.append(Buf, Readed);
-//                            if(Readed < sizeof(Buf))
-//                                return Str;
-//                        }
-//                        return Str;
-//                    }
-//                    inline intptr_t Read(void * Buf, intptr_t BufLen) { return LqHttpRcvStreamRead(Size.Conn, Buf, BufLen); }
-//                    inline intptr_t Peek(void * Buf, intptr_t BufLen) { return LqHttpRcvStreamPeek(Size.Conn, Buf, BufLen); }
-//
-//                    inline operator LqString() const {
-//                        if(Size.Conn->ActionState != LQHTTPACT_STATE_RCV_STREAM)
-//                            return LqString();
-//                        char Buf[1024];
-//                        LqSbufPtr BufPtr;
-//                        LqSbufPtrSet(&BufPtr, &Size.Conn->Query.Stream);
-//                        LqString Result;
-//                        for(;;) {
-//                            intptr_t Readed;
-//                            if((Readed = LqSbufReadByPtr(&BufPtr, Buf, sizeof(Buf))) < 0)
-//                                break;
-//                            Result.append(Buf, Readed);
-//                            if(Readed < sizeof(Buf))
-//                                return Result;
-//                        }
-//                        return Result;
-//
-//                    }
-//
-//                    inline operator bool() const { return Size.Conn->ActionState == LQHTTPACT_STATE_RCV_STREAM; }
-//                    inline LqHttpRcvFileResultEnm Set(LqFileSz Sz = LQ_MAX_CONTENT_LEN) { return LqHttpRcvStream(Size.Conn, Sz); }
-//                } Stream;
-//
-//                struct _File {
-//                    DISABLE_COPY_CONSTRUCT(_File)
-//                        union {
-//                        class _Descriptor {
-//                            friend _File;
-//                            LqHttpConn* Conn;
-//                        public: DISABLE_COPY_CONSTRUCT(_Descriptor)
-//                            inline operator int() const {
-//                            if(Conn->ActionState != LQHTTPACT_STATE_RCV_FILE)
-//                                return -1;
-//                            return Conn->Query.OutFd;
-//                        }
-//                        } Descriptor;
-//                        class _TargetName {
-//                            LqHttpConn* Conn;
-//                        public: DISABLE_COPY_CONSTRUCT(_TargetName) DEF_CMP_STRING
-//                            inline operator LqString() const { char Buf[LQ_MAX_PATH]; LqFileGetPath(Conn->Query.OutFd, Buf, sizeof(Buf) - 1); return Buf; }
-//                        } TargetPath;
-//                    };
-//
-//                    inline operator bool() const { return (Descriptor.Conn->ActionState == LQHTTPACT_STATE_RCV_FILE) && (LqFileTrdIsTransacted(Descriptor.Conn->Query.OutFd) != 1); }
-//                    inline LqHttpRcvFileResultEnm Set(int Fd, LqFileSz ReadLen = LQ_MAX_CONTENT_LEN) { return LqHttpRcvFileByFd(Descriptor.Conn, Fd, ReadLen); }
-//                } File;
-//
-//                struct _TrdFile {
-//                    DISABLE_COPY_CONSTRUCT(_TrdFile)
-//                        union {
-//                        class _TempPath {
-//                            friend _TrdFile;
-//                            LqHttpConn* Conn;
-//                        public: DISABLE_COPY_CONSTRUCT(_TempPath) DEF_CMP_STRING
-//                            inline  operator LqString() const { char Buf[LQ_MAX_PATH]; LqHttpRcvFileGetTargetName(Conn, Buf, sizeof(Buf) - 1); return Buf; }
-//                        } TempPath;
-//                        class _TargetPath {
-//                            LqHttpConn* Conn;
-//                        public: DISABLE_COPY_CONSTRUCT(_TargetPath) DEF_CMP_STRING
-//                            inline operator LqString() const { char Buf[LQ_MAX_PATH]; LqHttpRcvFileGetTargetName(Conn, Buf, sizeof(Buf) - 1); return Buf; }
-//                        } TargetPath;
-//                    };
-//                    inline operator bool() const { return (TempPath.Conn->ActionState == LQHTTPACT_STATE_RCV_FILE) && (LqFileTrdIsTransacted(TempPath.Conn->Query.OutFd) == 1); }
-//
-//                    inline LqHttpRcvFileResultEnm Set(const char* Path, bool IsCreateSubdir = true, bool IsReplace = true, int Access = 0666, LqFileSz ReadLen = LQ_MAX_CONTENT_LEN) {
-//                        return LqHttpRcvFile(TempPath.Conn, Path, ReadLen, Access, IsReplace, IsCreateSubdir);
-//                    }
-//                    inline LqHttpRcvFileResultEnm Commit() { return LqHttpRcvFileCommit(TempPath.Conn); }
-//                    inline LqHttpRcvFileResultEnm CommitToPlace(const char* DestPath) { return LqHttpRcvFileCommitToPlace(TempPath.Conn, DestPath); }
-//                    inline LqHttpRcvFileResultEnm Cancel() { return LqHttpRcvFileCancel(TempPath.Conn); }
-//                } TrdFile;
-//
-//                class _Multipart {
-//                public: DISABLE_COPY_CONSTRUCT(_Multipart)
-//                    union {
-//                    class _Deep {
-//                        friend _Multipart;
-//                        LqHttpConn* Conn;
-//                    public: DISABLE_COPY_CONSTRUCT(_Deep)
-//                        inline operator size_t() const { return LqHttpRcvMultipartHdrGetDeep(Conn); }
-//                    } Deep;
-//
-//                };
-//
-//                        inline operator bool() {
-//                            return (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_RCV_FILE) ||
-//                                (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_RCV_HDRS) ||
-//                                (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_RCV_STREAM) ||
-//                                (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_SKIP_AND_GET_HDRS) ||
-//                                (Deep.Conn->ActionState == LQHTTPACT_STATE_MULTIPART_SKIP_TO_HDRS);
-//                        }
-//
-//                        inline LqHttpRcvFileResultEnm RcvHdrs() { return LqHttpRcvMultipartHdrRecive(Deep.Conn); }
-//                        inline LqHttpRcvFileResultEnm SkipContent() { return LqHttpRcvMultipartSkip(Deep.Conn); }
-//                        inline LqHttpRcvFileResultEnm HdrRemoveLast() { return LqHttpRcvMultipartHdrRemoveLast(Deep.Conn); }
-//                        inline LqHttpRcvFileResultEnm HdrRemoveAll() { return LqHttpRcvMultipartHdrRemoveAll(Deep.Conn); }
-//                        inline LqHttpRcvFileResultEnm SevePartInFile(const char* Path, bool IsCreateSubdir = true, bool IsReplace = true, int Access = 0666) {
-//                            return LqHttpRcvMultipartInFile(Deep.Conn, Path, Access, IsCreateSubdir, IsReplace);
-//                        }
-//                        LqHttpRcvFileResultEnm SavePartInStream(LqFileSz ReadLen = LQ_MAX_CONTENT_LEN) { return LqHttpRcvMultipartInStream(Deep.Conn, ReadLen); }
-//                } Multipart;
-//
-//            };
-//        } Quer;
-//
-//        class _Rsp {
-//        public:
-//
-//            inline operator bool() const { return LqHttpActGetClassByConn(Hdrs.Conn) == LQHTTPACT_CLASS_RSP; }
-//
-//            union {
-//                class _Hdr {
-//                    friend _Rsp;
-//                    LqHttpConn* Conn;
-//                    class _HdrsInterator {
-//                        friend _Hdr;
-//                        LqHttpConn* Conn;
-//                        const char* Name;
-//                        _HdrsInterator(LqHttpConn* NewConn, const char* NewName): Conn(NewConn), Name(NewName) {}
-//                    public: _HdrsInterator& operator =(const _HdrsInterator&) = delete; DEF_CMP_STRING
-//                        inline operator LqString() const { char* hvs = "", *hve = hvs; LqHttpRspHdrSearch(Conn, Name, nullptr, &hvs, &hve); return LqString(hvs, hve - hvs); }
-//                            inline const char* operator=(const char* Val) const { LqHttpRspHdrChange(Conn, Name, Val); return Val; }
-//                            inline LqString& operator=(const LqString& Val) const { LqHttpRspHdrChangeEx(Conn, Name, LqStrLen(Name), Val.c_str(), Val.length()); return (LqString&)Val; }
-//                            inline char* Printf(const char* Format, ...) {
-//                                va_list Va;
-//                                va_start(Va, Format);
-//                                Remove();
-//                                return LqHttpRspHdrAddPrintfVa(Conn, Name, Format, Va);
-//                            }
-//                            inline bool Remove() { return LqHttpRspHdrRemove(Conn, Name); }
-//                    };
-//                public: DISABLE_COPY_CONSTRUCT(_Hdr)
-//                    inline operator HdrsType() const {
-//                    HdrsType Res;
-//                    char* HeaderNameResult = nullptr, *HeaderNameResultEnd = nullptr, *HeaderValResult = nullptr, *HeaderValEnd = nullptr;
-//                    while(LqHttpRspHdrEnum(Conn, &HeaderNameResult, &HeaderNameResultEnd, &HeaderValResult, &HeaderValEnd) >= 0)
-//                        Res.push_back(std::pair<LqString, LqString>(LqString(HeaderNameResult, HeaderNameResultEnd - HeaderNameResult), LqString(HeaderValResult, HeaderValEnd - HeaderValResult)));
-//                    return Res;
-//                }
-//                        inline operator LqString() {
-//                            return LqString(Conn->Buf + Conn->Response.HeadersStart, Conn->Response.HeadersEnd - Conn->Response.HeadersStart);
-//                        }
-//                        inline _HdrsInterator operator[](const char* Index) const { return _HdrsInterator(Conn, Index); }
-//                        inline _HdrsInterator operator[](const LqString& Index) const { return _HdrsInterator(Conn, Index.c_str()); }
-//                        inline intptr_t AppendSmallContent(const void* Data, intptr_t DataLen) { return LqHttpRspHdrAddSmallContent(Conn, Data, DataLen); }
-//
-//                } Hdrs;
-//
-//                struct _Stat {
-//                    LqHttpConn* Conn;
-//                public:DISABLE_COPY_CONSTRUCT(_Stat)
-//                    inline operator int() const { return Conn->Response.Status; }
-//                } Stat;
-//
-//                struct _Stream {
-//                    class _Size {
-//                        friend _Stream;
-//                        LqHttpConn* Conn;
-//                    public: DISABLE_COPY_CONSTRUCT(_Size)
-//                        inline operator intptr_t() const { return Conn->Response.Stream.Len; }
-//                    } Size;
-//                    DISABLE_COPY_CONSTRUCT(_Stream)
-//                        inline operator bool() const { return Size.Conn->ActionState == LQHTTPACT_STATE_RSP_STREAM; }
-//                    inline LqString& operator<<(LqString& Str) { LqHttpRspContentWrite(Size.Conn, Str.c_str(), Str.length()); return Str; }
-//                    inline const char* operator<<(const char* Str) { LqHttpRspContentWrite(Size.Conn, Str, LqStrLen(Str)); return Str; }
-//                    inline intptr_t Write(void* Buf, size_t Len) { return LqHttpRspContentWrite(Size.Conn, Buf, Len); }
-//                    inline intptr_t Printf(const char* FormatStr, ...) { va_list Va; va_start(Va, FormatStr); return LqHttpRspContentWritePrintfVa(Size.Conn, FormatStr, Va); }
-//                    operator LqString() const;
-//                } Stream;
-//
-//                struct _File {
-//                    DISABLE_COPY_CONSTRUCT(_File)
-//                        union {
-//                        class _Descriptor {
-//                            friend _File;
-//                            LqHttpConn* Conn;
-//                        public: DISABLE_COPY_CONSTRUCT(_Descriptor)
-//                            inline operator int() const {
-//                            if(Conn->ActionState != LQHTTPACT_STATE_RSP_FD)
-//                                return -1;
-//                            return Conn->Response.Fd;
-//                        }
-//                        } Descriptor;
-//                    };
-//
-//                    inline operator bool() const { return (Descriptor.Conn->ActionState == LQHTTPACT_STATE_RSP_FD) && (Descriptor.Conn->ActionState == LQHTTPACT_STATE_RSP_CACHE); }
-//
-//                    LqHttpActResult Set(int Fd, LqFileSz OffsetStart = 0, LqFileSz OffsetEnd = LQ_MAX_CONTENT_LEN) { return LqHttpRspFileByFd(Descriptor.Conn, Fd, OffsetStart, OffsetEnd); }
-//                    LqHttpActResult Set(const char* Path, LqFileSz OffsetStart = 0, LqFileSz OffsetEnd = LQ_MAX_CONTENT_LEN) { return LqHttpRspFile(Descriptor.Conn, Path, OffsetStart, OffsetEnd); }
-//                    int SetAuto(const char* Path = nullptr) { return LqHttpRspFileAuto(Descriptor.Conn, Path); }
-//                } File;
-//
-//            };
-//            inline int MakeError(int Status) { return LqHttpRspError(Hdrs.Conn, Status); }
-//            inline int MakeStatus(int Status) { return LqHttpRspStatus(Hdrs.Conn, Status); }
-//            inline char* MakeStartLine(int Status) { return LqHttpActSwitchToRspAndSetStartLine(Hdrs.Conn, Status); }
-//            inline void KeepOnlyHeaders() { return LqHttpActKeepOnlyHeaders(Hdrs.Conn); }
-//        } Rsp;
-//
-//        class _RemoteIp {
-//            LqHttpConn* Conn;
-//        public: DISABLE_COPY_CONSTRUCT(_RemoteIp) DEF_CMP_STRING
-//            inline operator LqString() const {
-//            char Buf[256];
-//            Buf[0] = '\0';
-//            LqHttpConnGetRemoteIpStr(Conn, Buf, 255);
-//            return Buf;
-//        }
-//                /*@return: For IPv4 - 4, for IPv6 - 6, on error - 0*/
-//                inline int GetType() const {
-//                    char Buf[256];
-//                    return LqHttpConnGetRemoteIpStr(Conn, Buf, 255);
-//                }
-//        } RemoteIp;
-//
-//        class _RemotePort {
-//            LqHttpConn* Conn;
-//        public: DISABLE_COPY_CONSTRUCT(_RemotePort) DEF_CMP_STRING
-//            inline operator int() const { return LqHttpConnGetRemotePort(Conn); }
-//                inline operator LqString() const { return LqToString(operator int()); }
-//        } RemotePort;
-//
-//        class _Action {
-//            friend LqHttpConnInterface;
-//            LqHttpConn* Conn;
-//        public:DISABLE_COPY_CONSTRUCT(_Action)
-//            inline operator LqHttpActEnm() const { return (LqHttpActEnm)Conn->ActionState; }
-//        } Action;
-//
-//        class _ActionResult {
-//            LqHttpConn* Conn;
-//        public:DISABLE_COPY_CONSTRUCT(_ActionResult)
-//            inline operator LqHttpActResultEnm() const { return (LqHttpActResultEnm)Conn->ActionResult; }
-//        } ActionResult;
-//
-//        class _EvntHandler {
-//            LqHttpConn* Conn;
-//        public:DISABLE_COPY_CONSTRUCT(_EvntHandler)
-//            inline operator LqHttpEvntHandlerFn() const { return Conn->EventAct; }
-//               inline LqHttpEvntHandlerFn operator=(LqHttpEvntHandlerFn NewFn) { return Conn->EventAct = NewFn; }
-//               inline void Ignore() { LqHttpEvntActSetIgnore(Conn); }
-//        } EvntHandler;
-//
-//        class _CloseHandler {
-//            LqHttpConn* Conn;
-//        public:DISABLE_COPY_CONSTRUCT(_CloseHandler)
-//            inline operator LqHttpEvntHandlerFn() const { return Conn->EventClose; }
-//               inline LqHttpEvntHandlerFn operator=(LqHttpEvntHandlerFn NewFn) { return Conn->EventClose = NewFn; }
-//               inline void Ignore() { LqHttpEvntCloseSetIgnore(Conn); }
-//        } CloseHandler;
-//
-//        class _EvntFlag {
-//            LqHttpConn* Conn;
-//        public:DISABLE_COPY_CONSTRUCT(_EvntFlag)
-//            inline operator LqEvntFlag() { return Conn->Flags & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_WR | LQEVNT_FLAG_RD); }
-//               inline LqEvntFlag operator =(LqEvntFlag NewFlag) { LqEvntSetFlags(Conn, NewFlag, 0); return NewFlag; }
-//               inline int SetCloseAsync() { return LqEvntSetClose(Conn); }
-//               inline int SetCloseSync(LqTimeMillisec WaitTime) { return LqEvntSetClose2(Conn, WaitTime); }
-//               inline int SetCloseSyncForce() { return LqEvntSetClose3(Conn); }
-//               inline bool IsClose() { return LqConnIsClose(Conn); }
-//               /*Set default flags for current action*/
-//               inline int ReturnToDefault() { return LqHttpEvntSetFlagByAct(Conn); }
-//        } EvntFlag;
-//
-//        class __UserData {
-//            LqHttpConn* Conn;
-//
-//        public:DISABLE_COPY_CONSTRUCT(__UserData)
-//            class ___Interator {
-//            LqHttpConn* Conn;
-//            void* UniquePointer;
-//            public:
-//                inline ___Interator(LqHttpConn* c, void* v): Conn(c), UniquePointer(v) {}
-//                template<typename TypeResult>
-//                inline operator TypeResult() const {
-//                    void* Res = nullptr;
-//                    LqHttpConnDataGet(Conn, UniquePointer, &Res);
-//                    return (TypeResult)Res;
-//                }
-//                template<typename TypeResult>
-//                inline TypeResult operator =(TypeResult v) {
-//                    void* NewVal = (void*)v;
-//                    LqHttpConnDataStore(Conn, UniquePointer, NewVal);
-//                    return v;
-//                }
-//                inline bool Delete() const {
-//                    return LqHttpConnDataUnstore(Conn, UniquePointer) != -1;
-//                }
-//            };
-//            ___Interator operator[] (void* UniquePointer) { return ___Interator(Conn, UniquePointer); }
-//
-//        } UserData;
-//
-//        class _Row {
-//            LqHttpConn* Conn;
-//        public:DISABLE_COPY_CONSTRUCT(_Row)
-//            inline operator LqHttpConn*() const { return Conn; }
-//               inline LqHttpConn* operator =(LqHttpConn* NewConn) { return Conn = NewConn; }
-//        } Row;
-//
-//    };
-//
-//    inline LqHttpConnInterface(LqHttpConn* Conn) {
-//        Quer.Domen.Conn = Conn;
-//    }
-//
-//    inline LqHttpConnInterface(const LqHttpConnInterface& Conn) {
-//        Action.Conn = Conn.Action.Conn;
-//    }
-//};
-//
-//#pragma pack(pop)
+
+
+#pragma pack(push)
+#pragma pack(1)
+
+/*
+* C++ interface of Lanq Http Connection
+* Use for simply create web apps.
+*/
+
+
+class LqHttpConnInterface {
+public:
+
+    typedef std::vector<std::pair<LqString, LqString>> ArgsType;
+    typedef std::vector<std::pair<LqString, LqString>> HdrsType;
+    union {
+		class _Rcv {
+		public:
+			union {
+				class _Method {
+					LqHttpConn* Conn;
+				public: DISABLE_COPY_CONSTRUCT(_Method) DEF_CMP_STRING
+					inline operator LqString() const { if(LqHttpConnGetRcvHdrs(Conn)->Method == NULL) return ""; return LqHttpConnGetRcvHdrs(Conn)->Method; }
+				} Method;
+				class _Domen {
+					friend LqHttpConnInterface;
+					friend _Rcv;
+					LqHttpConn* Conn;
+				public: DISABLE_COPY_CONSTRUCT(_Domen) DEF_CMP_STRING
+					inline operator LqString() const { if(LqHttpConnGetRcvHdrs(Conn)->Host == NULL) return ""; return LqHttpConnGetRcvHdrs(Conn)->Host; }
+				} Domen;
+				class _User {
+					LqHttpConn* Conn;
+				public: DISABLE_COPY_CONSTRUCT(_User) DEF_CMP_STRING
+					inline operator LqString() const { if(LqHttpConnGetRcvHdrs(Conn)->UserInfo == NULL) return ""; return LqHttpConnGetRcvHdrs(Conn)->UserInfo; }
+				} User;
+				class _Path {
+					LqHttpConn* Conn;
+				public: DISABLE_COPY_CONSTRUCT(_Path) DEF_CMP_STRING
+					inline operator LqString() const { if(LqHttpConnGetRcvHdrs(Conn)->Path == NULL) return ""; return LqHttpConnGetRcvHdrs(Conn)->Path; }
+				} Path;
+				class _Fragment {
+					LqHttpConn* Conn;
+				public:  DISABLE_COPY_CONSTRUCT(_Fragment) DEF_CMP_STRING
+					inline operator LqString() const { if(LqHttpConnGetRcvHdrs(Conn)->Fragment == NULL) return ""; return LqHttpConnGetRcvHdrs(Conn)->Fragment; }
+				} Fragment;
+				class _ProtoVer {
+					LqHttpConn* Conn;
+				public: DISABLE_COPY_CONSTRUCT(_ProtoVer)
+					inline operator int() const { return LqHttpConnGetRcvHdrs(Conn)->MinorVer; }
+				} MinorVer;
+				class _MajorVer {
+					LqHttpConn* Conn;
+				public: DISABLE_COPY_CONSTRUCT(_MajorVer)
+					inline operator int() const { return LqHttpConnGetRcvHdrs(Conn)->MajorVer; }
+				} MajorVer;
+
+				class _Arg {
+					LqHttpConn* Conn;
+					inline LqString Inter(const char * Index, bool& IsHave = LqDfltRef()) const {
+						auto l = LqStrLen(Index);
+						char* c = LqHttpConnGetRcvHdrs(Conn)->Args, *m = c + ((c) ? LqStrLen(c) : 0);
+						char* a, *ea, *sv, *ev;
+						while(c < m) {
+							a = c;
+							for(; (*c != '&') && (*c != '=') && (c < m); c++);
+							ea = c;
+							if((*c == '=') && (c < m)) {
+								c++;
+								sv = c;
+								for(; (*c != '&') && (c < m); c++);
+								ev = c;
+							} else {
+								sv = ev = c;
+							}
+							c++;
+							if((l == (ea - a)) && LqStrUtf8CmpCaseLen(Index, a, l)) {
+								IsHave = true;
+								return LqString(sv, ev - sv);
+							}
+						}
+						IsHave = false;
+						return LqString();
+					}
+				public:  DISABLE_COPY_CONSTRUCT(_Arg) DEF_CMP_STRING
+					inline operator ArgsType() {
+						ArgsType Res;
+						char* c = LqHttpConnGetRcvHdrs(Conn)->Args, *m = c + ((c) ? LqStrLen(c) : 0);
+						char* a, *ea, *sv, *ev;
+						while(c < m) {
+							a = c;
+							for(; (*c != '&') && (*c != '=') && (c < m); c++);
+							ea = c;
+							if((*c == '=') && (c < m)) {
+								c++;
+								sv = c;
+								for(; (*c != '&') && (c < m); c++);
+								ev = c;
+							} else {
+								sv = ev = c;
+							}
+							c++;
+							Res.push_back(std::pair<LqString, LqString>(LqString(a, ea - a), LqString(sv, ev - sv)));
+						}
+						return Res;
+					}
+					inline LqString operator[](const char* Index) const { return Inter(Index); }
+					inline LqString operator[](const LqString& Index) const { return operator[](Index.c_str()); }
+					inline bool IsHave(const LqString & Index) const { bool r;  Inter(Index.c_str(), r); return r; }
+					inline bool IsHave(const char* Index) const { bool r;  Inter(Index, r); return r; }
+					inline operator LqString() const { if(LqHttpConnGetRcvHdrs(Conn)->Args == NULL) return ""; return LqHttpConnGetRcvHdrs(Conn)->Args; }
+				} Args;
+
+				class _ContentLen {
+					LqHttpConn* Conn;
+				public: DISABLE_COPY_CONSTRUCT(_ContentLen)
+					inline operator LqFileSz() const { return LqHttpConnRcvGetContentLength(Conn); }
+				} ContentLen;
+				class _ContentLenLeft {
+					LqHttpConn* Conn;
+				public: DISABLE_COPY_CONSTRUCT(_ContentLenLeft)
+					inline operator LqFileSz() const { return LqHttpConnRcvGetContentLengthLeft(Conn); }
+				} ContentLenLeft;
+				class _Hdr {
+					LqHttpConn* Conn;
+					class _HdrsInterator {
+						friend _Hdr;
+						LqHttpConn* Conn;
+						const char* Name;
+						_HdrsInterator(LqHttpConn* NewConn, const char* NewName): Conn(NewConn), Name(NewName) {}
+					public: _HdrsInterator& operator =(const _HdrsInterator&) = delete; DEF_CMP_STRING
+						inline operator LqString() const {
+							LqHttpConnLock(Conn);
+							const char* Hdr = LqHttpConnRcvHdrGet(Conn, Name);
+							LqString Res = (Hdr) ? Hdr : "";
+							LqHttpConnUnlock(Conn);
+							return Res;
+						}
+						inline int Scanf(const char* FormatStr, ...) {
+							va_list Va;
+							int Res = -1;
+							va_start(Va, FormatStr);
+							LqHttpConnLock(Conn);
+							const char* Hdr = LqHttpConnRcvHdrGet(Conn, Name);
+							if(Hdr != NULL)
+								Res = LqFbuf_vssncanf(Hdr, LqStrLen(Hdr), FormatStr, Va);
+							LqHttpConnUnlock(Conn);
+							va_end(Va);
+							return Res;
+						}
+					};
+				public: DISABLE_COPY_CONSTRUCT(_Hdr)
+					class interator {
+						friend _Hdr;
+						LqHttpConn* Conn;
+						int Index;
+						interator(LqHttpConn* NewConn, int NewIndex): Conn(NewConn), Index(NewIndex) {}
+					public:
+						inline interator& operator++() { ++Index; return (*this); }
+						inline interator operator++(int) { ++Index; return *this; }
+						inline interator& operator--() { --Index; return (*this); }
+						inline interator operator--(int) { --Index; return *this; }
+						inline LqHttpRcvHdr& operator*() const { return LqHttpConnGetRcvHdrs(Conn)->Hdrs[Index]; }
+						inline bool operator!=(const interator& Another) const { return Index != Another.Index; }
+						inline bool operator==(const interator& Another) const { return Index == Another.Index; }
+					};
+
+					inline operator HdrsType() const {
+						HdrsType Res;
+						auto Hdrs = LqHttpConnGetRcvHdrs(Conn)->Hdrs;
+						int Count = LqHttpConnGetRcvHdrs(Conn)->CountHdrs;
+						for(int i = 0; i < Count; i++)
+							Res.push_back(std::pair<LqString, LqString>(Hdrs[i].Name, Hdrs[i].Val));
+						return Res;
+					}
+					inline _HdrsInterator operator[](const char* Index) const { return _HdrsInterator(Conn, Index); }
+					inline _HdrsInterator operator[](const LqString& Index) const { return operator[](Index.c_str()); }
+
+					inline interator begin() const { return interator(Conn, 0); }
+					inline interator end() const { return interator(Conn, LqHttpConnGetRcvHdrs(Conn)->CountHdrs); }
+				} Hdrs;
+			};
+			bool WaitLen(std::function<void(LqHttpConnRcvResult*)> Func, void* UserData = nullptr, intptr_t RecvDataLen = -((intptr_t)1)) {
+				struct _s { void* UserData; std::function<void(LqHttpConnRcvResult*)> Func; };
+				_s* Data = LqFastAlloc::New<_s>();
+				if(Data == nullptr) return false;
+				Data->Func = Func;
+				Data->UserData = UserData;
+				if(!LqHttpConnRcvWaitLen(Domen.Conn, [](LqHttpConnRcvResult* Res) {
+					_s* Data = (_s*)Res->UserData;
+					Res->UserData = Data->UserData;
+					Data->Func(Res);
+					LqFastAlloc::Delete(Data);
+				}, Data, RecvDataLen)) {
+					LqFastAlloc::Delete(Data);
+					return false;
+				}
+				return true;
+			}
+			bool ReadFile(
+				const char* Path = nullptr,
+				std::function<bool(LqHttpConnRcvResult*)> Func = nullptr,
+				void* UserData = nullptr,
+				LqFileSz ReadLen = -((LqFileSz)1),
+				int Access = 0666,
+				bool IsReplace = true,
+				bool IsCreateSubdir = true
+			) {
+				struct _s { void* UserData; std::function<bool(LqHttpConnRcvResult*)> Func; };
+				if(Func == nullptr)
+					return LqHttpConnRcvFile(Domen.Conn, Path, nullptr, UserData, ReadLen, Access, IsReplace, IsCreateSubdir);
+				_s* Data = LqFastAlloc::New<_s>();
+				if(Data == nullptr) return false;
+				Data->Func = Func;
+				Data->UserData = UserData;
+				if(!LqHttpConnRcvFile(Domen.Conn, Path, [](LqHttpConnRcvResult* RcvRes) {
+					_s* Data = (_s*)RcvRes->UserData;
+					RcvRes->UserData = Data->UserData;
+					bool Res = Data->Func(RcvRes);
+					LqFastAlloc::Delete(Data);
+					return Res;
+				}, UserData, ReadLen, Access, IsReplace, IsCreateSubdir)) {
+					LqFastAlloc::Delete(Data);
+					return false;
+				}
+				return true;
+			}
+			bool ReadFbuf(
+				LqFbuf* Dest,
+				std::function<void(LqHttpConnRcvResult*)> Func,
+				void* UserData = nullptr,
+				LqFileSz ReadLen = -((LqFileSz)1)
+			) {
+				struct _s { void* UserData; std::function<void(LqHttpConnRcvResult*)> Func; };
+				_s* Data = LqFastAlloc::New<_s>();
+				if(Data == nullptr) return false;
+				Data->Func = Func;
+				Data->UserData = UserData;
+				if(!LqHttpConnRcvFbuf(Domen.Conn, Dest, [](LqHttpConnRcvResult* RcvRes) {
+					_s* Data = (_s*)RcvRes->UserData;
+					RcvRes->UserData = Data->UserData;
+					Data->Func(RcvRes);
+					LqFastAlloc::Delete(Data);
+				}, UserData, ReadLen)) {
+					LqFastAlloc::Delete(Data);
+					return false;
+				}
+				return true;
+			}
+			bool ReadFileAboveBoundary(
+				const char* Path = nullptr,
+				std::function<bool(LqHttpConnRcvResult*)> Func = nullptr,
+				void* UserData = nullptr,
+				const char* Boundary = nullptr,
+				LqFileSz MaxLen = -((LqFileSz)1),
+				int Access = 0666,
+				bool IsReplace = true,
+				bool IsCreateSubdir = true
+			) {
+				struct _s { void* UserData; std::function<bool(LqHttpConnRcvResult*)> Func; };
+				if(Func == nullptr)
+					return LqHttpConnRcvFileAboveBoundary(Domen.Conn, Path, nullptr, UserData, Boundary, MaxLen, Access, IsReplace, IsCreateSubdir);
+				_s* Data = LqFastAlloc::New<_s>();
+				if(Data == nullptr) return false;
+				Data->Func = Func; Data->UserData = UserData;
+				if(!LqHttpConnRcvFileAboveBoundary(Domen.Conn, Path, [](LqHttpConnRcvResult* RcvRes) {
+					_s* Data = (_s*)RcvRes->UserData;
+					RcvRes->UserData = Data->UserData;
+					bool Res = Data->Func(RcvRes);
+					LqFastAlloc::Delete(Data);
+					return Res;
+				}, UserData, Boundary, MaxLen, Access, IsReplace, IsCreateSubdir)) {
+					LqFastAlloc::Delete(Data);
+					return false;
+				}
+				return true;
+			}
+			bool ReadFbufAboveBoundary(
+				LqFbuf* Dest,
+				std::function<void(LqHttpConnRcvResult*)> Func,
+				void* UserData = nullptr,
+				const char* Boundary = nullptr,
+				LqFileSz MaxLen = -((LqFileSz)1)
+			) {
+				struct _s { void* UserData; std::function<void(LqHttpConnRcvResult*)> Func; };
+				_s* Data = LqFastAlloc::New<_s>();
+				if(Data == nullptr) return false;
+				Data->Func = Func; Data->UserData = UserData;
+				if(!LqHttpConnRcvFbufAboveBoundary(Domen.Conn, Dest, [](LqHttpConnRcvResult* RcvRes) {
+					_s* Data = (_s*)RcvRes->UserData;
+					RcvRes->UserData = Data->UserData;
+					Data->Func(RcvRes);
+					LqFastAlloc::Delete(Data);
+				}, UserData, Boundary, MaxLen)) {
+					LqFastAlloc::Delete(Data);
+					return false;
+				}
+				return true;
+			}
+			int ReadMultipartHdrs(
+				std::function<void(LqHttpConnRcvResult*)> Func,
+				void* UserData = nullptr,
+				const char* Boundary = nullptr,
+				LqHttpMultipartHdrs** Dest = nullptr /* If we try to get the headers right now */
+			) {
+				struct _s { void* UserData; std::function<void(LqHttpConnRcvResult*)> Func; };
+				int Res = -1;
+				_s* Data = LqFastAlloc::New<_s>();
+				if(Data == nullptr) return Res;
+				Data->Func = Func; Data->UserData = UserData;
+				if(((Res = LqHttpConnRcvMultipartHdrs(Domen.Conn, [](LqHttpConnRcvResult* RcvRes) {
+					_s* Data = (_s*)RcvRes->UserData;
+					RcvRes->UserData = Data->UserData;
+					Data->Func(RcvRes);
+					LqFastAlloc::Delete(Data);
+				}, UserData, Boundary, Dest)) == 0) || (Res == 1)) {
+					LqFastAlloc::Delete(Data);
+					return Res;
+				}
+				return Res;
+			}
+			bool ReadMultipartFbufNext(
+				LqFbuf* Dest,
+				std::function<void(LqHttpConnRcvResult*)> Func,
+				void* UserData = nullptr,
+				const char* Boundary = nullptr,
+				LqFileSz MaxLen = -((LqFileSz)1)
+			) {
+				struct _s { void* UserData; std::function<void(LqHttpConnRcvResult*)> Func; };
+				_s* Data = LqFastAlloc::New<_s>();
+				if(Data == nullptr) return false;
+				Data->Func = Func; Data->UserData = UserData;
+				if(!LqHttpConnRcvMultipartFbufNext(Domen.Conn, Dest, [](LqHttpConnRcvResult* RcvRes) {
+					_s* Data = (_s*)RcvRes->UserData;
+					RcvRes->UserData = Data->UserData;
+					Data->Func(RcvRes);
+					LqFastAlloc::Delete(Data);
+				}, UserData, Boundary, MaxLen)) {
+					LqFastAlloc::Delete(Data);
+					return false;
+				}
+				return true;
+			}
+			bool ReadMultipartFileNext(
+				const char* Path = nullptr,
+				std::function<bool(LqHttpConnRcvResult*)> Func = nullptr,
+				void* UserData = nullptr,
+				const char* Boundary = nullptr,
+				LqFileSz MaxLen = -((LqFileSz)1),
+				int Access = 0666,
+				bool IsReplace = true,
+				bool IsCreateSubdir = true
+			) {
+				struct _s { void* UserData; std::function<bool(LqHttpConnRcvResult*)> Func; };
+				if(Func == nullptr)
+					return LqHttpConnRcvMultipartFileNext(Domen.Conn, Path, nullptr, UserData, Boundary, MaxLen, Access, IsReplace, IsCreateSubdir);
+				_s* Data = LqFastAlloc::New<_s>();
+				if(Data == nullptr) return false;
+				Data->Func = Func; Data->UserData = UserData;
+				if(!LqHttpConnRcvMultipartFileNext(Domen.Conn, Path, [](LqHttpConnRcvResult* RcvRes) {
+					_s* Data = (_s*)RcvRes->UserData;
+					RcvRes->UserData = Data->UserData;
+					bool Res = Data->Func(RcvRes);
+					LqFastAlloc::Delete(Data);
+					return Res;
+				}, UserData, Boundary, MaxLen, Access, IsReplace, IsCreateSubdir)) {
+					LqFastAlloc::Delete(Data);
+					return false;
+				}
+				return true;
+			}
+		} Rcv;
+
+
+        class _Rsp {
+        public:
+            union {
+                class _Hdr {
+                    friend _Rsp;
+                    LqHttpConn* Conn;
+                    class _HdrsInterator {
+                        friend _Hdr;
+                        LqHttpConn* Conn;
+                        const char* Name;
+                        _HdrsInterator(LqHttpConn* NewConn, const char* NewName): Conn(NewConn), Name(NewName) {}
+                    public: _HdrsInterator& operator =(const _HdrsInterator&) = delete; DEF_CMP_STRING
+						inline operator LqString() const { const char* hvs = ""; size_t Len = 0; LqHttpConnRspHdrGet(Conn, Name, &hvs, &Len); return LqString(hvs, Len); }
+                        inline const char* operator=(const char* Val) const { LqHttpConnRspHdrInsert(Conn, Name, Val); return Val; }
+                        inline LqString& operator=(const LqString& Val) const { LqHttpConnRspHdrInsert(Conn, Name, Val.c_str()); return (LqString&)Val; }
+                        inline int Printf(const char* Format, ...) {
+                            va_list Va;
+							int Res;
+							char Buf[10000];
+                            va_start(Va, Format);
+							Res = LqFbuf_svnprintf(Buf, sizeof(Buf) - 3, Format, Va);
+							LqHttpConnRspHdrInsert(Conn, Name, Buf);
+							va_end(Va);
+                            return Res;
+                        }
+                        inline bool Remove() { return LqHttpConnRspHdrInsert(Conn, Name, NULL); }
+                    };
+                public: DISABLE_COPY_CONSTRUCT(_Hdr)
+                    inline operator HdrsType() const {
+						HdrsType Res;
+						const char* StartName = NULL, *StartVal;
+						size_t Len, LenVal;
+						LqHttpConnLock(Conn);
+						while(LqHttpConnRspHdrEnumNext(Conn, &StartName, &Len, &StartVal, &LenVal))
+							Res.push_back(std::pair<LqString, LqString>(LqString(StartName, Len), LqString(StartVal, LenVal)));
+						LqHttpConnUnlock(Conn);
+						return Res;
+					}
+                    inline _HdrsInterator operator[](const char* Index) const { return _HdrsInterator(Conn, Index); }
+                    inline _HdrsInterator operator[](const LqString& Index) const { return _HdrsInterator(Conn, Index.c_str()); }
+                } Hdrs;
+				class _Status {
+					LqHttpConn* Conn;
+				public:  DISABLE_COPY_CONSTRUCT(_Status)
+					inline operator int() const { return LqHttpConnGetData(Conn)->RspStatus; }
+					inline int operator=(int NewVal) const { return LqHttpConnGetData(Conn)->RspStatus = NewVal; }
+				} Status;
+				class _IsNoBody {
+					LqHttpConn* Conn;
+				public:  DISABLE_COPY_CONSTRUCT(_IsNoBody)
+					inline operator bool() const { return LqHttpConnGetData(Conn)->Flags & LQHTTPCONN_FLAG_NO_BODY; }
+					inline bool operator=(bool NewVal) const {
+						if(NewVal) 
+							LqHttpConnGetData(Conn)->Flags |= LQHTTPCONN_FLAG_NO_BODY; 
+						else 
+							LqHttpConnGetData(Conn)->Flags &= ~LQHTTPCONN_FLAG_NO_BODY; 
+						return NewVal;
+					}
+				} IsNoBody;
+				class _IsClose {
+					LqHttpConn* Conn;
+				public:  DISABLE_COPY_CONSTRUCT(_IsClose)
+					inline operator bool() const { return LqHttpConnGetData(Conn)->Flags & LQHTTPCONN_FLAG_CLOSE; }
+						 inline bool operator=(bool NewVal) const {
+							 if(NewVal)
+								 LqHttpConnGetData(Conn)->Flags |= LQHTTPCONN_FLAG_CLOSE;
+							 else
+								 LqHttpConnGetData(Conn)->Flags &= ~LQHTTPCONN_FLAG_CLOSE;
+							 return NewVal;
+						 }
+				} IsClose;
+
+				class _ContentLen {
+					LqHttpConn* Conn;
+				public:  DISABLE_COPY_CONSTRUCT(_ContentLen)
+					inline operator LqFileSz() { return LqHttpConnRspGetContentLength(Conn); }
+				} ContentLen;
+            };
+            inline void Error(int Status) { LqHttpConnRspError(Hdrs.Conn, Status); }
+        } Rsp;
+
+        class _RemoteIp {
+            LqHttpConn* Conn;
+        public: DISABLE_COPY_CONSTRUCT(_RemoteIp) DEF_CMP_STRING
+            inline operator LqString() const {
+				char Buf[256];
+				Buf[0] = '\0';
+				LqHttpConnGetRemoteIpStr(Conn, Buf, 255);
+				return Buf;
+			}
+            /*@return: For IPv4 - 4, for IPv6 - 6, on error - 0*/
+            inline int GetType() const {
+				LqConnAddr Addr = {0};
+				LqHttpConnGetRemoteIp(Conn, &Addr);
+				if(Addr.Addr.sa_family == AF_INET)
+					return 4;
+				if(Addr.Addr.sa_family == AF_INET6)
+					return 6;
+				return 0;
+            }
+        } RemoteIp;
+
+        class _RemotePort {
+            LqHttpConn* Conn;
+        public: DISABLE_COPY_CONSTRUCT(_RemotePort) DEF_CMP_STRING
+            inline operator int() const {
+				LqConnAddr Addr = {0};
+				LqHttpConnGetRemoteIp(Conn, &Addr);
+				if(Addr.Addr.sa_family == AF_INET)
+					return ntohs(Addr.AddrInet.sin_port);
+				if(Addr.Addr.sa_family == AF_INET6)
+					return ntohs(Addr.AddrInet6.sin6_port);
+				return 0;
+			}
+            inline operator LqString() const { return LqToString(operator int()); }
+        } RemotePort;
+
+        class __UserData {
+            LqHttpConn* Conn;
+
+        public:DISABLE_COPY_CONSTRUCT(__UserData)
+            class ___Interator {
+            LqHttpConn* Conn;
+            void* UniquePointer;
+            public:
+                inline ___Interator(LqHttpConn* c, void* v): Conn(c), UniquePointer(v) {}
+                template<typename TypeResult>
+                inline operator TypeResult() const {
+                    void* Res = nullptr;
+                    LqHttpConnDataGet(Conn, UniquePointer, &Res);
+                    return (TypeResult)Res;
+                }
+                template<typename TypeResult>
+                inline TypeResult operator =(TypeResult v) {
+                    void* NewVal = (void*)v;
+                    LqHttpConnDataStore(Conn, UniquePointer, NewVal);
+                    return v;
+                }
+                inline bool Delete() const {
+                    return LqHttpConnDataUnstore(Conn, UniquePointer) != -1;
+                }
+            };
+            ___Interator operator[] (void* UniquePointer) { return ___Interator(Conn, UniquePointer); }
+
+        } UserData;
+
+        class _Row {
+            LqHttpConn* Conn;
+        public:DISABLE_COPY_CONSTRUCT(_Row)
+            inline operator LqHttpConn*() const { return Conn; }
+               inline LqHttpConn* operator =(LqHttpConn* NewConn) { return Conn = NewConn; }
+        } Row;
+
+   };
+    inline intptr_t TryScanf(int Flags, const char* Fmt, ...) {
+		va_list Va;
+		intptr_t Res;
+		va_start(Va, Fmt);
+		Res = LqHttpConnRcvTryScanfVa(Rcv.Domen.Conn, Flags, Fmt, Va);
+		va_end(Va);
+		return Res;
+    }
+	inline intptr_t TryRead(void* DestBuf, intptr_t Len) { return LqHttpConnRcvTryRead(Rcv.Domen.Conn, DestBuf, Len); }
+	inline intptr_t TryPeek(void* DestBuf, intptr_t Len) { return LqHttpConnRcvTryPeek(Rcv.Domen.Conn, DestBuf, Len); }
+	inline bool WriteFilePart(const char* Path, LqFileSz Offset, LqFileSz Length) { return LqHttpConnRspFilePart(Rcv.Domen.Conn, Path, Offset, Length); }
+	inline bool WriteFile(const char* Path) { return LqHttpConnRspFile(Rcv.Domen.Conn, Path); }
+	inline bool Write(const void* Data, size_t Len) { return LqHttpConnRspWrite(Rcv.Domen.Conn, Data, Len); }
+	inline intptr_t Printf(const char* Fmt, ...) {
+		va_list Va;
+		intptr_t Res;
+		va_start(Va, Fmt);
+		Res = LqHttpConnRspPrintfVa(Rcv.Domen.Conn, Fmt, Va);
+		va_end(Va);
+		return Res;
+	}
+	inline LqHttpConnInterface& operator>>(char* Dst) { 
+		LqFileSz LeftSize = Rcv.ContentLenLeft; 
+		if(LeftSize > ((LqFileSz)0))
+			LqHttpConnRcvTryRead(Rcv.Domen.Conn, Dst, LeftSize); 
+		return *this; 
+	}
+	template<size_t ArgLen>
+	inline LqHttpConnInterface& operator >> (char(&Dst)[ArgLen]) {
+		LqFileSz LeftSize = Rcv.ContentLenLeft;
+		if(LeftSize > ((LqFileSz)0))
+			LqHttpConnRcvTryRead(Rcv.Domen.Conn, Dst, lq_min(LeftSize, (LqFileSz)ArgLen));
+		return *this;
+	}
+	inline LqHttpConnInterface& operator>>(LqString& Dst){
+		LqHttpConnLock(Rcv.Domen.Conn);
+		LqFileSz LeftSize = Rcv.ContentLenLeft;
+		if(LeftSize > ((LqFileSz)0)) {
+			size_t Len = LqSockBufRcvBufSz(Rcv.Domen.Conn);
+			Dst.resize(Len);
+			LqHttpConnRcvTryRead(Rcv.Domen.Conn, (char*)Dst.data(), lq_min(LeftSize, (LqFileSz)Len));
+		}
+		LqHttpConnUnlock(Rcv.Domen.Conn);
+		return *this; 
+	}
+	inline LqHttpConnInterface& operator<<(const char* Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%s", Src); return *this; }
+	inline LqHttpConnInterface& operator<<(LqString& Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%s", Src.c_str()); return *this; }
+	inline LqHttpConnInterface& operator<<(int Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%i", Src); return *this; }
+	inline LqHttpConnInterface& operator<<(long long Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%lli", Src); return *this; }
+	inline LqHttpConnInterface& operator<<(long double Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%llg", Src); return *this; }
+	inline LqHttpConnInterface& operator<<(float Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%g", Src); return *this; }
+	inline LqHttpConnInterface& operator<<(bool Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%s", Src? "true": "false"); return *this; }
+    inline LqHttpConnInterface(LqHttpConn* Conn) { Rcv.Domen.Conn = Conn; }
+	inline LqHttpConnInterface(const LqHttpConnInterface& Conn) { Rcv.Domen.Conn = Conn.Rcv.Domen.Conn; }
+	inline bool BeginLongPoll(void (LQ_CALL *LongPollCloseHandler)(LqHttpConn*) = nullptr) { return LqHttpConnRspBeginLongPoll(Rcv.Domen.Conn, LongPollCloseHandler); }
+	inline bool EndLongPoll() { return LqHttpConnRspEndLongPoll(Rcv.Domen.Conn); }
+};
+
+#pragma pack(pop)

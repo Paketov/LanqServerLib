@@ -29,9 +29,7 @@ void LQ_CALL LqHttpMdlHandlersCacheInfo(
 
     LqTimeSec* lqaout lqaopt LastModif, /* Local time. If after call LastModif == -1, then then no response Last-Modified. */
 
-    LqTimeSec* lqaout lqaopt Expires,
-
-    LqFileStat const* lqain lqaopt Stat /*(Something sends for optimizing)*/
+    LqTimeSec* lqaout lqaopt Expires
 );
 
 #pragma pack(push)
@@ -52,15 +50,13 @@ void LQ_CALL LqHttpMdlHandlersMime (
     const char* lqain Path,
     LqHttpConn* lqain lqaout Connection,
     char* lqaout lqaopt MimeDestBuf,
-    size_t MimeDestBufLen,
-    LqFileStat const* lqain lqaopt Stat/*(Something sends for optimizing)*/
+    size_t MimeDestBufLen
 );
-
-int LQ_CALL LqHttpMdlHandlersError(LqHttpConn* lqain c, int lqain Code);
-int LQ_CALL LqHttpMdlHandlersStatus(LqHttpConn* lqain c, int lqain Code);
+void LQ_CALL LqHttpMdlHandlerSockErr(LqHttpConn* HttpConn);
+void LQ_CALL LqHttpMdlHandlersError(LqHttpConn* lqain c, int Code);
 void LQ_CALL LqHttpMdlHandlersServerName(LqHttpConn* lqain c, char* lqaout NameBuf, size_t NameBufSize);
 void LQ_CALL LqHttpMdlHandlersResponseRedirection(LqHttpConn* lqain c);
-LqHttpEvntHandlerFn LQ_CALL LqHttpMdlHandlersGetMethod(LqHttpConn* lqain c);
+void LQ_CALL LqHttpMdlMethodHandler(LqHttpConn* HttpConn);
 void LQ_CALL LqHttpMdlHandlersAllowMethods(LqHttpConn* lqain c, char* lqaout MethodBuf, size_t MethodBufSize);
 void LQ_CALL LqHttpMdlHandlersNonce(LqHttpConn* lqain c, char* lqaout MethodBuf, size_t MethodBufSize);
 

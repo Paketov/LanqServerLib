@@ -51,6 +51,11 @@ typedef struct LqListHdr {
 		((LqListHdr*)(ListHdr))->First = ((TypeElem*)(NewElem));\
   }
 
+#define LqListAddForward(ListHdr, NewElem, TypeElem) {\
+	((TypeElem*)(NewElem))->Next = (TypeElem*)((LqListHdr*)(ListHdr))->First;\
+	((LqListHdr*)(ListHdr))->First = ((TypeElem*)(NewElem));\
+  }
+
 #define LqListFirst(ListHdr, TypeElem) ((TypeElem*)((LqListHdr*)(ListHdr))->First)
 
 #define LqListRemove(ListHdr, TypeElem) {\

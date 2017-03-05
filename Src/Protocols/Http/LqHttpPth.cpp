@@ -132,10 +132,10 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFile
 		(char*)RealPath,
 		Permissions,
 		Autoriz,
-		(RegModule == nullptr) ? &((LqHttpData*)Http->UserData)->StartModule : RegModule
+		(RegModule == NULL) ? &LqHttpGetHttpData(Http)->StartModule : RegModule
 	);
 	NewPath->ModuleData = ModuleData;
-	return LqHttpPthRegisterNative(((LqHttpData*)Http->UserData)->Dmns, WebDomen, NewPath);
+	return LqHttpPthRegisterNative(LqHttpGetHttpData(Http)->Dmns, WebDomen, NewPath);
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDir
@@ -160,10 +160,10 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDir
 		(char*)RealPath,
 		Permissions,
 		Autoriz,
-		(RegModule == nullptr) ? &((LqHttpData*)Http->UserData)->StartModule : RegModule
+		(RegModule == NULL) ? &LqHttpGetHttpData(Http)->StartModule : RegModule
 	);
 	NewPath->ModuleData = ModuleData;
-	return LqHttpPthRegisterNative(((LqHttpData*)Http->UserData)->Dmns, WebDomen, NewPath);
+	return LqHttpPthRegisterNative(LqHttpGetHttpData(Http)->Dmns, WebDomen, NewPath);
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecFile
@@ -184,10 +184,10 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecFile
 		(void*)ExecQueryProc,
 		Permissions,
 		Autoriz,
-		(RegModule == nullptr) ? &((LqHttpData*)Http->UserData)->StartModule : RegModule
+		(RegModule == NULL) ? &LqHttpGetHttpData(Http)->StartModule : RegModule
 	);
 	NewPath->ModuleData = ModuleData;
-	return LqHttpPthRegisterNative(((LqHttpData*)Http->UserData)->Dmns, WebDomen, NewPath);
+	return LqHttpPthRegisterNative(LqHttpGetHttpData(Http)->Dmns, WebDomen, NewPath);
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecDir
@@ -213,10 +213,10 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterExecDir
 		(void*)ExecQueryProc,
 		Permissions,
 		Autoriz,
-		(RegModule == nullptr) ? &((LqHttpData*)Http->UserData)->StartModule : RegModule
+		(RegModule == NULL) ? &LqHttpGetHttpData(Http)->StartModule : RegModule
 	);
 	NewPath->ModuleData = ModuleData;
-	return LqHttpPthRegisterNative(((LqHttpData*)Http->UserData)->Dmns, WebDomen, NewPath);
+	return LqHttpPthRegisterNative(LqHttpGetHttpData(Http)->Dmns, WebDomen, NewPath);
 }
 
 
@@ -239,11 +239,11 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFileRedirection
 		(void*)Location,
 		Permissions,
 		Autoriz,
-		(RegModule == nullptr) ? &((LqHttpData*)Http->UserData)->StartModule : RegModule
+		(RegModule == nullptr) ? &LqHttpGetHttpData(Http)->StartModule : RegModule
 	);
 	NewPath->ModuleData = ModuleData;
 	NewPath->StatusCode = ResponseStatus;
-	return LqHttpPthRegisterNative(((LqHttpData*)Http->UserData)->Dmns, WebDomen, NewPath);
+	return LqHttpPthRegisterNative(LqHttpGetHttpData(Http)->Dmns, WebDomen, NewPath);
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDirRedirection
@@ -268,11 +268,11 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterDirRedirection
 		(void*)Location,
 		Permissions,
 		Autoriz,
-		(RegModule == nullptr) ? &((LqHttpData*)Http->UserData)->StartModule : RegModule
+		(RegModule == NULL) ? &LqHttpGetHttpData(Http)->StartModule : RegModule
 	);
 	NewPath->ModuleData = ModuleData;
 	NewPath->StatusCode = ResponseStatus;
-	return LqHttpPthRegisterNative(((LqHttpData*)Http->UserData)->Dmns, WebDomen, NewPath);
+	return LqHttpPthRegisterNative(LqHttpGetHttpData(Http)->Dmns, WebDomen, NewPath);
 }
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthCopyFile
@@ -282,7 +282,7 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthCopyFile
 	const char* WebDomenSource,
 	const char* WebPath
 ) {
-	auto Dmns = ((LqHttpData*)Http->UserData)->Dmns;
+	auto Dmns = LqHttpGetHttpData(Http)->Dmns;
 	auto DmnSourceInterator = Dmns.search(WebDomenSource);
 	auto DmnDestInterator = Dmns.search(WebDomenDest);
 	if(DmnSourceInterator.is_end() || DmnDestInterator.is_end())
@@ -315,7 +315,7 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthUnregisterFile
 	const char* WebDomen,
 	const char* WebPath
 ) {
-	auto& Dmns = ((LqHttpData*)Http->UserData)->Dmns;
+	auto& Dmns = LqHttpGetHttpData(Http)->Dmns;
 	const auto DmnInterator = Dmns.search(WebDomen);
 	if(DmnInterator.is_end())
 		return LQHTTPPTH_RES_NOT_HAVE_DOMEN;
@@ -350,7 +350,7 @@ static LqHttpPthResultEnm LqHttpPthFileSetUnsetAtz
 	uint8_t Perm,
 	bool IsSetPerm
 ) {
-	auto Dmns = ((LqHttpData*)Http->UserData)->Dmns;
+	auto Dmns = LqHttpGetHttpData(Http)->Dmns;
 	auto DmnInterator = Dmns.search(WebDomen);
 	if(DmnInterator.is_end())
 		return LQHTTPPTH_RES_NOT_HAVE_DOMEN;
@@ -401,7 +401,7 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthFileSetPerm(LqHttp* Http, const 
 * Create domen
 */
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthDmnCreate(LqHttp* Http, const char* WebDomen) {
-	auto& Dmns = ((LqHttpData*)Http->UserData)->Dmns;
+	auto& Dmns = LqHttpGetHttpData(Http)->Dmns;
 	auto DmnPtr = LqHttpDmnAlloc(WebDomen);
 	auto Res = Dmns.push_back_uniq(DmnPtr);
 	if(Res == -1)
@@ -412,7 +412,7 @@ LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthDmnCreate(LqHttp* Http, const ch
 }
 
 LQ_EXTERN_C bool LQ_CALL LqHttpPthDmnEnm(LqHttp* Http, char* WebDomen, size_t WebDomenLen) {
-	auto& Dmns = ((LqHttpData*)Http->UserData)->Dmns;
+	auto& Dmns = LqHttpGetHttpData(Http)->Dmns;
 	LqHttpDmnTbl::interator Dmn;
 	if(WebDomen[0] == '\0') {
 		Dmn = Dmns.begin();
@@ -430,7 +430,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpPthDmnEnm(LqHttp* Http, char* WebDomen, size_t We
 
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthDmnDelete(LqHttp* Http, const char* WebDomen) {
-	auto& Dmns = ((LqHttpData*)Http->UserData)->Dmns;
+	auto& Dmns = LqHttpGetHttpData(Http)->Dmns;
 	return (Dmns.remove_by_val(WebDomen)) ? LQHTTPPTH_RES_OK : LQHTTPPTH_RES_NOT_HAVE_DOMEN;
 }
 
@@ -445,19 +445,19 @@ static LqHttpPth* LqHttpPthGetByAddressSubdirCheck
 	LqHttp* Http,
 	const char* Domain,
 	char* Path,
-	uint* DeepSubDirs
+	int* DeepSubDirs
 ) {
-	uint k = 0;
+	int k = 0;
 	char c, c2;
 	LqHttpDmnPtr DefaultDmn = &EmptyDmn, Dmn = &EmptyDmn;
-	auto& Dmns = ((LqHttpData*)Http->UserData)->Dmns;
+	auto& Dmns = LqHttpGetHttpData(Http)->Dmns;
 
 	{
 		auto Interator = Dmns.search(Domain);
 		if(!Interator.is_end())
 			Dmn = *Interator;
 	}
-	if(((LqHttpData*)Http->UserData)->UseDefaultDmn) {
+	if(LqHttpGetHttpData(Http)->UseDefaultDmn) {
 		auto Interator = Dmns.search("*");
 		if(!Interator.is_end())
 			DefaultDmn = *Interator;
@@ -498,13 +498,13 @@ static LqHttpPth* LqHttpPthGetByAddressSubdirCheck
 static LqHttpPth* LqHttpPthGetByAddress(LqHttp* Http, const char* Domain, char* Path) {
 	char c, c2;
 	LqHttpDmnPtr DefaultDmn = &EmptyDmn, Dmn = &EmptyDmn;
-	auto& Dmns = ((LqHttpData*)Http->UserData)->Dmns;
+	auto& Dmns = LqHttpGetHttpData(Http)->Dmns;
 	{
 		auto Interator = Dmns.search(Domain);
 		if(!Interator.is_end())
 			Dmn = *Interator;
 	}
-	if(((LqHttpData*)Http->UserData)->UseDefaultDmn) {
+	if(LqHttpGetHttpData(Http)->UseDefaultDmn) {
 		auto Interator = Dmns.search("*");
 		if(!Interator.is_end())
 			DefaultDmn = *Interator;
@@ -552,7 +552,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpPthEnm
 	uint8_t* Permissions,
 	LqHttpAtz** AccessUserList
 ) {
-	auto& Dmns = ((LqHttpData*)Http->UserData)->Dmns;
+	auto& Dmns = LqHttpGetHttpData(Http)->Dmns;
 	auto r = Dmns.search(Domain);
 	if(r.is_end())
 		return false;
@@ -634,7 +634,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpPthInfo
 		WebPath = WebPathBuf.c_str();
 	}
 
-	auto& Dmns = ((LqHttpData*)Http->UserData)->Dmns;
+	auto& Dmns = LqHttpGetHttpData(Http)->Dmns;
 	auto Dmn = Dmns.search(Domain);
 	if(Dmn.is_end())
 		return false;
@@ -683,7 +683,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpPthInfo
 
 LQ_EXTERN_C LqHttpPthResultEnm LQ_CALL LqHttpPthRegister(LqHttp* Http, const char* Domain, LqHttpPth* Path) {
 	LqHttpPthPtr Pth = Path;
-	return LqHttpPthRegisterNative(((LqHttpData*)Http->UserData)->Dmns, Domain, Pth);
+	return LqHttpPthRegisterNative(LqHttpGetHttpData(Http)->Dmns, Domain, Pth);
 }
 
 static LqHttpPthResultEnm LqHttpPthRegisterNative(LqHttpDmnTbl& Dmns, const char* WebDomen, LqHttpPthPtr& Path) {
@@ -834,131 +834,154 @@ static LqHttpPthPtr LqHttpPthCreate
 	return ResultPth;
 }
 
-//static LqHttpPthPtr LqHttpPthGetFileByDir(LqHttpConn* c, uint CountSubDirs) {
-//	auto Pth = c->Pth;
-//	auto Query = &c->Query;
-//	auto RealPathLen = LqStrLen(Pth->RealPath);
-//	int i = Query->PathLen;
-//	int Deep = 0;
-//
-//	for(uint k = 0; i >= 0; i--)
-//		if(Query->Path[i] == '/') {
-//			if(Query->Path[i + 1] == '.') {
-//				Deep = -1;
-//				break;
-//			} else
-//				Deep++;
-//			if(++k == CountSubDirs)
-//				break;
-//		}
-//	if((Deep < 0) || (Query->PathLen == ++i))
-//		return &EmptyPth;
-//	auto NewPth = LqHttpPthCreate(nullptr, LQHTTPPTH_TYPE_FILE, nullptr, Pth->Permissions, Pth->Atz, nullptr);
-//	if(NewPth == nullptr)
-//		return &EmptyPth;
-//	if((NewPth->RealPath = (char*)malloc(RealPathLen + (Query->PathLen - i) + 3)) == nullptr)
-//		return &EmptyPth;
-//	char* s = Pth->RealPath, *d = NewPth->RealPath;
-//	for(; *s; s++, d++)
-//		*d = *s;
-//	if((s > Pth->RealPath) && (*(s - 1) != LQ_PATH_SEPARATOR))
-//		*d = LQ_PATH_SEPARATOR, d++;
-//	s = Query->Path + i;
-//	auto m = s + (Query->PathLen - i);
-//	if(LQ_PATH_SEPARATOR != '/') //Const compare (If you know what I mean)
-//	{
-//		for(; s < m; s++, d++)
-//			*d = (*s == '/') ? '\\' : *s;
-//	} else {
-//		for(; s < m; s++, d++)
-//			*d = *s;
-//	}
-//	*d = '\0';
-//	return NewPth;
-//}
-//
-//static LqHttpPthPtr LqHttpPthGetFileRedirectionByDirRedirection(LqHttpConn* c, uint CountSubDirs) {
-//	auto Pth = c->Pth;
-//	auto Query = &c->Query;
-//	auto LocationLen = LqStrLen(Pth->Location);
-//	int Deep = 0;
-//	int i = Query->PathLen;
-//
-//	for(uint k = 0; i >= 0; i--)
-//		if(Query->Path[i] == '/') {
-//			if(Query->Path[i + 1] == '.') {
-//				Deep = -1;
-//				break;
-//			} else
-//				Deep++;
-//			if(++k == CountSubDirs)
-//				break;
-//		}
-//
-//	if((Deep < 0) || (Query->PathLen == ++i))
-//		return &EmptyPth;
-//	auto NewPth = LqHttpPthCreate(nullptr, LQHTTPPTH_TYPE_FILE_REDIRECTION, nullptr, Pth->Permissions, Pth->Atz, nullptr);
-//	if(NewPth == &EmptyPth)
-//		return &EmptyPth;
-//	if((NewPth->Location = (char*)malloc(LocationLen + (Query->PathLen - i) + 3)) == nullptr)
-//		return &EmptyPth;
-//	NewPth->StatusCode = Pth->StatusCode;
-//	LqStrCopy(NewPth->Location, Pth->Location);
-//	if((LocationLen == 0) || (Pth->Location[LocationLen - 1] != '/'))
-//		strcat(NewPth->Location, "/");
-//	strncat(NewPth->Location, Query->Path + i, Query->PathLen - i);
-//	return NewPth;
-//}
-//
-//void LqHttpPthRecognize(LqHttpConn* c) {
-//	auto Query = &c->Query;
-//	auto Proto = LqHttpGetReg(c);
-//	auto CountSubDirs = 0U;
-//	if(Query->Host != nullptr) {
-//		char t2 = Query->Path[Query->PathLen];
-//		Query->Path[Query->PathLen] = '\0';
-//		char t1 = Query->Host[Query->HostLen];
-//		Query->Host[Query->HostLen] = '\0';
-//		c->Pth = LqHttpPthGetByAddressSubdirCheck(&Proto->Base, Query->Host, Query->Path, &CountSubDirs);
-//		Query->Path[Query->PathLen] = t2;
-//		Query->Host[Query->HostLen] = t1;
-//	} else {
-//		char t = Query->Path[Query->PathLen];
-//		Query->Path[Query->PathLen] = '\0';
-//		c->Pth = LqHttpPthGetByAddressSubdirCheck(&Proto->Base, "*", Query->Path, &CountSubDirs);
-//		Query->Path[Query->PathLen] = t;
-//	}
-//	if(c->Pth != nullptr) {
-//		switch(c->Pth->Type & LQHTTPPTH_TYPE_SEP) {
-//			case LQHTTPPTH_TYPE_DIR:
-//			{
-//				auto Pth = LqHttpPthGetFileByDir(c, CountSubDirs);
-//				if(Pth != &EmptyPth) {
-//					Pth->Parent = c->Pth;
-//					c->Pth = Pth.Get();
-//					LqHttpPthAssign(c->Pth);
-//					Pth->Type |= LQHTTPPTH_FLAG_CHILD;
-//				} else {
-//					LqHttpConnPthRemove(c);
-//				}
-//			}
-//			break;
-//			case LQHTTPPTH_TYPE_DIR_REDIRECTION:
-//			{
-//				auto Pth = LqHttpPthGetFileRedirectionByDirRedirection(c, CountSubDirs);
-//				if(Pth != &EmptyPth) {
-//					Pth->Parent = c->Pth;
-//					c->Pth = Pth.Get();
-//					LqHttpPthAssign(c->Pth);
-//					Pth->Type |= LQHTTPPTH_FLAG_CHILD;
-//				} else {
-//					LqHttpConnPthRemove(c);
-//				}
-//			}
-//			break;
-//		}
-//	}
-//}
+static LqHttpPthPtr LqHttpPthGetFileByDir(LqHttpConn* HttpConn, int CountSubDirs) {
+	LqHttpConnData* HttpConnData;
+	LqHttpPth* Pth;
+	LqHttpRcvHdrs* Query;
+	size_t RealPathLen;
+	int i, Deep = 0, n;
+	char* s, *m, *d;
+
+	HttpConnData = LqHttpConnGetData(HttpConn);
+	Pth = HttpConnData->Pth;
+	Query = HttpConnData->RcvHdr;
+	RealPathLen = LqStrLen(Pth->RealPath);
+	n = i = LqStrLen(Query->Path);
+
+	for(int k = 0; i >= 0; i--)
+		if(Query->Path[i] == '/') {
+			if(Query->Path[i + 1] == '.') {
+				Deep = -1;
+				break;
+			} else
+				Deep++;
+			if(++k == CountSubDirs)
+				break;
+		}
+	if((Deep < 0) || (n == ++i))
+		return &EmptyPth;
+	LqHttpPthPtr NewPth = LqHttpPthCreate(nullptr, LQHTTPPTH_TYPE_FILE, nullptr, Pth->Permissions, Pth->Atz, nullptr);
+	if(NewPth == nullptr)
+		return &EmptyPth;
+	if((NewPth->RealPath = (char*)malloc(RealPathLen + (n - i) + 3)) == NULL)
+		return &EmptyPth;
+	s = Pth->RealPath;
+	d = NewPth->RealPath;
+	for(; *s; s++, d++)
+		*d = *s;
+	if((s > Pth->RealPath) && (*(s - 1) != LQ_PATH_SEPARATOR))
+		*d = LQ_PATH_SEPARATOR, d++;
+	s = Query->Path + i;
+	m = s + (n - i);
+	if(LQ_PATH_SEPARATOR != '/')
+	{
+		for(; s < m; s++, d++)
+			*d = (*s == '/') ? '\\' : *s;
+	} else {
+		for(; s < m; s++, d++)
+			*d = *s;
+	}
+	*d = '\0';
+	return NewPth;
+}
+
+static LqHttpPthPtr LqHttpPthGetFileRedirectionByDirRedirection(LqHttpConn* HttpConn, uint CountSubDirs) {
+	LqHttpConnData* HttpConnData;
+	LqHttpRcvHdrs* Query;
+	LqHttpPth* Pth;
+	int i, n, Deep = 0;
+	size_t LocationLen;
+	HttpConnData = LqHttpConnGetData(HttpConn);
+	Pth = HttpConnData->Pth;
+	Query = HttpConnData->RcvHdr;
+	LocationLen = LqStrLen(Pth->Location);
+	n = i = LqStrLen(Query->Path);
+
+	for(int k = 0; i >= 0; i--)
+		if(Query->Path[i] == '/') {
+			if(Query->Path[i + 1] == '.') {
+				Deep = -1;
+				break;
+			} else
+				Deep++;
+			if(++k == CountSubDirs)
+				break;
+		}
+
+	if((Deep < 0) || (n == ++i))
+		return &EmptyPth;
+	LqHttpPthPtr NewPth = LqHttpPthCreate(nullptr, LQHTTPPTH_TYPE_FILE_REDIRECTION, nullptr, Pth->Permissions, Pth->Atz, nullptr);
+	if(NewPth == &EmptyPth)
+		return &EmptyPth;
+	if((NewPth->Location = (char*)malloc(LocationLen + (n - i) + 3)) == nullptr)
+		return &EmptyPth;
+	NewPth->StatusCode = Pth->StatusCode;
+	LqStrCopy(NewPth->Location, Pth->Location);
+	if((LocationLen == 0) || (Pth->Location[LocationLen - 1] != '/'))
+		strcat(NewPth->Location, "/");
+	strncat(NewPth->Location, Query->Path + i, n - i);
+	return NewPth;
+}
+
+void LqHttpConnPthRemove(LqHttpConn* HttpConn) {
+	LqHttpConnData* HttpConnData;
+	HttpConnData = LqHttpConnGetData(HttpConn);
+	if(HttpConnData->Pth != NULL) {
+		LqHttpPthRelease(HttpConnData->Pth);
+		HttpConnData->Pth = NULL;
+	}
+}
+
+
+void LqHttpPthRecognize(LqHttpConn* HttpConn) {
+	LqHttpConnData* HttpConnData;
+	LqHttpRcvHdrs* Query;
+	LqHttpData* HttpData;
+	LqHttp* Http;
+	int CountSubDirs;
+
+	HttpConnData = LqHttpConnGetData(HttpConn);
+	HttpData = LqHttpConnGetHttpData(HttpConn);
+	Http = LqHttpConnGetHttp(HttpConn);
+
+	Query = HttpConnData->RcvHdr;
+	CountSubDirs = 0;
+	if(Query->Host != NULL) {
+		HttpConnData->Pth = LqHttpPthGetByAddressSubdirCheck(Http, Query->Host, Query->Path, &CountSubDirs);
+	} else {
+		HttpConnData->Pth = LqHttpPthGetByAddressSubdirCheck(Http, "*", Query->Path, &CountSubDirs);
+	}
+	if(HttpConnData->Pth != NULL) {
+		switch(HttpConnData->Pth->Type & LQHTTPPTH_TYPE_SEP) {
+			case LQHTTPPTH_TYPE_DIR:
+			{
+				LqHttpPthPtr Pth = LqHttpPthGetFileByDir(HttpConn, CountSubDirs);
+				if(Pth != &EmptyPth) {
+					Pth->Parent = HttpConnData->Pth;
+					HttpConnData->Pth = Pth.Get();
+					LqHttpPthAssign(HttpConnData->Pth);
+					Pth->Type |= LQHTTPPTH_FLAG_CHILD;
+				} else {
+					LqHttpConnPthRemove(HttpConn);
+				}
+			}
+			break;
+			case LQHTTPPTH_TYPE_DIR_REDIRECTION:
+			{
+				LqHttpPthPtr Pth = LqHttpPthGetFileRedirectionByDirRedirection(HttpConn, CountSubDirs);
+				if(Pth != &EmptyPth) {
+					Pth->Parent = HttpConnData->Pth;
+					HttpConnData->Pth = Pth.Get();
+					LqHttpPthAssign(HttpConnData->Pth);
+					Pth->Type |= LQHTTPPTH_FLAG_CHILD;
+				} else {
+					LqHttpConnPthRemove(HttpConn);
+				}
+			}
+			break;
+		}
+	}
+}
 
 static void CalcFileMD5(int FileDescriptor, LqMd5* HashDest) {
 	LqMd5Ctx md5;

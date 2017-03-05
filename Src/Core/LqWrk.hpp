@@ -21,6 +21,7 @@ class LqWrkBoss;
 #include "LqAlloc.hpp"
 #include "LqDef.hpp"
 #include "Lanq.h"
+#include "LqDfltRef.hpp"
 
 
 LQ_IMPORTEXPORT void LQ_CALL LqWrkDelete(LqWrk* This);
@@ -28,11 +29,10 @@ LQ_IMPORTEXPORT void LQ_CALL LqWrkDelete(LqWrk* This);
 typedef LqShdPtr<LqWrk, LqWrkDelete, false, false> LqWrkPtr;
 static llong __LqWrkInitEmpty();
 
-#pragma pack(push) 
+#pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-class LQ_IMPORTEXPORT LqWrk:
-    public LqThreadBase {
+class LQ_IMPORTEXPORT LqWrk: public LqThreadBase {
 
     friend LqWrkBoss;
     friend LqConn;
@@ -49,7 +49,7 @@ class LQ_IMPORTEXPORT LqWrk:
 
     LqQueueCmd<uchar>                                   EvntFdQueue;
     LqQueueCmd<uchar>                                   CommandQueue;
-    LqSysPoll                                              EventChecker;
+    LqSysPoll                                           EventChecker;
     LqEvntFd                                            NotifyEvent;
 
     mutable LqLocker<uintptr_t>                         Locker;
@@ -123,8 +123,8 @@ public:
     bool     UpdateAllEvntFlagAsync();
     int      UpdateAllEvntFlagSync();
 
-    bool     AsyncCall(void(*AsyncProc)(void* Data), void* UserData = nullptr);
-    size_t   CancelAsyncCall(void(*AsyncProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
+    bool     AsyncCall(void(LQ_CALL*AsyncProc)(void* Data), void* UserData = nullptr);
+    size_t   CancelAsyncCall(void(LQ_CALL*AsyncProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
 
     /*
     This method return all connection from this worker.
@@ -142,11 +142,11 @@ public:
     /*
       @Proc - In this proc must not call another worker methods.
     */
-    size_t   EnumCloseRmEvnt(unsigned(*Proc)(void* UserData, LqEvntHdr* Conn), void* UserData = nullptr);
-    size_t   EnumCloseRmEvntByProto(unsigned(*Proc)(void* UserData, LqEvntHdr* Conn), const LqProto* Proto, void* UserData = nullptr);
+    size_t   EnumCloseRmEvnt(int(LQ_CALL*Proc)(void* UserData, LqEvntHdr* Conn), void* UserData = nullptr, bool* IsIterrupted = LqDfltPtr());
+    size_t   EnumCloseRmEvntByProto(int(LQ_CALL*Proc)(void* UserData, LqEvntHdr* Conn), const LqProto* Proto, void* UserData = nullptr, bool* IsIterrupted = LqDfltPtr());
 
     bool EnumCloseRmEvntAsync(
-        unsigned(*EventAct)(void* UserData, size_t UserDataSize, void*Wrk, LqEvntHdr* EvntHdr, LqTimeMillisec CurTime),
+        int(LQ_CALL*EventAct)(void* UserData, size_t UserDataSize, void*Wrk, LqEvntHdr* EvntHdr, LqTimeMillisec CurTime),
         const LqProto* Proto,
         void* UserData,
         size_t UserDataSize

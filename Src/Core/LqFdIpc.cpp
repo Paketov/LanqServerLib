@@ -30,6 +30,7 @@
 #define LQFDIPC_FLAG_WORK ((unsigned char)2)
 #define LQFDIPC_FLAG_PID_SENDED ((unsigned char)4)
 #define LQFDIPC_FLAG_MUST_ACCEPT ((unsigned char)8)
+#define LQFDIPC_FLAG_IN_HANDLER     ((unsigned char)16)
 
 typedef struct _FdIpcHdr {
     char Signature[2];
@@ -75,10 +76,10 @@ static void _FdIpcUnlock(LqFdIpc* FdIpc) {
 static int _BlocketWriteInPipe(int PipeFd, int EventFd, const void* SourceBuf, int Size) {
     intptr_t Written = -1;
     LqAsync AsyncData;
-    LqFileEventReset(EventFd);
+    LqEventReset(EventFd);
     if(LqFileWriteAsync(PipeFd, SourceBuf, Size, 0, EventFd, &AsyncData) == -1)
         return -1;
-    LqFilePollCheckSingle(EventFd, LQ_POLLIN | LQ_POLLOUT, LqTimeGetMaxMillisec());
+    LqPollCheckSingle(EventFd, LQ_POLLIN | LQ_POLLOUT, LqTimeGetMaxMillisec());
     if(LqFileAsyncStat(&AsyncData, &Written) != 0)
         return -1;
     return Written;
@@ -87,10 +88,10 @@ static int _BlocketWriteInPipe(int PipeFd, int EventFd, const void* SourceBuf, i
 static int _BlocketReadFromPipe(int PipeFd, int EventFd, void* DestBuf, int Size) {
     intptr_t Readed = -1;
     LqAsync AsyncData;
-    LqFileEventReset(EventFd);
+    LqEventReset(EventFd);
     if(LqFileReadAsync(PipeFd, DestBuf, Size, 0, EventFd, &AsyncData) == -1)
         return -1;
-    LqFilePollCheckSingle(EventFd, LQ_POLLIN | LQ_POLLOUT, LqTimeGetMaxMillisec());
+    LqPollCheckSingle(EventFd, LQ_POLLIN | LQ_POLLOUT, LqTimeGetMaxMillisec());
     if(LqFileAsyncStat(&AsyncData, &Readed) != 0)
         return -1;
     return Readed;
@@ -103,7 +104,7 @@ static void LQ_CALL _Handler(LqEvntFd* Fd, LqEvntFlag RetFlags) {
     int WaitEvent;
     intptr_t Res;
 #ifndef LQPLATFORM_WINDOWS
-	LqWrkPtr WrkPtr = LqWrk::GetNull();
+    LqWrkPtr WrkPtr = LqWrk::GetNull();
 #endif
     _FdIpcLock(FdIpc);
     if(RetFlags & LQEVNT_FLAG_ERR)
@@ -111,9 +112,9 @@ static void LQ_CALL _Handler(LqEvntFd* Fd, LqEvntFlag RetFlags) {
     if(RetFlags & LQEVNT_FLAG_RD) {
 #ifdef LQPLATFORM_WINDOWS
         if(!(FdIpc->Flags & LQFDIPC_FLAG_PID_SENDED)) {
-            if((WaitEvent = LqFileEventCreate(LQ_O_NOINHERIT)) == -1)
+            if((WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
                 goto lblOut;
-            NewPid = LqFileProcessId();
+            NewPid = LqProcessId();
             Res = _BlocketWriteInPipe(FdIpc->Evnt.Fd, WaitEvent, &NewPid, sizeof(NewPid));
             LqFileClose(WaitEvent);
             if(Res < (intptr_t)sizeof(NewPid))
@@ -121,7 +122,7 @@ static void LQ_CALL _Handler(LqEvntFd* Fd, LqEvntFlag RetFlags) {
             FdIpc->Flags |= LQFDIPC_FLAG_PID_SENDED;
         }
         if(FdIpc->Pid == -1) {
-            if((WaitEvent = LqFileEventCreate(LQ_O_NOINHERIT)) == -1)
+            if((WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
                 goto lblOut;
             Res = _BlocketReadFromPipe(FdIpc->Evnt.Fd, WaitEvent, &NewPid, sizeof(NewPid));
             LqFileClose(WaitEvent);
@@ -131,9 +132,9 @@ static void LQ_CALL _Handler(LqEvntFd* Fd, LqEvntFlag RetFlags) {
         }
 
         if(!(FdIpc->Flags & LQFDIPC_FLAG_PID_SENDED)) {
-            if((WaitEvent = LqFileEventCreate(LQ_O_NOINHERIT)) == -1)
+            if((WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
                 goto lblOut;
-            NewPid = LqFileProcessId();
+            NewPid = LqProcessId();
             LqFileWrite(FdIpc->Evnt.Fd, &NewPid, sizeof(NewPid));
             FdIpc->Flags |= LQFDIPC_FLAG_PID_SENDED;
         }
@@ -148,29 +149,39 @@ static void LQ_CALL _Handler(LqEvntFd* Fd, LqEvntFlag RetFlags) {
             if(NewFd == -1)
                 goto lblOut;
             if(FdIpc->Flags & LQFDIPC_FLAG_WORK) {
-				WrkPtr = LqWrk::ByEvntHdr((LqEvntHdr*)FdIpc);
+                WrkPtr = LqWrk::ByEvntHdr((LqEvntHdr*)FdIpc);
                 LqEvntSetRemove3(FdIpc);
             }
             dup2(NewFd, FdIpc->Evnt.Fd);
             LqFileClose(NewFd);
             if(WrkPtr->GetId() != -1ll)
-				WrkPtr->AddEvntSync((LqEvntHdr*)FdIpc);
+                WrkPtr->AddEvntSync((LqEvntHdr*)FdIpc);
             FdIpc->Flags &= ~LQFDIPC_FLAG_MUST_ACCEPT;
         }
 #endif
-        if(FdIpc->RecvHandler)
+        if(FdIpc->RecvHandler) {
+            FdIpc->Flags |= LQFDIPC_FLAG_IN_HANDLER;
+            _FdIpcUnlock(FdIpc);
             FdIpc->RecvHandler(FdIpc);
+            _FdIpcLock(FdIpc);
+            FdIpc->Flags &= ~LQFDIPC_FLAG_IN_HANDLER;
+        }
     }
 lblOut:
     _FdIpcUnlock(FdIpc);
 }
 
-static void LQ_CALL _CloseHandler(LqEvntFd* Fd) {
+static void LQ_CALL _LqHttpConnCloseHandler(LqEvntFd* Fd) {
     LqFdIpc* FdIpc = (LqFdIpc*)Fd;
     _FdIpcLock(FdIpc);
     FdIpc->Flags &= ~LQFDIPC_FLAG_WORK;
-    if(FdIpc->CloseHandler)
+    if(FdIpc->CloseHandler) {
+        FdIpc->Flags |= LQFDIPC_FLAG_IN_HANDLER;
+        _FdIpcUnlock(FdIpc);
         FdIpc->CloseHandler(FdIpc);
+        _FdIpcLock(FdIpc);
+        FdIpc->Flags &= ~LQFDIPC_FLAG_IN_HANDLER;
+    }
     _FdIpcUnlock(FdIpc);
 }
 
@@ -193,8 +204,8 @@ LQ_EXTERN_C LqFdIpc* LQ_CALL LqFdIpcOpen(const char* Name, bool IsNoInherit, voi
     Fd = LqFileOpen(NameBuf, LQ_O_NONBLOCK | LQ_O_BIN | LQ_O_RDWR | ((IsNoInherit) ? LQ_O_NOINHERIT : 0), 0666);
     if(Fd == -1)
         goto lblErr;
-    CurProcessId = LqFileProcessId();
-    if((WaitEvent = LqFileEventCreate(LQ_O_NOINHERIT)) == -1)
+    CurProcessId = LqProcessId();
+    if((WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
         goto lblErr;
     Written = _BlocketWriteInPipe(Fd, WaitEvent, &CurProcessId, sizeof(CurProcessId));
     LqFileClose(WaitEvent);
@@ -210,7 +221,7 @@ LQ_EXTERN_C LqFdIpc* LQ_CALL LqFdIpcOpen(const char* Name, bool IsNoInherit, voi
     if(connect(Fd, (struct sockaddr*)&SockName, sizeof(SockName)) == -1)
         goto lblErr;
 #endif
-    LqEvntFdInit(&NewIpc->Evnt, Fd, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, _Handler, _CloseHandler);
+    LqEvntFdInit(&NewIpc->Evnt, Fd, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, _Handler, _LqHttpConnCloseHandler);
 
     NewIpc->UserData = UserData;
     NewIpc->Flags = LQFDIPC_FLAG_USED
@@ -248,7 +259,7 @@ LQ_EXTERN_C LqFdIpc* LQ_CALL LqFdIpcCreate(const char* Name, bool IsNoInherit, v
     }
 #ifdef LQPLATFORM_WINDOWS
     LqFbuf_snprintf(NameBuf, sizeof(NameBuf), "\\\\.\\Pipe\\FdIpc_%s", Name);
-    Fd = LqFilePipeCreateNamed(NameBuf, LQ_O_NONBLOCK | LQ_O_BIN | LQ_O_RDWR | ((IsNoInherit) ? LQ_O_NOINHERIT : 0));
+    Fd = LqPipeCreateNamed(NameBuf, LQ_O_NONBLOCK | LQ_O_BIN | LQ_O_RDWR | ((IsNoInherit) ? LQ_O_NOINHERIT : 0));
     if(Fd == -1)
         goto lblErr;
 #else
@@ -264,7 +275,7 @@ LQ_EXTERN_C LqFdIpc* LQ_CALL LqFdIpcCreate(const char* Name, bool IsNoInherit, v
         goto lblErr;
     listen(Fd, 1);
 #endif
-    LqEvntFdInit(&NewIpc->Evnt, Fd, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, _Handler, _CloseHandler);
+    LqEvntFdInit(&NewIpc->Evnt, Fd, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, _Handler, _LqHttpConnCloseHandler);
 
     NewIpc->UserData = UserData;
     NewIpc->Flags = LQFDIPC_FLAG_USED;
@@ -297,11 +308,11 @@ LQ_EXTERN_C int LQ_CALL LqFdIpcSend(LqFdIpc* FdIpc, int Fd, void* AttachedBuffer
     HANDLE DestProcessHandle = NULL;
 
     _FdIpcLock(FdIpc);
-    if((WaitEvent = LqFileEventCreate(LQ_O_NOINHERIT)) == -1)
+    if((WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
         goto lblOut;
 
     if(!(FdIpc->Flags & LQFDIPC_FLAG_PID_SENDED)) {
-        NewPid = LqFileProcessId();
+        NewPid = LqProcessId();
         if(_BlocketWriteInPipe(FdIpc->Evnt.Fd, WaitEvent, &NewPid, sizeof(NewPid)) < (intptr_t)sizeof(NewPid))
             goto lblOut;
         FdIpc->Flags |= LQFDIPC_FLAG_PID_SENDED;
@@ -345,7 +356,7 @@ lblOut:
         CloseHandle(DestProcessHandle);
     return Res;
 #else
-	LqWrkPtr WrkPtr = LqWrk::GetNull();
+    LqWrkPtr WrkPtr = LqWrk::GetNull();
     int NewFd;
     LqWrk* WorkerOwner = NULL;
     struct msghdr   msg = {0};
@@ -359,20 +370,20 @@ lblOut:
 #endif
 
     _FdIpcLock(FdIpc);
-	if(FdIpc->Flags & LQFDIPC_FLAG_MUST_ACCEPT) {
-		NewFd = accept(FdIpc->Evnt.Fd, NULL, NULL);
-		if(NewFd == -1)
-			goto lblOut;
-		if(FdIpc->Flags & LQFDIPC_FLAG_WORK) {
-			WrkPtr = LqWrk::ByEvntHdr((LqEvntHdr*)FdIpc);
-			LqEvntSetRemove3(FdIpc);
-		}
-		dup2(NewFd, FdIpc->Evnt.Fd);
-		LqFileClose(NewFd);
-		if(WrkPtr->GetId() != -1ll)
-			WrkPtr->AddEvntSync((LqEvntHdr*)FdIpc);
-		FdIpc->Flags &= ~LQFDIPC_FLAG_MUST_ACCEPT;
-	}
+    if(FdIpc->Flags & LQFDIPC_FLAG_MUST_ACCEPT) {
+        NewFd = accept(FdIpc->Evnt.Fd, NULL, NULL);
+        if(NewFd == -1)
+            goto lblOut;
+        if(FdIpc->Flags & LQFDIPC_FLAG_WORK) {
+            WrkPtr = LqWrk::ByEvntHdr((LqEvntHdr*)FdIpc);
+            LqEvntSetRemove3(FdIpc);
+        }
+        dup2(NewFd, FdIpc->Evnt.Fd);
+        LqFileClose(NewFd);
+        if(WrkPtr->GetId() != -1ll)
+            WrkPtr->AddEvntSync((LqEvntHdr*)FdIpc);
+        FdIpc->Flags &= ~LQFDIPC_FLAG_MUST_ACCEPT;
+    }
 
     iov[0].iov_base = &SizeBuffer;
     iov[0].iov_len = sizeof(SizeBuffer);
@@ -440,11 +451,11 @@ LQ_EXTERN_C int LQ_CALL LqFdIpcRecive(LqFdIpc* FdIpc, int* Fd, void** AttachedBu
     int NewPid;
 
     _FdIpcLock(FdIpc);
-    if((WaitEvent = LqFileEventCreate(LQ_O_NOINHERIT)) == -1)
+    if((WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
         goto lblOut;
 
     if(!(FdIpc->Flags & LQFDIPC_FLAG_PID_SENDED)) {
-        NewPid = LqFileProcessId();
+        NewPid = LqProcessId();
         if(_BlocketWriteInPipe(FdIpc->Evnt.Fd, WaitEvent, &NewPid, sizeof(NewPid)) < (intptr_t)sizeof(NewPid))
             goto lblOut;
         FdIpc->Flags |= LQFDIPC_FLAG_PID_SENDED;
@@ -478,7 +489,7 @@ lblOut:
         free(GlobBuffer);
     return Res;
 #else
-	LqWrkPtr WrkPtr = LqWrk::GetNull();
+    LqWrkPtr WrkPtr = LqWrk::GetNull();
     int NewFd;
     LqWrk* WorkerOwner = NULL;
     struct msghdr   msg = {0};
@@ -494,20 +505,20 @@ lblOut:
     struct cmsghdr  *cmptr;
 #endif
     _FdIpcLock(FdIpc);
-	if(FdIpc->Flags & LQFDIPC_FLAG_MUST_ACCEPT) {
-		NewFd = accept(FdIpc->Evnt.Fd, NULL, NULL);
-		if(NewFd == -1)
-			goto lblOut;
-		if(FdIpc->Flags & LQFDIPC_FLAG_WORK) {
-			WrkPtr = LqWrk::ByEvntHdr((LqEvntHdr*)FdIpc);
-			LqEvntSetRemove3(FdIpc);
-		}
-		dup2(NewFd, FdIpc->Evnt.Fd);
-		LqFileClose(NewFd);
-		if(WrkPtr->GetId() != -1ll)
-			WrkPtr->AddEvntSync((LqEvntHdr*)FdIpc);
-		FdIpc->Flags &= ~LQFDIPC_FLAG_MUST_ACCEPT;
-	}
+    if(FdIpc->Flags & LQFDIPC_FLAG_MUST_ACCEPT) {
+        NewFd = accept(FdIpc->Evnt.Fd, NULL, NULL);
+        if(NewFd == -1)
+            goto lblOut;
+        if(FdIpc->Flags & LQFDIPC_FLAG_WORK) {
+            WrkPtr = LqWrk::ByEvntHdr((LqEvntHdr*)FdIpc);
+            LqEvntSetRemove3(FdIpc);
+        }
+        dup2(NewFd, FdIpc->Evnt.Fd);
+        LqFileClose(NewFd);
+        if(WrkPtr->GetId() != -1ll)
+            WrkPtr->AddEvntSync((LqEvntHdr*)FdIpc);
+        FdIpc->Flags &= ~LQFDIPC_FLAG_MUST_ACCEPT;
+    }
 #ifdef  HAVE_MSGHDR_MSG_CONTROL
     msg.msg_control = &control_un;
     msg.msg_controllen = sizeof(control_un);

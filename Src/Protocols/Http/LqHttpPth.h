@@ -24,19 +24,33 @@ void LqHttpPthRecognize(LqHttpConn* c);
 
 void LqHttpPthAssign(LqHttpPth* Pth);
 bool LqHttpPthRelease(LqHttpPth* Pth);
+void LqHttpConnPthRemove(LqHttpConn* HttpConn);
 #endif
 
+typedef enum LqHttpPthResultEnm {
+	LQHTTPPTH_RES_OK,
+	LQHTTPPTH_RES_ALREADY_HAVE,
+	LQHTTPPTH_RES_NOT_ALLOC_MEM,
+	LQHTTPPTH_RES_NOT_HAVE_DOMEN,
+	LQHTTPPTH_RES_NOT_HAVE_PATH,
+	LQHTTPPTH_RES_NOT_HAVE_ATZ,
+	LQHTTPPTH_RES_ALREADY_HAVE_ATZ,
+	LQHTTPPTH_RES_NOT_DIR,
+	LQHTTPPTH_RES_MODULE_REJECT,
+	LQHTTPPTH_RES_DOMEN_NAME_OVERFLOW,
+	LQHTTPPTH_RES_INVALID_NAME
+} LqHttpPthResultEnm;
 
 /*
 * Is @Atz == nullptr, then remove athorization
 */
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthDirSetAtz(LqHttp* lqain Reg, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, LqHttpAtz* lqain Atz, bool IsReplace);
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthDirSetAtz(LqHttp* lqain Http, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, LqHttpAtz* lqain Atz, bool IsReplace);
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthFileSetAtz(LqHttp* lqain Reg, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, LqHttpAtz* lqain Atz, bool IsReplace);
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthFileSetAtz(LqHttp* lqain Http, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, LqHttpAtz* lqain Atz, bool IsReplace);
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthDirSetPerm(LqHttp* lqain Reg, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, uint8_t Permissions);
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthDirSetPerm(LqHttp* lqain Http, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, uint8_t Permissions);
 
-LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthFileSetPerm(LqHttp* lqain Reg, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, uint8_t Permissions);
+LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthFileSetPerm(LqHttp* lqain Http, const char* lqain lqautf8 WebDomen, const char* lqain lqautf8 WebPath, uint8_t Permissions);
 
 LQ_IMPORTEXPORT LqHttpPthResultEnm LQ_CALL LqHttpPthRegisterFile(
 	LqHttp* lqaio Http,

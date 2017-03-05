@@ -182,7 +182,7 @@ bool LqSysPollAddHdr(LqSysPoll* Dest, LqEvntHdr* Client) {
     } else {
         LARGE_INTEGER *ppl = nullptr, pl;
         auto EvntData = (LqEvntFd*)Client;
-        int Event = LqFileEventCreate(LQ_O_NOINHERIT);
+        int Event = LqEventCreate(LQ_O_NOINHERIT);
         if(LqEvntGetFlags(EvntData) & LQEVNT_FLAG_RD) {
             static char Buf;
             ppl = nullptr;
@@ -426,7 +426,7 @@ void LqSysPollUnuseCurrent(LqSysPoll* Events) {
         LARGE_INTEGER *ppl = nullptr, pl;
         NTSTATUS Stat;
         if((Fd->Flag & LQEVNT_FLAG_RD) && (Fd->__Reserved1.Status != STATUS_PENDING)) {
-            LqFileEventReset((int)EventObject);
+            LqEventReset((int)EventObject);
             static char Buf;
             ppl = nullptr;
 lblAgain:
@@ -442,7 +442,7 @@ lblAgain:
         }
         if((Fd->Flag & LQEVNT_FLAG_WR) && (Fd->__Reserved2.Status != STATUS_PENDING)) {
             if(!(Fd->Flag & LQEVNT_FLAG_RD))
-                LqFileEventReset((int)EventObject);
+                LqEventReset((int)EventObject);
             static char Buf;
             ppl = nullptr;
 lblAgain2:
@@ -485,7 +485,7 @@ static bool LqEvntSetMaskEventFd(LqSysPoll* Events, size_t Index) {
         if(h->Flag & LQEVNT_FLAG_RD) {
             if(h->__Reserved1.Status == STATUS_NOT_SUPPORTED) {
                 static char Buf;
-                LqFileEventReset((int)EventObject);
+                LqEventReset((int)EventObject);
                 IsCleared = true;
                 ppl = nullptr;
 lblAgain:
@@ -509,7 +509,7 @@ lblAgain:
             if(h->__Reserved2.Status == STATUS_NOT_SUPPORTED) {
                 static char Buf;
                 if(!IsCleared)
-                    LqFileEventReset((int)EventObject);
+                    LqEventReset((int)EventObject);
                 ppl = nullptr;
 lblAgain2:
                 h->__Reserved2.Status = STATUS_PENDING;

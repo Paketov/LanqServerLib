@@ -2,7 +2,7 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-* LQ_LOG or LQ_LOG_ERR - Minimum logging implementation.
+* LQ_LOG or LqLogErr - Minimum logging implementation.
 */
 
 
@@ -14,7 +14,7 @@
 //#define LQ_LOG_USER_HAVE
 //#define LQ_ERR_HAVE
 
-void LQ_LOG_INFO(const char* val, ...);
-void LQ_LOG_ERR(const char* val, ...);
+void LqLogInfo(const char* val, ...);
+void LqLogErr(const char* val, ...);
 
 #endif

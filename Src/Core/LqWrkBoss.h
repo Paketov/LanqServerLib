@@ -61,11 +61,11 @@ LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByTimeoutSync(LqTimeMillisec Ti
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseConnByProtoTimeoutAsync(const LqProto* Proto, LqTimeMillisec TimeLive);
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByProtoTimeoutSync(const LqProto* Proto, LqTimeMillisec TimeLive);
 
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossAsyncCall(void(*AsyncProc)(void* Data), void* UserData);
-LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCancelAsyncCall(void(*AsyncProc)(void* Data), void* UserData, bool IsAll);
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData);
+LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCancelAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData, bool IsAll);
 
-LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossEnumCloseRmEvntByProto(unsigned(*Proc)(void *UserData, LqEvntHdr *Conn), const LqProto* Proto, void * UserData);
-LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossEnumCloseRmEvnt(unsigned(*Proc)(void *UserData, LqEvntHdr *Conn), void * UserData);
+LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossEnumCloseRmEvntByProto(int(LQ_CALL*Proc)(void*, LqEvntHdr*), const LqProto* Proto, void * UserData);
+LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossEnumCloseRmEvnt(int(LQ_CALL*Proc)(void*, LqEvntHdr*), void * UserData);
 
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossSetMinWrkCount(size_t NewCount);
 
@@ -120,11 +120,11 @@ LQ_IMPORTEXPORT int LQ_CALL LqEvntAdd2(void* lqaio EvntOrConn, void* lqaopt lqai
 LQ_IMPORTEXPORT void LQ_CALL LqConnInit(void* lqaout Conn, int NewFd, void* lqain NewProto, LqEvntFlag NewFlags);
 
 LQ_IMPORTEXPORT void LQ_CALL LqEvntFdInit(
-	void* lqaout EvntDest, 
-	int NewFd, 
-	LqEvntFlag NewFlags, 
-	void(LQ_CALL*Handler)(LqEvntFd*, LqEvntFlag),
-	void(LQ_CALL*CloseHandler)(LqEvntFd*)
+    void* lqaout EvntDest, 
+    int NewFd, 
+    LqEvntFlag NewFlags, 
+    void(LQ_CALL*Handler)(LqEvntFd*, LqEvntFlag),
+    void(LQ_CALL*CloseHandler)(LqEvntFd*)
 );
 
 LQ_IMPORTEXPORT void LQ_CALL LqEvntCallCloseHandler(void* lqain EvntHdr);

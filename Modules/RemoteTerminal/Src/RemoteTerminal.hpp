@@ -15,12 +15,8 @@
 #include "LqHttpMdl.h"
 #include "LqDfltRef.hpp"
 #include "LqHttpPth.hpp"
-#include "LqHttpRsp.h"
-#include "LqHttpConn.h"
-#include "LqHttpAct.h"
 #include "LqTime.hpp"
 #include "LqStr.hpp"
-#include "LqHttpRcv.h"
 #include "LqHttp.hpp"
 #include "LqHttpAtz.h"
 #include "LqLib.h"
@@ -115,11 +111,7 @@ struct ConnHandlers
 
     static void LQ_CALL Write(LqHttpConn* c);
 
-    static void LQ_CALL Write2(LqHttpConn* c);
-
     static void LQ_CALL Read(LqHttpConn* c);
-
-    static void LQ_CALL ReadClose(LqHttpConn* c);
 };
 
 

@@ -19,7 +19,6 @@
 #include <stdlib.h>
 
 #if defined(LQPLATFORM_WINDOWS)
-#include <io.h>
 #include <Windows.h>
 #endif
 
@@ -52,14 +51,16 @@ static CharT* MakeTempName(CharT* Res) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileTrdIsTransacted(int Fd) {
+	LqString Path("", 32768);
+	intptr_t Res;
+	static const char FindChar[] = {LQ_PATH_SEPARATOR, '\0'};
+	size_t Pos;
+
     if(Fd == -1)
         return -1;
-    LqString Path("", 32768);
-    auto Res = LqFileGetPath(Fd, (char*)Path.data(), Path.size() - 2);
-    if(Res == -1)
-        return -1;
-    static const char FindChar[] = {LQ_PATH_SEPARATOR, '\0'};
-    size_t Pos;
+    Res = LqFileGetPath(Fd, (char*)Path.data(), Path.size() - 2);
+	if(Res == -1)
+		return -1;
     if((Pos = Path.find_last_of(FindChar)) == LqString::npos) {
         if(LqStrSameMax(Path.c_str(), ".partial_", sizeof(".partial_") - 1))
             return 1;
@@ -70,7 +71,6 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdIsTransacted(int Fd) {
     return 0;
 }
 
-
 /*
 * Flags must be O_TEXT or O_BINARY
 * LQ_TRNSC_REPLACE
@@ -79,18 +79,22 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdIsTransacted(int Fd) {
 
 LQ_EXTERN_C int LQ_CALL LqFileTrdCreate(const char* FileName, uint32_t Flags, int Access) {
     LqFileStat Stat;
+	LqString LocalFileName, Path;
+	size_t SepPos;
+	int Fd, i;
+
     if(LqFileGetStat(FileName, &Stat) == 0) {
         if(!(LQ_TC_REPLACE & Flags) || (Stat.Type == LQ_F_DIR)) {
             lq_errno_set(EEXIST);
             return -1;
         }
     }
-    LqString LocalFileName = FileName;
-    auto SepPos = LocalFileName.find_last_of(LQ_PATH_SEPARATOR);
+    LocalFileName = FileName;
+    SepPos = LocalFileName.find_last_of(LQ_PATH_SEPARATOR);
     LocalFileName.insert(SepPos + 1, LQ_RECIVE_PARTIAL_MASK);
-    int Fd = -1;
-    for(int i = 0; (Fd == -1) && (i < 3); i++) {
-        LqString Path = LocalFileName;
+    Fd = -1;
+    for(i = 0; (Fd == -1) && (i < 3); i++) {
+        Path = LocalFileName;
         Fd = LqFileOpen(MakeTempName((char*)Path.c_str()), LQ_O_CREATE | (Flags & 0xffff), Access);
     }
     if((Fd == -1) && (lq_errno == ENOENT)) {
@@ -112,6 +116,11 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCreate(const char* FileName, uint32_t Flags, in
 */
 LQ_EXTERN_C int LQ_CALL LqFileTrdCommitToPlace(int Fd, const char* DestPath) {
     char Name[LQ_MAX_PATH];
+	unsigned i;
+	LqString TempDestName;
+	static const char* Hidden = LQ_RECIVE_PARTIAL_MASK;
+	size_t SepPos;
+
     if(LqFileGetPath(Fd, Name, LQ_MAX_PATH - 1) == -1) {
         LqFileClose(Fd);
         return -1;
@@ -122,13 +131,11 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCommitToPlace(int Fd, const char* DestPath) {
         Res = 1;
     if(LqFileMove(Name, DestPath) != 0) {
         if(lq_errno == EACCES) {
-            //If file busy by another thread or programm
-            LqString TempDestName;
-            unsigned i = 0;
+            /*If file busy by another thread or programm*/
+            i = 0;
             for(; i < 3; i++) {
                 TempDestName = DestPath;
-                auto SepPos = TempDestName.find_last_of(LQ_PATH_SEPARATOR);
-                static const char* Hidden = LQ_RECIVE_PARTIAL_MASK;
+                SepPos = TempDestName.find_last_of(LQ_PATH_SEPARATOR);
                 TempDestName.insert(SepPos + 1, Hidden);
                 MakeTempName((char*)TempDestName.c_str());
                 if(LqFileMove(DestPath, TempDestName.c_str()) == 0)
@@ -156,10 +163,13 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdGetNameTemp(int Fd, char* DestBuf, size_t DestB
 
 LQ_EXTERN_C int LQ_CALL LqFileTrdGetNameTarget(int Fd, char* DestBuf, size_t DestBufLen) {
     char Name[LQ_MAX_PATH];
+	LqString DestPath = Name;
+	size_t SepPos;
+
     if(LqFileGetPath(Fd, Name, LQ_MAX_PATH - 1) == -1)
         return -1;
-    LqString DestPath = Name;
-    auto SepPos = DestPath.find_last_of(LQ_PATH_SEPARATOR);
+    DestPath = Name;
+    SepPos = DestPath.find_last_of(LQ_PATH_SEPARATOR);
     if(LqStrSameMax(&DestPath[SepPos + 1], ".partial_", sizeof(".partial_") - 1))
         DestPath.erase(SepPos + 1, sizeof(LQ_RECIVE_PARTIAL_MASK) - 1);
     LqStrCopyMax(DestBuf, DestPath.c_str(), DestBufLen);
@@ -180,7 +190,12 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCancel(int Fd) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileTrdCommit(int Fd) {
-    std::basic_string<wchar_t> Path;
+	int Res = 0, i;
+	WIN32_FILE_ATTRIBUTE_DATA info;
+	size_t SepPos;
+    std::basic_string<wchar_t> Path, DestPath, TempDestName;
+	static const wchar_t* Hidden = LQ_RECIVE_PARTIAL_MASK_WCHAR;
+
     {
         wchar_t Name[LQ_MAX_PATH];
         if(GetFinalPathNameByHandleW((HANDLE)Fd, Name, LQ_MAX_PATH, 0) == 0) {
@@ -190,23 +205,20 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCommit(int Fd) {
         Path = Name;
     }
 
-    std::basic_string<wchar_t> DestPath = Path;
-    auto SepPos = DestPath.find_last_of(LQ_PATH_SEPARATOR);
+    DestPath = Path;
+    SepPos = DestPath.find_last_of(LQ_PATH_SEPARATOR);
     DestPath.erase(SepPos + 1, sizeof(LQ_RECIVE_PARTIAL_MASK) - 1);
-    int Res = 0;
+    Res = 0;
     LqFileClose(Fd);
-    WIN32_FILE_ATTRIBUTE_DATA info;
     if(GetFileAttributesExW(DestPath.c_str(), GetFileExInfoStandard, &info) == TRUE)
         Res = 1;
     if(MoveFileExW(Path.c_str(), DestPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED) == FALSE) {
         if(GetLastError() == ERROR_ACCESS_DENIED) {
-            //If file busy by another thread or programm
-            std::basic_string<wchar_t> TempDestName;
-            unsigned i = 0;
+            /* If file busy by another thread or programm */
+            i = 0;
             for(; i < 3; i++) {
                 TempDestName = DestPath;
-                auto SepPos = TempDestName.find_last_of(LQ_PATH_SEPARATOR);
-                static const wchar_t* Hidden = LQ_RECIVE_PARTIAL_MASK_WCHAR;
+                SepPos = TempDestName.find_last_of(LQ_PATH_SEPARATOR);
                 TempDestName.insert(SepPos + 1, Hidden);
                 MakeTempName((wchar_t*)TempDestName.c_str());
                 if(MoveFileExW(DestPath.c_str(), TempDestName.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED) == TRUE)
@@ -242,7 +254,11 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCancel(int Fd) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileTrdCommit(int Fd) {
-    LqString Path;
+	LqString TempDestName,Path, DestPath;
+	int Res, i;
+	size_t SepPos;
+	static const char* Hidden = LQ_RECIVE_PARTIAL_MASK;
+
     {
         char Name[LQ_MAX_PATH];
         if(LqFileGetPath(Fd, Name, sizeof(Name)) == -1) {
@@ -252,22 +268,20 @@ LQ_EXTERN_C int LQ_CALL LqFileTrdCommit(int Fd) {
         Path = Name;
     }
 
-    LqString DestPath = Path;
-    auto SepPos = DestPath.find_last_of(LQ_PATH_SEPARATOR);
+    DestPath = Path;
+    SepPos = DestPath.find_last_of(LQ_PATH_SEPARATOR);
     DestPath.erase(SepPos + 1, sizeof(LQ_RECIVE_PARTIAL_MASK) - 1);
-    int Res = 0;
+    Res = 0;
     LqFileClose(Fd);
     if(LqFileGetStat(DestPath.c_str(), LqDfltPtr()) == 0)
         Res = 1;
     if(LqFileMove(Path.c_str(), DestPath.c_str()) != 0) {
         if(lq_errno == EACCES) {
             //If file busy by another thread or programm
-            LqString TempDestName;
-            unsigned i = 0;
+            i = 0;
             for(; i < 3; i++) {
                 TempDestName = DestPath;
-                auto SepPos = TempDestName.find_last_of(LQ_PATH_SEPARATOR);
-                static const char* Hidden = LQ_RECIVE_PARTIAL_MASK;
+                SepPos = TempDestName.find_last_of(LQ_PATH_SEPARATOR);
                 TempDestName.insert(SepPos + 1, Hidden);
                 MakeTempName((char*)TempDestName.c_str());
                 if(LqFileMove(DestPath.c_str(), TempDestName.c_str()) == 0)

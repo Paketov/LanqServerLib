@@ -34,8 +34,6 @@
     <ClCompile Include="..\Src\Protocols\Http\LqHttpMdlHandlers.cpp" />
     <ClCompile Include="..\Src\Protocols\Http\LqHttpPrs.cpp" />
     <ClCompile Include="..\Src\Protocols\Http\LqHttpPth.cpp" />
-    <ClCompile Include="..\Src\Protocols\Http\LqHttpRcv.cpp" />
-    <ClCompile Include="..\Src\Protocols\Http\LqHttpRsp.cpp" />
     <ClCompile Include="..\Src\Utils\LqConn.cpp" />
     <ClCompile Include="..\Src\Utils\LqCp.cpp" />
     <ClCompile Include="..\Src\Utils\LqErr.cpp" />
@@ -67,14 +65,11 @@
     <ClInclude Include="..\Src\Protocols\Http\LqHttp.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttp.hpp" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpAtz.h" />
-    <ClInclude Include="..\Src\Protocols\Http\LqHttpLogging.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpMdl.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpMdlHandlers.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpPrs.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpPth.h" />
     <ClInclude Include="..\Src\Protocols\Http\LqHttpPth.hpp" />
-    <ClInclude Include="..\Src\Protocols\Http\LqHttpRcv.h" />
-    <ClInclude Include="..\Src\Protocols\Http\LqHttpRsp.h" />
     <ClInclude Include="..\Src\Utils\LqAlloc.hpp" />
     <ClInclude Include="..\Src\Utils\LqAtm.hpp" />
     <ClInclude Include="..\Src\Utils\LqConn.h" />
