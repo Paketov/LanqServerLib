@@ -1,0 +1,3 @@
+ldmdl ReciverLog
+mdlcmd ReciverLog format IpSrcAddr TcpSrcPort IpDstAddr TcpDstPort TcpFlags UdpSrcPort UdpDstPort UdpLen PktData
+mdlcmd ReciverLog add_prt_range_proc 1-9999 E:\serv\rl_proc.bat

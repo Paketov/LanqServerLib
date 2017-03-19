@@ -1,0 +1,3 @@
+
+ldmdl RemoteTerminal
+mdlcmd RemoteTerminal start C:\users\andr\desktop\RemoteTerminal.html -d Andrew Passwordd

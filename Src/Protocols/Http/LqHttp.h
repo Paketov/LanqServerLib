@@ -90,6 +90,7 @@ typedef uint16_t LqHttpConnDataFlag;
 #define LQHTTPCONN_FLAG_LONG_POLL_OP ((LqHttpConnDataFlag)64)
 #define LQHTTPCONN_FLAG_MUST_DELETE ((LqHttpConnDataFlag)128)
 #define LQHTTPCONN_FLAG_IN_LONG_POLL_CLOSE_HANDLER ((LqHttpConnDataFlag)256)
+#define LQHTTPCONN_FLAG_AFTER_USER_HANDLER_CALLED ((LqHttpConnDataFlag)512)
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
@@ -447,7 +448,8 @@ LQ_IMPORTEXPORT unsigned short LQ_CALL LqHttpConnGetRemotePort(LqHttpConn* HttpC
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpConnGetLocIpStr(LqHttpConn* HttpConn, char* DestStr, size_t DestStrLen);
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpConnGetLocIp(LqHttpConn* HttpConn, LqConnAddr* AddrDest);
 /*
- Call LqHttpConnRspEndLongPoll in LongPollCloseHandler for release connection
+ Call LqHttpConnRspEndLongPoll in @LongPollCloseHandler for release connection
+	You can set @LongPollCloseHandler parametr in NULL for no close conn 
 */
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpConnRspBeginLongPoll(LqHttpConn* HttpConn, void (LQ_CALL *LongPollCloseHandler)(LqHttpConn*));
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpConnRspEndLongPoll(LqHttpConn* HttpConn);

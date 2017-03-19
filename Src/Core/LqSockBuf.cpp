@@ -18,8 +18,7 @@ typedef unsigned char RspFlag;
 
 #define LQSOCKBUF_FLAG_USED     ((unsigned char)1)
 #define LQSOCKBUF_FLAG_WORK     ((unsigned char)2)
-#define LQSOCKBUF_FLAG_AUTO_HDR ((unsigned char)4)
-#define LQSOCKBUF_FLAG_IN_HANDLER     ((unsigned char)8)
+#define LQSOCKBUF_FLAG_IN_HANDLER     ((unsigned char)4)
 
 #define LQRCV_FLAG_MATCH            ((RcvFlag)0x00)
 #define LQRCV_FLAG_READ_REGION      ((RcvFlag)0x01)
@@ -36,102 +35,143 @@ typedef unsigned char RspFlag;
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-typedef struct RspElement {
-    union {
-        struct {
-            LqFbuf Buf;
-            LqFileSz RspSize;
-        };
-        struct {
-            void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData);
-            void* UserData;
-        } Completion;
-    };
-    RspElement* Next;
+typedef struct RspElementHdr {
+    RspElementHdr* Next;
     RspFlag Flag;
-} RspElement;
+} RspElementHdr;
 
-typedef struct RcvElement {
-    struct {
-        struct {
-            char* Fmt;
-            int MatchCount;
-            size_t MaxSize;
-            void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData);
-        } Match;
-        struct {
-            void* Dest;
-            size_t Written;
-            size_t MaxSize;
-            void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* Dest, size_t Written, void* UserData);
-            bool IsPeek;
-        } ReadRegion;
-        struct {
-            LqFbuf* DestStream;
-            LqFileSz Size;
-            LqFileSz MaxSize;
-            void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, LqFbuf* DestStream, LqFileSz WrittenSz, void* UserData);
-        } RcvFbuf;
-        struct {
-            LqFbuf* DestStream;
-            char* Seq;
-            size_t SeqSize;
-            LqFileSz Size;
-            LqFileSz MaxSize;
-            void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, LqFbuf* DestStream, LqFileSz WrittenSz, void* UserData, bool IsFoundSeq);
-            bool IsCaseI;
-        } RcvFbufToSeq;
-        struct {
-            intptr_t(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData);
-        } PulseRead;
-        struct {
-            size_t Length;
-            void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData);
-        } WaitLen;
-        struct {
-            void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData);
-        } Completion;
-    };
-    void* Data;
-    RcvElement* Next;
+typedef struct RspElementCompletion {
+    RspElementHdr* Next;
+    RspFlag Flag;
+
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData);
+    void* UserData;
+} RspElementCompletion;
+
+typedef struct RspElementFbuf {
+    RspElementHdr* Next;
+    RspFlag Flag;
+
+    LqFbuf Buf;
+    LqFileSz RspSize;
+} RspElementFbuf;
+
+
+typedef struct RcvElementHdr {
+    RcvElementHdr* Next;
     RcvFlag Flag;
-} RcvElement;
+} RcvElementHdr;
+
+
+typedef struct RcvElementMatch {
+    RcvElementHdr* Next;
+    RcvFlag Flag;
+
+    char* Fmt;
+    int MatchCount;
+    size_t MaxSize;
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf*, void*);
+    void* Data;
+} RcvElementMatch;
+
+typedef struct RcvElementRegion {
+    RcvElementHdr* Next;
+    RcvFlag Flag;
+
+    void* Dest;
+    size_t Written;
+    size_t MaxSize;
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf*, void*, size_t, void*);
+    void* Data;
+    bool IsPeek;
+} RcvElementRegion;
+
+typedef struct RcvElementFbuf {
+    RcvElementHdr* Next;
+    RcvFlag Flag;
+
+    LqFbuf* DestStream;
+    LqFileSz Size;
+    LqFileSz MaxSize;
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf*, LqFbuf*, LqFileSz, void*);
+    void* Data;
+} RcvElementFbuf;
+
+typedef struct RcvElementFbufToSeq {
+    RcvElementHdr* Next;
+    RcvFlag Flag;
+
+    LqFbuf* DestStream;
+    char* Seq;
+    size_t SeqSize;
+    LqFileSz Size;
+    LqFileSz MaxSize;
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, LqFbuf* DestStream, LqFileSz WrittenSz, void* UserData, bool IsFoundSeq);
+    void* Data;
+    bool IsCaseI;
+} RcvElementFbufToSeq;
+
+typedef struct RcvElementPulseRead {
+    RcvElementHdr* Next;
+    RcvFlag Flag;
+
+    intptr_t(LQ_CALL*CompleteOrCancelProc)(LqSockBuf*, void*);
+    void* Data;
+} RcvElementPulseRead;
+
+typedef struct RcvElementWaitLen {
+    RcvElementHdr* Next;
+    RcvFlag Flag;
+
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData);
+    size_t Length;
+    void* Data;
+} RcvElementWaitLen;
+
+typedef struct RcvElementCompletion {
+    RcvElementHdr* Next;
+    RcvFlag Flag;
+
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf*, void*);
+    void* Data;
+} RcvElementCompletion;
+
 #pragma pack(pop)
 
-static void LQ_CALL _RecvOrSendHandler(LqConn* Connection, LqEvntFlag RetFlags);
-static void LQ_CALL _CloseHandler(LqConn* Conn);
-static bool LQ_CALL _CmpAddressProc(LqConn* Conn, const void* Address);
+static void LQ_CALL _LqSockBufRecvOrSendHandler(LqConn* Connection, LqEvntFlag RetFlags);
+static void LQ_CALL _LqSockBufCloseHandler(LqConn* Conn);
+static bool LQ_CALL _LqSockBufCmpAddressProc(LqConn* Conn, const void* Address);
 
-static bool LQ_CALL _KickByTimeOutProc(
+static bool LQ_CALL _LqSockBufKickByTimeOutProc(
     LqConn*        Connection,
     LqTimeMillisec CurrentTimeMillisec,
     LqTimeMillisec EstimatedLiveTime
 );
 
-static char* LQ_CALL _DebugInfoProc(LqConn* Conn);
+static char* LQ_CALL _LqSockBufDebugInfoProc(LqConn* Conn);
 
-static void LQ_CALL _AcceptorAcceptHandler(LqConn* Connection, LqEvntFlag RetFlags);
-static void LQ_CALL _AcceptorCloseHandler(LqConn* Conn);
-static bool LQ_CALL _AcceptorCmpAddressProc(LqConn* Conn, const void* Address);
+static void LQ_CALL _LqSockAcceptorAcceptHandler(LqConn* Connection, LqEvntFlag RetFlags);
+static void LQ_CALL _LqSockAcceptorCloseHandler(LqConn* Conn);
+static bool LQ_CALL _LqSockAcceptorCmpAddressProc(LqConn* Conn, const void* Address);
 
-static bool LQ_CALL _AcceptorKickByTimeOutProc(
+static bool LQ_CALL _LqSockAcceptorKickByTimeOutProc(
     LqConn*        Connection,
     LqTimeMillisec CurrentTimeMillisec,
     LqTimeMillisec EstimatedLiveTime
 );
 
-static char* LQ_CALL _AcceptorDebugInfoProc(LqConn* Conn);
+static char* LQ_CALL _LqSockAcceptorDebugInfoProc(LqConn* Conn);
 
 LqProto ___SockBufProto = {
     NULL,
     32750,
     32750,
     32750,
-    _RecvOrSendHandler,
-    _CloseHandler,
-    _CmpAddressProc,
-    _KickByTimeOutProc,
-    _DebugInfoProc
+    _LqSockBufRecvOrSendHandler,
+    _LqSockBufCloseHandler,
+    _LqSockBufCmpAddressProc,
+    _LqSockBufKickByTimeOutProc,
+    _LqSockBufDebugInfoProc
 };
 
 static LqProto _AcceptorProto = {
@@ -139,11 +179,11 @@ static LqProto _AcceptorProto = {
     0,
     0,
     0,
-    _AcceptorAcceptHandler,
-    _AcceptorCloseHandler,
-    _AcceptorCmpAddressProc,
-    _AcceptorKickByTimeOutProc,
-    _AcceptorDebugInfoProc
+    _LqSockAcceptorAcceptHandler,
+    _LqSockAcceptorCloseHandler,
+    _LqSockAcceptorCmpAddressProc,
+    _LqSockAcceptorKickByTimeOutProc,
+    _LqSockAcceptorDebugInfoProc
 };
 
 static intptr_t LQ_CALL _SockWriteProc(LqFbuf* Context, char* Buf, size_t Size) {
@@ -155,8 +195,8 @@ static intptr_t LQ_CALL _SockWriteProc(LqFbuf* Context, char* Buf, size_t Size) 
         Context->Flags |= LQFBUF_WRITE_WOULD_BLOCK;
         return -((intptr_t)1);
     }
-    if((Written = send((int)Context->UserData, Buf, Size, 0)) == -1) {
-        Context->Flags |= ((LQERR_IS_WOULD_BLOCK) ? LQFBUF_WRITE_WOULD_BLOCK : LQFBUF_WRITE_ERROR);
+    if((Written = send((int)Context->UserData, Buf, Size, 0)) <= 0) {
+        Context->Flags |= (((LQERR_IS_WOULD_BLOCK) || (Written == 0)) ? LQFBUF_WRITE_WOULD_BLOCK : LQFBUF_WRITE_ERROR);
         return -((intptr_t)1);
     }
     SockBuf->RWPortion -= Written;
@@ -173,8 +213,8 @@ static intptr_t LQ_CALL _SockReadProc(LqFbuf* Context, char* Buf, size_t Size) {
         Context->Flags |= LQFBUF_READ_WOULD_BLOCK;
         return -((intptr_t)1);
     }
-    if((Readed = recv((int)Context->UserData, Buf, Size, 0)) == -1) {
-        Context->Flags |= ((LQERR_IS_WOULD_BLOCK) ? LQFBUF_READ_WOULD_BLOCK : LQFBUF_READ_ERROR);
+    if((Readed = recv((int)Context->UserData, Buf, Size, 0)) <= 0) {
+        Context->Flags |= (((LQERR_IS_WOULD_BLOCK) || (Readed == 0)) ? LQFBUF_READ_WOULD_BLOCK : LQFBUF_READ_ERROR);
         return -((intptr_t)1);
     }
     SockBuf->RWPortion -= Readed;
@@ -327,62 +367,67 @@ static LqFbufCookie _SslCookie = {
     _SslCloseProc
 };
 
-static LqFbuf* _LqSockBufGetLastWriteStream(LqSockBuf* SockBuf) {
-    RspElement* NewStream;
+static RspElementFbuf* _LqSockBufGetLastWriteStream(LqSockBuf* SockBuf) {
+    RspElementFbuf* NewStream;
     if((SockBuf->Rsp.Last == NULL) ||
-       !(((RspElement*)SockBuf->Rsp.Last)->Buf.Flags & LQFBUF_STREAM) ||
+        (((RspElementHdr*)SockBuf->Rsp.Last)->Flag != LQRSP_FLAG_BUF) ||
+       !(((RspElementFbuf*)SockBuf->Rsp.Last)->Buf.Flags & LQFBUF_STREAM) ||
        ((SockBuf->RspHeader != NULL) && (SockBuf->Rsp.Last == SockBuf->RspHeader))
        ) {
-        if((NewStream = LqFastAlloc::New<RspElement>()) == NULL)
+        if((NewStream = LqFastAlloc::New<RspElementFbuf>()) == NULL)
             return NULL;
         NewStream->Flag = LQRSP_FLAG_BUF;
         LqFbuf_stream(&NewStream->Buf);
         NewStream->RspSize = -((LqFileSz)1);
-        LqListAdd(&SockBuf->Rsp, NewStream, RspElement);
+        LqListAdd(&SockBuf->Rsp, NewStream, RspElementHdr);
     }
-    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR))
-        LqEvntSetFlags(SockBuf, (LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD) | (LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
-    return &((RspElement*)SockBuf->Rsp.Last)->Buf;
+    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR))
+        LqClientSetFlags(SockBuf, (LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD) | (LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
+    return (RspElementFbuf*)SockBuf->Rsp.Last;
 }
 
-static LqFbuf* _LqSockBufWriteFile(LqSockBuf* SockBuf, int Fd, LqFileSz Size) {
-    RspElement* NewStream = NULL;
-    if((NewStream = LqFastAlloc::New<RspElement>()) == NULL)
+static RspElementFbuf* _LqSockBufWriteFile(LqSockBuf* SockBuf, int Fd, LqFileSz Size) {
+    RspElementFbuf* NewStream = NULL;
+    if((NewStream = LqFastAlloc::New<RspElementFbuf>()) == NULL)
         return NULL;
     NewStream->Flag = LQRSP_FLAG_BUF;
     LqFbuf_fdopen(&NewStream->Buf, LQFBUF_FAST_LK, Fd, ((intptr_t)0), ((intptr_t)4096), ((intptr_t)32768));
     NewStream->RspSize = Size;
-    LqListAdd(&SockBuf->Rsp, NewStream, RspElement);
-    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR))
-        LqEvntSetFlags(SockBuf, (LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD) | (LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
-    return &NewStream->Buf;
+    LqListAdd(&SockBuf->Rsp, NewStream, RspElementHdr);
+    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR))
+        LqClientSetFlags(SockBuf, (LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD) | (LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
+    return NewStream;
 }
 
-static LqFbuf* _LqSockBufWriteVirtFile(LqSockBuf* SockBuf, LqFbuf* File, LqFileSz Size) {
-    RspElement* NewStream;
-    if((NewStream = LqFastAlloc::New<RspElement>()) == NULL)
+static RspElementFbuf* _LqSockBufWriteVirtFile(LqSockBuf* SockBuf, LqFbuf* File, LqFileSz Size) {
+    RspElementFbuf* NewStream;
+    if((NewStream = LqFastAlloc::New<RspElementFbuf>()) == NULL)
         return NULL;
     NewStream->Flag = LQRSP_FLAG_BUF;
     if(LqFbuf_copy(&NewStream->Buf, File) < ((intptr_t)0))
         goto lblErr;
     NewStream->RspSize = Size;
-    LqListAdd(&SockBuf->Rsp, NewStream, RspElement);
-    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR))
-        LqEvntSetFlags(SockBuf, (LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD) | (LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
-    return &NewStream->Buf;
+    LqListAdd(&SockBuf->Rsp, NewStream, RspElementHdr);
+    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR))
+        LqClientSetFlags(SockBuf, (LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD) | (LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
+    return NewStream;
 lblErr:
     LqFastAlloc::Delete(NewStream);
     return NULL;
 }
 static bool _LqSockBufRspClear(LqSockBuf* SockBuf) {
-    RspElement* Buf, *Next;
-    for(Buf = ((RspElement*)SockBuf->Rsp.First); Buf != NULL; Buf = Next) {
-        if(Buf->Flag != LQRSP_FLAG_COMPLETION_PROC)
-            LqFbuf_close(&Buf->Buf);
-        else if(Buf->Completion.CompleteOrCancelProc)
-            Buf->Completion.CompleteOrCancelProc(NULL, Buf->Completion.UserData);
-        Next = Buf->Next;
-        LqFastAlloc::Delete(Buf);
+    RspElementHdr* Buf, *Next;
+    for(Buf = ((RspElementHdr*)SockBuf->Rsp.First); Buf != NULL; Buf = Next) {
+        if(Buf->Flag != LQRSP_FLAG_COMPLETION_PROC) {
+            LqFbuf_close(&((RspElementFbuf*)Buf)->Buf);
+            Next = Buf->Next;
+            LqFastAlloc::Delete(((RspElementFbuf*)Buf));
+        } else {
+            if(((RspElementCompletion*)Buf)->CompleteOrCancelProc)
+                ((RspElementCompletion*)Buf)->CompleteOrCancelProc(NULL, ((RspElementCompletion*)Buf)->UserData);
+            Next = Buf->Next;
+            LqFastAlloc::Delete(((RspElementCompletion*)Buf));
+        }
     }
     LqListInit(&SockBuf->Rsp);
     SockBuf->RspHeader = NULL;
@@ -390,49 +435,77 @@ static bool _LqSockBufRspClear(LqSockBuf* SockBuf) {
 }
 
 static bool _LqSockBufRcvClear(LqSockBuf* SockBuf) {
-    RcvElement* Buf, *Next;
+    RcvElementHdr* Buf, *Next;
     bool Queue1 = true;
-    Buf = (RcvElement*)SockBuf->Rcv.First;
+    Buf = (RcvElementHdr*)SockBuf->Rcv.First;
 lblAgain:
     for(; Buf != NULL; Buf = Next) {
         switch(Buf->Flag) {
             case LQRCV_FLAG_MATCH:
-                free(Buf->Match.Fmt);
-                if(Buf->Match.CompleteOrCancelProc)
-                    Buf->Match.CompleteOrCancelProc(NULL, Buf->Data);
+                free(((RcvElementMatch*)Buf)->Fmt);
+                if(((RcvElementMatch*)Buf)->CompleteOrCancelProc)
+                    ((RcvElementMatch*)Buf)->CompleteOrCancelProc(NULL, ((RcvElementMatch*)Buf)->Data);
+                Next = ((RcvElementMatch*)Buf)->Next;
+                LqFastAlloc::Delete((RcvElementMatch*)Buf);
                 break;
             case LQRCV_FLAG_RECV_IN_FBUF:
-                if(Buf->RcvFbuf.CompleteOrCancelProc)
-                    Buf->RcvFbuf.CompleteOrCancelProc(NULL, Buf->RcvFbuf.DestStream, Buf->RcvFbuf.MaxSize - Buf->RcvFbuf.Size, Buf->Data);
+                if(((RcvElementFbuf*)Buf)->CompleteOrCancelProc)
+                    ((RcvElementFbuf*)Buf)->CompleteOrCancelProc(
+                        NULL, 
+                        ((RcvElementFbuf*)Buf)->DestStream,
+                        ((RcvElementFbuf*)Buf)->MaxSize - ((RcvElementFbuf*)Buf)->Size,
+                        ((RcvElementFbuf*)Buf)->Data
+                    );
+                Next = ((RcvElementFbuf*)Buf)->Next;
+                LqFastAlloc::Delete((RcvElementFbuf*)Buf);
                 break;
             case LQRCV_FLAG_RECV_IN_FBUF_TO_SEQ:
-                free(Buf->RcvFbufToSeq.Seq);
-                if(Buf->RcvFbufToSeq.CompleteOrCancelProc)
-                    Buf->RcvFbufToSeq.CompleteOrCancelProc(NULL, Buf->RcvFbufToSeq.DestStream, Buf->RcvFbufToSeq.MaxSize - Buf->RcvFbufToSeq.Size, Buf->Data, false);
+                free(((RcvElementFbufToSeq*)Buf)->Seq);
+                if(((RcvElementFbufToSeq*)Buf)->CompleteOrCancelProc)
+                    ((RcvElementFbufToSeq*)Buf)->CompleteOrCancelProc(
+                        NULL,
+                        ((RcvElementFbufToSeq*)Buf)->DestStream,
+                        ((RcvElementFbufToSeq*)Buf)->MaxSize - ((RcvElementFbufToSeq*)Buf)->Size,
+                        ((RcvElementFbufToSeq*)Buf)->Data,
+                        false
+                    );
+                Next = ((RcvElementFbufToSeq*)Buf)->Next;
+                LqFastAlloc::Delete((RcvElementFbufToSeq*)Buf);
                 break;
             case LQRCV_FLAG_READ_REGION:
-                if(Buf->ReadRegion.CompleteOrCancelProc)
-                    Buf->ReadRegion.CompleteOrCancelProc(NULL, Buf->ReadRegion.Dest, Buf->ReadRegion.Written, Buf->Data);
+                if(((RcvElementRegion*)Buf)->CompleteOrCancelProc)
+                    ((RcvElementRegion*)Buf)->CompleteOrCancelProc(
+                        NULL, 
+                        ((RcvElementRegion*)Buf)->Dest,
+                        ((RcvElementRegion*)Buf)->Written,
+                        ((RcvElementRegion*)Buf)->Data
+                    );
+                Next = ((RcvElementRegion*)Buf)->Next;
+                LqFastAlloc::Delete((RcvElementRegion*)Buf);
                 break;
             case LQRCV_FLAG_COMPLETION_PROC:
-                if(Buf->Completion.CompleteOrCancelProc)
-                    Buf->Completion.CompleteOrCancelProc(NULL, Buf->Data);
+                if(((RcvElementCompletion*)Buf)->CompleteOrCancelProc)
+                    ((RcvElementCompletion*)Buf)->CompleteOrCancelProc(NULL, ((RcvElementCompletion*)Buf)->Data);
+                Next = ((RcvElementCompletion*)Buf)->Next;
+                LqFastAlloc::Delete((RcvElementCompletion*)Buf);
                 break;
             case LQRCV_FLAG_RECV_PULSE_READ:
-                if(Buf->PulseRead.CompleteOrCancelProc)
-                    Buf->PulseRead.CompleteOrCancelProc(NULL, Buf->Data);
+                if(((RcvElementPulseRead*)Buf)->CompleteOrCancelProc)
+                    ((RcvElementPulseRead*)Buf)->CompleteOrCancelProc(NULL, ((RcvElementPulseRead*)Buf)->Data);
+                Next = ((RcvElementPulseRead*)Buf)->Next;
+                LqFastAlloc::Delete((RcvElementPulseRead*)Buf);
                 break;
             case LQRCV_FLAG_WAIT_LENGTH:
-                if(Buf->WaitLen.CompleteOrCancelProc)
-                    Buf->WaitLen.CompleteOrCancelProc(NULL, Buf->Data);
+                if(((RcvElementWaitLen*)Buf)->CompleteOrCancelProc)
+                    ((RcvElementWaitLen*)Buf)->CompleteOrCancelProc(NULL, ((RcvElementWaitLen*)Buf)->Data);
+                Next = ((RcvElementWaitLen*)Buf)->Next;
+                LqFastAlloc::Delete((RcvElementWaitLen*)Buf);
                 break;
         }
-        Next = Buf->Next;
-        LqFastAlloc::Delete(Buf);
     }
     if(Queue1) {
         Queue1 = false;
-        Buf = (RcvElement*)SockBuf->Rcv2.First;
+        Buf = ((RcvElementHdr*)SockBuf->Rcv2.First);
         goto lblAgain;
     }
     LqListInit(&SockBuf->Rcv);
@@ -474,6 +547,18 @@ static void _SockBufUnlock(LqSockBuf* SockBuf) {
         }
     }
     LqAtmUlkWr(SockBuf->Lk);
+}
+
+static LqEvntFlag _LqSockBufGetEvntFlags(LqSockBuf* SockBuf) {
+    size_t OutputBufferSize = 0;
+    LqEvntFlag ConnFlag = LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP;
+    LqFbuf_sizes(&SockBuf->Stream, &OutputBufferSize, NULL);
+    if((((SockBuf->RspHeader == NULL) || (SockBuf->RspHeader != LqListFirst(&SockBuf->Rsp, RspElementHdr))) &&
+        (LqListFirst(&SockBuf->Rsp, RspElementHdr) != NULL)) || (OutputBufferSize > 0))
+        ConnFlag |= LQEVNT_FLAG_WR;
+
+    if((LqListFirst(&SockBuf->Rcv, RcvElementHdr) != NULL) || (LqListFirst(&SockBuf->Rcv2, RcvElementHdr) != NULL))
+        ConnFlag |= LQEVNT_FLAG_RD;
 }
 
 LQ_EXTERN_C LqSockBuf* LQ_CALL LqSockBufCreate(int SockFd, void* UserData) {
@@ -550,6 +635,7 @@ LQ_EXTERN_C LqSockBuf* LQ_CALL LqSockBufCreateSsl(int SockFd, void* SslCtx, bool
     NewBuf->ErrHandler = NULL;
     NewBuf->CloseHandler = NULL;
     NewBuf->Cache = NULL;
+    NewBuf->RspHeader = NULL;
     NewBuf->ReadOffset = NewBuf->WriteOffset = ((int64_t)0);
 
     LqAtmLkInit(NewBuf->Lk);
@@ -576,14 +662,14 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufDelete(LqSockBuf* SockBuf) {
     SockBuf->ErrHandler = NULL;
     SockBuf->Flags &= ~LQSOCKBUF_FLAG_USED;
     if(SockBuf->Flags & LQSOCKBUF_FLAG_WORK)
-        LqEvntSetClose(SockBuf);
+        LqClientSetClose(SockBuf);
     _SockBufUnlock(SockBuf);
     return true;
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufSetClose(LqSockBuf* SockBuf) {
     _SockBufLock(SockBuf);
-    LqEvntSetClose(SockBuf);
+    LqClientSetClose(SockBuf);
     _SockBufUnlock(SockBuf);
     return true;
 }
@@ -619,12 +705,6 @@ LQ_EXTERN_C LqFche* LQ_CALL LqSockBufGetInstanceCache(LqSockBuf* SockBuf) {
         Ret = LqFcheCopy(SockBuf->Cache);
     _SockBufUnlock(SockBuf);
     return Ret;
-}
-LQ_EXTERN_C void LQ_CALL LqSockBufSetAutoHdr(LqSockBuf* SockBuf, bool Val) {
-    if(Val)
-        SockBuf->Flags |= LQSOCKBUF_FLAG_AUTO_HDR;
-    else
-        SockBuf->Flags &= ~LQSOCKBUF_FLAG_AUTO_HDR;
 }
 
 LQ_EXTERN_C void LQ_CALL LqSockBufRcvResetCount(LqSockBuf* SockBuf) {
@@ -677,13 +757,13 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufGoWork(LqSockBuf* SockBuf, void* WrkBoss) {
     _SockBufLock(SockBuf);
     if(SockBuf->Flags & LQSOCKBUF_FLAG_WORK)
         goto lblOut;
-    LqEvntSetFlags(&SockBuf->Conn, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD | LQEVNT_FLAG_WR, 0);
-    if(LqEvntAdd(&SockBuf->Conn, WrkBoss)) {
+    LqClientSetFlags(&SockBuf->Conn, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD | LQEVNT_FLAG_WR, 0);
+    if(LqClientAdd(&SockBuf->Conn, WrkBoss)) {
         SockBuf->Flags |= LQSOCKBUF_FLAG_WORK;
         Res = true;
         LqFbuf_sizes(&SockBuf->Stream, NULL, &InBufSize);
         if(InBufSize > 0)
-            _RecvOrSendHandler(&SockBuf->Conn, LQEVNT_FLAG_RD);
+            _LqSockBufRecvOrSendHandler(&SockBuf->Conn, LQEVNT_FLAG_RD);
         goto lblOut;
     }
 lblOut:
@@ -694,28 +774,26 @@ lblOut:
 LQ_EXTERN_C bool LQ_CALL LqSockBufInterruptWork(LqSockBuf* SockBuf) {
     bool Res;
     _SockBufLock(SockBuf);
-    if(Res = LqEvntSetRemove3(&SockBuf->Conn))
+    if(Res = LqClientSetRemove3(&SockBuf->Conn))
         SockBuf->Flags &= ~LQSOCKBUF_FLAG_WORK;
     _SockBufUnlock(SockBuf);
     return Res;
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufRspNotifyCompletion(LqSockBuf* SockBuf, void* UserData, void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf*, void*)) {
-    RspElement* NewStream;
-    bool Res = false;
-    _SockBufLock(SockBuf);
-    if((NewStream = LqFastAlloc::New<RspElement>()) == NULL)
-        goto lblOut;
+    RspElementCompletion* NewStream;
+    if((NewStream = LqFastAlloc::New<RspElementCompletion>()) == NULL)
+        return false;
     NewStream->Flag = LQRSP_FLAG_COMPLETION_PROC;
-    NewStream->Completion.CompleteOrCancelProc = CompleteOrCancelProc;
-    NewStream->Completion.UserData = UserData;
-    LqListAdd(&SockBuf->Rsp, NewStream, RspElement);
-    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR))
-        LqEvntSetFlags(SockBuf, (LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD) | (LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
-    Res = true;
-lblOut:
+    NewStream->CompleteOrCancelProc = CompleteOrCancelProc;
+    NewStream->UserData = UserData;
+    
+    _SockBufLock(SockBuf);
+    LqListAdd(&SockBuf->Rsp, NewStream, RspElementHdr);
+    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR))
+        LqClientSetFlags(SockBuf, (LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD) | (LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
     _SockBufUnlock(SockBuf);
-    return Res;
+    return true;
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufRspFile(LqSockBuf* SockBuf, const char* Path) {
@@ -724,7 +802,7 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRspFile(LqSockBuf* SockBuf, const char* Path) 
     _SockBufLock(SockBuf);
     if(SockBuf->Cache != NULL) {
         if(LqFcheUpdateAndRead(SockBuf->Cache, Path, &VirtFile))
-            Res = _LqSockBufWriteVirtFile(SockBuf, &VirtFile, -1);
+            Res = _LqSockBufWriteVirtFile(SockBuf, &VirtFile, -((LqFileSz)1));
         else
             goto lblOpen;
     } else {
@@ -774,7 +852,7 @@ lblOut:
 LQ_EXTERN_C bool LQ_CALL LqSockBufRspFbuf(LqSockBuf* SockBuf, LqFbuf* File, LqFileSz Size) {
     bool Res = false;
     _SockBufLock(SockBuf);
-    if((Size == -1) && !(File->Flags & (LQFBUF_POINTER | LQFBUF_STREAM))) {
+    if((Size == -((LqFileSz)1)) && !(File->Flags & (LQFBUF_POINTER | LQFBUF_STREAM))) {
         lq_errno_set(EINVAL);
         goto lblOut;
     }
@@ -812,52 +890,40 @@ LQ_EXTERN_C intptr_t LQ_CALL LqSockBufPrintf(LqSockBuf* SockBuf, bool IsHdr, con
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqSockBufPrintfVa(LqSockBuf* SockBuf, bool IsHdr, const char* Fmt, va_list Va) {
-    intptr_t Res = -1;
-    LqFbuf* Stream;
+    intptr_t Res = -((intptr_t)1);
+    RspElementFbuf* Stream;
     _SockBufLock(SockBuf);
     if(IsHdr) {
-        if((Stream = (LqFbuf*)SockBuf->RspHeader) == NULL) {
-            if(SockBuf->Flags & LQSOCKBUF_FLAG_AUTO_HDR) {
-                if((Stream = _LqSockBufGetLastWriteStream(SockBuf)) == NULL) {
-                    lq_errno_set(ENOMEM);
-                    goto lblOut;
-                }
-                SockBuf->RspHeader = Stream;
-            } else {
-                goto lblOut;
-            }
+        if((Stream = (RspElementFbuf*)SockBuf->RspHeader) == NULL) {
+            lq_errno_set(ENODATA);
+            SockBuf->RspHeader = Stream;
+            goto lblOut;
         }
     } else {
         if((Stream = _LqSockBufGetLastWriteStream(SockBuf)) == NULL)
             goto lblOut;
     }
-    Res = LqFbuf_vprintf(Stream, Fmt, Va);
+    Res = LqFbuf_vprintf(&Stream->Buf, Fmt, Va);
 lblOut:
     _SockBufUnlock(SockBuf);
     return Res;
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqSockBufWrite(LqSockBuf* SockBuf, bool IsHdr, const void* Data, size_t SizeData) {
-    intptr_t Res = -1;
-    LqFbuf* Stream;
+    intptr_t Res = -((intptr_t)1);
+    RspElementFbuf* Stream;
     _SockBufLock(SockBuf);
     if(IsHdr) {
-        if((Stream = (LqFbuf*)SockBuf->RspHeader) == NULL) {
-            if(SockBuf->Flags & LQSOCKBUF_FLAG_AUTO_HDR) {
-                if((Stream = _LqSockBufGetLastWriteStream(SockBuf)) == NULL) {
-                    lq_errno_set(ENOMEM);
-                    goto lblOut;
-                }
-                SockBuf->RspHeader = Stream;
-            } else {
-                goto lblOut;
-            }
+        if((Stream = (RspElementFbuf*)SockBuf->RspHeader) == NULL) {
+            lq_errno_set(ENODATA);
+            SockBuf->RspHeader = Stream;
+            goto lblOut;
         }
     } else {
         if((Stream = _LqSockBufGetLastWriteStream(SockBuf)) == NULL)
             goto lblOut;
     }
-    Res = LqFbuf_write(Stream, Data, SizeData);
+    Res = LqFbuf_write(&Stream->Buf, Data, SizeData);
 lblOut:
     _SockBufUnlock(SockBuf);
     return Res;
@@ -872,20 +938,24 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRspClear(LqSockBuf* SockBuf) {
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufRspClearAfterHdr(LqSockBuf* SockBuf) {
-    RspElement* Buf, *Next;
+    RspElementHdr* Buf, *Next;
     _SockBufLock(SockBuf);
-    for(Buf = SockBuf->RspHeader ? ((RspElement*)SockBuf->RspHeader)->Next : ((RspElement*)SockBuf->Rsp.First); Buf != NULL; Buf = Next) {
-        if(Buf->Flag != LQRSP_FLAG_COMPLETION_PROC)
-            LqFbuf_close(&Buf->Buf);
-        else if(Buf->Completion.CompleteOrCancelProc)
-            Buf->Completion.CompleteOrCancelProc(NULL, Buf->Completion.UserData);
-        Next = Buf->Next;
-        LqFastAlloc::Delete(Buf);
+    for(Buf = SockBuf->RspHeader ? ((RspElementHdr*)SockBuf->RspHeader)->Next : ((RspElementHdr*)SockBuf->Rsp.First); Buf != NULL; Buf = Next) {
+        if(Buf->Flag != LQRSP_FLAG_COMPLETION_PROC) {
+            LqFbuf_close(&((RspElementFbuf*)Buf)->Buf);
+            Next = Buf->Next;
+            LqFastAlloc::Delete(((RspElementFbuf*)Buf));
+        } else {
+            if(((RspElementCompletion*)Buf)->CompleteOrCancelProc)
+                ((RspElementCompletion*)Buf)->CompleteOrCancelProc(NULL, ((RspElementCompletion*)Buf)->UserData);
+            Next = Buf->Next;
+            LqFastAlloc::Delete(((RspElementCompletion*)Buf));
+        }
     }
     if(SockBuf->RspHeader == NULL) {
         LqListInit(&SockBuf->Rsp);
     } else {
-        ((RspElement*)SockBuf->RspHeader)->Next = NULL;
+        ((RspElementHdr*)SockBuf->RspHeader)->Next = NULL;
         SockBuf->Rsp.Last = SockBuf->RspHeader;
     }
     _SockBufUnlock(SockBuf);
@@ -893,7 +963,7 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRspClearAfterHdr(LqSockBuf* SockBuf) {
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufRspSetHdr(LqSockBuf* SockBuf) {
-    LqFbuf* Stream;
+    RspElementFbuf* Stream;
     bool Res = false;
     _SockBufLock(SockBuf);
     if(SockBuf->RspHeader == NULL) {
@@ -913,14 +983,18 @@ lblOut:
 }
 
 LQ_EXTERN_C void LQ_CALL LqSockBufRspUnsetHdr(LqSockBuf* SockBuf) {
+    size_t OutputBufferSize = 0;
     _SockBufLock(SockBuf);
     SockBuf->RspHeader = NULL;
+    LqFbuf_sizes(&SockBuf->Stream, &OutputBufferSize, NULL);
+    if((LqListFirst(&SockBuf->Rsp, RspElementHdr) != NULL) || (OutputBufferSize > 0))
+        LqClientSetFlags(&SockBuf->Conn, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD | LQEVNT_FLAG_WR, 0);
     _SockBufUnlock(SockBuf);
 }
 
 LQ_EXTERN_C LqFileSz LQ_CALL LqSockBufRspLen(LqSockBuf* SockBuf, bool IsHdr) {
-    RspElement* Buf;
-    LqFileSz Res = 0, b;
+    RspElementHdr* Buf;
+    LqFileSz Res = ((LqFileSz)0), b;
     LqFileStat FileStat;
     size_t a;
     int Fd;
@@ -928,24 +1002,24 @@ LQ_EXTERN_C LqFileSz LQ_CALL LqSockBufRspLen(LqSockBuf* SockBuf, bool IsHdr) {
     _SockBufLock(SockBuf);
     if(IsHdr) {
         if(SockBuf->RspHeader) {
-            Buf = (RspElement*)SockBuf->RspHeader;
-            if(Buf->Buf.Flags & (LQFBUF_POINTER | LQFBUF_STREAM)) {
-                Res = LqFbuf_sizes(&Buf->Buf, NULL, NULL);
+            Buf = (RspElementHdr*)SockBuf->RspHeader;
+            if(((RspElementFbuf*)Buf)->Buf.Flags & (LQFBUF_POINTER | LQFBUF_STREAM)) {
+                Res = LqFbuf_sizes(&((RspElementFbuf*)Buf)->Buf, NULL, NULL);
             }
         }
     } else {
-        for(Buf = SockBuf->RspHeader ? ((RspElement*)SockBuf->RspHeader)->Next : ((RspElement*)SockBuf->Rsp.First);
+        for(Buf = SockBuf->RspHeader ? ((RspElementHdr*)SockBuf->RspHeader)->Next : ((RspElementHdr*)SockBuf->Rsp.First);
             Buf != NULL;
             Buf = Buf->Next) {
             if(Buf->Flag == LQRSP_FLAG_COMPLETION_PROC)
                 continue;
-            if(Buf->RspSize >= 0) {
-                Res += Buf->RspSize;
-            } else if(Buf->Buf.Flags & (LQFBUF_POINTER | LQFBUF_STREAM)) {
-                Res += LqFbuf_sizes(&Buf->Buf, NULL, NULL);
+            if(((RspElementFbuf*)Buf)->RspSize >= 0) {
+                Res += ((RspElementFbuf*)Buf)->RspSize;
+            } else if(((RspElementFbuf*)Buf)->Buf.Flags & (LQFBUF_POINTER | LQFBUF_STREAM)) {
+                Res += LqFbuf_sizes(&((RspElementFbuf*)Buf)->Buf, NULL, NULL);
             } else {
-                LqFbuf_sizes(&Buf->Buf, NULL, &a);
-                Fd = (int)Buf->Buf.UserData;
+                LqFbuf_sizes(&((RspElementFbuf*)Buf)->Buf, NULL, &a);
+                Fd = (int)((RspElementFbuf*)Buf)->Buf.UserData;
                 b = LqFileTell(Fd);
                 if(b < 0) {
                     Res += a;
@@ -1007,25 +1081,23 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRcvNotifyCompletion(
     void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData),
     bool IsSecondQueue
 ) {
-    bool Res = false;
-    RcvElement* NewStream;
-    _SockBufLock(SockBuf);
-    if((NewStream = LqFastAlloc::New<RcvElement>()) == NULL)
-        goto lblOut;
+    RcvElementCompletion* NewStream;
+    if((NewStream = LqFastAlloc::New<RcvElementCompletion>()) == NULL)
+        return false; 
     NewStream->Flag = LQRCV_FLAG_COMPLETION_PROC;
-    NewStream->Completion.CompleteOrCancelProc = CompleteOrCancelProc;
+    NewStream->CompleteOrCancelProc = CompleteOrCancelProc;
     NewStream->Data = UserData;
+
+    _SockBufLock(SockBuf);
     if(IsSecondQueue) {
-        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElementHdr);
     } else {
-        LqListAdd(&SockBuf->Rcv, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv, NewStream, RcvElementHdr);
     }
-    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
-        LqEvntSetFlags(SockBuf, (LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
-    Res = true;
-lblOut:
+    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
+        LqClientSetFlags(SockBuf, (LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
     _SockBufUnlock(SockBuf);
-    return Res;
+    return true;
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufRcvNotifyWhenMatch(
@@ -1037,28 +1109,26 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRcvNotifyWhenMatch(
     size_t MaxSize,
     bool IsSecondQueue
 ) {
-    bool Res = false;
-    RcvElement* NewStream;
-    _SockBufLock(SockBuf);
-    if((NewStream = LqFastAlloc::New<RcvElement>()) == NULL)
-        goto lblOut;
+    RcvElementMatch* NewStream;
+    if((NewStream = LqFastAlloc::New<RcvElementMatch>()) == NULL)
+        return false;
     NewStream->Flag = LQRCV_FLAG_MATCH;
-    NewStream->Match.Fmt = LqStrDuplicate(Fmt);
-    NewStream->Match.MatchCount = MatchCount;
-    NewStream->Match.MaxSize = MaxSize;
-    NewStream->Match.CompleteOrCancelProc = CompleteOrCancelProc;
+    NewStream->Fmt = LqStrDuplicate(Fmt);
+    NewStream->MatchCount = MatchCount;
+    NewStream->MaxSize = MaxSize;
+    NewStream->CompleteOrCancelProc = CompleteOrCancelProc;
     NewStream->Data = UserData;
+    
+    _SockBufLock(SockBuf);
     if(IsSecondQueue) {
-        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElementHdr);
     } else {
-        LqListAdd(&SockBuf->Rcv, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv, NewStream, RcvElementHdr);
     }
-    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
-        LqEvntSetFlags(SockBuf, (LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
-    Res = true;
-lblOut:
+    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
+        LqClientSetFlags(SockBuf, (LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
     _SockBufUnlock(SockBuf);
-    return Res;
+    return true;
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufRcvInRegion(
@@ -1069,28 +1139,26 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRcvInRegion(
     size_t Size,
     bool IsSecondQueue
 ) {
-    RcvElement* NewStream;
-    bool Res = false;
-    _SockBufLock(SockBuf);
-    if((NewStream = LqFastAlloc::New<RcvElement>()) == NULL)
-        goto lblOut;
+    RcvElementRegion* NewStream;
+    if((NewStream = LqFastAlloc::New<RcvElementRegion>()) == NULL)
+        return false;
     NewStream->Flag = LQRCV_FLAG_READ_REGION;
-    NewStream->ReadRegion.Dest = Dest;
-    NewStream->ReadRegion.Written = 0;
-    NewStream->ReadRegion.MaxSize = Size;
-    NewStream->ReadRegion.CompleteOrCancelProc = CompleteOrCancelProc;
+    NewStream->Dest = Dest;
+    NewStream->Written = 0;
+    NewStream->MaxSize = Size;
+    NewStream->CompleteOrCancelProc = CompleteOrCancelProc;
     NewStream->Data = UserData;
+    
+    _SockBufLock(SockBuf);
     if(IsSecondQueue) {
-        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElementHdr);
     } else {
-        LqListAdd(&SockBuf->Rcv, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv, NewStream, RcvElementHdr);
     }
-    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
-        LqEvntSetFlags(SockBuf, (LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
-    Res = true;
-lblOut:
+    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
+        LqClientSetFlags(SockBuf, (LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
     _SockBufUnlock(SockBuf);
-    return Res;
+    return true;
 }
 
 LQ_EXTERN_C LqSockBufErrFlags LQ_CALL LqSockBufGetErrFlags(LqSockBuf* SockBuf) {
@@ -1131,33 +1199,33 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRcvInFbuf(
     LqFileSz Size,
     bool IsSecondQueue
 ) {
-    RcvElement* NewStream;
-    bool Res = false;
-    _SockBufLock(SockBuf);
-    if((NewStream = LqFastAlloc::New<RcvElement>()) == NULL)
-        goto lblOut;
+    RcvElementFbuf* NewStream;
+    if((NewStream = LqFastAlloc::New<RcvElementFbuf>()) == NULL)
+        return false;
     if(DestStream == NULL) {
-        if((DestStream = LqFastAlloc::New<LqFbuf>()) == NULL)
-            goto lblOut;
+        if((DestStream = LqFastAlloc::New<LqFbuf>()) == NULL) {
+            LqFastAlloc::Delete(NewStream);
+            return false;
+        }
         LqFbuf_null(DestStream);
         CompleteOrCancelProc = _CompleteProcForNullFbuf;
     }
     NewStream->Flag = LQRCV_FLAG_RECV_IN_FBUF;
-    NewStream->RcvFbuf.DestStream = DestStream;
-    NewStream->RcvFbuf.MaxSize = NewStream->RcvFbuf.Size = Size;
-    NewStream->RcvFbuf.CompleteOrCancelProc = CompleteOrCancelProc;
+    NewStream->DestStream = DestStream;
+    NewStream->MaxSize = NewStream->Size = Size;
+    NewStream->CompleteOrCancelProc = CompleteOrCancelProc;
     NewStream->Data = UserData;
+
+    _SockBufLock(SockBuf);
     if(IsSecondQueue) {
-        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElementHdr);
     } else {
-        LqListAdd(&SockBuf->Rcv, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv, NewStream, RcvElementHdr);
     }
-    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
-        LqEvntSetFlags(SockBuf, (LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
-    Res = true;
-lblOut:
+    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
+        LqClientSetFlags(SockBuf, (LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
     _SockBufUnlock(SockBuf);
-    return Res;
+    return true;
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufRcvInFbufAboveSeq(
@@ -1171,37 +1239,37 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRcvInFbufAboveSeq(
     bool IsCaseIndepended,
     bool IsSecondQueue
 ) {
-    RcvElement* NewStream;
-    bool Res = false;
-    _SockBufLock(SockBuf);
-    if((NewStream = LqFastAlloc::New<RcvElement>()) == NULL)
-        goto lblOut;
+    RcvElementFbufToSeq* NewStream;
+    if((NewStream = LqFastAlloc::New<RcvElementFbufToSeq>()) == NULL)
+        return false;
     if(DestStream == NULL) {
-        if((DestStream = LqFastAlloc::New<LqFbuf>()) == NULL)
-            goto lblOut;
+        if((DestStream = LqFastAlloc::New<LqFbuf>()) == NULL) {
+            LqFastAlloc::Delete(NewStream);
+            return false;
+        }
         LqFbuf_null(DestStream);
         CompleteOrCancelProc = _CompleteProcForNullFbufSeq;
     }
     NewStream->Flag = LQRCV_FLAG_RECV_IN_FBUF_TO_SEQ;
-    NewStream->RcvFbufToSeq.DestStream = DestStream;
-    NewStream->RcvFbufToSeq.MaxSize = NewStream->RcvFbufToSeq.Size = MaxSize;
-    NewStream->RcvFbufToSeq.SeqSize = ControlSeqSize;
-    NewStream->RcvFbufToSeq.CompleteOrCancelProc = CompleteOrCancelProc;
-    NewStream->RcvFbufToSeq.IsCaseI = IsCaseIndepended;
+    NewStream->DestStream = DestStream;
+    NewStream->MaxSize = NewStream->Size = MaxSize;
+    NewStream->SeqSize = ControlSeqSize;
+    NewStream->CompleteOrCancelProc = CompleteOrCancelProc;
+    NewStream->IsCaseI = IsCaseIndepended;
     NewStream->Data = UserData;
-    NewStream->RcvFbufToSeq.Seq = (char*)malloc(ControlSeqSize);
-    memcpy(NewStream->RcvFbufToSeq.Seq, ControlSeq, ControlSeqSize);
+    NewStream->Seq = (char*)malloc(ControlSeqSize);
+    memcpy(NewStream->Seq, ControlSeq, ControlSeqSize);
+
+    _SockBufLock(SockBuf);
     if(IsSecondQueue) {
-        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElementHdr);
     } else {
-        LqListAdd(&SockBuf->Rcv, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv, NewStream, RcvElementHdr);
     }
-    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
-        LqEvntSetFlags(SockBuf, (LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
-    Res = true;
-lblOut:
+    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
+        LqClientSetFlags(SockBuf, (LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
     _SockBufUnlock(SockBuf);
-    return Res;
+    return true;
 
 }
 
@@ -1211,25 +1279,23 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRcvPulseRead(
     intptr_t(LQ_CALL *CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData),
     bool IsSecondQueue
 ) {
-    RcvElement* NewStream;
-    bool Res = false;
-    _SockBufLock(SockBuf);
-    if((NewStream = LqFastAlloc::New<RcvElement>()) == NULL)
-        goto lblOut;
+    RcvElementPulseRead* NewStream;
+    if((NewStream = LqFastAlloc::New<RcvElementPulseRead>()) == NULL)
+        return false;
     NewStream->Flag = LQRCV_FLAG_RECV_PULSE_READ;
-    NewStream->PulseRead.CompleteOrCancelProc = CompleteOrCancelProc;
+    NewStream->CompleteOrCancelProc = CompleteOrCancelProc;
     NewStream->Data = UserData;
+    
+    _SockBufLock(SockBuf);
     if(IsSecondQueue) {
-        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElementHdr);
     } else {
-        LqListAdd(&SockBuf->Rcv, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv, NewStream, RcvElementHdr);
     }
-    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
-        LqEvntSetFlags(SockBuf, (LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
-    Res = true;
-lblOut:
+    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
+        LqClientSetFlags(SockBuf, (LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
     _SockBufUnlock(SockBuf);
-    return Res;
+    return true;
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufRcvWaitLenData(
@@ -1239,30 +1305,28 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRcvWaitLenData(
     size_t TargetLen,  /* !! Recived this len in internal buffer !! Be careful when set the large size of this parameter */
     bool IsSecondQueue
 ) {
-    RcvElement* NewStream;
-    bool Res = false;
-    _SockBufLock(SockBuf);
-    if((NewStream = LqFastAlloc::New<RcvElement>()) == NULL)
-        goto lblOut;
+    RcvElementWaitLen* NewStream;
+    if((NewStream = LqFastAlloc::New<RcvElementWaitLen>()) == NULL)
+        return false;
     NewStream->Flag = LQRCV_FLAG_WAIT_LENGTH;
-    NewStream->WaitLen.CompleteOrCancelProc = CompleteOrCancelProc;
-    NewStream->WaitLen.Length = TargetLen;
+    NewStream->CompleteOrCancelProc = CompleteOrCancelProc;
+    NewStream->Length = TargetLen;
     NewStream->Data = UserData;
+    
+    _SockBufLock(SockBuf);
     if(IsSecondQueue) {
-        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv2, NewStream, RcvElementHdr);
     } else {
-        LqListAdd(&SockBuf->Rcv, NewStream, RcvElement);
+        LqListAdd(&SockBuf->Rcv, NewStream, RcvElementHdr);
     }
-    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
-        LqEvntSetFlags(SockBuf, (LqEvntGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
-    Res = true;
-lblOut:
+    if((SockBuf->Flags & LQSOCKBUF_FLAG_WORK) && !(LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_RD))
+        LqClientSetFlags(SockBuf, (LqClientGetFlags(&SockBuf->Conn) & LQEVNT_FLAG_WR) | (LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP), 0);
     _SockBufUnlock(SockBuf);
-    return Res;
+    return true;
 }
 
-LQ_EXTERN_C intptr_t LQ_CALL LqSockBufReadInStream(LqSockBuf* SockBuf, LqFbuf* Dest, size_t Size) {
-    intptr_t Res;
+LQ_EXTERN_C LqFileSz LQ_CALL LqSockBufReadInStream(LqSockBuf* SockBuf, LqFbuf* Dest, LqFileSz Size) {
+	LqFileSz Res;
     _SockBufLock(SockBuf);
     Res = LqFbuf_transfer(Dest, &SockBuf->Stream, Size);
     if((Res < Size) && (SockBuf->Stream.Flags & (LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_WOULD_BLOCK)))
@@ -1272,46 +1336,68 @@ LQ_EXTERN_C intptr_t LQ_CALL LqSockBufReadInStream(LqSockBuf* SockBuf, LqFbuf* D
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufRcvCancelLastOperation(LqSockBuf* SockBuf, bool IsSecondQueue) {
-    RcvElement* Buf, *Prev = NULL;
+    RcvElementHdr* Buf, *Prev = NULL;
     LqListHdr* List;
     bool Res = true;
     _SockBufLock(SockBuf);
     List = (IsSecondQueue) ? &SockBuf->Rcv2 : &SockBuf->Rcv;
-    for(Buf = (RcvElement*)List->First; Buf != NULL; Buf = Buf->Next) {
+    for(Buf = (RcvElementHdr*)List->First; Buf != NULL; Buf = Buf->Next) {
         if(Buf == List->Last) {
             switch(Buf->Flag) {
                 case LQRCV_FLAG_MATCH:
-                    free(Buf->Match.Fmt);
-                    if(Buf->Match.CompleteOrCancelProc)
-                        Buf->Match.CompleteOrCancelProc(NULL, Buf->Data);
+                    free(((RcvElementMatch*)Buf)->Fmt);
+                    if(((RcvElementMatch*)Buf)->CompleteOrCancelProc)
+                        ((RcvElementMatch*)Buf)->CompleteOrCancelProc(NULL, ((RcvElementMatch*)Buf)->Data);
+                    LqFastAlloc::Delete((RcvElementMatch*)Buf);
                     break;
                 case LQRCV_FLAG_RECV_IN_FBUF:
-                    if(Buf->RcvFbuf.CompleteOrCancelProc)
-                        Buf->RcvFbuf.CompleteOrCancelProc(NULL, Buf->RcvFbuf.DestStream, Buf->RcvFbuf.MaxSize - Buf->RcvFbuf.Size, Buf->Data);
+                    if(((RcvElementFbuf*)Buf)->CompleteOrCancelProc)
+                        ((RcvElementFbuf*)Buf)->CompleteOrCancelProc(
+                        NULL,
+                        ((RcvElementFbuf*)Buf)->DestStream,
+                        ((RcvElementFbuf*)Buf)->MaxSize - ((RcvElementFbuf*)Buf)->Size,
+                        ((RcvElementFbuf*)Buf)->Data
+                        );
+                    LqFastAlloc::Delete((RcvElementFbuf*)Buf);
                     break;
                 case LQRCV_FLAG_RECV_IN_FBUF_TO_SEQ:
-                    free(Buf->RcvFbufToSeq.Seq);
-                    if(Buf->RcvFbufToSeq.CompleteOrCancelProc)
-                        Buf->RcvFbufToSeq.CompleteOrCancelProc(NULL, Buf->RcvFbufToSeq.DestStream, Buf->RcvFbufToSeq.MaxSize - Buf->RcvFbufToSeq.Size, Buf->Data, false);
+                    free(((RcvElementFbufToSeq*)Buf)->Seq);
+                    if(((RcvElementFbufToSeq*)Buf)->CompleteOrCancelProc)
+                        ((RcvElementFbufToSeq*)Buf)->CompleteOrCancelProc(
+                        NULL,
+                        ((RcvElementFbufToSeq*)Buf)->DestStream,
+                        ((RcvElementFbufToSeq*)Buf)->MaxSize - ((RcvElementFbufToSeq*)Buf)->Size,
+                        ((RcvElementFbufToSeq*)Buf)->Data,
+                        false
+                        );
+                    LqFastAlloc::Delete((RcvElementFbufToSeq*)Buf);
                     break;
                 case LQRCV_FLAG_READ_REGION:
-                    if(Buf->ReadRegion.CompleteOrCancelProc)
-                        Buf->ReadRegion.CompleteOrCancelProc(NULL, Buf->ReadRegion.Dest, Buf->ReadRegion.Written, Buf->Data);
+                    if(((RcvElementRegion*)Buf)->CompleteOrCancelProc)
+                        ((RcvElementRegion*)Buf)->CompleteOrCancelProc(
+                        NULL,
+                        ((RcvElementRegion*)Buf)->Dest,
+                        ((RcvElementRegion*)Buf)->Written,
+                        ((RcvElementRegion*)Buf)->Data
+                        );
+                    LqFastAlloc::Delete((RcvElementRegion*)Buf);
                     break;
                 case LQRCV_FLAG_COMPLETION_PROC:
-                    if(Buf->Completion.CompleteOrCancelProc)
-                        Buf->Completion.CompleteOrCancelProc(NULL, Buf->Data);
+                    if(((RcvElementCompletion*)Buf)->CompleteOrCancelProc)
+                        ((RcvElementCompletion*)Buf)->CompleteOrCancelProc(NULL, ((RcvElementCompletion*)Buf)->Data);
+                    LqFastAlloc::Delete((RcvElementCompletion*)Buf);
                     break;
                 case LQRCV_FLAG_RECV_PULSE_READ:
-                    if(Buf->PulseRead.CompleteOrCancelProc)
-                        Buf->PulseRead.CompleteOrCancelProc(NULL, Buf->Data);
+                    if(((RcvElementPulseRead*)Buf)->CompleteOrCancelProc)
+                        ((RcvElementPulseRead*)Buf)->CompleteOrCancelProc(NULL, ((RcvElementPulseRead*)Buf)->Data);
+                    LqFastAlloc::Delete((RcvElementPulseRead*)Buf);
                     break;
                 case LQRCV_FLAG_WAIT_LENGTH:
-                    if(Buf->WaitLen.CompleteOrCancelProc)
-                        Buf->WaitLen.CompleteOrCancelProc(NULL, Buf->Data);
+                    if(((RcvElementWaitLen*)Buf)->CompleteOrCancelProc)
+                        ((RcvElementWaitLen*)Buf)->CompleteOrCancelProc(NULL, ((RcvElementWaitLen*)Buf)->Data);
+                    LqFastAlloc::Delete((RcvElementWaitLen*)Buf);
                     break;
             }
-            LqFastAlloc::Delete(Buf);
             if(Prev == NULL)
                 List->First = NULL;
             else
@@ -1336,17 +1422,17 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRcvClear(LqSockBuf* SockBuf) {
 }
 
 LQ_EXTERN_C void LQ_CALL LqSockBufFlush(LqSockBuf* SockBuf) {
-    _RecvOrSendHandler(&SockBuf->Conn, LQEVNT_FLAG_WR | LQEVNT_FLAG_RD);
+    _LqSockBufRecvOrSendHandler(&SockBuf->Conn, LQEVNT_FLAG_WR | LQEVNT_FLAG_RD);
 }
 
 LQ_EXTERN_C size_t LQ_CALL LqSockBufRcvQueueLen(LqSockBuf* SockBuf, bool IsSecondQueue) {
     size_t Res = ((size_t)0);
-    RcvElement* Buf;
+    RcvElementHdr* Buf;
     _SockBufLock(SockBuf);
     if(IsSecondQueue) {
-        for(Buf = ((RcvElement*)SockBuf->Rcv2.First); Buf != NULL; Buf = Buf->Next, Res++);
+        for(Buf = ((RcvElementHdr*)SockBuf->Rcv2.First); Buf != NULL; Buf = Buf->Next, Res++);
     } else {
-        for(Buf = ((RcvElement*)SockBuf->Rcv.First); Buf != NULL; Buf = Buf->Next, Res++);
+        for(Buf = ((RcvElementHdr*)SockBuf->Rcv.First); Buf != NULL; Buf = Buf->Next, Res++);
     }
     _SockBufUnlock(SockBuf);
     return Res;
@@ -1408,14 +1494,14 @@ LQ_EXTERN_C int LQ_CALL LqSockBufGetFd(LqSockBuf* SockBuf) {
     return SockBuf->Conn.Fd;
 }
 
-static int LQ_CALL _LqSockBufCloseByUserData2Proc(void *UserData2, LqEvntHdr *EvntHdr) {
+static int LQ_CALL _LqSockBufCloseByUserData2Proc(void *UserData2, LqClientHdr *EvntHdr) {
     return (((LqSockBuf*)EvntHdr)->UserData2 == UserData2)? 2: 0;
 }
 
 LQ_EXTERN_C size_t LQ_CALL LqSockBufCloseByUserData2(void* UserData2, void* WrkBoss) {
     if(WrkBoss == NULL)
         WrkBoss = LqWrkBossGet();
-    return ((LqWrkBoss*)WrkBoss)->EnumCloseRmEvntByProto(_LqSockBufCloseByUserData2Proc, &___SockBufProto, UserData2);
+    return ((LqWrkBoss*)WrkBoss)->EnumClientsByProto(_LqSockBufCloseByUserData2Proc, &___SockBufProto, UserData2);
 }
 
 LQ_EXTERN_C void LQ_CALL LqSockBufLock(LqSockBuf* SockBuf) {
@@ -1438,18 +1524,23 @@ LQ_EXTERN_C void* LQ_CALL LqSockBufGetSsl(LqSockBuf* SockBuf) {
 LQ_EXTERN_C size_t LQ_CALL LqSockBufEnum(void* WrkBoss, int(LQ_CALL*Proc)(void*, LqSockBuf*), void* UserData) {
     if(WrkBoss == NULL)
         WrkBoss = LqWrkBossGet();
-    return ((LqWrkBoss*)WrkBoss)->EnumCloseRmEvntByProto((int(LQ_CALL*)(void *, LqEvntHdr*))Proc, &___SockBufProto, UserData);
+    return ((LqWrkBoss*)WrkBoss)->EnumClientsByProto((int(LQ_CALL*)(void *, LqClientHdr*))Proc, &___SockBufProto, UserData);
 }
 
+LQ_EXTERN_C LqSockBuf* LQ_CALL LqEvntToSockBuf(void* Hdr) {
+    if(LqClientIsConn(Hdr) && (((LqConn*)Hdr)->Proto == &___SockBufProto))
+        return (LqSockBuf*)Hdr;
+    return NULL;
+}
 
 //////////////////////////////////Hndlrs
 
-static void LQ_CALL _RecvOrSendHandler(LqConn* Sock, LqEvntFlag RetFlags) {
+static void LQ_CALL _LqSockBufRecvOrSendHandler(LqConn* Sock, LqEvntFlag RetFlags) {
     LqSockBuf* SockBuf = (LqSockBuf*)Sock;
-    RspElement* WrElem;
-    RcvElement *RdElem;
+    RspElementHdr* WrElem;
+    RcvElementHdr *RdElem;
     size_t OutputBufferSize;
-    LqEvntFlag ConnFlag = LqEvntGetFlags(Sock);
+    LqEvntFlag ConnFlag;
     LqFbufFlag FbufFlags = ((LqFbufFlag)0);
     intptr_t Readed2, Readed;
     void *UserData, *UserData2;
@@ -1457,7 +1548,7 @@ static void LQ_CALL _RecvOrSendHandler(LqConn* Sock, LqEvntFlag RetFlags) {
     void* Dest1;
     LqFbuf* Fbuf;
     LqFileSz Sended;
-    bool NotWrite = false;
+	LqFileSz Readed4;
     bool IsFound;
 
     _SockBufLock(SockBuf);
@@ -1476,7 +1567,7 @@ static void LQ_CALL _RecvOrSendHandler(LqConn* Sock, LqEvntFlag RetFlags) {
             if(!(SockBuf->Flags & LQSOCKBUF_FLAG_USED))
                 goto lblOut2;
         } else {
-            LqEvntSetClose(SockBuf);
+            LqClientSetClose(SockBuf);
             goto lblOut2;
         }
     }
@@ -1484,7 +1575,7 @@ static void LQ_CALL _RecvOrSendHandler(LqConn* Sock, LqEvntFlag RetFlags) {
         SockBuf->RWPortion = Sock->Proto->MaxSendInSingleTime;
 lblWriteAgain:
         /* Write first stream from list*/
-        if((WrElem = LqListFirst(&SockBuf->Rsp, RspElement)) == NULL) {
+        if((WrElem = LqListFirst(&SockBuf->Rsp, RspElementHdr)) == NULL) {
             LqFbuf_flush(&SockBuf->Stream);
             goto lblTryRead;
         }
@@ -1494,37 +1585,32 @@ lblWriteAgain:
             if(OutputBufferSize > ((size_t)0))
                 goto lblTryRead;
             /* If this element is just completeon proc*/
-            LqListRemove(&SockBuf->Rsp, RspElement);
+            LqListRemove(&SockBuf->Rsp, RspElementHdr);
             _SockBufUnlock(SockBuf);
-            WrElem->Completion.CompleteOrCancelProc(SockBuf, WrElem->Completion.UserData);
+            ((RspElementCompletion*)WrElem)->CompleteOrCancelProc(SockBuf, ((RspElementCompletion*)WrElem)->UserData);
             _SockBufLock(SockBuf);
-            LqFastAlloc::Delete(WrElem);
+            LqFastAlloc::Delete(((RspElementCompletion*)WrElem));
             if(!(SockBuf->Flags & LQSOCKBUF_FLAG_USED))
                 goto lblOut2;
             goto lblWriteAgain;
         } else if(WrElem->Flag == LQRSP_FLAG_BUF) {
-            if((SockBuf->RspHeader != NULL) && (SockBuf->RspHeader == LqListFirst(&SockBuf->Rsp, RspElement))) {
-                if(SockBuf->Flags & LQSOCKBUF_FLAG_AUTO_HDR) {
-                    SockBuf->RspHeader = NULL;
-                } else {
-                    NotWrite = true;
-                    goto lblTryRead;
-                }
+            if(SockBuf->RspHeader == WrElem) {
+                 goto lblTryRead;
             }
-            Sended = LqFbuf_transfer(&SockBuf->Stream, &WrElem->Buf, (WrElem->RspSize >= ((LqFileSz)0)) ? WrElem->RspSize: SockBuf->RWPortion);
-            if(WrElem->RspSize >= ((LqFileSz)0))
-                WrElem->RspSize -= lq_max(Sended, ((LqFileSz)0));
+            Sended = LqFbuf_transfer(&SockBuf->Stream, &((RspElementFbuf*)WrElem)->Buf, (((RspElementFbuf*)WrElem)->RspSize >= ((LqFileSz)0)) ? ((RspElementFbuf*)WrElem)->RspSize: SockBuf->RWPortion);
+            if(((RspElementFbuf*)WrElem)->RspSize >= ((LqFileSz)0))
+                ((RspElementFbuf*)WrElem)->RspSize -= lq_max(Sended, ((LqFileSz)0));
             FbufFlags |= (SockBuf->Stream.Flags & (LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_ERROR | LQFBUF_READ_ERROR));
-            if(LqFbuf_eof(&WrElem->Buf) || (WrElem->RspSize == ((LqFileSz)0))) {
+            if(LqFbuf_eof(&((RspElementFbuf*)WrElem)->Buf) || (((RspElementFbuf*)WrElem)->RspSize == ((LqFileSz)0))) {
 lblErrWrite:
-                LqFbuf_close(&WrElem->Buf);
-                LqListRemove(&SockBuf->Rsp, RspElement);
-                LqFastAlloc::Delete(WrElem);
+                LqFbuf_close(&((RspElementFbuf*)WrElem)->Buf);
+                LqListRemove(&SockBuf->Rsp, RspElementHdr);
+                LqFastAlloc::Delete(((RspElementFbuf*)WrElem));
                 goto lblWriteAgain;
             }
-            if(WrElem->Buf.Flags & LQFBUF_READ_ERROR) {
+            if(((RspElementFbuf*)WrElem)->Buf.Flags & LQFBUF_READ_ERROR) {
                 UserData = WrElem->Next;
-                UserData2 = WrElem->Buf.UserData;
+                UserData2 = ((RspElementFbuf*)WrElem)->Buf.UserData;
                 if(SockBuf->ErrHandler) {
                     _SockBufUnlock(SockBuf);
                     SockBuf->ErrHandler(SockBuf, LQSOCKBUF_ERR_OUTPUT_DATA);
@@ -1532,7 +1618,7 @@ lblErrWrite:
                     if(!(SockBuf->Flags & LQSOCKBUF_FLAG_USED))
                         goto lblOut2;
                 }
-                if((WrElem == LqListFirst(&SockBuf->Rsp, RspElement)) && (WrElem->Next == UserData) && (UserData2 == WrElem->Buf.UserData))
+                if((WrElem == LqListFirst(&SockBuf->Rsp, RspElementHdr)) && (WrElem->Next == UserData) && (UserData2 == ((RspElementFbuf*)WrElem)->Buf.UserData))
                     goto lblErrWrite;
                 else
                     goto lblWriteAgain;
@@ -1543,182 +1629,182 @@ lblTryRead:
     if(RetFlags & LQEVNT_FLAG_RD) {//Can read
         SockBuf->RWPortion = Sock->Proto->MaxReciveInSingleTime;
 lblReadAgain:
-        if(!(SockBuf->Flags & LQSOCKBUF_FLAG_USED) || (((RdElem = LqListFirst(&SockBuf->Rcv, RcvElement)) == NULL) && ((RdElem = LqListFirst(&SockBuf->Rcv2, RcvElement)) == NULL)))
+        if(!(SockBuf->Flags & LQSOCKBUF_FLAG_USED) || (((RdElem = LqListFirst(&SockBuf->Rcv, RcvElementHdr)) == NULL) && ((RdElem = LqListFirst(&SockBuf->Rcv2, RcvElementHdr)) == NULL)))
             goto lblOut;
         switch(RdElem->Flag) {
             case LQRCV_FLAG_MATCH:
-                Readed2 = LqFbuf_scanf(&SockBuf->Stream, LQFBUF_SCANF_PEEK, RdElem->Match.Fmt);
+                Readed2 = LqFbuf_scanf(&SockBuf->Stream, LQFBUF_SCANF_PEEK, ((RcvElementMatch*)RdElem)->Fmt);
                 FbufFlags |= (SockBuf->Stream.Flags & (LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_ERROR | LQFBUF_READ_ERROR));
                 if(Readed2 < ((intptr_t)0))
                     Readed2 = ((intptr_t)0);
-                if((Readed2 >= RdElem->Match.MatchCount) || (SockBuf->Stream.InBuf.Len >= RdElem->Match.MaxSize)) {
-                    if(LqListFirst(&SockBuf->Rcv, RcvElement) == RdElem) {
-                        LqListRemove(&SockBuf->Rcv, RcvElement);
+                if((Readed2 >= ((RcvElementMatch*)RdElem)->MatchCount) || (SockBuf->Stream.InBuf.Len >= ((RcvElementMatch*)RdElem)->MaxSize)) {
+                    if(LqListFirst(&SockBuf->Rcv, RcvElementHdr) == RdElem) {
+                        LqListRemove(&SockBuf->Rcv, RcvElementHdr);
                     } else {
-                        LqListRemove(&SockBuf->Rcv2, RcvElement);
+                        LqListRemove(&SockBuf->Rcv2, RcvElementHdr);
                     }
-                    if(RdElem->Match.CompleteOrCancelProc != NULL) {
+                    if(((RcvElementMatch*)RdElem)->CompleteOrCancelProc != NULL) {
                         _SockBufUnlock(SockBuf);
-                        RdElem->Match.CompleteOrCancelProc(SockBuf, RdElem->Data);
+                        ((RcvElementMatch*)RdElem)->CompleteOrCancelProc(SockBuf, ((RcvElementMatch*)RdElem)->Data);
                         _SockBufLock(SockBuf);
                     }  
-                    free(RdElem->Match.Fmt);
-                    LqFastAlloc::Delete(RdElem);
+                    free(((RcvElementMatch*)RdElem)->Fmt);
+                    LqFastAlloc::Delete(((RcvElementMatch*)RdElem));
                     goto lblReadAgain;
-                } else if(RdElem == LqListFirst(&SockBuf->Rcv2, RcvElement)) {
-                    LqListRemove(&SockBuf->Rcv2, RcvElement);
-                    LqListAddForward(&SockBuf->Rcv, RdElem, RcvElement);
+                } else if(RdElem == LqListFirst(&SockBuf->Rcv2, RcvElementHdr)) {
+                    LqListRemove(&SockBuf->Rcv2, RcvElementHdr);
+                    LqListAddForward(&SockBuf->Rcv, RdElem, RcvElementHdr);
                 }
                 break;
             case LQRCV_FLAG_READ_REGION:
-                Readed2 = RdElem->ReadRegion.MaxSize - RdElem->ReadRegion.Written;
-                Readed = (RdElem->ReadRegion.IsPeek) ? 
-                    LqFbuf_peek(&SockBuf->Stream, (RdElem->ReadRegion.Dest)?((char*)RdElem->ReadRegion.Dest + RdElem->ReadRegion.Written): NULL, Readed2) :
-                    LqFbuf_read(&SockBuf->Stream, (RdElem->ReadRegion.Dest)?((char*)RdElem->ReadRegion.Dest + RdElem->ReadRegion.Written): NULL, Readed2);
+                Readed2 = ((RcvElementRegion*)RdElem)->MaxSize - ((RcvElementRegion*)RdElem)->Written;
+                Readed = (((RcvElementRegion*)RdElem)->IsPeek) ?
+                    LqFbuf_peek(&SockBuf->Stream, (((RcvElementRegion*)RdElem)->Dest)?((char*)((RcvElementRegion*)RdElem)->Dest + ((RcvElementRegion*)RdElem)->Written): NULL, Readed2) :
+                    LqFbuf_read(&SockBuf->Stream, (((RcvElementRegion*)RdElem)->Dest)?((char*)((RcvElementRegion*)RdElem)->Dest + ((RcvElementRegion*)RdElem)->Written): NULL, Readed2);
                 FbufFlags |= (SockBuf->Stream.Flags & (LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_ERROR | LQFBUF_READ_ERROR));
                 if(Readed > ((intptr_t)0))
-                    RdElem->ReadRegion.Written += Readed;
+                    ((RcvElementRegion*)RdElem)->Written += Readed;
                 if(Readed >= Readed2) {
-                    if(LqListFirst(&SockBuf->Rcv, RcvElement) == RdElem) {
-                        LqListRemove(&SockBuf->Rcv, RcvElement);
+                    if(LqListFirst(&SockBuf->Rcv, RcvElementHdr) == RdElem) {
+                        LqListRemove(&SockBuf->Rcv, RcvElementHdr);
                     } else {
-                        LqListRemove(&SockBuf->Rcv2, RcvElement);
+                        LqListRemove(&SockBuf->Rcv2, RcvElementHdr);
                     }
-                    if(RdElem->ReadRegion.CompleteOrCancelProc != NULL) {
+                    if(((RcvElementRegion*)RdElem)->CompleteOrCancelProc != NULL) {
                         _SockBufUnlock(SockBuf);
-                        RdElem->ReadRegion.CompleteOrCancelProc(SockBuf, RdElem->ReadRegion.Dest, RdElem->ReadRegion.Written, RdElem->Data);
+                        ((RcvElementRegion*)RdElem)->CompleteOrCancelProc(SockBuf, ((RcvElementRegion*)RdElem)->Dest, ((RcvElementRegion*)RdElem)->Written, ((RcvElementRegion*)RdElem)->Data);
                         _SockBufLock(SockBuf);
                     }
-                    LqFastAlloc::Delete(RdElem);
+                    LqFastAlloc::Delete(((RcvElementRegion*)RdElem));
                     goto lblReadAgain;
-                } else if(RdElem == LqListFirst(&SockBuf->Rcv2, RcvElement)) {
-                    LqListRemove(&SockBuf->Rcv2, RcvElement);
-                    LqListAddForward(&SockBuf->Rcv, RdElem, RcvElement);
+                } else if(RdElem == LqListFirst(&SockBuf->Rcv2, RcvElementHdr)) {
+                    LqListRemove(&SockBuf->Rcv2, RcvElementHdr);
+                    LqListAddForward(&SockBuf->Rcv, RdElem, RcvElementHdr);
                 }
                 break;
             case LQRCV_FLAG_RECV_IN_FBUF:
-                Readed = LqFbuf_transfer(RdElem->RcvFbuf.DestStream, &SockBuf->Stream, RdElem->RcvFbuf.Size);
+				Readed4 = LqFbuf_transfer(((RcvElementFbuf*)RdElem)->DestStream, &SockBuf->Stream, ((RcvElementFbuf*)RdElem)->Size);
                 FbufFlags |= (SockBuf->Stream.Flags & (LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_ERROR | LQFBUF_READ_ERROR));
-                if(Readed > ((intptr_t)0))
-                    RdElem->RcvFbuf.Size -= ((LqFileSz)Readed);
-                if(RdElem->RcvFbuf.Size <= ((LqFileSz)0)) {
-                    if(LqListFirst(&SockBuf->Rcv, RcvElement) == RdElem) {
-                        LqListRemove(&SockBuf->Rcv, RcvElement);
+                if(Readed4 > ((LqFileSz)0))
+                    ((RcvElementFbuf*)RdElem)->Size -= Readed4;
+                if(((RcvElementFbuf*)RdElem)->Size <= ((LqFileSz)0)) {
+                    if(LqListFirst(&SockBuf->Rcv, RcvElementHdr) == RdElem) {
+                        LqListRemove(&SockBuf->Rcv, RcvElementHdr);
                     } else {
-                        LqListRemove(&SockBuf->Rcv2, RcvElement);
+                        LqListRemove(&SockBuf->Rcv2, RcvElementHdr);
                     }
-                    if(RdElem->RcvFbuf.CompleteOrCancelProc != NULL) {
+                    if(((RcvElementFbuf*)RdElem)->CompleteOrCancelProc != NULL) {
                         _SockBufUnlock(SockBuf);
-                        RdElem->RcvFbuf.CompleteOrCancelProc(
+                        ((RcvElementFbuf*)RdElem)->CompleteOrCancelProc(
                             SockBuf,
-                            RdElem->RcvFbuf.DestStream,
-                            RdElem->RcvFbuf.MaxSize - RdElem->RcvFbuf.Size,
-                            RdElem->Data
+                            ((RcvElementFbuf*)RdElem)->DestStream,
+                            ((RcvElementFbuf*)RdElem)->MaxSize - ((RcvElementFbuf*)RdElem)->Size,
+                            ((RcvElementFbuf*)RdElem)->Data
                         );
                         _SockBufLock(SockBuf);
                     }
-                    LqFastAlloc::Delete(RdElem);
+                    LqFastAlloc::Delete(((RcvElementFbuf*)RdElem));
                     goto lblReadAgain;
-                } else if(RdElem == LqListFirst(&SockBuf->Rcv2, RcvElement)) {
-                    LqListRemove(&SockBuf->Rcv2, RcvElement);
-                    LqListAddForward(&SockBuf->Rcv, RdElem, RcvElement);
+                } else if(RdElem == LqListFirst(&SockBuf->Rcv2, RcvElementHdr)) {
+                    LqListRemove(&SockBuf->Rcv2, RcvElementHdr);
+                    LqListAddForward(&SockBuf->Rcv, RdElem, RcvElementHdr);
                 }
                 break;
             case LQRCV_FLAG_RECV_IN_FBUF_TO_SEQ:
                 IsFound = false;
-                Readed = LqFbuf_transfer_while_not_same(
-                    RdElem->RcvFbufToSeq.DestStream,
+				Readed4 = LqFbuf_transfer_while_not_same(
+                    ((RcvElementFbufToSeq*)RdElem)->DestStream,
                     &SockBuf->Stream,
-                    RdElem->RcvFbufToSeq.Size,
-                    RdElem->RcvFbufToSeq.Seq,
-                    RdElem->RcvFbufToSeq.SeqSize,
-                    RdElem->RcvFbufToSeq.IsCaseI,
+                    ((RcvElementFbufToSeq*)RdElem)->Size,
+                    ((RcvElementFbufToSeq*)RdElem)->Seq,
+                    ((RcvElementFbufToSeq*)RdElem)->SeqSize,
+                    ((RcvElementFbufToSeq*)RdElem)->IsCaseI,
                     &IsFound
                 );
                 FbufFlags |= (SockBuf->Stream.Flags & (LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_ERROR | LQFBUF_READ_ERROR));
-                if(Readed > ((intptr_t)0))
-                    RdElem->RcvFbufToSeq.Size -= ((LqFileSz)Readed);
-                if(IsFound || (RdElem->RcvFbufToSeq.Size <= ((LqFileSz)0))) {
-                    if(LqListFirst(&SockBuf->Rcv, RcvElement) == RdElem) {
-                        LqListRemove(&SockBuf->Rcv, RcvElement);
+                if(Readed4 > ((LqFileSz)0))
+                    ((RcvElementFbufToSeq*)RdElem)->Size -= Readed4;
+                if(IsFound || (((RcvElementFbufToSeq*)RdElem)->Size <= ((LqFileSz)0))) {
+                    if(LqListFirst(&SockBuf->Rcv, RcvElementHdr) == RdElem) {
+                        LqListRemove(&SockBuf->Rcv, RcvElementHdr);
                     } else {
-                        LqListRemove(&SockBuf->Rcv2, RcvElement);
+                        LqListRemove(&SockBuf->Rcv2, RcvElementHdr);
                     }
-                    if(RdElem->RcvFbufToSeq.CompleteOrCancelProc) {
+                    if(((RcvElementFbufToSeq*)RdElem)->CompleteOrCancelProc) {
                         _SockBufUnlock(SockBuf);
-                        RdElem->RcvFbufToSeq.CompleteOrCancelProc(
+                        ((RcvElementFbufToSeq*)RdElem)->CompleteOrCancelProc(
                             SockBuf,
-                            RdElem->RcvFbufToSeq.DestStream,
-                            RdElem->RcvFbufToSeq.MaxSize - RdElem->RcvFbufToSeq.Size,
-                            RdElem->Data,
+                            ((RcvElementFbufToSeq*)RdElem)->DestStream,
+                            ((RcvElementFbufToSeq*)RdElem)->MaxSize - ((RcvElementFbufToSeq*)RdElem)->Size,
+                            ((RcvElementFbufToSeq*)RdElem)->Data,
                             IsFound
                         );
                         _SockBufLock(SockBuf);
                     }
-                    free(RdElem->RcvFbufToSeq.Seq);
-                    LqFastAlloc::Delete(RdElem);
+                    free(((RcvElementFbufToSeq*)RdElem)->Seq);
+                    LqFastAlloc::Delete(((RcvElementFbufToSeq*)RdElem));
                     goto lblReadAgain;
-                } else if(RdElem == LqListFirst(&SockBuf->Rcv2, RcvElement)) {
-                    LqListRemove(&SockBuf->Rcv2, RcvElement);
-                    LqListAddForward(&SockBuf->Rcv, RdElem, RcvElement);
+                } else if(RdElem == LqListFirst(&SockBuf->Rcv2, RcvElementHdr)) {
+                    LqListRemove(&SockBuf->Rcv2, RcvElementHdr);
+                    LqListAddForward(&SockBuf->Rcv, RdElem, RcvElementHdr);
                 }
                 break;
             case LQRCV_FLAG_RECV_PULSE_READ:
-                if(RdElem == LqListFirst(&SockBuf->Rcv2, RcvElement)) {
-                    LqListRemove(&SockBuf->Rcv2, RcvElement);
-                    LqListAddForward(&SockBuf->Rcv, RdElem, RcvElement);
+                if(RdElem == LqListFirst(&SockBuf->Rcv2, RcvElementHdr)) {
+                    LqListRemove(&SockBuf->Rcv2, RcvElementHdr);
+                    LqListAddForward(&SockBuf->Rcv, RdElem, RcvElementHdr);
                 }
-                UserData = RdElem->Data;
-                CompleteOrCancelProc5 = RdElem->PulseRead.CompleteOrCancelProc;
+                UserData = ((RcvElementPulseRead*)RdElem)->Data;
+                CompleteOrCancelProc5 = ((RcvElementPulseRead*)RdElem)->CompleteOrCancelProc;
                 UserData2 = RdElem->Next;
                 _SockBufUnlock(SockBuf);
-                Readed = CompleteOrCancelProc5(SockBuf, RdElem->Data);
+                Readed = CompleteOrCancelProc5(SockBuf, ((RcvElementPulseRead*)RdElem)->Data);
                 _SockBufLock(SockBuf);
                 if(!(SockBuf->Flags & LQSOCKBUF_FLAG_USED))
                     goto lblOut2;
                 FbufFlags |= (SockBuf->Stream.Flags & (LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_ERROR | LQFBUF_READ_ERROR));
                 if(Readed < ((intptr_t)0)) {
-                    if((RdElem == LqListFirst(&SockBuf->Rcv, RcvElement)) &&
-                       (UserData == RdElem->Data) &&
-                       (CompleteOrCancelProc5 == RdElem->PulseRead.CompleteOrCancelProc) &&
+                    if((RdElem == LqListFirst(&SockBuf->Rcv, RcvElementHdr)) &&
+                       (UserData == ((RcvElementPulseRead*)RdElem)->Data) &&
+                       (CompleteOrCancelProc5 == ((RcvElementPulseRead*)RdElem)->CompleteOrCancelProc) &&
                        (UserData2 == RdElem->Next)
                   ) {
-                        LqListRemove(&SockBuf->Rcv, RcvElement);
-                        LqFastAlloc::Delete(RdElem);
+                        LqListRemove(&SockBuf->Rcv, RcvElementHdr);
+                        LqFastAlloc::Delete(((RcvElementPulseRead*)RdElem));
                     }
                     goto lblReadAgain;
                 }
                 break;
             case LQRCV_FLAG_COMPLETION_PROC:
-                if(LqListFirst(&SockBuf->Rcv, RcvElement) == RdElem) {
-                    LqListRemove(&SockBuf->Rcv, RcvElement);
+                if(LqListFirst(&SockBuf->Rcv, RcvElementHdr) == RdElem) {
+                    LqListRemove(&SockBuf->Rcv, RcvElementHdr);
                 } else {
-                    LqListRemove(&SockBuf->Rcv2, RcvElement);
+                    LqListRemove(&SockBuf->Rcv2, RcvElementHdr);
                 }
                 _SockBufUnlock(SockBuf);
-                RdElem->Completion.CompleteOrCancelProc(SockBuf, RdElem->Data);
+                ((RcvElementCompletion*)RdElem)->CompleteOrCancelProc(SockBuf, ((RcvElementCompletion*)RdElem)->Data);
                 _SockBufLock(SockBuf);
-                LqFastAlloc::Delete(RdElem);
+                LqFastAlloc::Delete(((RcvElementCompletion*)RdElem));
                 goto lblReadAgain;
             case LQRCV_FLAG_WAIT_LENGTH:
-                Readed = LqFbuf_peek(&SockBuf->Stream, NULL, RdElem->WaitLen.Length);
+                Readed = LqFbuf_peek(&SockBuf->Stream, NULL, ((RcvElementWaitLen*)RdElem)->Length);
                 FbufFlags |= (SockBuf->Stream.Flags & (LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_ERROR | LQFBUF_READ_ERROR));
-                if(Readed >= RdElem->WaitLen.Length) {
-                    if(LqListFirst(&SockBuf->Rcv, RcvElement) == RdElem) {
-                        LqListRemove(&SockBuf->Rcv, RcvElement);
+                if(Readed >= ((RcvElementWaitLen*)RdElem)->Length) {
+                    if(LqListFirst(&SockBuf->Rcv, RcvElementHdr) == RdElem) {
+                        LqListRemove(&SockBuf->Rcv, RcvElementHdr);
                     } else {
-                        LqListRemove(&SockBuf->Rcv2, RcvElement);
+                        LqListRemove(&SockBuf->Rcv2, RcvElementHdr);
                     }
-                    if(RdElem->WaitLen.CompleteOrCancelProc) {
+                    if(((RcvElementWaitLen*)RdElem)->CompleteOrCancelProc) {
                         _SockBufUnlock(SockBuf);
-                        RdElem->WaitLen.CompleteOrCancelProc(SockBuf, RdElem->Data);
+                        ((RcvElementWaitLen*)RdElem)->CompleteOrCancelProc(SockBuf, ((RcvElementWaitLen*)RdElem)->Data);
                         _SockBufLock(SockBuf);
                     }
-                    LqFastAlloc::Delete(RdElem);
+                    LqFastAlloc::Delete(((RcvElementWaitLen*)RdElem));
                     goto lblReadAgain;
-                } else if(RdElem == LqListFirst(&SockBuf->Rcv2, RcvElement)) {
-                    LqListRemove(&SockBuf->Rcv2, RcvElement);
-                    LqListAddForward(&SockBuf->Rcv, RdElem, RcvElement);
+                } else if(RdElem == LqListFirst(&SockBuf->Rcv2, RcvElementHdr)) {
+                    LqListRemove(&SockBuf->Rcv2, RcvElementHdr);
+                    LqListAddForward(&SockBuf->Rcv, RdElem, RcvElementHdr);
                 }
                 break;
         }
@@ -1732,29 +1818,27 @@ lblOut:
             if(!(SockBuf->Flags & LQSOCKBUF_FLAG_USED))
                 goto lblOut2;
         } else {
-            LqEvntSetClose(SockBuf);
+            LqClientSetClose(SockBuf);
             goto lblOut2;
         }
     }
     if(SockBuf->Flags & LQSOCKBUF_FLAG_WORK) {
+        ConnFlag = LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP;
         LqFbuf_sizes(&SockBuf->Stream, &OutputBufferSize, NULL);
-        if(!NotWrite && ((LqListFirst(&SockBuf->Rsp, RspElement) != NULL) || (OutputBufferSize > 0) || (FbufFlags & LQFBUF_WRITE_WOULD_BLOCK)))
+        if((((SockBuf->RspHeader == NULL) || (SockBuf->RspHeader != LqListFirst(&SockBuf->Rsp, RspElementHdr))) && 
+           (LqListFirst(&SockBuf->Rsp, RspElementHdr) != NULL)) || (OutputBufferSize > 0))
             ConnFlag |= LQEVNT_FLAG_WR;
-        else
-            ConnFlag &= ~LQEVNT_FLAG_WR;
 
-        if((LqListFirst(&SockBuf->Rcv, RcvElement) != NULL) || (LqListFirst(&SockBuf->Rcv2, RcvElement) != NULL) || (FbufFlags & LQFBUF_READ_WOULD_BLOCK))
+        if((LqListFirst(&SockBuf->Rcv, RcvElementHdr) != NULL) || (LqListFirst(&SockBuf->Rcv2, RcvElementHdr) != NULL) || (FbufFlags & LQFBUF_READ_WOULD_BLOCK))
             ConnFlag |= LQEVNT_FLAG_RD;
-        else
-            ConnFlag &= ~LQEVNT_FLAG_RD;
-        LqEvntSetFlags(Sock, ConnFlag, 0);
+        LqClientSetFlags(Sock, ConnFlag, 0);
     }
 lblOut2:
     SockBuf->Flags &= ~LQSOCKBUF_FLAG_IN_HANDLER;
     _SockBufUnlock(SockBuf);
 }
 
-static void LQ_CALL _CloseHandler(LqConn* Sock) {
+static void LQ_CALL _LqSockBufCloseHandler(LqConn* Sock) {
     LqSockBuf* SockBuf = (LqSockBuf*)Sock;
     _SockBufLock(SockBuf);
     SockBuf->Flags &= ~LQSOCKBUF_FLAG_WORK;
@@ -1768,7 +1852,7 @@ static void LQ_CALL _CloseHandler(LqConn* Sock) {
     _SockBufUnlock(SockBuf);
 }
 
-static bool LQ_CALL _CmpAddressProc(LqConn* Conn, const void* Address) {
+static bool LQ_CALL _LqSockBufCmpAddressProc(LqConn* Conn, const void* Address) {
     LqConnAddr Addr;
     socklen_t Len = sizeof(Addr);
     if(getpeername(Conn->Fd, &Addr.Addr, &Len) < 0)
@@ -1782,7 +1866,7 @@ static bool LQ_CALL _CmpAddressProc(LqConn* Conn, const void* Address) {
     return false;
 }
 
-static bool LQ_CALL _KickByTimeOutProc(
+static bool LQ_CALL _LqSockBufKickByTimeOutProc(
     LqConn*        Sock,
     LqTimeMillisec CurrentTime,
     LqTimeMillisec EstimatedLiveTime
@@ -1792,14 +1876,86 @@ static bool LQ_CALL _KickByTimeOutProc(
     return TimeDiff > SockBuf->KeepAlive;
 }
 
-static char* LQ_CALL _DebugInfoProc(LqConn* Conn) {
-    return NULL;
+static char* LQ_CALL _LqSockBufDebugInfoProc(LqConn* Conn) {
+    LqSockBuf* SockBuf = (LqSockBuf*)Conn;
+    LqConnAddr RmAddr;
+    LqConnAddr LocAddr;
+
+    char* ReturnBuf = (char*)malloc(32768);
+    char RemIp[100];
+    char LocIp[100];
+    RemIp[0] = LocIp[0] = '\0';
+
+
+
+    LqSockBufLock(SockBuf);
+    if(!(SockBuf->Flags & LQSOCKBUF_FLAG_USED)) {
+        LqSockBufUnlock(SockBuf);
+        return NULL;
+    }
+
+
+    LqSockBufGetRemoteAddrStr(SockBuf, RemIp, sizeof(RemIp));
+    LqSockBufGetRemoteAddr(SockBuf, &RmAddr);
+
+    LqSockBufGetLocAddrStr(SockBuf, LocIp, sizeof(LocIp));
+    LqSockBufGetLocAddr(SockBuf, &LocAddr);
+    LqWrkPtr WrkPtr = LqWrk::ByEvntHdr((LqClientHdr*)&SockBuf->Conn);
+
+    LqFbuf_snprintf(
+        ReturnBuf,
+        32768,
+        "\nSockBuf: "
+        "\n\tRmSideAddr: %s %i"
+        "\n\tLocSideAddr: %s %i"
+        "\n\tConnFlags: %s%s%s%s%s%s%s"
+        "\n\tConnWrkOwner: #%lli"
+        "\n\tConnFd: %i"
+        "\n\tSockBufIsLocketByRspHdr: %s"
+        "\n\tSockBufIsHaveHdr: %s"
+        "\n\tSockBufRspHdrLen: %i"
+        "\n\tSockBufRspContentLen: %i"
+        "\n\tSockBufRcvQueueLen: %ri %ri"
+        "\n\tSockBufRcvCounterVal: %q64i"
+        "\n\tSockBufRspCounterVal: %q64i"
+        "\n\tSockBufKeepAlive: %q64i"
+        "\n\tSockBufRcvBufLen: %zu"
+        "\n\tSockBufRspBufLen: %zu"
+        "\n\tSockBufFlags: %s%s%s"
+        ,
+        RemIp, (int)((RmAddr.Addr.sa_family == AF_INET) ? ntohs(RmAddr.AddrInet.sin_port) : ntohs(RmAddr.AddrInet6.sin6_port)),
+        LocIp, (int)((LocAddr.Addr.sa_family == AF_INET) ? ntohs(LocAddr.AddrInet.sin_port) : ntohs(LocAddr.AddrInet6.sin6_port)),
+        (Conn->Flag & LQEVNT_FLAG_RD) ? "LQEVNT_FLAG_RD ": "", 
+        (Conn->Flag & LQEVNT_FLAG_WR) ? "LQEVNT_FLAG_WR " : "",
+        (Conn->Flag & LQEVNT_FLAG_HUP) ? "LQEVNT_FLAG_HUP " : "",
+        (Conn->Flag & LQEVNT_FLAG_END) ? "LQEVNT_FLAG_END " : "", 
+        (Conn->Flag & LQEVNT_FLAG_RDHUP) ? "LQEVNT_FLAG_RDHUP " : "",
+        (Conn->Flag & _LQEVNT_FLAG_ONLY_ONE_BOSS) ? "_LQEVNT_FLAG_ONLY_ONE_BOSS " : "",
+        (Conn->Flag & _LQEVNT_FLAG_SYNC) ? "_LQEVNT_FLAG_SYNC " : "",
+        WrkPtr->GetId(),
+        Conn->Fd,
+        ((SockBuf->RspHeader == LqListFirst(&SockBuf->Rsp, RspElementHdr)) ? "true": "false"),
+        ((SockBuf->RspHeader != NULL) ? "true" : "false"),
+        (int)LqSockBufRspLen(SockBuf, true),
+        (int)LqSockBufRspLen(SockBuf, false),
+        LqSockBufRcvQueueLen(SockBuf, false), LqSockBufRcvQueueLen(SockBuf, true),
+        LqSockBufRcvGetCount(SockBuf),
+        LqSockBufRspGetCount(SockBuf),
+        (int64_t)LqSockBufGetKeepAlive(SockBuf),
+        LqSockBufRcvBufSz(SockBuf),
+        LqSockBufRspBufSz(SockBuf),
+        (SockBuf->Flags & LQSOCKBUF_FLAG_USED)? "LQSOCKBUF_FLAG_USED ": "",
+        (SockBuf->Flags & LQSOCKBUF_FLAG_WORK) ? "LQSOCKBUF_FLAG_WORK " : "",
+        (SockBuf->Flags & LQSOCKBUF_FLAG_IN_HANDLER) ? "LQSOCKBUF_FLAG_IN_HANDLER " : ""
+    );
+    LqSockBufUnlock(SockBuf);
+    return ReturnBuf;
 }
 
 static LqEvntFlag _EvntFlagBySockBuf(LqSockBuf* SockBuf) {
-    return ((LqListFirst(&SockBuf->Rsp, RspElement) != NULL) ? LQEVNT_FLAG_WR : 0) |
-        (((LqListFirst(&SockBuf->Rcv, RcvElement) != NULL) || 
-        (LqListFirst(&SockBuf->Rcv2, RcvElement) != NULL)) ? LQEVNT_FLAG_RD : 0);
+    return ((LqListFirst(&SockBuf->Rsp, RspElementHdr) != NULL) ? LQEVNT_FLAG_WR : 0) |
+        (((LqListFirst(&SockBuf->Rcv, RcvElementHdr) != NULL) ||
+        (LqListFirst(&SockBuf->Rcv2, RcvElementHdr) != NULL)) ? LQEVNT_FLAG_RD : 0);
 }
 
 //////////////////////////////////
@@ -1869,7 +2025,7 @@ LQ_EXTERN_C bool LQ_CALL LqSockAcceptorGoWork(LqSockAcceptor* SockAcceptor, void
     _SockAcceptorLock(SockAcceptor);
     if(SockAcceptor->Flags & LQSOCKBUF_FLAG_WORK)
         goto lblOut;
-    if(LqEvntAdd(&SockAcceptor->Conn, WrkBoss)) {
+    if(LqClientAdd(&SockAcceptor->Conn, WrkBoss)) {
         SockAcceptor->Flags |= LQSOCKBUF_FLAG_WORK;
         Res = true;
         goto lblOut;
@@ -1882,7 +2038,7 @@ lblOut:
 LQ_EXTERN_C bool LQ_CALL LqSockAcceptorInterruptWork(LqSockAcceptor* SockAcceptor) {
     bool Res;
     _SockAcceptorLock(SockAcceptor);
-    if(Res = LqEvntSetRemove3(&SockAcceptor->Conn))
+    if(Res = LqClientSetRemove3(&SockAcceptor->Conn))
         SockAcceptor->Flags &= ~LQSOCKBUF_FLAG_WORK;
     _SockAcceptorUnlock(SockAcceptor);
     return Res;
@@ -1895,7 +2051,7 @@ LQ_EXTERN_C bool LQ_CALL LqSockAcceptorDelete(LqSockAcceptor* SockAcceptor) {
     SockAcceptor->AcceptProc = NULL;
     SockAcceptor->Flags &= ~LQSOCKBUF_FLAG_USED;
     if(SockAcceptor->Flags & LQSOCKBUF_FLAG_WORK)
-        LqEvntSetClose(SockAcceptor);
+        LqClientSetClose(SockAcceptor);
     _SockAcceptorUnlock(SockAcceptor);
     return true;
 }
@@ -1914,6 +2070,7 @@ LQ_EXTERN_C LqSockBuf* LQ_CALL LqSockAcceptorAccept(LqSockAcceptor* SockAcceptor
     LqSockBuf* Res = NULL;
     _SockAcceptorLock(SockAcceptor);
     if((Fd = accept(SockAcceptor->Conn.Fd, NULL, NULL)) != -1) {
+		LqConnSwitchNonBlock(Fd, true);
         Res = LqSockBufCreate(Fd, UserData);
         if(Res == NULL) {
             closesocket(Fd);
@@ -1931,6 +2088,7 @@ LQ_EXTERN_C LqSockBuf* LQ_CALL LqSockAcceptorAcceptSsl(LqSockAcceptor* SockAccep
     LqSockBuf* Res = NULL;
     _SockAcceptorLock(SockAcceptor);
     if((Fd = accept(SockAcceptor->Conn.Fd, NULL, NULL)) != -1) {
+		LqConnSwitchNonBlock(Fd, true);
         Res = LqSockBufCreateSsl(Fd, SslCtx, true, UserData);
         if(Res == NULL) {
             closesocket(Fd);
@@ -1988,11 +2146,11 @@ LQ_EXTERN_C int LQ_CALL LqSockAcceptorGetFd(LqSockAcceptor* SockAcceptor) {
     return SockAcceptor->Conn.Fd;
 }
 
-static void LQ_CALL _AcceptorAcceptHandler(LqConn* Connection, LqEvntFlag RetFlags) {
+static void LQ_CALL _LqSockAcceptorAcceptHandler(LqConn* Connection, LqEvntFlag RetFlags) {
     LqSockAcceptor* SockAcceptor = (LqSockAcceptor*)Connection;
     _SockAcceptorLock(SockAcceptor);
     if(RetFlags & LQEVNT_FLAG_ERR)
-        LqEvntSetClose(SockAcceptor);
+        LqClientSetClose(SockAcceptor);
     if((RetFlags & LQEVNT_FLAG_ACCEPT) && (SockAcceptor->AcceptProc != NULL)) {
         SockAcceptor->Flags |= LQSOCKBUF_FLAG_IN_HANDLER;
         _SockAcceptorUnlock(SockAcceptor);
@@ -2003,7 +2161,7 @@ static void LQ_CALL _AcceptorAcceptHandler(LqConn* Connection, LqEvntFlag RetFla
     _SockAcceptorUnlock(SockAcceptor);
 }
 
-static void LQ_CALL _AcceptorCloseHandler(LqConn* Conn) {
+static void LQ_CALL _LqSockAcceptorCloseHandler(LqConn* Conn) {
     LqSockAcceptor* SockAcceptor = (LqSockAcceptor*)Conn;
     _SockAcceptorLock(SockAcceptor);
     SockAcceptor->Flags &= ~LQSOCKBUF_FLAG_WORK;
@@ -2017,16 +2175,16 @@ static void LQ_CALL _AcceptorCloseHandler(LqConn* Conn) {
     _SockAcceptorUnlock(SockAcceptor);
 }
 
-static bool LQ_CALL _AcceptorCmpAddressProc(LqConn* Conn, const void* Address) { return false; }
+static bool LQ_CALL _LqSockAcceptorCmpAddressProc(LqConn* Conn, const void* Address) { return false; }
 
-static bool LQ_CALL _AcceptorKickByTimeOutProc(
+static bool LQ_CALL _LqSockAcceptorKickByTimeOutProc(
     LqConn*        Connection,
     LqTimeMillisec CurrentTimeMillisec,
     LqTimeMillisec EstimatedLiveTime
 ) {
     return false;
 }
-static char* LQ_CALL _AcceptorDebugInfoProc(LqConn* Conn) { return NULL; }
+static char* LQ_CALL _LqSockAcceptorDebugInfoProc(LqConn* Conn) { return NULL; }
 
 
 #define __METHOD_DECLS__

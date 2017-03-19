@@ -35,14 +35,24 @@
 #define LQFWRBUF_DEFAULT_LOCK_UNINIT(Var)   LqMutexClose(&(Var))
 
 
+#ifdef LQ_DEBUG
+# define LQSBUF_IS_DEBUG
+#endif
+
+#ifdef LQSBUF_IS_DEBUG
+# define LqSbufTest(Sbuf) _LqSbufTest(Sbuf)
+#else
+# define LqSbufTest(Sbuf) ((void)0)
+#endif
+
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
 typedef struct PageHeader {
-    size_t SizePage;
-    size_t StartOffset;
-    size_t EndOffset;
-    void* NextPage;
+    intptr_t SizePage;
+	intptr_t StartOffset;
+	intptr_t EndOffset;
+	PageHeader* NextPage;
 } PageHeader;
 
 #pragma pack(pop)
@@ -396,11 +406,25 @@ static intptr_t LqSbufAddPages(LqSbuf* StreamBuf, const void* Data, intptr_t Siz
     return Written;
 }
 
+static void _LqSbufTest(LqSbuf* StreamBuf) {
+	size_t CommonSize = 0;
+	int* InvalidPtr = NULL;
+	for(PageHeader* Page = (PageHeader*)StreamBuf->Page0; Page; Page = (PageHeader*)Page->NextPage) {
+		CommonSize += (Page->EndOffset - Page->StartOffset);
+	}
+	if(CommonSize != StreamBuf->Len) {
+		*InvalidPtr = 0;
+	}
+}
+
 LQ_EXTERN_C intptr_t LQ_CALL LqSbufWrite(LqSbuf* StreamBuf, const void* DataSource, intptr_t Size) {
     intptr_t CommonWritten, SizeWrite;
     PageHeader* Hdr;
-    if(StreamBuf->PageN == NULL)
-        return LqSbufAddPages(StreamBuf, DataSource, Size);
+	if(StreamBuf->PageN == NULL) {
+		CommonWritten = LqSbufAddPages(StreamBuf, DataSource, Size);
+		LqSbufTest(StreamBuf);
+		return CommonWritten;
+	}
     CommonWritten = ((intptr_t)0);
     if(((PageHeader*)StreamBuf->PageN)->EndOffset < ((PageHeader*)StreamBuf->PageN)->SizePage) {
         Hdr = (PageHeader*)StreamBuf->PageN;
@@ -414,6 +438,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqSbufWrite(LqSbuf* StreamBuf, const void* DataSour
     }
     if(Size >((intptr_t)0))
         CommonWritten += LqSbufAddPages(StreamBuf, DataSource, Size);
+	LqSbufTest(StreamBuf);
     return CommonWritten;
 }
 
@@ -438,6 +463,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqSbufRead(LqSbuf* StreamBuf, void* DestBuf, intptr
     }
     StreamBuf->Len -= CommonReadedSize;
     StreamBuf->GlobOffset += CommonReadedSize;
+	LqSbufTest(StreamBuf);
     return CommonReadedSize;
 }
 
@@ -481,8 +507,10 @@ LQ_EXTERN_C intptr_t LQ_CALL LqSbufCopy(LqSbuf* StreamDest, const LqSbuf* Stream
 LQ_EXTERN_C bool LQ_CALL LqSbufReadRegionFirst(LqSbuf* StreamBuf, LqSbufReadRegion* Reg, intptr_t Size) {
     Reg->CommonWritten = ((intptr_t)0);
     Reg->Fin = false;
-    if(StreamBuf->Page0 == NULL)
-        return false;
+	if(StreamBuf->Page0 == NULL) {
+		LqSbufTest(StreamBuf);
+		return false;
+	}
     Reg->_Size = Size;
     Reg->_StreamBuf = StreamBuf;
     Reg->_Hdr = (PageHeader*)StreamBuf->Page0;
@@ -500,6 +528,7 @@ LQ_EXTERN_C bool LQ_CALL LqSbufReadRegionNext(LqSbufReadRegion* Reg) {
 lblOut:
         Reg->_StreamBuf->Len -= Reg->CommonWritten;
         Reg->_StreamBuf->GlobOffset += Reg->CommonWritten;
+		LqSbufTest(Reg->_StreamBuf);
         return false;
     }
     LqSbufRemoveFirstPage(Reg->_StreamBuf);
@@ -523,8 +552,10 @@ LQ_EXTERN_C bool LQ_CALL LqSbufWriteRegionFirst(LqSbuf* StreamBuf, LqSbufWriteRe
     Reg->_StreamBuf = StreamBuf;
     if(StreamBuf->PageN == NULL) {
 lblOperationZero:
-        if((Reg->_Hdr = LqSbufCreatePage(StreamBuf, Reg->_Size)) == NULL)
-            return false;
+		if((Reg->_Hdr = LqSbufCreatePage(StreamBuf, Reg->_Size)) == NULL) {
+			LqSbufTest(Reg->_StreamBuf);
+			return false;
+		}
         Reg->DestLen = lq_min(Reg->_Size, ((PageHeader*)Reg->_Hdr)->SizePage);
         Reg->Dest = ((PageHeader*)Reg->_Hdr) + 1;
         Reg->_TypeOperat = ((intptr_t)0);
@@ -533,8 +564,10 @@ lblOperationZero:
     if(((PageHeader*)StreamBuf->PageN)->EndOffset < ((PageHeader*)StreamBuf->PageN)->SizePage) {
         Reg->_Hdr = (PageHeader*)StreamBuf->PageN;
         Reg->DestLen = lq_min(((PageHeader*)Reg->_Hdr)->SizePage - ((PageHeader*)Reg->_Hdr)->EndOffset, Reg->_Size);
-        if(Reg->DestLen < ((intptr_t)0))
-            return false;
+		if(Reg->DestLen < ((intptr_t)0)) {
+			LqSbufTest(Reg->_StreamBuf);
+			return false;
+		}
         if(Reg->DestLen == ((intptr_t)0))
             goto lblOperationZero;
         Reg->Dest = (char*)(((PageHeader*)Reg->_Hdr) + 1) + ((PageHeader*)Reg->_Hdr)->EndOffset;
@@ -550,8 +583,8 @@ LQ_EXTERN_C bool LQ_CALL LqSbufWriteRegionNext(LqSbufWriteRegion* Reg) {
     Reg->_Size -= Reg->Readed;
     if(Reg->_TypeOperat == ((intptr_t)0)) {
         if((Reg->Readed < Reg->DestLen) || (Reg->_Size <= ((intptr_t)0)) || Reg->Fin) {
-            if(Reg->Readed == ((intptr_t)0))
-                LqSbufRemoveLastPage(Reg->_StreamBuf);
+           // if(Reg->Readed == ((intptr_t)0))
+              //  LqSbufRemoveLastPage(Reg->_StreamBuf);
             goto lblOut;
         }
 lblOpZero:
@@ -569,6 +602,7 @@ lblOpZero:
     }
 lblOut:
     Reg->_StreamBuf->Len += Reg->CommonReaded;
+	LqSbufTest(Reg->_StreamBuf);
     return false;
 }
 
@@ -1112,7 +1146,7 @@ static intptr_t LQ_CALL _NullCloseProc(LqFbuf*) {
 
 static intptr_t _LqFbuf_vscanf(LqFbuf_state* State, int Flags, const char* Fmt, va_list va);
 static intptr_t _LqFbuf_vprintf(LqFbuf* Context, const char* Fmt, va_list va);
-static intptr_t _LqFbuf_write(LqFbuf* Context, const void* Buf, size_t Size);
+static intptr_t _LqFbuf_write(LqFbuf* Context, const void* Buf, intptr_t Size);
 static intptr_t _LqFbuf_flush(LqFbuf* Context);
 static intptr_t _LqFbuf_read(LqFbuf* Context, void* Buf, size_t Len);
 
@@ -1427,7 +1461,7 @@ lblWrite:
         } else {
             while(true) {
                 WriteMax = lq_max(Dest->MaxFlush - Dest->OutBuf.Len, 0);
-                for(bool __r = LqSbufWriteRegionFirst(&Dest->OutBuf, &RegionW, lq_min(Size, WriteMax)); __r; __r = LqSbufWriteRegionNext(&RegionW))
+                for(bool __r = LqSbufWriteRegionFirst(&Dest->OutBuf, &RegionW, ((intptr_t)lq_min(Size, WriteMax))); __r; __r = LqSbufWriteRegionNext(&RegionW))
                     if((RegionW.Readed = Source->Cookie->ReadProc(Source, (char*)RegionW.Dest, RegionW.DestLen)) < ((intptr_t)0)) {
                         RegionW.Readed = ((intptr_t)0);
                         RegionW.Fin = true;
@@ -1481,13 +1515,21 @@ static intptr_t LqFbuf_transfer_by_ptr(LqFbuf* Dest, LqSbufPtr* SbufPtr, LqFileS
     LqSbufPtr SavedBufPtr;
     LastSeq = (char*)Seq;
     intptr_t sz;
-    for(bool __r = LqSbufReadRegionPtrFirst(SbufPtr, &RegionPtr, lq_min(Size, ((LqFileSz)INTPTR_MAX))); __r; __r = LqSbufReadRegionPtrNext(&RegionPtr)) {
+    for(bool __r = LqSbufReadRegionPtrFirst(SbufPtr, &RegionPtr, ((intptr_t)lq_min(Size, ((LqFileSz)INTPTR_MAX)))); __r; __r = LqSbufReadRegionPtrNext(&RegionPtr)) {
         ss = (char*)RegionPtr.Source;
         MaxReg = ss + RegionPtr.SourceLen;
         ms = MaxReg - SeqSize + ((size_t)1);
 
         if(LastSeq > Seq) {
             for(s = ss, c = LastSeq; ; s++, c++) {
+				if(c >= MaxSeq) {/* ƒостигнут конец контрольной последовательности*/
+                    Fin |= true;
+                    LqFbuf_transfer_restore_state_ptr();
+                    RegionPtr.Written = _LqFbuf_write(Dest, RegionPtr.Source, ss - (char*)RegionPtr.Source);
+                    RegionPtr.Fin = true;
+                    Fin |= true;
+                    goto lblContinue1;
+                }
                 if(s >= MaxReg) {/* ƒостигнут конец региона*/
                     if(LqSbufReadRegionPtrIsEos(&RegionPtr) || ((RegionPtr.CommonWritten + RegionPtr.SourceLen) >= Size)) {
                         LqFbuf_transfer_restore_state_ptr();
@@ -1495,14 +1537,6 @@ static intptr_t LqFbuf_transfer_by_ptr(LqFbuf* Dest, LqSbufPtr* SbufPtr, LqFileS
                     }
                     RegionPtr.Written = RegionPtr.SourceLen;
                     LastSeq = c;
-                    goto lblContinue1;
-                }
-                if(c >= MaxSeq) {/* ƒостигнут конец контрольной последовательности*/
-                    Fin |= true;
-                    LqFbuf_transfer_restore_state_ptr();
-                    RegionPtr.Written = _LqFbuf_write(Dest, RegionPtr.Source, ss - (char*)RegionPtr.Source);
-                    RegionPtr.Fin = true;
-                    Fin |= true;
                     goto lblContinue1;
                 }
                 if((IsCaseIndependet)? (TO_LOWER(*c) != TO_LOWER(*s)): (*c != *s)) {
@@ -1662,7 +1696,7 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_svnprintf(char* Dest, size_t DestSize, const
                 Context->Flags |= LQFBUF_WRITE_ERROR;
                 return 0;
             }
-            intptr_t TargetSize = lq_min(Size, Param->MaxDest - Param->Dest);
+            intptr_t TargetSize = lq_min(((intptr_t)Size), Param->MaxDest - Param->Dest);
             memcpy(Param->Dest, Buf, TargetSize);
             Param->Dest += TargetSize;
             return TargetSize;
@@ -1775,7 +1809,7 @@ static intptr_t _LqFbuf_putc(LqFbuf* Context, int Val) {
     return _LqFbuf_write(Context, &Buf, (size_t)1);
 }
 
-static intptr_t _LqFbuf_write(LqFbuf* Context, const void* Buf, size_t Size) {
+static intptr_t _LqFbuf_write(LqFbuf* Context, const void* Buf, intptr_t Size) {
     intptr_t Written1, Written2, Written3, WriteLen;
     if(Context->Flags & LQFBUF_POINTER) {
         Context->Flags |= LQFBUF_WRITE_ERROR;
@@ -2235,6 +2269,7 @@ __lblContinueRead:\
                             RegionW.Readed = 0; \
                             RegionW.Fin = true; \
                         }}\
+				if(RegionW.CommonReaded <= ((intptr_t)0)) State->Buf->Flags |= LQFBUF_READ_WOULD_BLOCK; \
             }\
             goto __lblContinueRead;\
         }\
@@ -2330,6 +2365,11 @@ ReadPortionBegin(LqFbuf_ReadWhileNotSame, char* LastSeq = (char*)ControlSeq; cha
     if(WithoutCopy) {
         if(LastSeq > ControlSeq) {
             for(s = Source, c = LastSeq; ; s++, c++) {
+				if(c >= MaxControl) {/* ƒостигнут конец контрольной последовательности*/
+                    Fin |= true;
+                    PortionRestore();
+                    goto lblOut;
+                }
                 if(s >= MaxSource) {/* ƒостигнут конец региона*/
                     Source = s;
                     if(Eof) {
@@ -2338,11 +2378,6 @@ ReadPortionBegin(LqFbuf_ReadWhileNotSame, char* LastSeq = (char*)ControlSeq; cha
                         goto lblOut2;
                     }
                     LastSeq = c;
-                    goto lblOut;
-                }
-                if(c >= MaxControl) {/* ƒостигнут конец контрольной последовательности*/
-                    Fin |= true;
-                    PortionRestore();
                     goto lblOut;
                 }
                 if((IsCase) ? (TO_LOWER(*c) != TO_LOWER(*s)) : (*c != *s)) {
@@ -2402,6 +2437,11 @@ lblContinue9:
     } else {
         if(LastSeq > ControlSeq) {
             for(s = Source, c = LastSeq; ; s++, c++) {
+				if(c >= MaxControl) {/* ƒостигнут конец контрольной последовательности*/
+                    Fin |= true;
+                    PortionRestore();
+                    goto lblOut;
+                }
                 if(s >= MaxSource) {/* ƒостигнут конец региона*/
                     Source = s;
                     if(Eof) {
@@ -2411,11 +2451,6 @@ lblContinue9:
                         goto lblOut2;
                     }
                     LastSeq = c;
-                    goto lblOut;
-                }
-                if(c >= MaxControl) {/* ƒостигнут конец контрольной последовательности*/
-                    Fin |= true;
-                    PortionRestore();
                     goto lblOut;
                 }
                 if((IsCase)? (TO_LOWER(*c) != TO_LOWER(*s)): (*c != *s)) {

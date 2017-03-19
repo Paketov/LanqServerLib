@@ -27,35 +27,6 @@
 
 struct CmdSession;
 
-
-class _Sessions
-{
-    std::vector<CmdSession*> Data;
-    int LastEmpty;
-    mutable LqLocker<uintptr_t> Lk;
-
-public:
-
-    inline _Sessions()
-    {
-        LastEmpty = -1;
-    }
-
-    inline ~_Sessions() { LastEmpty = -1; }
-
-    size_t Add(CmdSession* Session);
-
-    void Remove(CmdSession* Session);
-
-    CmdSession* Get(size_t Index, LqString Key) const;
-
-    inline size_t Count() const
-    {
-        return Data.size();
-    }
-
-} Sessions;
-
 struct CmdSession
 {
     LqEvntFd                                                    TimerFd;
@@ -71,18 +42,15 @@ struct CmdSession
     LqHttpConn*                                                 Conn;
     LqTimeMillisec                                              LastAct;
 
-    inline void LockRead()
-    {
+    inline void LockRead() {
         Locker.LockReadYield();
     }
 
-    inline void LockWrite()
-    {
+    inline void LockWrite() {
         Locker.LockWriteYield();
     }
 
-    inline void Unlock()
-    {
+    inline void Unlock() {
         Locker.Unlock();
     }
 
@@ -94,25 +62,8 @@ struct CmdSession
 
     static void LQ_CALL TimerHandlerClose(LqEvntFd* Instance);
 
-    bool StartRead(LqHttpConn* c);
-
-    static void EndRead(LqHttpConn* c);
-
     static void LQ_CALL ReadHandler(LqEvntFd* Instance, LqEvntFlag Flags);
 
     static void LQ_CALL ReadHandlerClose(LqEvntFd* Instance);
 };
-
-struct ConnHandlers
-{
-    static void LQ_CALL NewTerminal(LqHttpConn* c);
-
-    static void LQ_CALL CloseTerminal(LqHttpConn* c);
-
-    static void LQ_CALL Write(LqHttpConn* c);
-
-    static void LQ_CALL Read(LqHttpConn* c);
-};
-
-
 

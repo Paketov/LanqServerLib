@@ -261,17 +261,27 @@ public:
 					inline interator begin() const { return interator(Conn, 0); }
 					inline interator end() const { return interator(Conn, LqHttpConnGetRcvHdrs(Conn)->CountHdrs); }
 				} Hdrs;
+				class _Boundary {
+					LqHttpConn* Conn;
+				public:  DISABLE_COPY_CONSTRUCT(_Boundary) DEF_CMP_STRING
+					inline operator LqString() const {
+						int Len; 
+						if((Len = LqHttpConnRcvGetBoundary(Conn, NULL, NULL)) <= 0) 
+							return "";
+						LqString Res(Len, '\0');
+						LqHttpConnRcvGetBoundary(Conn, (char*)Res.data(), Len);
+						return Res;
+					}
+				} Boundary;
 			};
-			bool WaitLen(std::function<void(LqHttpConnRcvResult*)> Func, void* UserData = nullptr, intptr_t RecvDataLen = -((intptr_t)1)) {
-				struct _s { void* UserData; std::function<void(LqHttpConnRcvResult*)> Func; };
-				_s* Data = LqFastAlloc::New<_s>();
+
+			bool WaitLen(std::function<void(LqHttpConnRcvResult*)> Func, intptr_t RecvDataLen = -((intptr_t)1)) {
+				std::function<void(LqHttpConnRcvResult*)>* Data = LqFastAlloc::New<std::function<void(LqHttpConnRcvResult*)>>(Func);
 				if(Data == nullptr) return false;
-				Data->Func = Func;
-				Data->UserData = UserData;
 				if(!LqHttpConnRcvWaitLen(Domen.Conn, [](LqHttpConnRcvResult* Res) {
-					_s* Data = (_s*)Res->UserData;
-					Res->UserData = Data->UserData;
-					Data->Func(Res);
+					std::function<void(LqHttpConnRcvResult*)>* Data = (std::function<void(LqHttpConnRcvResult*)>*)Res->UserData;
+					Res->UserData = nullptr;
+					Data->operator()(Res);
 					LqFastAlloc::Delete(Data);
 				}, Data, RecvDataLen)) {
 					LqFastAlloc::Delete(Data);
@@ -282,26 +292,22 @@ public:
 			bool ReadFile(
 				const char* Path = nullptr,
 				std::function<bool(LqHttpConnRcvResult*)> Func = nullptr,
-				void* UserData = nullptr,
 				LqFileSz ReadLen = -((LqFileSz)1),
 				int Access = 0666,
 				bool IsReplace = true,
 				bool IsCreateSubdir = true
 			) {
-				struct _s { void* UserData; std::function<bool(LqHttpConnRcvResult*)> Func; };
 				if(Func == nullptr)
-					return LqHttpConnRcvFile(Domen.Conn, Path, nullptr, UserData, ReadLen, Access, IsReplace, IsCreateSubdir);
-				_s* Data = LqFastAlloc::New<_s>();
+					return LqHttpConnRcvFile(Domen.Conn, Path, nullptr, nullptr, ReadLen, Access, IsReplace, IsCreateSubdir);
+				std::function<bool(LqHttpConnRcvResult*)>* Data = LqFastAlloc::New<std::function<bool(LqHttpConnRcvResult*)>>(Func);
 				if(Data == nullptr) return false;
-				Data->Func = Func;
-				Data->UserData = UserData;
 				if(!LqHttpConnRcvFile(Domen.Conn, Path, [](LqHttpConnRcvResult* RcvRes) {
-					_s* Data = (_s*)RcvRes->UserData;
-					RcvRes->UserData = Data->UserData;
-					bool Res = Data->Func(RcvRes);
+					std::function<bool(LqHttpConnRcvResult*)>* Data = (std::function<bool(LqHttpConnRcvResult*)>*)RcvRes->UserData;
+					RcvRes->UserData = nullptr;
+					bool Res = Data->operator()(RcvRes);
 					LqFastAlloc::Delete(Data);
 					return Res;
-				}, UserData, ReadLen, Access, IsReplace, IsCreateSubdir)) {
+				}, Data, ReadLen, Access, IsReplace, IsCreateSubdir)) {
 					LqFastAlloc::Delete(Data);
 					return false;
 				}
@@ -310,20 +316,16 @@ public:
 			bool ReadFbuf(
 				LqFbuf* Dest,
 				std::function<void(LqHttpConnRcvResult*)> Func,
-				void* UserData = nullptr,
 				LqFileSz ReadLen = -((LqFileSz)1)
 			) {
-				struct _s { void* UserData; std::function<void(LqHttpConnRcvResult*)> Func; };
-				_s* Data = LqFastAlloc::New<_s>();
+				std::function<void(LqHttpConnRcvResult*)>* Data = LqFastAlloc::New<std::function<void(LqHttpConnRcvResult*)>>(Func);
 				if(Data == nullptr) return false;
-				Data->Func = Func;
-				Data->UserData = UserData;
 				if(!LqHttpConnRcvFbuf(Domen.Conn, Dest, [](LqHttpConnRcvResult* RcvRes) {
-					_s* Data = (_s*)RcvRes->UserData;
-					RcvRes->UserData = Data->UserData;
-					Data->Func(RcvRes);
+					std::function<void(LqHttpConnRcvResult*)>* Data = (std::function<void(LqHttpConnRcvResult*)>*)RcvRes->UserData;
+					RcvRes->UserData = nullptr;
+					Data->operator()(RcvRes);
 					LqFastAlloc::Delete(Data);
-				}, UserData, ReadLen)) {
+				}, Data, ReadLen)) {
 					LqFastAlloc::Delete(Data);
 					return false;
 				}
@@ -332,26 +334,23 @@ public:
 			bool ReadFileAboveBoundary(
 				const char* Path = nullptr,
 				std::function<bool(LqHttpConnRcvResult*)> Func = nullptr,
-				void* UserData = nullptr,
 				const char* Boundary = nullptr,
 				LqFileSz MaxLen = -((LqFileSz)1),
 				int Access = 0666,
 				bool IsReplace = true,
 				bool IsCreateSubdir = true
 			) {
-				struct _s { void* UserData; std::function<bool(LqHttpConnRcvResult*)> Func; };
 				if(Func == nullptr)
-					return LqHttpConnRcvFileAboveBoundary(Domen.Conn, Path, nullptr, UserData, Boundary, MaxLen, Access, IsReplace, IsCreateSubdir);
-				_s* Data = LqFastAlloc::New<_s>();
+					return LqHttpConnRcvFileAboveBoundary(Domen.Conn, Path, nullptr, nullptr, Boundary, MaxLen, Access, IsReplace, IsCreateSubdir);
+				std::function<bool(LqHttpConnRcvResult*)>* Data = LqFastAlloc::New<std::function<bool(LqHttpConnRcvResult*)>>(Func);
 				if(Data == nullptr) return false;
-				Data->Func = Func; Data->UserData = UserData;
 				if(!LqHttpConnRcvFileAboveBoundary(Domen.Conn, Path, [](LqHttpConnRcvResult* RcvRes) {
-					_s* Data = (_s*)RcvRes->UserData;
-					RcvRes->UserData = Data->UserData;
-					bool Res = Data->Func(RcvRes);
+					std::function<bool(LqHttpConnRcvResult*)>* Data = (std::function<bool(LqHttpConnRcvResult*)>*)RcvRes->UserData;
+					RcvRes->UserData = nullptr;
+					bool Res = Data->operator()(RcvRes);
 					LqFastAlloc::Delete(Data);
 					return Res;
-				}, UserData, Boundary, MaxLen, Access, IsReplace, IsCreateSubdir)) {
+				}, Data, Boundary, MaxLen, Access, IsReplace, IsCreateSubdir)) {
 					LqFastAlloc::Delete(Data);
 					return false;
 				}
@@ -360,20 +359,17 @@ public:
 			bool ReadFbufAboveBoundary(
 				LqFbuf* Dest,
 				std::function<void(LqHttpConnRcvResult*)> Func,
-				void* UserData = nullptr,
 				const char* Boundary = nullptr,
 				LqFileSz MaxLen = -((LqFileSz)1)
 			) {
-				struct _s { void* UserData; std::function<void(LqHttpConnRcvResult*)> Func; };
-				_s* Data = LqFastAlloc::New<_s>();
+				std::function<void(LqHttpConnRcvResult*)>* Data = LqFastAlloc::New<std::function<void(LqHttpConnRcvResult*)>>(Func);
 				if(Data == nullptr) return false;
-				Data->Func = Func; Data->UserData = UserData;
 				if(!LqHttpConnRcvFbufAboveBoundary(Domen.Conn, Dest, [](LqHttpConnRcvResult* RcvRes) {
-					_s* Data = (_s*)RcvRes->UserData;
-					RcvRes->UserData = Data->UserData;
-					Data->Func(RcvRes);
+					std::function<void(LqHttpConnRcvResult*)>* Data = (std::function<void(LqHttpConnRcvResult*)>*)RcvRes->UserData;
+					RcvRes->UserData = nullptr;
+					Data->operator()(RcvRes);
 					LqFastAlloc::Delete(Data);
-				}, UserData, Boundary, MaxLen)) {
+				}, Data, Boundary, MaxLen)) {
 					LqFastAlloc::Delete(Data);
 					return false;
 				}
@@ -381,21 +377,18 @@ public:
 			}
 			int ReadMultipartHdrs(
 				std::function<void(LqHttpConnRcvResult*)> Func,
-				void* UserData = nullptr,
 				const char* Boundary = nullptr,
 				LqHttpMultipartHdrs** Dest = nullptr /* If we try to get the headers right now */
 			) {
-				struct _s { void* UserData; std::function<void(LqHttpConnRcvResult*)> Func; };
 				int Res = -1;
-				_s* Data = LqFastAlloc::New<_s>();
+				std::function<void(LqHttpConnRcvResult*)>* Data = LqFastAlloc::New<std::function<void(LqHttpConnRcvResult*)>>(Func);
 				if(Data == nullptr) return Res;
-				Data->Func = Func; Data->UserData = UserData;
 				if(((Res = LqHttpConnRcvMultipartHdrs(Domen.Conn, [](LqHttpConnRcvResult* RcvRes) {
-					_s* Data = (_s*)RcvRes->UserData;
-					RcvRes->UserData = Data->UserData;
-					Data->Func(RcvRes);
+					std::function<void(LqHttpConnRcvResult*)>* Data = (std::function<void(LqHttpConnRcvResult*)>*)RcvRes->UserData;
+					RcvRes->UserData = nullptr;
+					Data->operator()(RcvRes);
 					LqFastAlloc::Delete(Data);
-				}, UserData, Boundary, Dest)) == 0) || (Res == 1)) {
+				}, Data, Boundary, Dest)) == 0) || (Res == 1)) {
 					LqFastAlloc::Delete(Data);
 					return Res;
 				}
@@ -404,20 +397,17 @@ public:
 			bool ReadMultipartFbufNext(
 				LqFbuf* Dest,
 				std::function<void(LqHttpConnRcvResult*)> Func,
-				void* UserData = nullptr,
 				const char* Boundary = nullptr,
 				LqFileSz MaxLen = -((LqFileSz)1)
 			) {
-				struct _s { void* UserData; std::function<void(LqHttpConnRcvResult*)> Func; };
-				_s* Data = LqFastAlloc::New<_s>();
+				std::function<void(LqHttpConnRcvResult*)>* Data = LqFastAlloc::New<std::function<void(LqHttpConnRcvResult*)>>(Func);
 				if(Data == nullptr) return false;
-				Data->Func = Func; Data->UserData = UserData;
 				if(!LqHttpConnRcvMultipartFbufNext(Domen.Conn, Dest, [](LqHttpConnRcvResult* RcvRes) {
-					_s* Data = (_s*)RcvRes->UserData;
-					RcvRes->UserData = Data->UserData;
-					Data->Func(RcvRes);
+					std::function<void(LqHttpConnRcvResult*)>* Data = (std::function<void(LqHttpConnRcvResult*)>*)RcvRes->UserData;
+					RcvRes->UserData = nullptr;
+					Data->operator()(RcvRes);
 					LqFastAlloc::Delete(Data);
-				}, UserData, Boundary, MaxLen)) {
+				}, Data, Boundary, MaxLen)) {
 					LqFastAlloc::Delete(Data);
 					return false;
 				}
@@ -426,26 +416,24 @@ public:
 			bool ReadMultipartFileNext(
 				const char* Path = nullptr,
 				std::function<bool(LqHttpConnRcvResult*)> Func = nullptr,
-				void* UserData = nullptr,
 				const char* Boundary = nullptr,
 				LqFileSz MaxLen = -((LqFileSz)1),
 				int Access = 0666,
 				bool IsReplace = true,
 				bool IsCreateSubdir = true
 			) {
-				struct _s { void* UserData; std::function<bool(LqHttpConnRcvResult*)> Func; };
 				if(Func == nullptr)
-					return LqHttpConnRcvMultipartFileNext(Domen.Conn, Path, nullptr, UserData, Boundary, MaxLen, Access, IsReplace, IsCreateSubdir);
-				_s* Data = LqFastAlloc::New<_s>();
-				if(Data == nullptr) return false;
-				Data->Func = Func; Data->UserData = UserData;
+					return LqHttpConnRcvMultipartFileNext(Domen.Conn, Path, nullptr, nullptr, Boundary, MaxLen, Access, IsReplace, IsCreateSubdir);
+				std::function<bool(LqHttpConnRcvResult*)>* Data = LqFastAlloc::New<std::function<bool(LqHttpConnRcvResult*)>>(Func);
+				if(Data == nullptr) 
+					return false;
 				if(!LqHttpConnRcvMultipartFileNext(Domen.Conn, Path, [](LqHttpConnRcvResult* RcvRes) {
-					_s* Data = (_s*)RcvRes->UserData;
-					RcvRes->UserData = Data->UserData;
-					bool Res = Data->Func(RcvRes);
+					std::function<bool(LqHttpConnRcvResult*)>* Data = (std::function<bool(LqHttpConnRcvResult*)>*)RcvRes->UserData;
+					RcvRes->UserData = nullptr;
+					bool Res = Data->operator()(RcvRes);
 					LqFastAlloc::Delete(Data);
 					return Res;
-				}, UserData, Boundary, MaxLen, Access, IsReplace, IsCreateSubdir)) {
+				}, Data, Boundary, MaxLen, Access, IsReplace, IsCreateSubdir)) {
 					LqFastAlloc::Delete(Data);
 					return false;
 				}
@@ -608,6 +596,10 @@ public:
         } Row;
 
    };
+	bool RspFileAuto(const char* PathToFile = nullptr, const char* Boundary = nullptr) {
+		return LqHttpConnRspFileAuto(Rcv.Domen.Conn, PathToFile, Boundary);
+	}
+   
     inline intptr_t TryScanf(int Flags, const char* Fmt, ...) {
 		va_list Va;
 		intptr_t Res;
@@ -667,3 +659,6 @@ public:
 };
 
 #pragma pack(pop)
+
+#define __METHOD_DECLS__
+#include "LqAlloc.hpp"

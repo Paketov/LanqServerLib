@@ -17,10 +17,10 @@ else
 OPTIM_CFLAGS		:= $(LOCAL_CFLAGS) -O3
 endif
 
-LOCAL_CFLAGS		:= $(OPTIM_CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden
+LOCAL_CFLAGS		:= $(OPTIM_CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive -fno-stack-protector
 LOCAL_MODULE		:= example
 LOCAL_SHARED_LIBRARIES := lanq_lib
-LOCAL_LDFLAGS		:= $(OPTIM_CFLAGS) -shared -nostartfiles -fvisibility=hidden -fvisibility-inlines-hidden
+LOCAL_LDFLAGS		:= $(OPTIM_CFLAGS) -shared -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive 
 
 
 rwildcard 			= $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))

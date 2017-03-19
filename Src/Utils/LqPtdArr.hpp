@@ -94,7 +94,7 @@ class LqPtdArr {
                 return 0;
             }
         }
-        if(NewCount <= 0) {
+        if(NewCount <= ((intptr_t)0)) {
             Dest.append(Cur->Val, Cur->Count);
             Res = Cur->Count;
             Ptr.NewFin(AllocNew());

@@ -27,7 +27,7 @@ LQ_EXTERN_C_BEGIN
 
 typedef struct LqSbuf {
     uint64_t GlobOffset;
-    size_t Len;
+    intptr_t Len;
     void* Page0;
     void* PageN;
 } LqSbuf;
@@ -61,7 +61,7 @@ typedef struct LqSbufReadRegion {
     LqSbuf*    _StreamBuf;
     intptr_t   _Size;
     void*      _Hdr;
-    size_t     _PageDataSize;
+    intptr_t   _PageDataSize;
 
     void*    Source;
     intptr_t SourceLen;

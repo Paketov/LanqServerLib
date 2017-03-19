@@ -8,7 +8,7 @@
 
 
 #include <atomic>
-#include <thread>
+#include "LqFile.h"
 
 template<typename T>
 inline bool LqAtmCmpXchg(volatile T& Val, T& Expected, T NewVal) {
@@ -90,13 +90,13 @@ template<typename T>
 inline void LqAtmLkInit(volatile T& Val) { Val = 1; }
 
 template<typename T>
-inline void LqAtmLkRd(volatile T& Val) { for(T v; ((v = Val) == 0) || !LqAtmCmpXchg(Val, v, (T)(v + 1)); std::this_thread::yield()); }
+inline void LqAtmLkRd(volatile T& Val) { for(T v; ((v = Val) == 0) || !LqAtmCmpXchg(Val, v, (T)(v + 1)); LqThreadYield()); }
 
 template<typename T>
 inline void LqAtmUlkRd(volatile T& Val) { LqAtmIntrlkDec(Val); }
 
 template<typename T>
-inline void LqAtmLkWr(volatile T& Val) { for(T v = 1; !LqAtmCmpXchg(Val, v, (T)0); std::this_thread::yield(), v = 1); }
+inline void LqAtmLkWr(volatile T& Val) { for(T v = 1; !LqAtmCmpXchg(Val, v, (T)0); LqThreadYield(), v = 1); }
 
 template<typename T>
 inline void LqAtmUlkWr(volatile T& Val) { Val = 1; }

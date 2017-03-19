@@ -631,7 +631,7 @@ LQ_EXTERN_C size_t LQ_CALL LqFcheGetMaxSizeFile(LqFche* Che) {
 	return Che->MaxSizeFile;
 }
 
-LQ_EXTERN_C void LQ_CALL LqFcheSetMaxSizeFile(LqFche* Che, size_t NewSize) {
+LQ_EXTERN_C void LQ_CALL LqFcheSetMaxSizeFile(LqFche* Che, intptr_t NewSize) {
 	__LqCachedFile *i, *t;
 	LqAtmLkWr(Che->Locker);
 	if(Che->MaxSizeFile >= NewSize) {
@@ -657,7 +657,7 @@ LQ_EXTERN_C size_t LQ_CALL LqFcheGetMaxSize(LqFche* Che) {
 	return Che->MaxSizeBuff;
 }
 
-LQ_EXTERN_C void LQ_CALL LqFcheSetMaxSize(LqFche* Che, size_t NewSize) {
+LQ_EXTERN_C void LQ_CALL LqFcheSetMaxSize(LqFche* Che, intptr_t NewSize) {
 	__LqCachedFile *i, *t;
 	LqAtmLkWr(Che->Locker);
 	if(NewSize >= Che->MaxSizeBuff) {

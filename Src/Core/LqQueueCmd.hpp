@@ -38,6 +38,8 @@ class LqQueueCmd {
     struct Element {
         ElementHeader           Header;
         TypeVal                 Value;
+		Element(TypeVal NewVal): Value(NewVal) {}
+		Element() {}
     };
 
     ElementHeader               *Begin, *End;
@@ -105,7 +107,7 @@ public:
     template<typename ValType>
     bool Push(TypeCommand tCommand, ValType Val);
 
-	bool Push(LqEvntHdr* Val, void* WorkerOwner);
+	bool Push(LqClientHdr* Val, void* WorkerOwner);
     /*
     * Add only type command to the start of the queue.
     */
@@ -237,14 +239,13 @@ bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand) {
 template<typename TypeCommand>
 template<typename ValType>
 bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand, ValType Val) {
-    auto NewCommand = LqFastAlloc::New<Element<ValType>>();
+    auto NewCommand = LqFastAlloc::New<Element<ValType>>(Val);
     if(NewCommand == nullptr) {
         LqLogErr("LqQueueCmd<TypeCommand>::Push<ValType>() not alloc memory\n");
         return false;
     }
     NewCommand->Header.Next = nullptr;
     NewCommand->Header.Type = tCommand;
-    NewCommand->Value = Val;
 
     Locker.LockWriteYield();
     if(End != nullptr)
@@ -257,15 +258,14 @@ bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand, ValType Val) {
 }
 
 template<typename TypeCommand>
-bool LqQueueCmd<TypeCommand>::Push(LqEvntHdr* Val, void* WorkerOwner) {
-	auto NewCommand = LqFastAlloc::New<Element<LqEvntHdr*>>();
+bool LqQueueCmd<TypeCommand>::Push(LqClientHdr* Val, void* WorkerOwner) {
+	auto NewCommand = LqFastAlloc::New<Element<LqClientHdr*>>(Val);
 	if(NewCommand == nullptr) {
 		LqLogErr("LqQueueCmd<TypeCommand>::Push() not alloc memory\n");
 		return false;
 	}
 	NewCommand->Header.Next = nullptr;
 	NewCommand->Header.Type = 0;
-	NewCommand->Value = Val;
 	Locker.LockWriteYield();
 	LqAtmLkWr(Val->Lk);
 	Val->WrkOwner = WorkerOwner;
@@ -282,14 +282,12 @@ bool LqQueueCmd<TypeCommand>::Push(LqEvntHdr* Val, void* WorkerOwner) {
 template<typename TypeCommand>
 template<typename ValType>
 bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand, ValType Val) {
-    auto NewCommand = LqFastAlloc::New<Element<ValType>>();
+    auto NewCommand = LqFastAlloc::New<Element<ValType>>(Val);
     if(NewCommand == nullptr) {
         LqLogErr("LqQueueCmd<TypeCommand>::PushBegin<ValType>() not alloc memory\n");
         return false;
     }
     NewCommand->Header.Type = tCommand;
-    NewCommand->Value = Val;
-
     Locker.LockWriteYield();
     NewCommand->Header.Next = Begin;
     Begin = &(NewCommand->Header);

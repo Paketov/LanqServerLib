@@ -45,11 +45,11 @@ struct ProtoScan {
 static void LQ_CALL ConnScanHandler(LqConn* Conn, LqEvntFlag Flag) {
     if(!(Flag & LQEVNT_FLAG_ERR))
         ((ProtoScan*)Conn->Proto)->OpenedPorts.push_back(((ConnScan*)Conn)->Port);
-    LqEvntSetClose(Conn);
+    LqClientSetClose(Conn);
 }
 
 static void LQ_CALL TimerHandler(LqEvntFd* Fd, LqEvntFlag Flag) {
-    LqEvntSetClose(Fd);
+    LqClientSetClose(Fd);
 }
 
 static void LQ_CALL TimerEnd(LqEvntFd* TimerFd) {
@@ -59,7 +59,7 @@ static void LQ_CALL TimerEnd(LqEvntFd* TimerFd) {
 	Conn = LqStructByField(ConnScan, LiveTime, TimerFd);
     Conn->Locker.LockWrite();
     if(Conn->CountPtr == 2)
-        LqEvntSetClose(Conn);
+        LqClientSetClose(Conn);
     Conn->CountPtr--;
     if(Conn->CountPtr <= 0) {
         auto Proto = ((ProtoScan*)Conn->Conn.Proto);
@@ -77,7 +77,7 @@ static void LQ_CALL EndProc(LqConn* Connection) {
     ConnScan* Conn = (ConnScan*)Connection;
     Conn->Locker.LockWrite();
     if(Conn->CountPtr == 2)
-        LqEvntSetClose(&Conn->LiveTime);
+        LqClientSetClose(&Conn->LiveTime);
     Conn->CountPtr--;
     if(Conn->CountPtr <= 0) {
         Proto = ((ProtoScan*)Conn->Conn.Proto);
@@ -133,8 +133,8 @@ lblWaitAgain:
                 Conn->CountPtr = 2;
                 Conn->Port = j;
                 Proto.CountConn++;
-                LqEvntAdd((LqEvntHdr*)&Conn->LiveTime, NULL);
-				LqEvntAdd((LqEvntHdr*)Conn, NULL);
+                LqClientAdd((LqClientHdr*)&Conn->LiveTime, NULL);
+				LqClientAdd((LqClientHdr*)Conn, NULL);
             } else {
                 closesocket(Fd);
             }

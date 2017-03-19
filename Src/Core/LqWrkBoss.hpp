@@ -52,9 +52,9 @@ class LQ_IMPORTEXPORT LqWrkBoss {
     static size_t MaxBusy(const WrkArray::interator& AllWrks, size_t* MaxCount = LqDfltPtr());
     size_t        MinBusy(size_t* MinCount = LqDfltPtr());
 
-    size_t TransferAllEvntFromWrkList(WrkArray& SourceWrks, bool ByThisBoss);
+    size_t      TransferAllClientsFromWrkList(WrkArray& SourceWrks, bool ByThisBoss);
 
-    size_t      _TransferAllEvnt(LqWrk* Source, bool ByThisBoss);
+    size_t      _TransferAllClients(LqWrk* Source, bool ByThisBoss);
 
 public:
 
@@ -65,11 +65,11 @@ public:
     int         AddWorkers(size_t Count = LqSystemThread::hardware_concurrency(), bool IsStart = true);
     bool        AddWorker(const LqWrkPtr& LqWorker);
 
-    bool        AddEvntAsync(LqEvntHdr* Evnt);
-    bool        AddEvntSync(LqEvntHdr* Evnt);
+    bool        AddClientAsync(LqClientHdr* Evnt);
+    bool        AddClientSync(LqClientHdr* Evnt);
 
     size_t      CountWorkers() const;
-    size_t      CountEvnts() const;
+    size_t      CountClients() const;
 
     size_t      StartAllWorkersSync() const;
     size_t      StartAllWorkersAsync() const;
@@ -77,48 +77,48 @@ public:
     bool        KickWorker(ullong IdWorker, bool IsTransferAllEvnt = true);
     size_t      KickWorkers(uintptr_t Count, bool IsTransferAllEvnt = true);
 
-    bool        CloseAllEvntAsync() const;
-    size_t      CloseAllEvntSync() const;
+    bool        CloseAllClientsAsync() const;
+    size_t      CloseAllClientsSync() const;
 
     /*
       Close all connections by timeout.
        @LiveTime: filter.
        @return: true - on success, false - otherwise
     */
-    size_t      CloseConnByTimeoutSync(LqTimeMillisec LiveTime) const;
-    bool        CloseConnByTimeoutAsync(LqTimeMillisec LiveTime) const;
+    size_t      CloseClientsByTimeoutSync(LqTimeMillisec LiveTime) const;
+    bool        CloseClientsByTimeoutAsync(LqTimeMillisec LiveTime) const;
 
     /*
       Close all connection by ip.
        @Addr: filter ip address.
        @return: true - on success, false - otherwise
     */
-    size_t      CloseConnByTimeoutSync(const LqProto* Proto, LqTimeMillisec LiveTime) const;
-    bool        CloseConnByTimeoutAsync(const LqProto* Proto, LqTimeMillisec LiveTime) const;
+    size_t      CloseClientsByTimeoutSync(const LqProto* Proto, LqTimeMillisec LiveTime) const;
+    bool        CloseClientsByTimeoutAsync(const LqProto* Proto, LqTimeMillisec LiveTime) const;
 
     /*
       Close all connection by ip.
        @Addr: filter ip address.
        @return: true - on success, false - otherwise
     */
-    bool        CloseConnByIpAsync(const sockaddr* Addr) const;
-    size_t      CloseConnByIpSync(const sockaddr* Addr) const;
+    bool        CloseClientsByIpAsync(const sockaddr* Addr) const;
+    size_t      CloseClientsByIpSync(const sockaddr* Addr) const;
 
     /*
       Close all connection by protocol.
        @Proto: filter protocol.
        @return: true - on success, false - otherwise
     */
-    bool        CloseConnByProtoAsync(const LqProto* Proto) const;
-    size_t      CloseConnByProtoSync(const LqProto* Proto) const;
+    bool        CloseClientsByProtoAsync(const LqProto* Proto) const;
+    size_t      CloseClientsByProtoSync(const LqProto* Proto) const;
 
     /*
       Update event flags.
        @Conn: target header.
        @return: true - on success, false - otherwise
     */
-    bool        UpdateAllEvntFlagAsync() const;
-    size_t      UpdateAllEvntFlagSync() const;
+    bool        UpdateAllClientsFlagAsync() const;
+    size_t      UpdateAllClientsFlagSync() const;
     /*
       Enum and remove or close event header
        @UserData: Use in @Proc
@@ -127,7 +127,7 @@ public:
          @return: 0 - just continue, 1 - remove, 2 - remove and close, -1 - Interrupt enum
        @return: Count removed events.
     */
-    size_t      EnumCloseRmEvnt(int(LQ_CALL*Proc)(void* UserData, LqEvntHdr* EvntHdr), void* UserData = nullptr) const;
+    size_t      EnumClients(int(LQ_CALL*Proc)(void* UserData, LqClientHdr* EvntHdr), void* UserData = nullptr) const;
 
     /*
       Enum and remove or close event header, use @Proto as filter
@@ -138,22 +138,55 @@ public:
          @return: 0 - just continue, 1 - remove, 2 - remove and close, -1 - Interrupt enum
        @return: Count removed events.
     */
-    size_t      EnumCloseRmEvntByProto(int(LQ_CALL*Proc)(void* UserData, LqEvntHdr* EvntHdr), const LqProto* Proto, void* UserData = nullptr) const;
+    size_t      EnumClientsByProto(int(LQ_CALL*Proc)(void* UserData, LqClientHdr* EvntHdr), const LqProto* Proto, void* UserData = nullptr) const;
 
-    bool        EnumCloseRmEvntAsync(
-                    int(*EventAct)(void* UserData, size_t UserDataSize, void*Wrk, LqEvntHdr* EvntHdr, LqTimeMillisec CurTime),
-                    const LqProto* Proto,
-                    void* UserData,
-                    size_t UserDataSize
-                ) const;
+    bool        EnumClientsAsync(
+        int(LQ_CALL*EventAct)(void* UserData, size_t UserDataSize, void*Wrk, LqClientHdr* EvntHdr, LqTimeMillisec CurTime),
+        void* UserData,
+        size_t UserDataSize
+    ) const;
+
+	bool        EnumClientsAndCallFinForMultipleBossAsync11(LqWrkBoss* Bosses, size_t BossesSize, std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct, std::function<uintptr_t()> FinFunc) const;
+	
+	bool        EnumClientsAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct) const;
+	size_t      EnumClients11(std::function<int(LqClientHdr*)> EventAct) const;
+	size_t      EnumClientsByProto11(std::function<int(LqClientHdr*)> EventAct, const LqProto* Proto) const;
+
+	/*
+	 Use this method for safety remove module
+	  @EventAct: Can be NULL. Used for remove or close event in workers
+	  @FinFunc: Called when last worker enum all event. You can return handle on module for remove them
+	  @UserData: User data for use in @EventAct and @FinFunc
+	  @UserDataSize: Size of user data
+	*/
+    bool        EnumClientsAndCallFinAsync(
+        int(LQ_CALL*EventAct)(void*, size_t, void*, LqClientHdr*, LqTimeMillisec),
+        uintptr_t(LQ_CALL*FinFunc)(void*, size_t), /* You can return module handle for delete them */
+        void * UserData,
+        size_t UserDataSize
+    ) const;
+
+	bool        EnumClientsAndCallFinAsync11(
+		std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct, 
+		std::function<uintptr_t()> FinFunc
+	) const;
+
+	static bool  EnumClientsAndCallFinForMultipleBossAsync(
+		LqWrkBoss* Bosses,
+		size_t BossesSize,
+		int(LQ_CALL*EventAct)(void*, size_t, void*, LqClientHdr*, LqTimeMillisec),
+		uintptr_t(LQ_CALL*FinFunc)(void*, size_t), /* You can return module handle for delete them */
+		void * UserData,
+		size_t UserDataSize
+	);
 
     /*
       Just remove event from workers. (In sync mode)
         @EvntHdr: Target event
         @return: true- when removed, false- otherwise
     */
-    bool        RemoveEvnt(LqEvntHdr* EvntHdr) const;
-    bool        CloseEvnt(LqEvntHdr* EvntHdr) const;
+    bool        RemoveClient(LqClientHdr* EvntHdr) const;
+    bool        CloseClient(LqClientHdr* EvntHdr) const;
 
 
     /*
@@ -163,6 +196,7 @@ public:
         @return - true is async task added
     */
     bool         AsyncCall(void(LQ_CALL*AsyncProc)(void* Data), void* UserData = nullptr);
+	bool		 AsyncCall11(std::function<void()> Proc);
     /*
       Remove async task from worker(s) queue
         @AsyncProc - Target procedure
@@ -177,8 +211,8 @@ public:
         @Source - Source worker or worker list(Boss).
         @return - count transfered events
     */
-    size_t      TransferAllEvnt(LqWrk* Source) { return _TransferAllEvnt(Source, false);  }
-    size_t      TransferAllEvnt(LqWrkBoss* Source);
+    size_t      TransferAllClients(LqWrk* Source) { return _TransferAllClients(Source, false);  }
+    size_t      TransferAllClients(LqWrkBoss* Source);
 
     size_t      KickAllWorkers();
 

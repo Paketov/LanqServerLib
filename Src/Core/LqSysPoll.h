@@ -22,8 +22,7 @@
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-typedef struct LqEvntInterator
-{
+typedef struct LqEvntInterator {
 #if defined(LQEVNT_KEVENT)
 #else
     intptr_t Index;
@@ -34,16 +33,14 @@ typedef struct LqEvntInterator
 } LqEvntInterator;
 
 
-typedef struct __LqArr
-{
+typedef struct __LqArr {
     void*    Data;
     intptr_t Count;
     intptr_t AllocCount;
     bool     IsRemoved;
 } __LqArr;
 
-typedef struct __LqArr2
-{
+typedef struct __LqArr2 {
     void*    Data;
     intptr_t AllocCount;
     intptr_t MinEmpty;
@@ -51,8 +48,7 @@ typedef struct __LqArr2
     bool     IsRemoved;
 } __LqArr2;
 
-typedef struct __LqArr3
-{
+typedef struct __LqArr3 {
     void*    Data;
     void*    Data2;
     intptr_t Count;
@@ -60,9 +56,7 @@ typedef struct __LqArr3
     bool     IsRemoved;
 } __LqArr3;
 
-typedef struct LqSysPoll
-{   
-    intptr_t            DeepLoop;
+typedef struct LqSysPoll {
     intptr_t            CommonCount;
 #if defined(LQEVNT_WIN_EVENT)
     __LqArr2            ConnArr;
@@ -72,7 +66,8 @@ typedef struct LqSysPoll
 
     intptr_t            EventObjectIndex;
     intptr_t            ConnIndex;
-     
+
+    uintptr_t           IsHaveOnlyHup;
 #elif defined(LQEVNT_KEVENT)
 #elif defined(LQEVNT_EPOLL)
     __LqArr             ClientArr;
@@ -89,19 +84,19 @@ typedef struct LqSysPoll
 #pragma pack(pop)
 
 #if defined(LQEVNT_WIN_EVENT)
-#define __LqSysPollIsRestruct(EventFollower)  (((--(EventFollower)->DeepLoop) <= 0) && ((EventFollower)->EvntFdArr.IsRemoved || (EventFollower)->ConnArr.IsRemoved))
+#define __LqSysPollIsRestruct(EventFollower)  ((EventFollower)->EvntFdArr.IsRemoved || (EventFollower)->ConnArr.IsRemoved)
 #elif defined(LQEVNT_KEVENT)
 
 #elif defined(LQEVNT_EPOLL)
-#define __LqSysPollIsRestruct(EventFollower)  (((--(EventFollower)->DeepLoop) <= 0) && (EventFollower)->ClientArr.IsRemoved)
+#define __LqSysPollIsRestruct(EventFollower)  ((EventFollower)->ClientArr.IsRemoved)
 #elif defined(LQEVNT_POLL)
-#define __LqSysPollIsRestruct(EventFollower)  (((--(EventFollower)->DeepLoop) <= 0) && (EventFollower)->EvntFdArr.IsRemoved)
+#define __LqSysPollIsRestruct(EventFollower)  ((EventFollower)->EvntFdArr.IsRemoved)
 #endif
 
 
 
 
-#define lqsyspoll_enum_changes_do(EventFollower, EventFlags) {for(LqEvntFlag EventFlags = __LqSysPollEnumEventBegin(&(EventFollower)); EventFlags != 0; EventFlags = __LqEvntEnumEventNext(&(EventFollower)))
+#define lqsyspoll_enum_changes_do(EventFollower, EventFlags) {for(LqEvntFlag EventFlags = __LqSysPollEnumEventBegin(&(EventFollower)); EventFlags != ((LqEvntFlag)0); EventFlags = __LqEvntEnumEventNext(&(EventFollower)))
 #define lqsyspoll_enum_changes_while(EventFollower)  if(__LqSysPollIsRestruct(&(EventFollower))) __LqSysPollRestructAfterRemoves(&(EventFollower));}
 
 #define lqsyspoll_enum_do(EventFollower, IndexName) {LqEvntInterator IndexName; for(auto __r = __LqSysPollEnumBegin(&EventFollower, &IndexName); __r; __r = __LqSysPollEnumNext(&EventFollower, &IndexName))
@@ -130,7 +125,7 @@ void LqSysPollUninit(LqSysPoll* Dest);
 /*
 * Add connection in event follower list.
 */
-bool LqSysPollAddHdr(LqSysPoll* Dest, LqEvntHdr* Client);
+bool LqSysPollAddHdr(LqSysPoll* Dest, LqClientHdr* Client);
 
 /*
 * Start enumerate events by internal interator.
@@ -155,7 +150,7 @@ void __LqSysPollRestructAfterRemoves(LqSysPoll* Events);
 * Get client struct by internal interator.
 *  @return - ptr on event connection.
 */
-LqEvntHdr* LqSysPollGetHdrByCurrent(LqSysPoll* Events);
+LqClientHdr* LqSysPollGetHdrByCurrent(LqSysPoll* Events);
 
 
 #if defined(LQEVNT_WIN_EVENT)
@@ -178,7 +173,7 @@ bool LqSysPollSetMaskByCurrent(LqSysPoll* Events);
 * Set new mask for onnection or object, by header
 *  @return - true - is mask setted, otherwise - false.
 */
-int LqSysPollUpdateAllMask(LqSysPoll* Events, void* UserData, void(*DelProc)(void*, LqEvntInterator*), bool IsRestruct);
+int LqSysPollUpdateAllMask(LqSysPoll* Events, void* UserData, void(*DelProc)(void*, LqEvntInterator*));
 
 /*
 * Start enumerate connections.
@@ -199,8 +194,8 @@ bool __LqSysPollEnumNext(LqSysPoll* Events, LqEvntInterator* Interator);
 *  @Interator - Index
 *  @return - true - is have next element
 */
-LqEvntHdr* LqSysPollRemoveByInterator(LqSysPoll* Events, LqEvntInterator* Interator);
-LqEvntHdr* LqSysPollGetHdrByInterator(LqSysPoll* Events, LqEvntInterator* Interator);
+LqClientHdr* LqSysPollRemoveByInterator(LqSysPoll* Events, LqEvntInterator* Interator);
+LqClientHdr* LqSysPollGetHdrByInterator(LqSysPoll* Events, LqEvntInterator* Interator);
 
 
 /*

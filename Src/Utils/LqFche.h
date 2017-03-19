@@ -30,7 +30,7 @@ struct __LqCachedFile {
 	size_t              PathHash;
 
 	LqFbuf				File;
-	LqFileSz            SizeFile;
+	intptr_t            SizeFile;
 
 	size_t				CountRef;
 	intptr_t            CountReaded;
@@ -83,10 +83,10 @@ LQ_IMPORTEXPORT int LQ_CALL LqFcheUpdate(LqFche* Che, const char* Path);
 LQ_IMPORTEXPORT bool LQ_CALL LqFcheUncache(LqFche* Che, const char* Path);
 
 LQ_IMPORTEXPORT size_t LQ_CALL LqFcheGetMaxSizeFile(LqFche* Che);
-LQ_IMPORTEXPORT void LQ_CALL LqFcheSetMaxSizeFile(LqFche* Che, size_t NewSize);
+LQ_IMPORTEXPORT void LQ_CALL LqFcheSetMaxSizeFile(LqFche* Che, intptr_t NewSize);
 LQ_IMPORTEXPORT size_t LQ_CALL LqFcheGetEmployedSize(LqFche* Che);
 LQ_IMPORTEXPORT size_t LQ_CALL LqFcheGetMaxSize(LqFche* Che);
-LQ_IMPORTEXPORT void LQ_CALL LqFcheSetMaxSize(LqFche* Che, size_t NewSize);
+LQ_IMPORTEXPORT void LQ_CALL LqFcheSetMaxSize(LqFche* Che, intptr_t NewSize);
 LQ_IMPORTEXPORT LqTimeMillisec LQ_CALL LqFcheGetPeriodUpdateStat(LqFche* Che);
 LQ_IMPORTEXPORT void LQ_CALL LqFcheSetPeriodUpdateStat(LqFche* Che, LqTimeMillisec NewPeriodMillisec);
 LQ_IMPORTEXPORT float LQ_CALL LqFcheGetPerSecReadAdding(LqFche* Che);

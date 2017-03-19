@@ -196,7 +196,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;LANQBUILD;HAVE_OPENSSL;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;LANQBUILD;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>E:\openssl-1.0.1l-vs2008\include;$(LocalDebuggerWorkingDirectory)..\Src\Utils;$(LocalDebuggerWorkingDirectory)..\Src\Tasks;$(LocalDebuggerWorkingDirectory)..\Src\Protocols\Http;$(LocalDebuggerWorkingDirectory)..\Src\Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions</EnableEnhancedInstructionSet>
       <StructMemberAlignment>Default</StructMemberAlignment>
@@ -248,7 +248,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;LANQBUILD;HAVE_OPENSSL;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;LANQBUILD;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>E:\openssl-1.0.1l-vs2008\include;$(LocalDebuggerWorkingDirectory)..\Src\Utils;$(LocalDebuggerWorkingDirectory)..\Src\Tasks;$(LocalDebuggerWorkingDirectory)..\Src\Protocols\Http;$(LocalDebuggerWorkingDirectory)..\Src\Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <InlineFunctionExpansion>Default</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>

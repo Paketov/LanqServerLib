@@ -96,12 +96,13 @@ typename std::enable_if<std::is_same<TypeNumber, ullong>::value, bool>::type Rea
 
 
 int ReadCommandLine(char* CommandBuf, LqString& Line, LqString& Flags) {
-    int Flags1, Flags2, EndCommand, StartArguments, EndArguments;
+    int Flags2, EndCommand, StartArguments, EndArguments;
     Line.clear();
     Flags.clear();
-    Flags1 = -1, Flags2 = -1, EndCommand = -1, StartArguments = -1, EndArguments = -1;
+    Flags2 = -1, EndCommand = -1, StartArguments = -1, EndArguments = -1;
     /* Peek string */
-    LqFbuf_scanf(InFiles.top(), LQFBUF_SCANF_PEEK, "%?*[\n\r ]%n%?*[+@-]%n%*[^ \n\r]%n%?*[ ]%n%?*[^\n\r]%n", &Flags1, &Flags2, &EndCommand, &StartArguments, &EndArguments);
+    LqFbuf_scanf(InFiles.top(), 0, "%?*[\n\r ]");
+    LqFbuf_scanf(InFiles.top(), LQFBUF_SCANF_PEEK, "%?*[+@-]%n%*[^ \n\r]%n%?*[ ]%n%?*[^\n\r]%n", &Flags2, &EndCommand, &StartArguments, &EndArguments);
     if((EndCommand == -1) && LqFbuf_eof(InFiles.top())) {
         LqFbuf_close(InFiles.top());
         InFiles.pop();
@@ -112,10 +113,10 @@ int ReadCommandLine(char* CommandBuf, LqString& Line, LqString& Flags) {
         EndArguments = StartArguments;
     Line.clear();
     Line.resize(EndArguments - StartArguments);
-    Flags.resize(Flags2 - Flags1);
+    Flags.resize(lq_max(Flags2, 0));
     CommandBuf[0] = '\0';
 
-    LqFbuf_scanf(InFiles.top(), 0, "%?*[\n\r ]%?[+@-]%[^ \n\r]%?*[ ]%?[^\n\r]", Flags.data(), CommandBuf, Line.data());
+    LqFbuf_scanf(InFiles.top(), 0, "%?[+@-]%[^ \n\r]%?*[ ]%?[^\n\r]", Flags.data(), CommandBuf, Line.data());
     return EndCommand - Flags2;
 }
 
@@ -135,33 +136,32 @@ LqHttp* Http = nullptr;
 //void* SslCtx;
 //
 //void ff(void*, LqSockBuf* SockBuf) {
-//	char Buf[4096];
-//	LqSockBufScanf(SockBuf, false, "%{^\r\n\r\n}%*{\r\n\r\n}", Buf);
+//  char Buf[4096];
+//  LqSockBufScanf(SockBuf, false, "%{^\r\n\r\n}%*{\r\n\r\n}", Buf);
 //
-//	LqSockBufRcvNotifyWhenMatch(SockBuf, nullptr, ff, "%*{^\r\n\r\n}", 1, 32768);
-//	
-//	LqSockBufRspSetHdr(SockBuf);
-//	LqSockBufPrintfHdr(SockBuf, "HTTP/1.1 200 OK\r\n");
-//	
-//	//LqSockBufPrintf(SockBuf, "Hello world");
-//	LqSockBufRspFile(SockBuf, "E:\\serv\\www\\IMG_20150811_044731.jpg");
-//	LqFileSz  Len = LqSockBufRspLen(SockBuf);
-//	LqSockBufPrintfHdr(SockBuf, "Content-Length: %lli\r\n", Len);
-//	LqSockBufPrintfHdr(SockBuf, "Content-Type: image/jpeg\r\n", Len);
-//	//LqSockBufPrintfHdr(SockBuf, "Content-Type: application/octet-stream\r\n");
-//	LqSockBufPrintfHdr(SockBuf, "\r\n", Len);
-//	
-//	LqSockBufRspUnsetHdr(SockBuf);
-//	//LqSockBufRspNotifyCompletion(
-//	//	SockBuf,
-//	//	[](void*, LqSockBuf* Buf) { 
-//	//		int yy = 0; 
-//	//	}, 
-//	//	nullptr);
+//  LqSockBufRcvNotifyWhenMatch(SockBuf, nullptr, ff, "%*{^\r\n\r\n}", 1, 32768);
+//  
+//  LqSockBufRspSetHdr(SockBuf);
+//  LqSockBufPrintfHdr(SockBuf, "HTTP/1.1 200 OK\r\n");
+//  
+//  //LqSockBufPrintf(SockBuf, "Hello world");
+//  LqSockBufRspFile(SockBuf, "E:\\serv\\www\\IMG_20150811_044731.jpg");
+//  LqFileSz  Len = LqSockBufRspLen(SockBuf);
+//  LqSockBufPrintfHdr(SockBuf, "Content-Length: %lli\r\n", Len);
+//  LqSockBufPrintfHdr(SockBuf, "Content-Type: image/jpeg\r\n", Len);
+//  //LqSockBufPrintfHdr(SockBuf, "Content-Type: application/octet-stream\r\n");
+//  LqSockBufPrintfHdr(SockBuf, "\r\n", Len);
+//  
+//  LqSockBufRspUnsetHdr(SockBuf);
+//  //LqSockBufRspNotifyCompletion(
+//  //  SockBuf,
+//  //  [](void*, LqSockBuf* Buf) { 
+//  //      int yy = 0; 
+//  //  }, 
+//  //  nullptr);
 //};
 
 int main(int argc, char* argv[]) {
-
     int StdFd = LqDescrDup(LQ_STDIN, 0);
     fclose(stdin);
     LqDescrDupToStd(StdFd, LQ_STDIN);
@@ -369,67 +369,67 @@ lblAgain:
             }
             break;
             LQSTR_CASE("start") {
-				int Count;
-				char Buf[4096];
-				LqString CertName;
-				LqString KeyName;
-				LqString DhpFile;
-				LqString CaFile;
-				LqString Host;
-				LqString Port = "80";
-				int RouteProto = AF_INET;
-				void* SslCtx = nullptr;
+                int Count;
+                char Buf[4096];
+                LqString CertName;
+                LqString KeyName;
+                LqString DhpFile;
+                LqString CaFile;
+                LqString Host;
+                LqString Port = "80";
+                int RouteProto = AF_INET;
+                void* SslCtx = nullptr;
                 if(Http != nullptr) {
                     LqFbuf_printf(OutFile, " ERROR: Has been started\n");
                     IsSuccess = false;
                     break;
                 }
                 if((Count = LqWrkBossStartAllWrkSync()) >= 0) {
-					Buf[0] = '\0';
-					LqEnvGet("SSL_CERT_FILE", Buf, sizeof(Buf) - 2);
-					CertName = Buf;
-					Buf[0] = '\0';
-					LqEnvGet("SSL_KEY_FILE", Buf, sizeof(Buf) - 2);
-					KeyName = Buf;
-					Buf[0] = '\0';
-					LqEnvGet("SSL_DHP_FILE", Buf, sizeof(Buf) - 2);
-					DhpFile = Buf;
-					Buf[0] = '\0';
-					LqEnvGet("SSL_CA_FILE", Buf, sizeof(Buf) - 2);
-					CaFile = Buf;
-					if(!CertName.empty() && !KeyName.empty()) {
-						SslCtx = LqConnSslCreate(nullptr, CertName.c_str(), KeyName.c_str(), nullptr, 1, CaFile.empty() ? nullptr : CaFile.c_str(), DhpFile.empty() ? nullptr : DhpFile.c_str());
-						if(SslCtx == nullptr) {
-							LqFbuf_printf(OutFile, " ERROR: Not create SSL context\n");
-						}
-					}
-					Buf[0] = '\0';
-					LqEnvGet("LQ_HOST", Buf, sizeof(Buf) - 2);
-					Host = Buf;
-					Buf[0] = '\0';
-					if(LqEnvGet("LQ_PORT", Buf, sizeof(Buf) - 2) > 0)
-						Port = Buf;
-					Buf[0] = '\0';
-					if(LqEnvGet("LQ_ROUTE_PROTO", Buf, sizeof(Buf) - 2) > 0) {
-						int Res = 0;
-						LqFbuf_snscanf(Buf, sizeof(Buf), "%i", &Res);
-						switch(Res) {
-							case 4: RouteProto = AF_INET; break;
-							case 6: RouteProto = AF_INET6; break;
-							default: RouteProto = AF_UNSPEC; break;
-						}
-					}
-					Http = LqHttpCreate(Host.empty() ? nullptr : Host.c_str(), Port.c_str(), RouteProto, SslCtx, true, true);
-					if(Http == nullptr) {
-						LqFbuf_printf(OutFile, " Not bind (%s)\n", strerror(lq_errno));
-						IsSuccess = false;
-						if(SslCtx != nullptr) {
-							LqConnSslDelete(SslCtx);
-						}
-					} else {
-						LqHttpGoWork(Http, nullptr);
-						LqFbuf_printf(OutFile, " OK\n");
-					}
+                    Buf[0] = '\0';
+                    LqEnvGet("SSL_CERT_FILE", Buf, sizeof(Buf) - 2);
+                    CertName = Buf;
+                    Buf[0] = '\0';
+                    LqEnvGet("SSL_KEY_FILE", Buf, sizeof(Buf) - 2);
+                    KeyName = Buf;
+                    Buf[0] = '\0';
+                    LqEnvGet("SSL_DHP_FILE", Buf, sizeof(Buf) - 2);
+                    DhpFile = Buf;
+                    Buf[0] = '\0';
+                    LqEnvGet("SSL_CA_FILE", Buf, sizeof(Buf) - 2);
+                    CaFile = Buf;
+                    if(!CertName.empty() && !KeyName.empty()) {
+                        SslCtx = LqConnSslCreate(nullptr, CertName.c_str(), KeyName.c_str(), nullptr, 1, CaFile.empty() ? nullptr : CaFile.c_str(), DhpFile.empty() ? nullptr : DhpFile.c_str());
+                        if(SslCtx == nullptr) {
+                            LqFbuf_printf(OutFile, " ERROR: Not create SSL context\n");
+                        }
+                    }
+                    Buf[0] = '\0';
+                    LqEnvGet("LQ_HOST", Buf, sizeof(Buf) - 2);
+                    Host = Buf;
+                    Buf[0] = '\0';
+                    if(LqEnvGet("LQ_PORT", Buf, sizeof(Buf) - 2) > 0)
+                        Port = Buf;
+                    Buf[0] = '\0';
+                    if(LqEnvGet("LQ_ROUTE_PROTO", Buf, sizeof(Buf) - 2) > 0) {
+                        int Res = 0;
+                        LqFbuf_snscanf(Buf, sizeof(Buf), "%i", &Res);
+                        switch(Res) {
+                            case 4: RouteProto = AF_INET; break;
+                            case 6: RouteProto = AF_INET6; break;
+                            default: RouteProto = AF_UNSPEC; break;
+                        }
+                    }
+                    Http = LqHttpCreate(Host.empty() ? nullptr : Host.c_str(), Port.c_str(), RouteProto, SslCtx, true, true);
+                    if(Http == nullptr) {
+                        LqFbuf_printf(OutFile, " Not bind (%s)\n", strerror(lq_errno));
+                        IsSuccess = false;
+                        if(SslCtx != nullptr) {
+                            LqConnSslDelete(SslCtx);
+                        }
+                    } else {
+                        LqHttpGoWork(Http, nullptr);
+                        LqFbuf_printf(OutFile, " OK\n");
+                    }
                 } else {
                     LqFbuf_printf(OutFile, " ERROR: Not start workers\n");
                     IsSuccess = false;
@@ -438,14 +438,14 @@ lblAgain:
             }
             break;
             LQSTR_CASE("stop") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Has been closed\n");
-					IsSuccess = false;
-				} else {
-					LqHttpDelete(Http);
-					Http = nullptr;
-					LqFbuf_printf(OutFile, " OK\n");
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Has been closed\n");
+                    IsSuccess = false;
+                } else {
+                    LqHttpDelete(Http);
+                    Http = nullptr;
+                    LqFbuf_printf(OutFile, " OK\n");
+                }
             }
             break;
             /*---------------------------
@@ -492,11 +492,11 @@ lblAgain:
             *Module commands
             */
             LQSTR_CASE("ldmdl") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString Path = ReadPath(CommandData);
                 if(Path[0] == '\0') {
                     LqFbuf_printf(OutFile, " ERROR: Invalid module path\n");
@@ -534,11 +534,11 @@ lblAgain:
             }
             break;
             LQSTR_CASE("rmmdl") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString ModuleName = ReadPath(CommandData);
                 if(ModuleName.empty()) {
                     LqFbuf_printf(OutFile, " ERROR: Invalid module name\n");
@@ -569,21 +569,21 @@ lblAgain:
             LQSTR_CASE("mdllist") {
                 char Buf[10000];
                 bool IsFree = false;
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 for(uintptr_t h = 0; LqHttpMdlEnm(Http, &h, Buf, sizeof(Buf), &IsFree) >= 0;)
                     LqFbuf_printf(OutFile, " #%llx (%s) %s\n", (ullong)h, Buf, (IsFree) ? "released" : "");
             }
             break;
             LQSTR_CASE("mdlcmd") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString ModuleName = ReadPath(CommandData);
                 if(ModuleName.empty()) {
                     LqFbuf_printf(OutFile, " ERROR: Invalid module name\n");
@@ -620,11 +620,11 @@ lblAgain:
             *Domen commands
             */
             LQSTR_CASE("mkdmn") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString Domen = ReadPath(CommandData);
                 if(Domen[0] == '\0') {
                     LqFbuf_printf(OutFile, " ERROR: Invalid domen name\n");
@@ -636,11 +636,11 @@ lblAgain:
             }
             break;
             LQSTR_CASE("rmdmn") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString Domen = ReadPath(CommandData);
                 if((Domen[0] == '\0') || (Domen[0] == '*')) {
                     LqFbuf_printf(OutFile, " ERROR: Invalid domen name\n");
@@ -659,11 +659,11 @@ lblAgain:
             *Path commands
             */
             LQSTR_CASE("mkredirect") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString Param = ReadParams(CommandData, "f");
                 LqString Domen = ReadPath(CommandData);
                 if(Domen[0] == '\0') {
@@ -698,11 +698,11 @@ lblAgain:
             }
             break;
             LQSTR_CASE("mkpth") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString Param = ReadParams(CommandData, "sf");
                 LqString Domen = ReadPath(CommandData);
                 if(Domen[0] == '\0') {
@@ -731,11 +731,11 @@ lblAgain:
             }
             break;
             LQSTR_CASE("rmpth") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString Param = ReadParams(CommandData, "f");
                 LqString Domen = ReadPath(CommandData);
                 if(Domen[0] == '\0') {
@@ -757,11 +757,11 @@ lblAgain:
             LQSTR_CASE("pthlist") {
                 char DomenBuf[512];
                 DomenBuf[0] = '\0';
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString Param = ReadParams(CommandData, "p");
                 while(LqHttpPthDmnEnm(Http, DomenBuf, sizeof(DomenBuf) - 1)) {
                     LqFbuf_printf(OutFile, " Domen: %s\n", DomenBuf);
@@ -777,7 +777,7 @@ lblAgain:
                     while(
                         LqHttpPthEnm
                         (
-						Http,
+                        Http,
                         DomenBuf,
                         NetAddress,
                         sizeof(NetAddress) - 1,
@@ -879,11 +879,11 @@ lblAgain:
             }
             break;
             LQSTR_CASE("pthsetperm") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString Param = ReadParams(CommandData, "f");
                 LqString Domen = ReadPath(CommandData);
                 if(Domen[0] == '\0') {
@@ -905,11 +905,11 @@ lblAgain:
             }
             break;
             LQSTR_CASE("pthsetatz") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString Param = ReadParams(CommandData, "fr");
                 LqString Domen = ReadPath(CommandData);
                 if(Domen[0] == '\0') {
@@ -947,11 +947,11 @@ lblAgain:
             }
             break;
             LQSTR_CASE("pthunsetatz") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString Param = ReadParams(CommandData, "f");
                 LqString Domen = ReadPath(CommandData);
                 if(Domen[0] == '\0') {
@@ -1122,107 +1122,107 @@ lblAgain:
             *Cache parametrs
             */
             LQSTR_CASE("chemaxsize") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
-                size_t Size = 0;
-				LqFche* Che = LqHttpGetCache(Http);
-				if(Che == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Cache not found\n");
-					break;
-				}
-                if(!ReadNumber(CommandData, &Size)) {
-                    LqFbuf_printf(OutFile, " %zu\n", LqFcheGetMaxSize(Che));
-					LqFcheDelete(Che);
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
                     break;
                 }
-				LqFcheSetMaxSize(Che, Size);
-				LqFcheDelete(Che);
+                size_t Size = 0;
+                LqFche* Che = LqHttpGetCache(Http);
+                if(Che == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Cache not found\n");
+                    break;
+                }
+                if(!ReadNumber(CommandData, &Size)) {
+                    LqFbuf_printf(OutFile, " %zu\n", LqFcheGetMaxSize(Che));
+                    LqFcheDelete(Che);
+                    break;
+                }
+                LqFcheSetMaxSize(Che, Size);
+                LqFcheDelete(Che);
                 LqFbuf_printf(OutFile, " OK\n");
             }
             break;
             LQSTR_CASE("chemaxsizef") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
-                size_t Size = 0;
-				LqFche* Che = LqHttpGetCache(Http);
-				if(Che == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Cache not found\n");
-					break;
-				}
-                if(!ReadNumber(CommandData, &Size)) {
-					LqFbuf_printf(OutFile, " %zu\n", LqFcheGetMaxSizeFile(Che));
-					LqFcheDelete(Che);
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
                     break;
                 }
-				LqFcheSetMaxSizeFile(Che, Size);
-				LqFcheDelete(Che); /* Dereference cache*/
-				LqFbuf_printf(OutFile, " OK\n");
+                size_t Size = 0;
+                LqFche* Che = LqHttpGetCache(Http);
+                if(Che == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Cache not found\n");
+                    break;
+                }
+                if(!ReadNumber(CommandData, &Size)) {
+                    LqFbuf_printf(OutFile, " %zu\n", LqFcheGetMaxSizeFile(Che));
+                    LqFcheDelete(Che);
+                    break;
+                }
+                LqFcheSetMaxSizeFile(Che, Size);
+                LqFcheDelete(Che); /* Dereference cache*/
+                LqFbuf_printf(OutFile, " OK\n");
             }
             break;
             LQSTR_CASE("chesize") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
-				LqFche* Che = LqHttpGetCache(Http);
-				if(Che == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Cache not found\n");
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
+                LqFche* Che = LqHttpGetCache(Http);
+                if(Che == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Cache not found\n");
+                    break;
+                }
                 LqFbuf_printf(OutFile, " %zu\n", LqFcheGetEmployedSize(Che));
-				LqFcheDelete(Che); /* Dereference cache*/
+                LqFcheDelete(Che); /* Dereference cache*/
             }
             break;
             LQSTR_CASE("cheperu") //CacHE PERiod Update
             {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
-                LqTimeMillisec Millisec;
-				LqFche* Che = LqHttpGetCache(Http);
-				if(Che == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Cache not found\n");
-					break;
-				}
-                if(!ReadNumber(CommandData, &Millisec)) {
-                    LqFbuf_printf(OutFile, " %lli\n", (long long)LqFcheGetPeriodUpdateStat(Che));
-					LqFcheDelete(Che); /* Dereference cache*/
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
                     break;
                 }
-				LqFcheSetPeriodUpdateStat(Che, Millisec);
-				LqFcheDelete(Che); /* Dereference cache*/
+                LqTimeMillisec Millisec;
+                LqFche* Che = LqHttpGetCache(Http);
+                if(Che == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Cache not found\n");
+                    break;
+                }
+                if(!ReadNumber(CommandData, &Millisec)) {
+                    LqFbuf_printf(OutFile, " %lli\n", (long long)LqFcheGetPeriodUpdateStat(Che));
+                    LqFcheDelete(Che); /* Dereference cache*/
+                    break;
+                }
+                LqFcheSetPeriodUpdateStat(Che, Millisec);
+                LqFcheDelete(Che); /* Dereference cache*/
                 LqFbuf_printf(OutFile, " OK\n");
             }
             break;
             LQSTR_CASE("cheprepcount") //CacHE PREPared COUNT
             {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
-                size_t Count;
-				LqFche* Che = LqHttpGetCache(Http);
-				if(Che == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Cache not found\n");
-					break;
-				}
-                if(!ReadNumber(CommandData, &Count)) {
-                    LqFbuf_printf(OutFile, " %zu\n", LqFcheGetMaxCountOfPrepared(Che));
-					LqFcheDelete(Che); /* Dereference cache*/
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
                     break;
                 }
-				LqFcheSetMaxCountOfPrepared(Che, Count);
-				LqFcheDelete(Che); /* Dereference cache*/
+                size_t Count;
+                LqFche* Che = LqHttpGetCache(Http);
+                if(Che == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Cache not found\n");
+                    break;
+                }
+                if(!ReadNumber(CommandData, &Count)) {
+                    LqFbuf_printf(OutFile, " %zu\n", LqFcheGetMaxCountOfPrepared(Che));
+                    LqFcheDelete(Che); /* Dereference cache*/
+                    break;
+                }
+                LqFcheSetMaxCountOfPrepared(Che, Count);
+                LqFcheDelete(Che); /* Dereference cache*/
                 LqFbuf_printf(OutFile, " OK\n");
             }
             break;
@@ -1234,30 +1234,30 @@ lblAgain:
             *Connections parametr
             */
             LQSTR_CASE("conncount") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqFbuf_printf(OutFile, " %zu\n", LqHttpCountConn(Http));
             }
             break;
             LQSTR_CASE("conncloseall") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
-				LqHttpCloseAllConn(Http);
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
+                LqHttpCloseAllConn(Http);
                 LqFbuf_printf(OutFile, " OK\n");
             }
             break;
             LQSTR_CASE("connclosebyip") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString Param = ReadParams(CommandData, "6");
                 LqString IpAddress = ReadPath(CommandData);
                 if(IpAddress.empty()) {
@@ -1272,26 +1272,26 @@ lblAgain:
                     break;
                 }
 
-                LqWrkBossCloseConnByIpSync(&adr.Addr);
+                LqWrkBossCloseClientsByIpSync(&adr.Addr);
                 LqFbuf_printf(OutFile, " OK\n");
             }
             break;
             LQSTR_CASE("connlist") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
-				LqHttpEnumConn(
-					Http,
-					[](void* UserDat, LqHttpConn* HttpConn) -> int {
-						char IpBuf[256];
-						LqHttpConnGetRemoteIpStr(HttpConn, IpBuf, 255);
-						LqFbuf_printf((LqFbuf*)OutFile, " Host: %s, Port: %i\n", IpBuf, (int)LqHttpConnGetRemotePort(HttpConn));
-						return 0;
-					},
-					OutFile
-				);
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
+                LqHttpEnumConn(
+                    Http,
+                    [](void* UserDat, LqHttpConn* HttpConn) -> int {
+                        char IpBuf[256];
+                        LqHttpConnGetRemoteIpStr(HttpConn, IpBuf, 255);
+                        LqFbuf_printf((LqFbuf*)OutFile, " Host: %s, Port: %i\n", IpBuf, (int)LqHttpConnGetRemotePort(HttpConn));
+                        return 0;
+                    },
+                    OutFile
+                );
             }
             break;
             /*
@@ -1299,11 +1299,11 @@ lblAgain:
             *--------------------------
             */
             LQSTR_CASE("name") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqString ServName = ReadPath(CommandData);
                 if(ServName.empty()) {
                     char ServName[4096] = {0};
@@ -1316,68 +1316,68 @@ lblAgain:
             }
             break;
             LQSTR_CASE("timelife") {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqTimeMillisec Millisec;
                 if(!ReadNumber(CommandData, &Millisec)) {
-					Millisec = LqHttpGetKeepAlive(Http);
+                    Millisec = LqHttpGetKeepAlive(Http);
                     LqFbuf_printf(OutFile, " %lli\n", (long long)Millisec);
                     break;
                 }
-				LqHttpSetKeepAlive(Http, Millisec);
+                LqHttpSetKeepAlive(Http, Millisec);
                 LqFbuf_printf(OutFile, " OK\n");
             }
             break;
             LQSTR_CASE("maxhdrsize") {
                 size_t Size;
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 if(!ReadNumber(CommandData, &Size)) {
                     LqFbuf_printf(OutFile, " %zu\n", LqHttpGetMaxHdrsSize(Http));
                     break;
                 }
-				LqHttpSetMaxHdrsSize(Http, lq_max(Size, 4));
+                LqHttpSetMaxHdrsSize(Http, lq_max(Size, 4));
                 LqFbuf_printf(OutFile, " OK\n");
             }
             break;
             LQSTR_CASE("perchgdigestnonce") //Period chenge digest nonce
             {
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
                 LqTimeSec Time;
                 if(!ReadNumber(CommandData, &Time)) {
                     LqFbuf_printf(OutFile, " %lli\n", (long long)LqHttpGetNonceChangeTime(Http));
                     break;
                 }
-				LqHttpSetNonceChangeTime(Http, Time);
+                LqHttpSetNonceChangeTime(Http, Time);
                 LqFbuf_printf(OutFile, " OK\n");
             }
             break;
-			LQSTR_CASE("conveyorlen") //Period chenge digest nonce
-			{
-				size_t Size;
-				if(Http == nullptr) {
-					LqFbuf_printf(OutFile, " ERROR: Not started\n");
-					IsSuccess = false;
-					break;
-				}
-				if(!ReadNumber(CommandData, &Size)) {
-					LqFbuf_printf(OutFile, " %zu\n", LqHttpGetLenConveyor(Http));
-					break;
-				}
-				LqHttpSetLenConveyor(Http, Size);
-				LqFbuf_printf(OutFile, " OK\n");
-			}
-			break;
+            LQSTR_CASE("conveyorlen") //Period chenge digest nonce
+            {
+                size_t Size;
+                if(Http == nullptr) {
+                    LqFbuf_printf(OutFile, " ERROR: Not started\n");
+                    IsSuccess = false;
+                    break;
+                }
+                if(!ReadNumber(CommandData, &Size)) {
+                    LqFbuf_printf(OutFile, " %zu\n", LqHttpGetLenConveyor(Http));
+                    break;
+                }
+                LqHttpSetLenConveyor(Http, Size);
+                LqFbuf_printf(OutFile, " OK\n");
+            }
+            break;
             LQSTR_CASE("dbginfo") {
                 LqString DbgInfo = LqWrkBoss::GetGlobal()->DebugInfo();
                 LqFbuf_printf(OutFile, "%s", DbgInfo.c_str());
@@ -1396,8 +1396,8 @@ lblAgain:
             break;
         }
     }
-	if(Http != NULL)
-		LqHttpDelete(Http);
+    if(Http != NULL)
+        LqHttpDelete(Http);
     LqWrkBossSetMinWrkCount(0);
     LqWrkBossKickAllWrk();
     return 0;
@@ -1423,11 +1423,8 @@ const char* PrintHlp() {
         "    lqcmd <Path to lanq command file> - Execute command file\n"
         "    exitlqcmd - Quit from execute command file\n"
         "    cd [<Dir path>]- Set or get Current directory\n"
-        "    hst [\"Name or IP address host\"] - Set or get host address. Ex. hst 0.0.0.0; hst \"0.0.0.0\"; hst; hst ::;\n"
-        "    prt [<integer or name service>] - Set or get port number or name service. Ex: prt http; prt 8080; prt;\n"
         "    gmtcorr [<Count secods>] - Set or get GMT (relatively) correction for current system time. Ex: gmtcorr 3600; gmtcorr -7200; gmtcorr;\n"
         "    maxconn [<Count connections>] - Set or get max connection.\n"
-        "    protofamily [-(4 - IPv4; 6 - IPv6; u - Unspec)] - Set or get proto family.\n"
 
         "    start - Start server.\n"
         "    stop - Stop server.\n"
@@ -1477,6 +1474,7 @@ const char* PrintHlp() {
         "    maxhdrsize [<Size>] - Set or get maximum size (in bytes) of reciving http headers .\n"
         "    maxmltprthdrsize [<Size>] - Set or get maximum multipart header size (in bytes).\n"
         "    perchgdigestnonce [<Soconds>] - Set or get period change digest nonce(public key)\n"
+        "    conveyorlen [<Conveyor len>] - Connection conveyor length (for saving memory)"
 
         "\n";
     return HlpMsg;

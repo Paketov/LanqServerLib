@@ -21,17 +21,16 @@
 #include <string.h>
 #include "LqFile.h"
 
-#define LqEvntSystemEventByConnEvents(Client)               \
-    (((LqEvntGetFlags(Client) & LQEVNT_FLAG_RD) ? POLLIN : 0) |       \
-    ((LqEvntGetFlags(Client) & LQEVNT_FLAG_WR) ?  POLLOUT : 0) |      \
-    ((LqEvntGetFlags(Client) & LQEVNT_FLAG_HUP) ? POLLHUP: 0) |       \
-    ((LqEvntGetFlags(Client) & LQEVNT_FLAG_ERR) ? POLLERR : 0))
+#define LqEvntSystemEventByConnFlag(NewFlags)               \
+    ((((NewFlags) & LQEVNT_FLAG_RD) ? POLLIN : 0) |       \
+    (((NewFlags) & LQEVNT_FLAG_WR) ?  POLLOUT : 0) |      \
+    (((NewFlags) & LQEVNT_FLAG_HUP) ? POLLHUP: 0) |       \
+    (((NewFlags) & LQEVNT_FLAG_ERR) ? POLLERR : 0))
 
 
 bool LqSysPollInit(LqSysPoll* Dest) {
     LqArr3Init(&Dest->EvntFdArr);
     Dest->EventEnumIndex = 0;
-    Dest->DeepLoop = 0;
     Dest->CommonCount = 0;
     return true;
 }
@@ -40,27 +39,26 @@ void LqSysPollUninit(LqSysPoll* Dest) {
     LqArr3Uninit(&Dest->EvntFdArr);
 }
 
-bool LqSysPollAddHdr(LqSysPoll* Dest, LqEvntHdr* Client) {
-    LqArr3PushBack(&Dest->EvntFdArr, pollfd, LqEvntHdr*);
+bool LqSysPollAddHdr(LqSysPoll* Dest, LqClientHdr* Client) {
+    LqEvntFlag NewFlags = _LqEvntGetFlagForUpdate(Client);
+    LqArr3PushBack(&Dest->EvntFdArr, pollfd, LqClientHdr*);
     auto El = &LqArr3Back_1(&Dest->EvntFdArr, pollfd);
-    LqArr3Back_2(&Dest->EvntFdArr, LqEvntHdr*) = Client;
-	LqAtmIntrlkAnd(Client->Flag, ~_LQEVNT_FLAG_SYNC);
+    LqArr3Back_2(&Dest->EvntFdArr, LqClientHdr*) = Client;
     El->fd = Client->Fd;
-    El->events = LqEvntSystemEventByConnEvents(Client);
+    El->events = LqEvntSystemEventByConnFlag(NewFlags);
     El->revents = 0;
     Dest->CommonCount++;
     return true;
 }
 
 LqEvntFlag __LqSysPollEnumEventBegin(LqSysPoll* Events) {
-    Events->EventEnumIndex = -1; //Set start index
-    Events->DeepLoop++;
+    Events->EventEnumIndex = -((intptr_t)1); //Set start index
     return __LqEvntEnumEventNext(Events);
 }
 
 LqEvntFlag __LqEvntEnumEventNext(LqSysPoll* Events) {
     for(register intptr_t i = Events->EventEnumIndex + 1, m = Events->EvntFdArr.Count; i < m; i++) {
-        if(LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, i) == nullptr)
+        if(LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, i) == nullptr)
             continue;
         auto e = LqArr3At_1(&Events->EvntFdArr, pollfd, i).revents;
         if(e & (POLLIN | POLLOUT | POLLHUP | POLLERR)) {
@@ -69,8 +67,8 @@ LqEvntFlag __LqEvntEnumEventNext(LqSysPoll* Events) {
             if(e & POLLIN) {
                 int res = -1;
                 if(
-                    (LqEvntGetFlags(LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, i)) & LQEVNT_FLAG_RDHUP) &&
-                    (ioctl(LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, i)->Fd, FIONREAD, &res) >= 0) &&
+                    (LqClientGetFlags(LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, i)) & LQEVNT_FLAG_RDHUP) &&
+                    (ioctl(LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, i)->Fd, FIONREAD, &res) >= 0) &&
                     (res <= 0)
                     )
                     r |= LQEVNT_FLAG_RDHUP;
@@ -89,75 +87,69 @@ LqEvntFlag __LqEvntEnumEventNext(LqSysPoll* Events) {
 }
 
 void LqSysPollRemoveCurrent(LqSysPoll* Events) {
-	LqAtmIntrlkAnd(LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Events->EventEnumIndex)->Flag, ~_LQEVNT_FLAG_SYNC);
-    LqArr3RemoveAt(&Events->EvntFdArr, pollfd, LqEvntHdr*, Events->EventEnumIndex, nullptr);
+    LqAtmIntrlkAnd(LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, Events->EventEnumIndex)->Flag, ~_LQEVNT_FLAG_SYNC);
+    LqArr3RemoveAt(&Events->EvntFdArr, pollfd, LqClientHdr*, Events->EventEnumIndex, NULL);
     Events->CommonCount--;
 }
 
 void __LqSysPollRestructAfterRemoves(LqSysPoll* Events) {
-    LqArr3AlignAfterRemove(&Events->EvntFdArr, pollfd, LqEvntHdr*, nullptr);
+    LqArr3AlignAfterRemove(&Events->EvntFdArr, pollfd, LqClientHdr*, NULL);
 }
 
-LqEvntHdr* LqSysPollGetHdrByCurrent(LqSysPoll* Events) {
-    return LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Events->EventEnumIndex);
+LqClientHdr* LqSysPollGetHdrByCurrent(LqSysPoll* Events) {
+    return LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, Events->EventEnumIndex);
 }
 
 bool LqSysPollSetMaskByCurrent(LqSysPoll* Events) {
-    auto c = LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Events->EventEnumIndex);
-    LqArr3At_1(&Events->EvntFdArr, pollfd, Events->EventEnumIndex).events = LqEvntSystemEventByConnEvents(c);
-	LqAtmIntrlkAnd(c->Flag, ~_LQEVNT_FLAG_SYNC);
+    auto c = LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, Events->EventEnumIndex);
+    LqEvntFlag NewFlags = _LqEvntGetFlagForUpdate(c);
+    LqArr3At_1(&Events->EvntFdArr, pollfd, Events->EventEnumIndex).events = LqEvntSystemEventByConnFlag(NewFlags);
     return true;
 }
 
-int LqSysPollUpdateAllMask(LqSysPoll* Events, void* UserData, void(*DelProc)(void*, LqEvntInterator*), bool IsRestruct) {
-    Events->DeepLoop++;
-    for(register auto i = &LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, 0), m = i + Events->EvntFdArr.Count; i < m; i++)
-        if((*i != nullptr) && ((*i)->Flag & _LQEVNT_FLAG_SYNC)) {
-            auto Index = ((uintptr_t)i - (uintptr_t)&LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, 0)) / sizeof(LqEvntHdr*);
-            if(LqEvntGetFlags(*i) & LQEVNT_FLAG_END) {
+int LqSysPollUpdateAllMask(LqSysPoll* Events, void* UserData, void(*DelProc)(void*, LqEvntInterator*)) {
+    LqEvntFlag NewFlags;
+    for(register auto i = &LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, 0), m = i + Events->EvntFdArr.Count; i < m; i++)
+        if((*i != NULL) && (LqClientGetFlags(*i) & _LQEVNT_FLAG_SYNC)) {
+            auto Index = ((uintptr_t)i - (uintptr_t)&LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, 0)) / sizeof(LqClientHdr*);
+            NewFlags = _LqEvntGetFlagForUpdate(*i);
+            if(NewFlags & LQEVNT_FLAG_END) {
                 LqEvntInterator Iter;
                 Iter.Index = Index;
                 DelProc(UserData, &Iter);
-                i = &LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Index);
-                m = &LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Events->EvntFdArr.Count);
+                i = &LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, Index);
+                m = &LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, Events->EvntFdArr.Count);
             } else {
-                LqArr3At_1(&Events->EvntFdArr, pollfd, Index).events = LqEvntSystemEventByConnEvents(*i);
-				LqAtmIntrlkAnd((*i)->Flag, ~_LQEVNT_FLAG_SYNC);
+                LqArr3At_1(&Events->EvntFdArr, pollfd, Index).events = LqEvntSystemEventByConnFlag(NewFlags);
             }
         }
-
-    if(IsRestruct)
-        __LqSysPollRestructAfterRemoves(Events);
-    else
-        Events->DeepLoop--;
     return 1;
 }
 
 bool __LqSysPollEnumBegin(LqSysPoll* Events, LqEvntInterator* Interator) {
-    Events->DeepLoop++;
-    Interator->Index = -1;
+    Interator->Index = -((intptr_t)1);
     return __LqSysPollEnumNext(Events, Interator);
 }
 
 bool __LqSysPollEnumNext(LqSysPoll* Events, LqEvntInterator* Interator) {
-    for(register intptr_t i = Interator->Index + 1, m = Events->EvntFdArr.Count; i < m; i++)
-        if(LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, i) != nullptr) {
+    for(register intptr_t i = Interator->Index + ((intptr_t)1), m = Events->EvntFdArr.Count; i < m; i++)
+        if(LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, i) != NULL) {
             Interator->Index = i;
             return true;
         }
     return false;
 }
 
-LqEvntHdr* LqSysPollRemoveByInterator(LqSysPoll* Events, LqEvntInterator* Interator) {
-    auto Conn = LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Interator->Index);
-    LqArr3RemoveAt(&Events->EvntFdArr, pollfd, LqEvntHdr*, Interator->Index, nullptr);
-	LqAtmIntrlkAnd(Conn->Flag, ~_LQEVNT_FLAG_SYNC);
+LqClientHdr* LqSysPollRemoveByInterator(LqSysPoll* Events, LqEvntInterator* Interator) {
+    auto Conn = LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, Interator->Index);
+    LqArr3RemoveAt(&Events->EvntFdArr, pollfd, LqClientHdr*, Interator->Index, nullptr);
+    _LqEvntGetFlagForUpdate(Conn)
     Events->CommonCount--;
     return Conn;
 }
 
-LqEvntHdr* LqSysPollGetHdrByInterator(LqSysPoll* Events, LqEvntInterator* Interator) {
-    return LqArr3At_2(&Events->EvntFdArr, LqEvntHdr*, Interator->Index);
+LqClientHdr* LqSysPollGetHdrByInterator(LqSysPoll* Events, LqEvntInterator* Interator) {
+    return LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, Interator->Index);
 }
 
 int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime) {

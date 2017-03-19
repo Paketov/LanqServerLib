@@ -22,6 +22,7 @@
 # define LQ_IMPORT      __declspec(dllimport)
 # define LQ_PATH_SEPARATOR  '\\'
 # define LQ_WINEVNT_WAIT_WHEN_GR_64_OBJECTS 50 //millisec
+# define LQ_WINEVNT_WAIT_WHEN_HAVE_ONLY_HUP_OBJ 50 //millisec
 
 #else
 
@@ -125,6 +126,9 @@
 # define LQCOMPILER_IBM
 #elif defined(_MSC_VER)
 # define LQCOMPILER_VC
+# ifdef _DEBUG
+#  define LQ_DEBUG
+# endif
 #elif defined(__PGI)
 # define LQCOMPILER_PGCC_PGCPP
 #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
@@ -151,6 +155,7 @@
 #ifndef LQSTRUCT_ALIGN_MEM
 # define LQSTRUCT_ALIGN_MEM 1 /* Optimize for memory */
 #endif
+
 
 #define __STDINT_LIMITS
 

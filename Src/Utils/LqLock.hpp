@@ -7,9 +7,8 @@
 */
 
 #include "LqOs.h"
+#include "LqFile.h"
 #include <atomic>
-#include <thread>
-
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
@@ -22,30 +21,30 @@ template<typename TypeFlag = unsigned>
 class LqLocker {
     std::atomic<TypeFlag> Locker;
 public:
-    inline LqLocker(): Locker(1) {}
+    inline LqLocker(): Locker(((TypeFlag)1)) {}
 
     inline bool TryLockRead() {
         TypeFlag v = Locker;
-        if(v != 0)
-            return Locker.compare_exchange_strong(v, v + 1);
+        if(v != ((TypeFlag)0))
+            return Locker.compare_exchange_strong(v, v + ((TypeFlag)1));
         return false;
     }
-    inline void LockRead() { for(TypeFlag v; ((v = Locker) == 0) || !Locker.compare_exchange_strong(v, v + 1); ); }
-    inline void LockReadYield() { for(TypeFlag v; ((v = Locker) == 0) || !Locker.compare_exchange_strong(v, v + 1); std::this_thread::yield()); }
+    inline void LockRead() { for(TypeFlag v; ((v = Locker) == ((TypeFlag)0)) || !Locker.compare_exchange_strong(v, v + ((TypeFlag)1)); ); }
+    inline void LockReadYield() { for(TypeFlag v; ((v = Locker) == ((TypeFlag)0)) || !Locker.compare_exchange_strong(v, v + ((TypeFlag)1)); LqThreadYield()); }
     inline void UnlockRead() { --Locker; }
 
     inline bool TryLockWrite() {
-        TypeFlag v = 1;
-        return Locker.compare_exchange_strong(v, 0);
+        TypeFlag v = ((TypeFlag)1);
+        return Locker.compare_exchange_strong(v, ((TypeFlag)0));
     }
-    inline void LockWrite() { for(TypeFlag v = 1; !Locker.compare_exchange_strong(v, 0); v = 1); }
-    inline void LockWriteYield() { for(TypeFlag v = 1; !Locker.compare_exchange_strong(v, 0); std::this_thread::yield(), v = 1); }
-    inline void UnlockWrite() { Locker = 1; }
-    inline void RelockFromWriteToRead() { Locker = 2; }
+    inline void LockWrite() { for(TypeFlag v = ((TypeFlag)1); !Locker.compare_exchange_strong(v, ((TypeFlag)0)); v = ((TypeFlag)1)); }
+    inline void LockWriteYield() { for(TypeFlag v = ((TypeFlag)1); !Locker.compare_exchange_strong(v, ((TypeFlag)0)); LqThreadYield(), v = ((TypeFlag)1)); }
+    inline void UnlockWrite() { Locker = ((TypeFlag)1); }
+    inline void RelockFromWriteToRead() { Locker = ((TypeFlag)2); }
 
     /* Use only thread owner*/
-    inline bool IsLockRead() const { return Locker > 1; }
-    inline bool IsLockWrite() const { return Locker == 0; }
+    inline bool IsLockRead() const { return Locker > ((TypeFlag)1); }
+    inline bool IsLockWrite() const { return Locker == ((TypeFlag)0); }
     /* Common unlock. Use for read/write lock */
     inline void Unlock() {
         if(IsLockRead())
@@ -93,7 +92,7 @@ public:
         */
         if(SafeRegionWaiter != 1) {
             SafeRegionWaiter |= TstBit;
-            for(TypeFlag v = (TstBit + 1); !SafeRegionWaiter.compare_exchange_strong(v, 1); std::this_thread::yield(), v = (TstBit + 1));
+            for(TypeFlag v = (TstBit + 1); !SafeRegionWaiter.compare_exchange_strong(v, 1); LqThreadYield(), v = (TstBit + 1));
             return true;
         }
         return false;
@@ -103,7 +102,7 @@ public:
         TypeFlag v = 1;
         if(!SafeRegionWaiter.compare_exchange_strong(v, 0)) {
             SafeRegionWaiter |= TstBit;
-            for(v = (TstBit + 1); !SafeRegionWaiter.compare_exchange_strong(v, 0); std::this_thread::yield(), v = (TstBit + 1));
+            for(v = (TstBit + 1); !SafeRegionWaiter.compare_exchange_strong(v, 0); LqThreadYield(), v = (TstBit + 1));
             return true;
         }
         return false;
@@ -113,7 +112,7 @@ public:
         TypeFlag v = 1;
         if(!SafeRegionWaiter.compare_exchange_strong(v, 2)) {
             SafeRegionWaiter |= TstBit;
-            for(v = (TstBit + 1); !SafeRegionWaiter.compare_exchange_strong(v, 2); std::this_thread::yield(), v = (TstBit + 1));
+            for(v = (TstBit + 1); !SafeRegionWaiter.compare_exchange_strong(v, 2); LqThreadYield(), v = (TstBit + 1));
             return true;
         }
         return false;
@@ -129,7 +128,7 @@ public:
         return false;
     }
     void OccupyRead() { while(!TryOccupyRead()); }
-    void OccupyReadYield() { while(!TryOccupyRead()) std::this_thread::yield(); }
+    void OccupyReadYield() { while(!TryOccupyRead()) LqThreadYield(); }
     void ReleaseRead() { --SafeRegionWaiter; }
 
     inline bool TryOccupyWrite() {
@@ -137,12 +136,12 @@ public:
         return SafeRegionWaiter.compare_exchange_strong(v, 0);
     }
     void OccupyWrite() { while(!TryOccupyWrite()); }
-    void OccupyWriteYield() { while(!TryOccupyWrite()) std::this_thread::yield(); }
+    void OccupyWriteYield() { while(!TryOccupyWrite()) LqThreadYield(); }
     void ReleaseWrite() { ++SafeRegionWaiter; }
 
     bool TryWaitRegion() const { return SafeRegionWaiter & TstBit; }
     void WaitRegion() const { while(!TryWaitRegion()); }
-    void WaitRegionYield() const { while(!TryWaitRegion()) std::this_thread::yield(); }
+    void WaitRegionYield() const { while(!TryWaitRegion()) LqThreadYield(); }
 };
 
 #pragma pack(pop)

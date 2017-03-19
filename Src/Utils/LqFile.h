@@ -116,7 +116,7 @@ typedef struct LqMutex {
 #else
     void* m;
 #endif
-};
+} LqMutex;
 
 typedef struct LqFileStat {
     uint8_t             Type;
@@ -521,6 +521,8 @@ LQ_IMPORTEXPORT bool LQ_CALL LqMutexClose(LqMutex* lqain Dest);
 LQ_IMPORTEXPORT int LQ_CALL LqThreadId();
 
 LQ_IMPORTEXPORT void LQ_CALL LqThreadYield();
+
+LQ_IMPORTEXPORT void LQ_CALL LqSleep(LqTimeMillisec Millisec);
 
 LQ_EXTERN_C_END
 

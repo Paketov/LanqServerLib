@@ -301,17 +301,24 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     };
 
     Mod.FreeNotifyProc = [](LqHttpMdl* This) -> uintptr_t {
-        LqEvntSetClose2(&Task.TimerFd, 0);
-        volatile int* Tst = &Task.TimerFd.Fd;
-        while(*Tst != -1);
-        Task.PathsLocker.LockWrite();
-        for(auto& i : Task.Dirs) {
-            LqFilePathEvntFree(i);
-            LqFastAlloc::Delete(i);
-        }
-        Task.PathsLocker.Unlock();
-
-        return This->Handle;
+		LqWrkBoss::GetGlobal()->EnumClientsAndCallFinAsync11(
+			[](LqWrkPtr&, LqClientHdr* Evnt) -> int {
+				return (((LqClientHdr*)&Task.TimerFd) == Evnt)? 2 : 0;
+			},
+			std::bind(
+				[](uintptr_t Handle) -> uintptr_t {
+					Task.PathsLocker.LockWrite();
+					for(auto& i : Task.Dirs) {
+						LqFilePathEvntFree(i);
+						LqFastAlloc::Delete(i);
+					}
+					Task.PathsLocker.Unlock();
+					return Handle;
+				},
+				This->Handle
+			)
+		);
+        return 0;
     };
     Task.RegDest = Reg;
     //Add task to worker boss
@@ -328,7 +335,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
             Fd->Fd = -1;
         }
     );
-    LqEvntAdd(&Task.TimerFd, NULL);
+    LqClientAdd(&Task.TimerFd, NULL);
     return LQHTTPMDL_REG_OK;
 }
 

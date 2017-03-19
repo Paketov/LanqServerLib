@@ -17,12 +17,12 @@
 
 LQ_EXTERN_C_BEGIN
 
-struct LqEvntHdr;
+struct LqClientHdr;
 struct LqConn;
 struct LqEvntFd;
 struct LqProto;
 
-typedef struct LqEvntHdr LqEvntHdr;
+typedef struct LqClientHdr LqClientHdr;
 typedef struct LqConn LqConn;
 typedef struct LqEvntFd LqEvntFd;
 typedef struct LqProto LqProto;
@@ -61,7 +61,7 @@ typedef struct LqProto LqProto;
 
 
 
-struct LqEvntHdr {
+struct LqClientHdr {
     LQ_CONN_COMMON_EVNT_HDR;
 };
 
@@ -92,9 +92,9 @@ struct LqEvntFd {
 #endif
 };
 
-#define LqEvntIsConn(Hdr) (((LqEvntHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)
-#define LqEvntToConn(Hdr) ((((LqEvntHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)? ((LqConn*)(Hdr)): ((LqConn*)NULL))
-#define LqEvntToFd(Hdr) ((((LqEvntHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)? ((LqEvntFd*)NULL): ((LqEvntFd*)(Hdr)))
+#define LqClientIsConn(Hdr) (((LqClientHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)
+#define LqClientToConn(Hdr) ((((LqClientHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)? ((LqConn*)(Hdr)): ((LqConn*)NULL))
+#define LqClientToFd(Hdr) ((((LqClientHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN)? ((LqEvntFd*)NULL): ((LqEvntFd*)(Hdr)))
 
 #pragma pack(pop)
 
@@ -106,11 +106,11 @@ struct LqEvntFd {
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
 struct LqProto {
-    void* UserData;
+    void*               UserData;
 
-    LqFileSz MaxSendInTact;
-    LqFileSz MaxSendInSingleTime;
-    LqFileSz MaxReciveInSingleTime;
+    LqFileSz            MaxSendInTact;
+    LqFileSz            MaxSendInSingleTime;
+    LqFileSz            MaxReciveInSingleTime;
 
     /*
     * Read, Write and Error notification.

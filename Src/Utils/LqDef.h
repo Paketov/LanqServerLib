@@ -43,26 +43,29 @@ typedef struct LqListHdr {
   }
 
 #define LqListAdd(ListHdr, NewElem, TypeElem) {\
-	(NewElem)->Next = NULL;\
-	if(((LqListHdr*)(ListHdr))->Last != nullptr)\
-		((TypeElem*)((LqListHdr*)(ListHdr))->Last)->Next = ((TypeElem*)(NewElem));\
-	((LqListHdr*)(ListHdr))->Last = ((TypeElem*)(NewElem));\
-	if(((LqListHdr*)(ListHdr))->First == NULL)\
-		((LqListHdr*)(ListHdr))->First = ((TypeElem*)(NewElem));\
+	((TypeElem*)(NewElem))->Next = NULL;\
+	if(((LqListHdr*)(ListHdr))->Last == NULL) { \
+		((LqListHdr*)(ListHdr))->Last = ((LqListHdr*)(ListHdr))->First = ((TypeElem*)(NewElem));\
+	}else{\
+		((TypeElem*)(((LqListHdr*)(ListHdr))->Last))->Next = ((TypeElem*)(NewElem));\
+		((LqListHdr*)(ListHdr))->Last = ((TypeElem*)(NewElem));\
+	}\
   }
 
 #define LqListAddForward(ListHdr, NewElem, TypeElem) {\
 	((TypeElem*)(NewElem))->Next = (TypeElem*)((LqListHdr*)(ListHdr))->First;\
 	((LqListHdr*)(ListHdr))->First = ((TypeElem*)(NewElem));\
+	if(((LqListHdr*)(ListHdr))->Last == NULL)\
+		((LqListHdr*)(ListHdr))->Last = ((TypeElem*)(NewElem));\
   }
 
 #define LqListFirst(ListHdr, TypeElem) ((TypeElem*)((LqListHdr*)(ListHdr))->First)
 
 #define LqListRemove(ListHdr, TypeElem) {\
 	if(((LqListHdr*)(ListHdr))->First != NULL) {\
-		if(((LqListHdr*)(ListHdr))->First == ((LqListHdr*)(ListHdr))->Last)\
-			((LqListHdr*)(ListHdr))->Last = NULL;\
 		((LqListHdr*)(ListHdr))->First = ((TypeElem*)(((LqListHdr*)(ListHdr))->First))->Next;\
+		if(((LqListHdr*)(ListHdr))->First == NULL)\
+			((LqListHdr*)(ListHdr))->Last = NULL;\
 	}\
   }
 

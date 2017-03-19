@@ -1,0 +1,2 @@
+ldmdl Logging
+mdlcmd Logging log_in_file E:\serv\log.txt

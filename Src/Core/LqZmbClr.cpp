@@ -57,18 +57,22 @@ static void LQ_CALL LqZmbClrHandler(LqEvntFd* Fd, LqEvntFlag RetFlags) {
     if(ZmbClr->Flags & LQZMBCLR_FLAG_USED) {
         if(ZmbClr->WrkBoss) {
             if(ZmbClr->Proto)
-                ((LqWrkBoss*)ZmbClr->WrkBoss)->CloseConnByTimeoutAsync(ZmbClr->Proto, ZmbClr->Period);
+                ((LqWrkBoss*)ZmbClr->WrkBoss)->CloseClientsByTimeoutAsync(ZmbClr->Proto, ZmbClr->Period);
             else
-                ((LqWrkBoss*)ZmbClr->WrkBoss)->CloseConnByTimeoutAsync(ZmbClr->Period);
+                ((LqWrkBoss*)ZmbClr->WrkBoss)->CloseClientsByTimeoutAsync(ZmbClr->Period);
         }
         LqTimerSet(Fd->Fd, ZmbClr->Period);
     }
     _ZmbClrUnlock(ZmbClr);
 }
 
-static int AsyncClrProc(void* UserData, size_t UserDataSize, void*Wrk, LqEvntHdr* EvntHdr, LqTimeMillisec CurTime) {
+static int AsyncClrProc(void* UserData, size_t UserDataSize, void*Wrk, LqClientHdr* EvntHdr, LqTimeMillisec CurTime) {
     LqTimeMillisec TimeDiff;
-    LqSockBuf* SockBuf = (LqSockBuf*)EvntHdr;
+    LqSockBuf* SockBuf;
+
+    if(!LqClientIsConn(EvntHdr) || (((LqConn*)EvntHdr)->Proto == &___SockBufProto))
+        return 0;
+    SockBuf = (LqSockBuf*)EvntHdr;
     if(SockBuf->UserData2 == *((void**)UserData)) {
         TimeDiff = CurTime - SockBuf->LastExchangeTime;
         if(TimeDiff > SockBuf->KeepAlive)
@@ -82,7 +86,7 @@ static void LQ_CALL LqZmbClrHandlerForSockBuf(LqEvntFd* Fd, LqEvntFlag RetFlags)
     _ZmbClrLock(ZmbClr);
     if(ZmbClr->Flags & LQZMBCLR_FLAG_USED) {
         if(ZmbClr->WrkBoss)
-            ((LqWrkBoss*)ZmbClr->WrkBoss)->EnumCloseRmEvntAsync(AsyncClrProc, &___SockBufProto, &ZmbClr->UserData2, sizeof(ZmbClr->UserData2));
+            ((LqWrkBoss*)ZmbClr->WrkBoss)->EnumClientsAsync(AsyncClrProc, &ZmbClr->UserData2, sizeof(ZmbClr->UserData2));
         LqTimerSet(Fd->Fd, ZmbClr->Period);
     }
     _ZmbClrUnlock(ZmbClr);
@@ -111,7 +115,7 @@ LQ_EXTERN_C LqZmbClr* LQ_CALL LqZmbClrCreate(const void* ProtoOrUserData2ForSock
         return NULL;
     }
     LqEvntFdInit(&NewZmbClr->EvntFd, TimerFd, LQEVNT_FLAG_RD | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_HUP, (IsSockBuf)? LqZmbClrHandlerForSockBuf: LqZmbClrHandler, LqZmbClrHandlerClose);
-    LqEvntSetOnlyOneBoss(NewZmbClr, true); /* Call close handler, when evnt trying move to another boss*/
+    LqClientSetOnlyOneBoss(NewZmbClr, true); /* Call close handler, when evnt trying move to another boss*/
     LqAtmLkInit(NewZmbClr->Lk);
     NewZmbClr->WrkBoss = NULL;
     NewZmbClr->ThreadOwnerId = 0;
@@ -132,7 +136,7 @@ LQ_EXTERN_C bool LQ_CALL LqZmbClrGoWork(LqZmbClr* ZmbClr, void* WrkBoss) {
     if(ZmbClr->Flags & LQZMBCLR_FLAG_WORK)
         goto lblOut;
     ZmbClr->WrkBoss = (WrkBoss == NULL) ? LqWrkBossGet() : WrkBoss;
-    if(LqEvntAdd(&ZmbClr->EvntFd, WrkBoss)) {
+    if(LqClientAdd(&ZmbClr->EvntFd, WrkBoss)) {
         ZmbClr->Flags |= LQZMBCLR_FLAG_WORK;
         Res = true;
         goto lblOut;
@@ -145,7 +149,7 @@ lblOut:
 LQ_EXTERN_C bool LQ_CALL LqZmbClrInterruptWork(LqZmbClr* ZmbClr) {
     bool Res;
     _ZmbClrLock(ZmbClr);
-    if(Res = LqEvntSetRemove3(&ZmbClr->EvntFd)) {
+    if(Res = LqClientSetRemove3(&ZmbClr->EvntFd)) {
         ZmbClr->WrkBoss = NULL;
         ZmbClr->Flags &= ~LQZMBCLR_FLAG_WORK;
     }
@@ -169,7 +173,7 @@ LQ_EXTERN_C int LQ_CALL LqZmbClrDelete(LqZmbClr* ZmbClr) {
     ZmbClr->WrkBoss = NULL;
     ZmbClr->Flags &= ~LQZMBCLR_FLAG_USED;
     if(ZmbClr->Flags & LQZMBCLR_FLAG_WORK)
-        LqEvntSetClose(&ZmbClr->EvntFd);
+        LqClientSetClose(&ZmbClr->EvntFd);
     _ZmbClrUnlock(ZmbClr);
     return true;
 }

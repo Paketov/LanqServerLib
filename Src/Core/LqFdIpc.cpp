@@ -108,7 +108,7 @@ static void LQ_CALL _Handler(LqEvntFd* Fd, LqEvntFlag RetFlags) {
 #endif
     _FdIpcLock(FdIpc);
     if(RetFlags & LQEVNT_FLAG_ERR)
-        LqEvntSetClose(Fd);
+        LqClientSetClose(Fd);
     if(RetFlags & LQEVNT_FLAG_RD) {
 #ifdef LQPLATFORM_WINDOWS
         if(!(FdIpc->Flags & LQFDIPC_FLAG_PID_SENDED)) {
@@ -149,13 +149,13 @@ static void LQ_CALL _Handler(LqEvntFd* Fd, LqEvntFlag RetFlags) {
             if(NewFd == -1)
                 goto lblOut;
             if(FdIpc->Flags & LQFDIPC_FLAG_WORK) {
-                WrkPtr = LqWrk::ByEvntHdr((LqEvntHdr*)FdIpc);
-                LqEvntSetRemove3(FdIpc);
+                WrkPtr = LqWrk::ByEvntHdr((LqClientHdr*)FdIpc);
+                LqClientSetRemove3(FdIpc);
             }
             dup2(NewFd, FdIpc->Evnt.Fd);
             LqFileClose(NewFd);
             if(WrkPtr->GetId() != -1ll)
-                WrkPtr->AddEvntSync((LqEvntHdr*)FdIpc);
+                WrkPtr->AddClientSync((LqClientHdr*)FdIpc);
             FdIpc->Flags &= ~LQFDIPC_FLAG_MUST_ACCEPT;
         }
 #endif
@@ -375,13 +375,13 @@ lblOut:
         if(NewFd == -1)
             goto lblOut;
         if(FdIpc->Flags & LQFDIPC_FLAG_WORK) {
-            WrkPtr = LqWrk::ByEvntHdr((LqEvntHdr*)FdIpc);
-            LqEvntSetRemove3(FdIpc);
+            WrkPtr = LqWrk::ByEvntHdr((LqClientHdr*)FdIpc);
+            LqClientSetRemove3(FdIpc);
         }
         dup2(NewFd, FdIpc->Evnt.Fd);
         LqFileClose(NewFd);
         if(WrkPtr->GetId() != -1ll)
-            WrkPtr->AddEvntSync((LqEvntHdr*)FdIpc);
+            WrkPtr->AddClientSync((LqClientHdr*)FdIpc);
         FdIpc->Flags &= ~LQFDIPC_FLAG_MUST_ACCEPT;
     }
 
@@ -510,13 +510,13 @@ lblOut:
         if(NewFd == -1)
             goto lblOut;
         if(FdIpc->Flags & LQFDIPC_FLAG_WORK) {
-            WrkPtr = LqWrk::ByEvntHdr((LqEvntHdr*)FdIpc);
-            LqEvntSetRemove3(FdIpc);
+            WrkPtr = LqWrk::ByEvntHdr((LqClientHdr*)FdIpc);
+            LqClientSetRemove3(FdIpc);
         }
         dup2(NewFd, FdIpc->Evnt.Fd);
         LqFileClose(NewFd);
         if(WrkPtr->GetId() != -1ll)
-            WrkPtr->AddEvntSync((LqEvntHdr*)FdIpc);
+            WrkPtr->AddClientSync((LqClientHdr*)FdIpc);
         FdIpc->Flags &= ~LQFDIPC_FLAG_MUST_ACCEPT;
     }
 #ifdef  HAVE_MSGHDR_MSG_CONTROL
@@ -593,7 +593,7 @@ LQ_EXTERN_C bool LQ_CALL LqFdIpcDelete(LqFdIpc* FdIpc) {
     FdIpc->RecvHandler = NULL;
     FdIpc->Flags &= ~LQFDIPC_FLAG_USED;
     if(FdIpc->Flags & LQFDIPC_FLAG_WORK)
-        LqEvntSetClose(FdIpc);
+        LqClientSetClose(FdIpc);
     _FdIpcUnlock(FdIpc);
     return true;
 }
@@ -603,7 +603,7 @@ LQ_EXTERN_C bool LQ_CALL LqFdIpcGoWork(LqFdIpc* FdIpc, void* WrkBoss) {
     _FdIpcLock(FdIpc);
     if(FdIpc->Flags & LQFDIPC_FLAG_WORK)
         goto lblOut;
-    if(LqEvntAdd(&FdIpc->Evnt, WrkBoss)) {
+    if(LqClientAdd(&FdIpc->Evnt, WrkBoss)) {
         FdIpc->Flags |= LQFDIPC_FLAG_WORK;
         Res = true;
         goto lblOut;
@@ -616,7 +616,7 @@ lblOut:
 LQ_EXTERN_C bool LQ_CALL LqFdIpcInterruptWork(LqFdIpc* FdIpc) {
     bool Res;
     _FdIpcLock(FdIpc);
-    if(Res = LqEvntSetRemove3(&FdIpc->Evnt))
+    if(Res = LqClientSetRemove3(&FdIpc->Evnt))
         FdIpc->Flags &= ~LQFDIPC_FLAG_WORK;
     _FdIpcUnlock(FdIpc);
     return Res;

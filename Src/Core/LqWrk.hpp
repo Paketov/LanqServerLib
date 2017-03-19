@@ -40,7 +40,7 @@ class LQ_IMPORTEXPORT LqWrk: public LqThreadBase {
     friend LqFastAlloc;
     friend void LqWrkDelete(LqWrk* This);
 
-    friend llong __LqWrkInitEmpty();
+    friend long long __LqWrkInitEmpty();
     /*GetCount external reference, used in SharedPtr*/
     size_t                                              CountPointers;
 
@@ -51,11 +51,12 @@ class LQ_IMPORTEXPORT LqWrk: public LqThreadBase {
     LqQueueCmd<uchar>                                   CommandQueue;
     LqSysPoll                                           EventChecker;
     LqEvntFd                                            NotifyEvent;
+    intptr_t                                            DeepLoop;
 
     mutable LqLocker<uintptr_t>                         Locker;
     mutable LqLocker<uintptr_t>                         WaitLocker;
 
-    llong                                               Id;
+    long long                                           Id;
     LqTimeMillisec                                      TimeStart;
     bool                                                IsDelete;
     uintptr_t                                           IsSyncAllFlags;
@@ -71,7 +72,7 @@ class LQ_IMPORTEXPORT LqWrk: public LqThreadBase {
     inline void WaiterLock() {
         while(!WaitLocker.TryLockWrite()) {
             NotifyThread();
-            for(uintptr_t i = 0; i < 50; i++)
+            for(uintptr_t i = ((uintptr_t)0); i < ((uintptr_t)50); i++)
                 if(WaitLocker.TryLockWrite())
                     return;
             if(IsThreadEnd())
@@ -93,65 +94,79 @@ public:
 
     static LqWrkPtr New(bool IsStart = false);
 
-    static LqWrkPtr ByEvntHdr(LqEvntHdr* EvntHdr);
+    static LqWrkPtr ByEvntHdr(LqClientHdr* EvntHdr);
 
     static LqWrkPtr GetNull();
 
-    llong   GetId() const;
+    static bool IsNull(LqWrkPtr& WrkPtr);
+
+    long long GetId() const;
 
     /*
     * Get busy info
     */
     size_t   GetAssessmentBusy() const;
-    size_t   CountEvnts() const;
+    size_t   CountClients() const;
 
-    bool     RemoveConnOnTimeOutAsync(LqTimeMillisec TimeLiveMilliseconds);
-    size_t   RemoveConnOnTimeOutSync(LqTimeMillisec TimeLiveMilliseconds);
+    bool     RemoveClientsOnTimeOutAsync(LqTimeMillisec TimeLiveMilliseconds);
+    size_t   RemoveClientsOnTimeOutSync(LqTimeMillisec TimeLiveMilliseconds);
 
-    bool     RemoveConnOnTimeOutAsync(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds);
-    size_t   RemoveConnOnTimeOutSync(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds);
+    bool     RemoveClientsOnTimeOutAsync(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds);
+    size_t   RemoveClientsOnTimeOutSync(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds);
 
-    bool     AddEvntAsync(LqEvntHdr* EvntHdr);
-    bool     AddEvntSync(LqEvntHdr* EvntHdr);
+    bool     AddClientAsync(LqClientHdr* EvntHdr);
+    bool     AddClientSync(LqClientHdr* EvntHdr);
 
     /*
       Remove event in strong async mode.
     */
-    bool     RemoveEvnt(LqEvntHdr* EvntHdr);
-    bool     CloseEvnt(LqEvntHdr* EvntHdr);
+    bool     RemoveClient(LqClientHdr* EvntHdr);
+    bool     CloseClient(LqClientHdr* EvntHdr);
 
-    bool     UpdateAllEvntFlagAsync();
-    int      UpdateAllEvntFlagSync();
+    bool     UpdateAllClientFlagAsync();
+    int      UpdateAllClientFlagSync();
 
     bool     AsyncCall(void(LQ_CALL*AsyncProc)(void* Data), void* UserData = nullptr);
     size_t   CancelAsyncCall(void(LQ_CALL*AsyncProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
-
+	bool     AsyncCall11(std::function<void()> Proc);
     /*
     This method return all connection from this worker.
     */
 
-    size_t   CloseAllEvntSync();
-    bool     CloseAllEvntAsync();
+    size_t   CloseAllClientsSync();
+    bool     CloseAllClientsAsync();
 
-    size_t   CloseConnByIpSync(const sockaddr* Addr);
-    bool     CloseConnByIpAsync(const sockaddr* Addr);
+    size_t   CloseClientsByIpSync(const sockaddr* Addr);
+    bool     CloseClientsByIpAsync(const sockaddr* Addr);
 
-    size_t   CloseConnByProtoSync(const LqProto* Proto);
-    bool     CloseConnByProtoAsync(const LqProto* Proto);
+    size_t   CloseClientsByProtoSync(const LqProto* Proto);
+    bool     CloseClientsByProtoAsync(const LqProto* Proto);
 
     /*
       @Proc - In this proc must not call another worker methods.
     */
-    size_t   EnumCloseRmEvnt(int(LQ_CALL*Proc)(void* UserData, LqEvntHdr* Conn), void* UserData = nullptr, bool* IsIterrupted = LqDfltPtr());
-    size_t   EnumCloseRmEvntByProto(int(LQ_CALL*Proc)(void* UserData, LqEvntHdr* Conn), const LqProto* Proto, void* UserData = nullptr, bool* IsIterrupted = LqDfltPtr());
+    size_t   EnumClients(int(LQ_CALL*Proc)(void* UserData, LqClientHdr* Conn), void* UserData = nullptr, bool* IsIterrupted = LqDfltPtr());
+    size_t   EnumClientsByProto(int(LQ_CALL*Proc)(void* UserData, LqClientHdr* Conn), const LqProto* Proto, void* UserData = nullptr, bool* IsIterrupted = LqDfltPtr());
 
-    bool EnumCloseRmEvntAsync(
-        int(LQ_CALL*EventAct)(void* UserData, size_t UserDataSize, void*Wrk, LqEvntHdr* EvntHdr, LqTimeMillisec CurTime),
-        const LqProto* Proto,
+    bool     EnumClientsAsync(
+        int(LQ_CALL*EventAct)(void* UserData, size_t UserDataSize, void*Wrk, LqClientHdr* EvntHdr, LqTimeMillisec CurTime),
         void* UserData,
         size_t UserDataSize
     );
+    /*
+    * Use this module for safe delete module
+    */
+    bool     EnumClientsAndCallFinAsync(
+        int(LQ_CALL*EventAct)(void*, size_t, void*, LqClientHdr*, LqTimeMillisec), /* Can be NULL(Only for call fin)*/
+        uintptr_t(LQ_CALL*FinFunc)(void*, size_t), /* You can return module handle for delete them, otherwise 0 */
+        void * UserData,
+        size_t UserDataSize
+    );
 
+	bool     EnumClientsAndCallFinAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct,std::function<uintptr_t()> FinFunc);
+	bool     EnumClientsAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct);
+	size_t   EnumClients11(std::function<int(LqClientHdr*)> EventAct, bool* IsIterrupted = LqDfltPtr());
+	size_t   EnumClientsByProto11(std::function<int(LqClientHdr*)> EventAct, const LqProto* Proto, bool* IsIterrupted = LqDfltPtr());
 
 
     LqString DebugInfo() const;

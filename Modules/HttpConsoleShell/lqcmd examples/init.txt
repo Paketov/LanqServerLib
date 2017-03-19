@@ -1,0 +1,47 @@
+﻿rem Инициализируем порт
+
+set LQ_HOST=0.0.0.0
+rem Установка порта на 80
+set LQ_PORT=80
+rem Установка протокола маршрутизации на IPv4
+set LQ_ROUTE_PROTO=4
+rem Стартуем сервак
+start
+
+rem Добовляем потоков параллельной обработки (стало 4)
+addwrk 3
+
+rem Установка имени серера
+name "Lanq Server 2.0"
+
+rem Установка времени жизни соединения
+timelife 60000
+
+
+rem Настройка кэша
+rem  Установка максимального размера всего кэша (200 mb)
+chemaxsize 209715200
+rem  Установка максимального размера файла (20 mb)
+chemaxsizef 20971520
+rem  Период проверки изменения закэшированнного файла(Проверяется только файл при доступе к кэшу) (3000 millisec)
+cheperu 3000
+
+
+rem Инициализируем сайт
+set SEP=\
+cd E:\serv\www
+
+rem Иниц. домена
+set CUR_DOMEN=*
+mkdmn $<CUR_DOMEN>
+mkpth $<CUR_DOMEN> / . rt
+mkpth -f $<CUR_DOMEN> / .\index.html rt
+
+rem Иниц. логирования
+cd ..
+rem Загрузка модуля логирования
+ldmdl Logging
+rem Отправка команд модулю логирования
+mdlcmd Logging log_in_file .\log.txt
+mdlcmd Logging set_loop 20971520 //20 mb
+

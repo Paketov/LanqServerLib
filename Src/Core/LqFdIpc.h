@@ -39,9 +39,9 @@ typedef struct LqFdIpc LqFdIpc;
 
 LQ_EXTERN_C_BEGIN
 /*
-Just create socket buffer
-@SockFd - Socket descriptor
-@UserData - User data
+	LqFdIpcOpen
+		Open descriptor interprocess communicatication
+		 @Name - Source name
 */
 LQ_IMPORTEXPORT LqFdIpc* LQ_CALL LqFdIpcOpen(const char* Name, bool IsNoInherit, void* lqain UserData);
 LQ_IMPORTEXPORT LqFdIpc* LQ_CALL LqFdIpcCreate(const char* Name, bool IsNoInherit, void* lqain UserData);

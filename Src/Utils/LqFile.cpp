@@ -180,6 +180,7 @@ LQ_EXTERN_C int LQ_CALL LqFileOpen(const char *FileName, uint32_t Flags, int Acc
     HANDLE              h;
     SECURITY_ATTRIBUTES InheritAttr = {sizeof(SECURITY_ATTRIBUTES), NULL, (Flags & LQ_O_NOINHERIT) ? FALSE : TRUE};
     wchar_t Name[LQ_MAX_PATH];
+
     _LqFileConvertNameToWcs(FileName, Name, LQ_MAX_PATH);
     if((
         h = CreateFileW(
@@ -225,6 +226,7 @@ static inline LqTimeSec FileTimeToTimeSec(const FILETIME* ft) {
 LQ_EXTERN_C int LQ_CALL LqFileGetStat(const char* FileName, LqFileStat* StatDest) {
     WIN32_FILE_ATTRIBUTE_DATA   info;
     wchar_t Name[LQ_MAX_PATH];
+
     _LqFileConvertNameToWcs(FileName, Name, LQ_MAX_PATH);
     if(GetFileAttributesExW(Name, GetFileExInfoStandard, &info) == FALSE)
         return -1;
@@ -295,7 +297,7 @@ LQ_EXTERN_C LQ_NO_INLINE LqFileSz LQ_CALL LqFileTell(int Fd) {
     NTSTATUS Stat;
     if((Stat = NtQueryInformationFile((HANDLE)Fd, &iosb, &CurPos, sizeof(CurPos), (FILE_INFORMATION_CLASS)14)) != STATUS_SUCCESS) {
         SetLastError(RtlNtStatusToDosError(Stat));
-        return -1;
+        return -((LqFileSz)1);
     }
     return CurPos;
 }
@@ -303,37 +305,37 @@ LQ_EXTERN_C LQ_NO_INLINE LqFileSz LQ_CALL LqFileTell(int Fd) {
 LQ_EXTERN_C LQ_NO_INLINE LqFileSz LQ_CALL LqFileSeek(int Fd, LqFileSz Offset, int Flag) {
     IO_STATUS_BLOCK iosb;
     NTSTATUS Stat;
-    long long NewOffset = Offset;
+    long long NewOffset;
     DWORD MoveMethod;
+    FILE_STANDARD_INFORMATION fsinfo; /*FileStandardInformation*/
+
+    NewOffset = Offset;
     switch(Flag) {
-        case LQ_SEEK_END:
-        {
-            FILE_STANDARD_INFORMATION fsinfo; /*FileStandardInformation*/
+        case LQ_SEEK_END: {
             if((Stat = NtQueryInformationFile((HANDLE)Fd, &iosb, &fsinfo, sizeof(fsinfo), (FILE_INFORMATION_CLASS)5)) != STATUS_SUCCESS) {
                 SetLastError(RtlNtStatusToDosError(Stat));
-                return -1;
+                return -((LqFileSz)1);
             }
             NewOffset = fsinfo.EndOfFile.QuadPart - NewOffset;
             break;
         }
         case LQ_SEEK_SET: break;
         default:
-        case LQ_SEEK_CUR:
-        {
+        case LQ_SEEK_CUR: {
             auto CurPos = LqFileTell(Fd);
-            if(CurPos == -1)
-                return -1;
+            if(CurPos == -((LqFileSz)1))
+                return -((LqFileSz)1);
             NewOffset += CurPos;
         }
         break;
     }
     if(NewOffset < 0) {
         SetLastError(ERROR_NEGATIVE_SEEK);
-        return -1;
+        return -((LqFileSz)1);
     }
     if((Stat = NtSetInformationFile((HANDLE)Fd, &iosb, &NewOffset, sizeof(NewOffset), (FILE_INFORMATION_CLASS)14)) != STATUS_SUCCESS) {
         SetLastError(RtlNtStatusToDosError(Stat));
-        return -1;
+        return -((LqFileSz)1);
     }
     return NewOffset;
 }
@@ -343,21 +345,21 @@ LQ_EXTERN_C int LQ_CALL LqFileFlush(int Fd) {
 }
 
 LQ_EXTERN_C int LQ_CALL __LqStdErrFileNo() {
-    auto h = GetStdHandle(STD_ERROR_HANDLE);
+    HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
     if(h == INVALID_HANDLE_VALUE)
         return -1;
     return (int)h;
 }
 
 LQ_EXTERN_C int LQ_CALL __LqStdOutFileNo() {
-    auto h = GetStdHandle(STD_OUTPUT_HANDLE);
+    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     if(h == INVALID_HANDLE_VALUE)
         return -1;
     return (int)h;
 }
 
 LQ_EXTERN_C int LQ_CALL __LqStdInFileNo() {
-    auto h = GetStdHandle(STD_INPUT_HANDLE);
+    HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
     if(h == INVALID_HANDLE_VALUE)
         return -1;
     return (int)h;
@@ -379,9 +381,10 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFileRead(int Fd, void* DestBuf, intptr_t SizeBuf)
     * Use NtReadFile in this because, native function more faster and more flexible
     */
     IO_STATUS_BLOCK iosb;
-    LARGE_INTEGER pl, *ppl = nullptr;
+    LARGE_INTEGER pl, *ppl = NULL;
+    NTSTATUS Stat;
 lblAgain:
-    switch(auto Stat = NtReadFile((HANDLE)Fd, NULL, NULL, NULL, &iosb, (PVOID)DestBuf, SizeBuf, ppl, NULL)) {
+    switch(Stat = NtReadFile((HANDLE)Fd, NULL, NULL, NULL, &iosb, (PVOID)DestBuf, SizeBuf, ppl, NULL)) {
         case STATUS_PENDING:
             NtCancelIoFile((HANDLE)Fd, &iosb);
             SetLastError(ERROR_IO_PENDING);
@@ -389,21 +392,23 @@ lblAgain:
         case STATUS_SUCCESS: return iosb.Information;
         case STATUS_END_OF_FILE: SetLastError(ERROR_HANDLE_EOF); return 0;
         case STATUS_INVALID_PARAMETER:
-            if(ppl == nullptr) {
+            if(ppl == NULL) {
                 ppl = &pl;
                 pl.QuadPart = LqFileTell(Fd);
                 goto lblAgain;
             }
         default: SetLastError(RtlNtStatusToDosError(Stat));
     }
-    return -1;
+    return -((intptr_t)1);
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileWrite(int Fd, const void* SourceBuf, intptr_t SizeBuf) {
     IO_STATUS_BLOCK iosb;
-    LARGE_INTEGER pl, *ppl = nullptr;
+    LARGE_INTEGER pl, *ppl = NULL;
+    NTSTATUS Stat;
+
 lblAgain:
-    switch(auto Stat = NtWriteFile((HANDLE)Fd, NULL, NULL, NULL, &iosb, (PVOID)SourceBuf, SizeBuf, ppl, NULL)) {
+    switch(Stat = NtWriteFile((HANDLE)Fd, NULL, NULL, NULL, &iosb, (PVOID)SourceBuf, SizeBuf, ppl, NULL)) {
         case STATUS_PENDING:
             NtCancelIoFile((HANDLE)Fd, &iosb);
             SetLastError(ERROR_IO_PENDING);
@@ -411,43 +416,47 @@ lblAgain:
         case STATUS_SUCCESS: return iosb.Information;
         case STATUS_END_OF_FILE: SetLastError(ERROR_HANDLE_EOF); break;//For improve performance
         case STATUS_INVALID_PARAMETER:
-            if(ppl == nullptr) {
+            if(ppl == NULL) {
                 ppl = &pl;
                 pl.QuadPart = LqFileTell(Fd);
                 goto lblAgain;
             }
         default: SetLastError(RtlNtStatusToDosError(Stat));
     }
-    return -1;
+    return -((intptr_t)1);
 }
 
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileReadAsync(int Fd, void* DestBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target) {
     LARGE_INTEGER pl;
+    NTSTATUS Stat;
+
     pl.QuadPart = Offset;
     Target->Status = STATUS_PENDING;
-    switch(auto Stat = NtReadFile((HANDLE)Fd, (HANDLE)EventFd, NULL, NULL, (PIO_STATUS_BLOCK)Target, (PVOID)DestBuf, SizeBuf, &pl, NULL)) {
+    switch(Stat = NtReadFile((HANDLE)Fd, (HANDLE)EventFd, NULL, NULL, (PIO_STATUS_BLOCK)Target, (PVOID)DestBuf, SizeBuf, &pl, NULL)) {
         case STATUS_PENDING:
             SetLastError(ERROR_IO_PENDING);
         case STATUS_SUCCESS:
             return 0;
         default: SetLastError(RtlNtStatusToDosError(Stat));
     }
-    return -1;
+    return -((intptr_t)1);
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileWriteAsync(int Fd, const void* SourceBuf, intptr_t SizeBuf, LqFileSz Offset, int EventFd, LqAsync* Target) {
     LARGE_INTEGER pl;
+    NTSTATUS Stat;
+
     pl.QuadPart = Offset;
     Target->Status = STATUS_PENDING;
-    switch(auto Stat = NtWriteFile((HANDLE)Fd, (HANDLE)EventFd, NULL, NULL, (PIO_STATUS_BLOCK)Target, (PVOID)SourceBuf, SizeBuf, &pl, NULL)) {
+    switch(Stat = NtWriteFile((HANDLE)Fd, (HANDLE)EventFd, NULL, NULL, (PIO_STATUS_BLOCK)Target, (PVOID)SourceBuf, SizeBuf, &pl, NULL)) {
         case STATUS_PENDING:
             SetLastError(ERROR_IO_PENDING);
         case STATUS_SUCCESS:
             return 0;
         default: SetLastError(RtlNtStatusToDosError(Stat));
     }
-    return -1;
+    return -((intptr_t)1);
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileAsyncCancel(int Fd, LqAsync* Target) {
@@ -473,6 +482,8 @@ LQ_EXTERN_C int LQ_CALL LqFileAsyncStat(LqAsync* Target, intptr_t* LenWritten) {
 LQ_EXTERN_C int LQ_CALL LqFileSetLock(int Fd, LqFileSz StartOffset, LqFileSz Len, int LockFlags) {
     IO_STATUS_BLOCK iosb;
     LARGE_INTEGER LocStart, LocLen;
+    NTSTATUS Stat;
+
     LocStart.QuadPart = StartOffset;
     LocLen.QuadPart = Len;
     if(LockFlags & LQ_FLOCK_UNLOCK) {
@@ -492,7 +503,7 @@ LQ_EXTERN_C int LQ_CALL LqFileSetLock(int Fd, LqFileSz StartOffset, LqFileSz Len
                 SetLastError(RtlNtStatusToDosError(Stat));
         }
     } else {
-        switch(auto Stat = NtLockFile(
+        switch(Stat = NtLockFile(
             (HANDLE)Fd,
             NULL,
             NULL,
@@ -526,7 +537,7 @@ LQ_EXTERN_C int LQ_CALL LqFileSetLock(int Fd, LqFileSz StartOffset, LqFileSz Len
 LQ_EXTERN_C int LQ_CALL LqFileMakeDir(const char* NewDirName, int Access) {
     wchar_t Name[LQ_MAX_PATH];
     _LqFileConvertNameToWcs(NewDirName, Name, LQ_MAX_PATH);
-    return CreateDirectoryW(Name, nullptr) == TRUE;
+    return CreateDirectoryW(Name, NULL) == TRUE;
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileRemoveDir(const char* NewDirName) {
@@ -552,21 +563,25 @@ LQ_EXTERN_C int LQ_CALL LqFileRemove(const char* FileName) {
 LQ_EXTERN_C intptr_t LQ_CALL LqFileRealPath(const char* Source, char* Dest, intptr_t DestLen) {
     wchar_t Name[LQ_MAX_PATH];
     wchar_t New[LQ_MAX_PATH];
+    DWORD Ret;
     _LqFileConvertNameToWcs(Source, Name, LQ_MAX_PATH);
-    auto Ret = GetFullPathNameW(Name, LQ_MAX_PATH - 1, New, NULL);
+    Ret = GetFullPathNameW(Name, LQ_MAX_PATH - 1, New, NULL);
     if(!((Source[0] == '\\') && (Source[1] == '\\') && (Source[2] == '?') && (Source[3] == '\\')) &&
         (New[0] == L'\\') && (New[1] == L'\\') && (New[2] == L'?') && (New[3] == L'\\')) {
         LqCpConvertFromWcs(New + 4, Dest, DestLen);
     } else {
         LqCpConvertFromWcs(New, Dest, DestLen);
     }
-    return (Ret == 0) ? -1 : Ret;
+    return (Ret == 0) ? -((intptr_t)1) : Ret;
 }
 
 
 LQ_EXTERN_C int LQ_CALL LqTermPairCreate(int* MasterFd, int* SlaveFd, int MasterFlags, int SlaveFlags) {
     static uint64_t TermSerialNumber = 0;
     char PipeNameBuffer[MAX_PATH];
+    DWORD dwError;
+    int Mfd;
+    int Sfd;
     auto Proc = (uint64_t)GetCurrentProcessId();
     uint64_t CurSerNum, t;
     do {
@@ -581,13 +596,14 @@ LQ_EXTERN_C int LQ_CALL LqTermPairCreate(int* MasterFd, int* SlaveFd, int Master
         (unsigned)(Proc >> 32),
         (unsigned)(Proc & 0xffffffff),
         (unsigned)(CurSerNum >> 32),
-        (unsigned)(CurSerNum & 0xffffffff));
-    int Mfd = LqPipeCreateNamed(PipeNameBuffer, (MasterFlags & (LQ_O_NONBLOCK | LQ_O_NOINHERIT)) | LQ_O_BIN | LQ_O_RDWR);
+        (unsigned)(CurSerNum & 0xffffffff)
+    );
+    Mfd = LqPipeCreateNamed(PipeNameBuffer, (MasterFlags & (LQ_O_NONBLOCK | LQ_O_NOINHERIT)) | LQ_O_BIN | LQ_O_RDWR);
     if(Mfd == -1)
         return -1;
-    int Sfd = LqFileOpen(PipeNameBuffer, (SlaveFlags & (LQ_O_NONBLOCK | LQ_O_NOINHERIT)) | LQ_O_RDWR | LQ_O_EXCL, 0);
+    Sfd = LqFileOpen(PipeNameBuffer, (SlaveFlags & (LQ_O_NONBLOCK | LQ_O_NOINHERIT)) | LQ_O_RDWR | LQ_O_EXCL, 0);
     if(Sfd == -1) {
-        DWORD dwError = GetLastError();
+        dwError = GetLastError();
         LqFileClose(Mfd);
         SetLastError(dwError);
         return -1;
@@ -717,7 +733,7 @@ static LqLocker<uintptr_t> _LqFileDescrDupToStd_Locker;
 LQ_EXTERN_C int LQ_CALL LqDescrDupToStd(int Descriptor, int StdNo) {
     int Ret = 0;
     HANDLE h, p;
-    auto PrHandle = GetCurrentProcess();
+    HANDLE PrHandle = GetCurrentProcess();
     if(DuplicateHandle(PrHandle, (HANDLE)Descriptor, PrHandle, &h, 0, FALSE, DUPLICATE_SAME_ACCESS) == FALSE)
         return -1;
     _LqFileDescrDupToStd_Locker.LockWriteYield();
@@ -813,22 +829,22 @@ LQ_EXTERN_C int LQ_CALL LqProcessCreate
     CommandLine.append(Buf);
     if(Buf[0] != L'"')
         CommandLine.append(L"\"");
-    if(Argv != nullptr)
-        for(size_t i = 0; Argv[i] != nullptr; i++) {
+    if(Argv != NULL)
+        for(size_t i = 0; Argv[i] != NULL; i++) {
             CommandLine.append(1, L' ');
             LqCpConvertToWcs(Argv[i], Buf, LQ_MAX_PATH);
             CommandLine.append(Buf);
         }
 
-    if(Envp != nullptr)
-        for(size_t i = 0; Envp[i] != nullptr; i++) {
+    if(Envp != NULL)
+        for(size_t i = 0; Envp[i] != NULL; i++) {
             LqCpConvertToWcs(Envp[i], Buf, LQ_MAX_PATH);
             Environ.append(Buf);
             Environ.append(1, L'\0');
         }
     Environ.append(2, L'\0\0');
 
-    if(WorkingDir != nullptr) {
+    if(WorkingDir != NULL) {
         LqCpConvertToWcs(WorkingDir, Buf, LQ_MAX_PATH);
     }
 
@@ -840,8 +856,8 @@ LQ_EXTERN_C int LQ_CALL LqProcessCreate
        NULL,
        TRUE,
        CREATE_UNICODE_ENVIRONMENT | (IsOwnerGroup ? CREATE_NEW_PROCESS_GROUP : 0),
-       (Envp != nullptr) ? (LPVOID)Environ.c_str() : NULL,
-       (WorkingDir != nullptr) ? Buf : NULL,
+       (Envp != NULL) ? (LPVOID)Environ.c_str() : NULL,
+       (WorkingDir != NULL) ? Buf : NULL,
        &siStartInfo,
        &processInfo
        ) == FALSE
@@ -849,7 +865,7 @@ LQ_EXTERN_C int LQ_CALL LqProcessCreate
         return -1;
     }
 
-    if(EventKill == nullptr) {
+    if(EventKill == NULL) {
         NtClose(processInfo.hProcess);
     } else {
         LqDescrSetInherit((int)processInfo.hProcess, 1);
@@ -860,7 +876,7 @@ LQ_EXTERN_C int LQ_CALL LqProcessCreate
 }
 
 LQ_EXTERN_C int LQ_CALL LqProcessKill(int Pid) {
-    auto h = OpenProcess(PROCESS_TERMINATE, FALSE, Pid);
+    HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, Pid);
     if(h != NULL) {
         TerminateProcess(h, 0);
         NtClose(h);
@@ -882,15 +898,18 @@ LQ_EXTERN_C int LQ_CALL LqProcessParentId() {
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqProcessGetName(int Pid, char* DestBuf, intptr_t SizeBuf) {
-    HANDLE Handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, Pid);
-    if(Handle == NULL)
-        return -1;
-
+    DWORD Ret;
+    HANDLE Handle;
     wchar_t Name[LQ_MAX_PATH];
-    auto Ret = GetModuleFileNameExW(Handle, NULL, Name, LQ_MAX_PATH - 1);
+
+    Handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, Pid);
+    if(Handle == NULL)
+        return -((intptr_t)1);
+
+    Ret = GetModuleFileNameExW(Handle, NULL, Name, LQ_MAX_PATH - 1);
     NtClose(Handle);
     if(Ret <= 0)
-        return -1;
+        return -((intptr_t)1);
     return LqCpConvertFromWcs(Name, DestBuf, SizeBuf);
 }
 
@@ -914,9 +933,11 @@ LQ_EXTERN_C int LQ_CALL LqFileGetCurDir(char* DirBuf, size_t LenBuf) {
 
 LQ_EXTERN_C int LQ_CALL LqEventCreate(int InheritFlags) {
     OBJECT_ATTRIBUTES Attr;
-    InitializeObjectAttributes(&Attr, NULL, (InheritFlags & LQ_O_NOINHERIT) ? 0 : OBJ_INHERIT, NULL, NULL);
     HANDLE h;
-    auto Stat = NtCreateEvent(&h, EVENT_ALL_ACCESS, &Attr, NotificationEvent, FALSE);
+    NTSTATUS Stat;
+
+    InitializeObjectAttributes(&Attr, NULL, (InheritFlags & LQ_O_NOINHERIT) ? 0 : OBJ_INHERIT, NULL, NULL);
+    Stat = NtCreateEvent(&h, EVENT_ALL_ACCESS, &Attr, NotificationEvent, FALSE);
     if(!NT_SUCCESS(Stat)) {
         SetLastError(RtlNtStatusToDosError(Stat));
         return -1;
@@ -940,8 +961,10 @@ LQ_EXTERN_C int LQ_CALL LqEventReset(int FileEvent) {
 */
 
 LQ_EXTERN_C int LQ_CALL LqTimerCreate(int InheritFlags) {
+    HANDLE h;
     SECURITY_ATTRIBUTES InheritAttr = {sizeof(SECURITY_ATTRIBUTES), NULL, (InheritFlags & LQ_O_NOINHERIT) ? FALSE : TRUE};
-    auto h = CreateWaitableTimerW(&InheritAttr, TRUE, NULL);
+
+    h = CreateWaitableTimerW(&InheritAttr, TRUE, NULL);
     if(h == NULL)
         return -1;
     return (int)h;
@@ -949,7 +972,7 @@ LQ_EXTERN_C int LQ_CALL LqTimerCreate(int InheritFlags) {
 
 LQ_EXTERN_C int LQ_CALL LqTimerSet(int TimerFd, LqTimeMillisec Time) {
     LARGE_INTEGER li;
-    li.QuadPart = -(LONGLONG)(Time * 10000);
+    li.QuadPart = -((LONGLONG)(Time * 10000));
     return (SetWaitableTimer((HANDLE)TimerFd, &li, 0, NULL, NULL, FALSE) == TRUE) ? 0 : -1;
 }
 
@@ -961,7 +984,10 @@ LQ_EXTERN_C int LQ_CALL LqTimerSet(int TimerFd, LqTimeMillisec Time) {
 LQ_EXTERN_C int LQ_CALL LqFileEnmStart(LqFileEnm* Enm, const char* Dir, char* DestName, size_t NameLen, uint8_t* Type) {
     wchar_t DirName[LQ_MAX_PATH];
     WIN32_FIND_DATAW Fdata = {0};
-    auto l = _LqFileConvertNameToWcs(Dir, DirName, LQ_MAX_PATH - 4);
+    HANDLE Hndl;
+    int l;
+
+    l = _LqFileConvertNameToWcs(Dir, DirName, LQ_MAX_PATH - 4);
     if(l < 0)
         return -1;
 
@@ -973,12 +999,12 @@ LQ_EXTERN_C int LQ_CALL LqFileEnmStart(LqFileEnm* Enm, const char* Dir, char* De
         DirName[l - 1] = L'*';
         DirName[l] = L'\0';
     }
-    auto Hndl = FindFirstFileW(DirName, &Fdata);
+    Hndl = FindFirstFileW(DirName, &Fdata);
     if(Hndl == INVALID_HANDLE_VALUE)
         return -1;
     Enm->Hndl = (uintptr_t)Hndl;
     LqCpConvertFromWcs(Fdata.cFileName, DestName, NameLen);
-    if(Type != nullptr) {
+    if(Type != NULL) {
         if(Fdata.dwFileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_ARCHIVE))
             *Type = LQ_F_REG;
         else if(Fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
@@ -991,13 +1017,15 @@ LQ_EXTERN_C int LQ_CALL LqFileEnmStart(LqFileEnm* Enm, const char* Dir, char* De
 
 LQ_EXTERN_C int LQ_CALL LqFileEnmNext(LqFileEnm* Enm, char* DestName, size_t NameLen, uint8_t* Type) {
     WIN32_FIND_DATAW Fdata = {0};
+
+
     if(FindNextFileW((HANDLE)Enm->Hndl, &Fdata) == FALSE) {
         FindClose((HANDLE)Enm->Hndl);
         Enm->Hndl = (uintptr_t)INVALID_HANDLE_VALUE;
         return -1;
     }
     LqCpConvertFromWcs(Fdata.cFileName, DestName, NameLen);
-    if(Type != nullptr) {
+    if(Type != NULL) {
         if(Fdata.dwFileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_ARCHIVE))
             *Type = LQ_F_REG;
         else if(Fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
@@ -1031,7 +1059,8 @@ LQ_EXTERN_C int LQ_CALL LqPollCheck(LqPoll* Fds, size_t CountFds, LqTimeMillisec
     enum {
         LQ_POLL_MODE_IN = 1,
         LQ_POLL_MODE_OUT = 2,
-        LQ_POLL_MODE_EVENT = 4
+        LQ_POLL_MODE_HUP = 4,
+        LQ_POLL_MODE_EVENT = 8
     };
 
     struct OvlpHdr {
@@ -1040,26 +1069,35 @@ LQ_EXTERN_C int LQ_CALL LqPollCheck(LqPoll* Fds, size_t CountFds, LqTimeMillisec
         IO_STATUS_BLOCK Sb;
     };
 
-    size_t CountEvnt = 0;
-    OvlpHdr LocOvlp;
     LARGE_INTEGER pl, *ppl;
     DWORD WaitRes;
-
+    bool HasOnlyHup = false;
+    HANDLE TempEvnt = NULL;
+    IO_STATUS_BLOCK TempIoBlock;
     std::vector<HANDLE> Events;
     std::vector<OvlpHdr*> EventsData;
-
+    ULONGLONG TimePassed;
     HANDLE Event = NULL;
+    OvlpHdr *Ovlp = NULL;
+    static char Buf;
+    LqPoll* Fd;
+    size_t HasEvnt;
+    bool Hpl = false;
+    int CountEvents = 0;
+    size_t i;
+    DWORD Res;
 
-    for(size_t i = 0; i < CountFds; i++) {
-        size_t HasEvnt = 0;
+
+    TempEvnt = CreateEventW(NULL, TRUE, FALSE, NULL);
+    for(i = 0; i < CountFds; i++) {
+        HasEvnt = 0;
         Fds[i].revents = 0;
-        bool Hpl = false;
+        Hpl = false;
         if(Fds[i].events & LQ_POLLIN) {
-            static char Buf;
-            OvlpHdr *Ovlp = (CountEvnt > 0) ? &LocOvlp : LqFastAlloc::New<OvlpHdr>();
+            Ovlp = LqFastAlloc::New<OvlpHdr>();
             Ovlp->Index = i;
             Ovlp->Mode = LQ_POLL_MODE_IN;
-            ppl = nullptr;
+            ppl = NULL;
 #ifdef IsUseDynamicEvnt
             if(Event == NULL)
                 Event = CreateEventW(NULL, TRUE, FALSE, NULL);
@@ -1072,75 +1110,63 @@ lblAgain:
             switch(NtReadFile((HANDLE)Fds[i].fd, Event, NULL, NULL, &Ovlp->Sb, &Buf, 0, ppl, NULL)) {
                 case STATUS_MORE_PROCESSING_REQUIRED:
                 case STATUS_SUCCESS:
-                    if(CountEvnt <= 0)
-                        LqFastAlloc::Delete(Ovlp);
+                    LqFastAlloc::Delete(Ovlp);
                     Fds[i].revents |= LQ_POLLIN;
                     HasEvnt = 1;
                     break;
                 case STATUS_PENDING:
                     if(Ovlp->Sb.Status == STATUS_INVALID_DEVICE_REQUEST)
                         goto lblWatchEventRd;
-                    if(CountEvnt <= 0) {
-                        EventsData.push_back(Ovlp);
+                    EventsData.push_back(Ovlp);
 #ifdef IsUseDynamicEvnt
-                        Events.push_back(Event);
-                        Event = NULL;
+                    Events.push_back(Event);
+                    Event = NULL;
 #else
-                        Events.push_back((HANDLE)Fds[i].fd);
+                    Events.push_back((HANDLE)Fds[i].fd);
 #endif
-                    } else {
-                        NtCancelIoFile((HANDLE)Fds[i].fd, &Ovlp->Sb);
-                    }
                     break;
                 case STATUS_PIPE_BROKEN:
+                case STATUS_PIPE_CLOSING:
                     if(Fds[i].events & LQ_POLLHUP) {
                         Fds[i].revents |= LQ_POLLHUP;
                         HasEvnt = 1;
                     }
-                    if(CountEvnt <= 0)
-                        LqFastAlloc::Delete(Ovlp);
+                    LqFastAlloc::Delete(Ovlp);
                     break;
                 case STATUS_INVALID_PARAMETER:
-                    if(ppl == nullptr) {
+                    if(ppl == NULL) {
                         ppl = &pl;
                         pl.QuadPart = LqFileTell(Fds[i].fd);
                         Hpl = true;
                         goto lblAgain;
                     }
                     goto lblErr;
-                case STATUS_OBJECT_TYPE_MISMATCH: lblWatchEventRd:
-                    {
-                        DWORD Res = WaitForSingleObject((HANDLE)Fds[i].fd, 0);
-                        if(Res == WAIT_OBJECT_0) {
+                case STATUS_OBJECT_TYPE_MISMATCH: lblWatchEventRd: {
+                        if((Res = WaitForSingleObject((HANDLE)Fds[i].fd, 0)) == WAIT_OBJECT_0) {
                             Fds[i].revents |= LQ_POLLIN;
                             HasEvnt = 1;
-                            if(CountEvnt <= 0)
-                                LqFastAlloc::Delete(Ovlp);
+                            LqFastAlloc::Delete(Ovlp);
                             break;
                         } else if(Res != WAIT_FAILED) {
-                            if(CountEvnt <= 0) {
-                                Ovlp->Mode |= LQ_POLL_MODE_EVENT;
-                                Ovlp->Sb.Status = STATUS_OBJECT_TYPE_MISMATCH;
-                                Events.push_back((HANDLE)Fds[i].fd);
-                                EventsData.push_back(Ovlp);
-                            }
+                            Ovlp->Mode |= LQ_POLL_MODE_EVENT;
+                            Ovlp->Sb.Status = STATUS_OBJECT_TYPE_MISMATCH;
+                            Events.push_back((HANDLE)Fds[i].fd);
+                            EventsData.push_back(Ovlp);
                             break;
                         }
                     }
 lblErr:
                 default:
-                    if(CountEvnt <= 0)
-                        LqFastAlloc::Delete(Ovlp);
+                    LqFastAlloc::Delete(Ovlp);
                     Fds[i].revents |= LQ_POLLERR;
                     HasEvnt = 1;
             }
         }
         if(Fds[i].events & LQ_POLLOUT) {
-            static char Buf;
-            OvlpHdr *Ovlp = (CountEvnt > 0) ? &LocOvlp : LqFastAlloc::New<OvlpHdr>();
+            Ovlp = LqFastAlloc::New<OvlpHdr>();
             Ovlp->Index = i;
             Ovlp->Mode = LQ_POLL_MODE_OUT;
-            ppl = nullptr;
+            ppl = NULL;
 #ifdef IsUseDynamicEvnt
             if(Event == NULL)
                 Event = CreateEventW(NULL, TRUE, FALSE, NULL);
@@ -1153,67 +1179,56 @@ lblAgain2:
             switch(NtWriteFile((HANDLE)Fds[i].fd, Event, NULL, NULL, &Ovlp->Sb, &Buf, 0, ppl, NULL)) {
                 case STATUS_MORE_PROCESSING_REQUIRED:
                 case STATUS_SUCCESS:
-                    if(CountEvnt <= 0)
-                        LqFastAlloc::Delete(Ovlp);
+                    LqFastAlloc::Delete(Ovlp);
                     Fds[i].revents |= LQ_POLLOUT;
                     HasEvnt = 1;
                     break;
                 case STATUS_PENDING:
                     if(Ovlp->Sb.Status == STATUS_INVALID_DEVICE_REQUEST)
                         goto lblWatchEventWr;
-                    if(CountEvnt <= 0) {
-                        EventsData.push_back(Ovlp);
+                    EventsData.push_back(Ovlp);
 #ifdef IsUseDynamicEvnt
-                        Events.push_back(Event);
-                        Event = NULL;
+                    Events.push_back(Event);
+                    Event = NULL;
 #else
-                        Events.push_back((HANDLE)Fds[i].fd);
+                    Events.push_back((HANDLE)Fds[i].fd);
 #endif
-                    } else {
-                        NtCancelIoFile((HANDLE)Fds[i].fd, &Ovlp->Sb);
-                    }
                     break;
                 case STATUS_PIPE_BROKEN:
+                case STATUS_PIPE_CLOSING:
                     if(Fds[i].events & LQ_POLLHUP) {
                         Fds[i].revents |= LQ_POLLHUP;
                         HasEvnt = 1;
                     }
-                    if(CountEvnt <= 0)
-                        LqFastAlloc::Delete(Ovlp);
+                    LqFastAlloc::Delete(Ovlp);
                     break;
                 case STATUS_INVALID_PARAMETER:
-                    if(ppl == nullptr) {
+                    if(ppl == NULL) {
                         ppl = &pl;
                         if(!Hpl)
                             pl.QuadPart = LqFileTell(Fds[i].fd);
                         goto lblAgain2;
                     }
                     goto lblErr2;
-                case STATUS_OBJECT_TYPE_MISMATCH: lblWatchEventWr:
-                    {
-                        DWORD Res;
+                case STATUS_OBJECT_TYPE_MISMATCH: lblWatchEventWr: {
                         if((Fds[i].revents & LQ_POLLIN) || ((Res = WaitForSingleObject((HANDLE)Fds[i].fd, 0)) == WAIT_OBJECT_0)) {
                             Fds[i].revents |= LQ_POLLOUT;
                             HasEvnt = 1;
-                            if(CountEvnt <= 0)
-                                LqFastAlloc::Delete(Ovlp);
+                            LqFastAlloc::Delete(Ovlp);
                             break;
                         } else if(Res != WAIT_FAILED) {
                             if(Fds[i].events & LQ_POLLIN)
                                 break;
-                            if(CountEvnt <= 0) {
-                                Ovlp->Mode |= LQ_POLL_MODE_EVENT;
-                                Ovlp->Sb.Status = STATUS_OBJECT_TYPE_MISMATCH;
-                                Events.push_back((HANDLE)Fds[i].fd);
-                                EventsData.push_back(Ovlp);
-                            }
+                            Ovlp->Mode |= LQ_POLL_MODE_EVENT;
+                            Ovlp->Sb.Status = STATUS_OBJECT_TYPE_MISMATCH;
+                            Events.push_back((HANDLE)Fds[i].fd);
+                            EventsData.push_back(Ovlp);
                             break;
                         }
                     }
 lblErr2:
                 default:
-                    if(CountEvnt <= 0)
-                        LqFastAlloc::Delete(Ovlp);
+                    LqFastAlloc::Delete(Ovlp);
                     Fds[i].revents |= LQ_POLLERR; //Only follow POLLIN or POLLOUT
                     HasEvnt = 1;
             }
@@ -1223,46 +1238,106 @@ lblErr2:
             !(Fds[i].events & LQ_POLLOUT) &&
             !(Fds[i].events & LQ_POLLIN) &&
             (Fds[i].revents == 0)
-            ) {
-            /* I dont know how follow only disconnect of file or pipe:( */
-            Fds[i].revents |= (LQ_POLLERR | LQ_POLLNVAL);
-            HasEvnt = 1;
+        ) {
+            ppl = NULL;
+lblAgain6:
+            ResetEvent(TempEvnt);
+            switch(NtWriteFile((HANDLE)Fds[i].fd, TempEvnt, NULL, NULL, &TempIoBlock, &Buf, 0, ppl, NULL)) {
+                case STATUS_PENDING: 
+                    NtCancelIoFile((HANDLE)Fds[i].fd, &TempIoBlock);
+                case STATUS_MORE_PROCESSING_REQUIRED:
+                case STATUS_SUCCESS:
+                    Ovlp = LqFastAlloc::New<OvlpHdr>();
+                    Ovlp->Index = i;
+                    Ovlp->Mode = LQ_POLL_MODE_HUP;
+                    Ovlp->Sb.Status = STATUS_SUCCESS;
+                    EventsData.push_back(Ovlp);
+                    HasOnlyHup = true;
+                    break;
+                case STATUS_PIPE_BROKEN:
+                case STATUS_PIPE_CLOSING: Fds[i].revents |= LQ_POLLHUP; HasEvnt = 1; break;
+                case STATUS_INVALID_PARAMETER:
+                    if(ppl == NULL) {
+                        ppl = &pl;
+                        pl.QuadPart = LqFileTell(Fds[i].fd);
+                        goto lblAgain6;
+                    }
+                default:
+                    Fds[i].revents |= LQ_POLLERR;
+                    HasEvnt = 1;
+            }
         }
-        CountEvnt += HasEvnt;
+        CountEvents += HasEvnt;
     }
 #ifdef IsUseDynamicEvnt
     if(Event != NULL)
         CloseHandle(Event);
 #endif
-
-    ULONGLONG TimePassed;
+    WaitRes = WAIT_FAILED + 1;
+    if(CountEvents > 0)
+        goto lblOut3;
 lblAgainWait:
     TimePassed = GetTickCount64();
-    WaitRes = WAIT_TIMEOUT;
-    if((CountEvnt <= 0) && ((WaitRes = WaitForMultipleObjects(Events.size(), Events.data(), FALSE, TimeoutMillisec)) != WAIT_TIMEOUT) && (WaitRes != WAIT_FAILED)) {
-        TimePassed = GetTickCount64() - TimePassed;
 
-        for(size_t i = WaitRes - WAIT_OBJECT_0; i < EventsData.size(); i++) {
-            size_t HasEvnt = 0;
-            LqPoll* Fd = Fds + EventsData[i]->Index;
-            auto& EventData = EventsData[i];
-            if(EventData->Mode & LQ_POLL_MODE_EVENT) {
-                switch(WaitForSingleObject(Events[i], 0)) {
+    if(Events.size() > 0) {
+        WaitRes = WaitForMultipleObjects(
+            lq_min(Events.size(), MAXIMUM_WAIT_OBJECTS - 1), 
+            Events.data(), 
+            FALSE, 
+            (HasOnlyHup || (Events.size() > (MAXIMUM_WAIT_OBJECTS - 1))) ? lq_min(50, TimeoutMillisec) : TimeoutMillisec
+        );
+    } else {
+        WaitRes = WAIT_TIMEOUT;
+        Sleep(50);
+    }
+    if(WaitRes != WAIT_FAILED) {
+        TimePassed = GetTickCount64() - TimePassed;
+        
+        for(i = 0; i < EventsData.size(); i++) {
+            HasEvnt = 0;
+            Fd = Fds + EventsData[i]->Index;
+            Ovlp = EventsData[i];
+            if(Ovlp->Mode & LQ_POLL_MODE_HUP) {
+                ppl = NULL;
+                
+lblAgain5:
+                ResetEvent(TempEvnt);
+                switch(NtWriteFile((HANDLE)Fd->fd, TempEvnt, NULL, NULL, &TempIoBlock, &Buf, 0, ppl, NULL)) {
+                    case STATUS_MORE_PROCESSING_REQUIRED:
+                    case STATUS_SUCCESS: break;
+                    case STATUS_PENDING: NtCancelIoFile((HANDLE)Fd->fd, &TempIoBlock); break;
+                    case STATUS_PIPE_BROKEN:
+                    case STATUS_PIPE_CLOSING: Fd->revents |= LQ_POLLHUP; HasEvnt = 1; break;
+                    case STATUS_INVALID_PARAMETER:
+                        if(ppl == NULL) {
+                            ppl = &pl;
+                            pl.QuadPart = LqFileTell(Fd->fd);
+                            goto lblAgain5;
+                        }
+                    default: Fd->revents |= LQ_POLLERR; HasEvnt = 1;
+                }
+            }
+            if(Ovlp->Mode & LQ_POLL_MODE_EVENT) {
+                switch(WaitForSingleObject((HANDLE)Fd->fd, 0)) {
                     case WAIT_OBJECT_0:
-                        Fd->revents |= (EventData->Mode & LQ_POLL_MODE_OUT) ? LQ_POLLOUT : 0;
-                        Fd->revents |= (EventData->Mode & LQ_POLL_MODE_IN) ? LQ_POLLIN : 0;
+                        if(Ovlp->Mode & LQ_POLL_MODE_OUT)
+                            Fd->revents |= LQ_POLLOUT;
+                        if(Ovlp->Mode & LQ_POLL_MODE_IN)
+                            Fd->revents |= LQ_POLLIN;
                         HasEvnt = 1;
                         break;
                     case WAIT_FAILED:
                         Fd->revents |= LQ_POLLERR;
                         HasEvnt = 1;
                 }
-            } else {
-                switch(EventData->Sb.Status) {
+            } else if(Ovlp->Mode & (LQ_POLL_MODE_OUT | LQ_POLL_MODE_IN)) {
+                switch(Ovlp->Sb.Status) {
                     case STATUS_MORE_PROCESSING_REQUIRED:
                     case STATUS_SUCCESS:
-                        Fd->revents |= (EventData->Mode & LQ_POLL_MODE_OUT) ? LQ_POLLOUT : 0;
-                        Fd->revents |= (EventData->Mode & LQ_POLL_MODE_IN) ? LQ_POLLIN : 0;
+                        if(Ovlp->Mode & LQ_POLL_MODE_OUT)
+                            Fd->revents |= LQ_POLLOUT;
+                        if(Ovlp->Mode & LQ_POLL_MODE_IN)
+                            Fd->revents |= LQ_POLLIN;
                         HasEvnt = 1;
 #ifdef IsUseDynamicEvnt
                         if(CountEvnt <= 0)
@@ -1271,6 +1346,7 @@ lblAgainWait:
                         break;
                     case STATUS_PENDING: continue;
                     case STATUS_PIPE_BROKEN:
+                    case STATUS_PIPE_CLOSING:
                         if(Fd->events & LQ_POLLHUP) {
                             Fd->revents |= LQ_POLLHUP;
                             HasEvnt = 1;
@@ -1282,7 +1358,6 @@ lblAgainWait:
                             EventsData[i] = EventsData[EventsData.size() - 1];
                             Events[i] = EventsData[Events.size() - 1];
                             i--;
-                            continue;
                         }
                         break;
                     default: lblErr3:
@@ -1290,29 +1365,31 @@ lblAgainWait:
                         HasEvnt = 1;
                 }
             }
-            CountEvnt += HasEvnt;
+            CountEvents += HasEvnt;
         }
-        if(CountEvnt <= 0) {
+        if(CountEvents <= 0) {
             if(TimePassed >= TimeoutMillisec)
-                return 0;
+                goto lblOut3;
             TimeoutMillisec -= TimePassed;
             goto lblAgainWait;
         }
     }
-    for(size_t i = 0; i < EventsData.size(); i++) {
-        auto j = EventsData[i];
-        if(j->Sb.Status == STATUS_PENDING)
-            NtCancelIoFile((HANDLE)Fds[j->Index].fd, &j->Sb);
+lblOut3:
+    for(i = 0; i < EventsData.size(); i++) {
+        Ovlp = EventsData[i];
+        if(Ovlp->Sb.Status == STATUS_PENDING)
+            NtCancelIoFile((HANDLE)Fds[Ovlp->Index].fd, &Ovlp->Sb);
 #ifdef IsUseDynamicEvnt
-        if(Fds[j->Index].fd != (int)Events[i])
+        if(Fds[Ovlp->Index].fd != (int)Events[i])
             CloseHandle(Events[i]);
 #endif
-        LqFastAlloc::Delete(j);
+        LqFastAlloc::Delete(Ovlp);
     }
+    if(TempEvnt != NULL)
+        CloseHandle(TempEvnt);
     if(WaitRes == WAIT_FAILED)
         return -1;
-
-    return CountEvnt;
+    return CountEvents;
 }
 
 /*------------------------------------------
@@ -1320,10 +1397,15 @@ lblAgainWait:
 */
 
 LQ_EXTERN_C int LQ_CALL LqFilePathEvntCreate(LqFilePathEvnt* Evnt, const char* DirOrFile, uint8_t FollowFlag) {
-    Evnt->Fd = -1;
     wchar_t Wdir[LQ_MAX_PATH];
-    LqCpConvertToWcs(DirOrFile, Wdir, LQ_MAX_PATH - 1);
     DWORD NotifyFilter = 0;
+    HANDLE DirHandle;
+    HANDLE EventHandle;
+    static char Buf;
+    NTSTATUS Stat;
+
+    Evnt->Fd = -1;
+    LqCpConvertToWcs(DirOrFile, Wdir, LQ_MAX_PATH - 1);
     if(FollowFlag & LQDIREVNT_ADDED)
         NotifyFilter |= FILE_NOTIFY_CHANGE_CREATION;
     if(FollowFlag & LQDIREVNT_MOD)
@@ -1333,7 +1415,7 @@ LQ_EXTERN_C int LQ_CALL LqFilePathEvntCreate(LqFilePathEvnt* Evnt, const char* D
     if(FollowFlag & LQDIREVNT_RM)
         NotifyFilter |= (FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME);
 
-    HANDLE DirHandle = CreateFileW(
+    DirHandle = CreateFileW(
         Wdir,
         FILE_LIST_DIRECTORY,
         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -1344,14 +1426,14 @@ LQ_EXTERN_C int LQ_CALL LqFilePathEvntCreate(LqFilePathEvnt* Evnt, const char* D
     );
     if(DirHandle == INVALID_HANDLE_VALUE)
         return -1;
-    HANDLE EventHandle = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    EventHandle = CreateEventW(NULL, TRUE, FALSE, NULL);
     if(EventHandle == NULL) {
         CloseHandle(DirHandle);
         return -1;
     }
 
     Evnt->_Data.Buffer = (char*)malloc(1024 * 16);
-    if(Evnt->_Data.Buffer == nullptr) {
+    if(Evnt->_Data.Buffer == NULL) {
         CloseHandle(DirHandle);
         return -1;
     }
@@ -1359,9 +1441,8 @@ LQ_EXTERN_C int LQ_CALL LqFilePathEvntCreate(LqFilePathEvnt* Evnt, const char* D
 
     Evnt->_Data.IsSubtree = (FollowFlag & LQDIREVNT_SUBTREE) ? true : false;
 
-    static char Buf;
     Evnt->_Data.IoStatusBlock.Status = STATUS_PENDING;
-    auto Stat = NtNotifyChangeDirectoryFile(
+    Stat = NtNotifyChangeDirectoryFile(
         DirHandle,
         EventHandle,
         NULL,
@@ -1394,17 +1475,31 @@ LQ_EXTERN_C int LQ_CALL LqFilePathEvntCreate(LqFilePathEvnt* Evnt, const char* D
 }
 
 LQ_EXTERN_C void LQ_CALL LqFilePathEvntFreeEnum(LqFilePathEvntEnm** Dest) {
-    if(Dest == nullptr)
+    LqFilePathEvntEnm* i, *j;
+
+    if(Dest == NULL)
         return;
-    for(auto i = *Dest; i != nullptr; ) {
-        auto j = i;
+    for(i = *Dest; i != NULL; ) {
+        j = i;
         i = i->Next;
         free(j);
     }
-    *Dest = nullptr;
+    *Dest = NULL;
 }
 
 LQ_EXTERN_C int LQ_CALL LqFilePathEvntDoEnum(LqFilePathEvnt* Evnt, LqFilePathEvntEnm** Dest) {
+    char* Buf;
+    LqFilePathEvntEnm* NewList;
+    DWORD Offset;
+    char FileName[LQ_MAX_PATH];
+    FILE_NOTIFY_INFORMATION* Info;
+    uint8_t RetFlag;
+    WCHAR t;
+    size_t NewSize;
+    LqFilePathEvntEnm* Val;
+    size_t Count;
+    NTSTATUS Stat;
+
     LqFilePathEvntFreeEnum(Dest);
 
     switch(Evnt->_Data.IoStatusBlock.Status) {
@@ -1418,16 +1513,14 @@ LQ_EXTERN_C int LQ_CALL LqFilePathEvntDoEnum(LqFilePathEvnt* Evnt, LqFilePathEvn
             return -1;
     }
 
-    char* Buf = Evnt->_Data.Buffer;
+    Buf = Evnt->_Data.Buffer;
 
-    LqFilePathEvntEnm* NewList = nullptr;
-    if(Dest != nullptr)
-        *Dest = nullptr;
-    DWORD Offset = 0;
-    char FileName[LQ_MAX_PATH];
+    NewList = NULL;
+    if(Dest != NULL)
+        *Dest = NULL;
+    Offset = 0;
     while(true) {
-        auto Info = (FILE_NOTIFY_INFORMATION*)(Buf + Offset);
-        uint8_t RetFlag;
+        Info = (FILE_NOTIFY_INFORMATION*)(Buf + Offset);
         switch(Info->Action) {
             case FILE_ACTION_ADDED: RetFlag = LQDIREVNT_ADDED; break;
             case FILE_ACTION_REMOVED: RetFlag = LQDIREVNT_RM; break;
@@ -1436,14 +1529,14 @@ LQ_EXTERN_C int LQ_CALL LqFilePathEvntDoEnum(LqFilePathEvnt* Evnt, LqFilePathEvn
             case FILE_ACTION_RENAMED_NEW_NAME: RetFlag = LQDIREVNT_MOVE_TO; break;
         }
 
-        auto t = Info->FileName[Info->FileNameLength / 2];
+        t = Info->FileName[Info->FileNameLength / 2];
         Info->FileName[Info->FileNameLength / 2] = L'\0';
         LqCpConvertFromWcs(Info->FileName, FileName, LQ_MAX_PATH - 1);
         Info->FileName[Info->FileNameLength / 2] = t;
 
-        size_t NewSize = LqStrLen(FileName) + sizeof(LqFilePathEvntEnm) + Evnt->_Data.DirNameLen + 2;
-        auto Val = (LqFilePathEvntEnm*)malloc(NewSize);
-        auto Count = LqStrCopy(Val->Name, Evnt->_Data.DirName);
+        NewSize = LqStrLen(FileName) + sizeof(LqFilePathEvntEnm) + Evnt->_Data.DirNameLen + 2;
+        Val = (LqFilePathEvntEnm*)malloc(NewSize);
+        Count = LqStrCopy(Val->Name, Evnt->_Data.DirName);
 
         if(Val->Name[0] != 0) {
             char Sep[2] = {LQ_PATH_SEPARATOR, 0};
@@ -1460,13 +1553,13 @@ LQ_EXTERN_C int LQ_CALL LqFilePathEvntDoEnum(LqFilePathEvnt* Evnt, LqFilePathEvn
             break;
     }
 
-    if(Dest != nullptr)
+    if(Dest != NULL)
         *Dest = NewList;
     else
         LqFilePathEvntFreeEnum(&NewList);
     Evnt->_Data.IoStatusBlock.Status = STATUS_PENDING;
 
-    auto Stat = NtNotifyChangeDirectoryFile(
+    Stat = NtNotifyChangeDirectoryFile(
         (HANDLE)Evnt->_Data.DirFd,
         (HANDLE)Evnt->Fd,
         NULL,
@@ -1499,9 +1592,9 @@ LQ_EXTERN_C void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* Evnt) {
     if(Evnt->Fd != -1) {
         NtClose((HANDLE)Evnt->Fd);
         NtClose((HANDLE)Evnt->_Data.DirFd);
-        if(Evnt->_Data.DirName != nullptr)
+        if(Evnt->_Data.DirName != NULL)
             free(Evnt->_Data.DirName);
-        if(Evnt->_Data.Buffer != nullptr)
+        if(Evnt->_Data.Buffer != NULL)
             free(Evnt->_Data.Buffer);
     }
 }
@@ -1510,9 +1603,9 @@ LQ_EXTERN_C int LQ_CALL LqEnvSet(const char* Name, const char* Value) {
     wchar_t NameW[32768];
     wchar_t ValueW[32768];
     LqCpConvertToWcs(Name, NameW, 32767);
-    if(Value != nullptr)
+    if(Value != NULL)
         LqCpConvertToWcs(Value, ValueW, 32767);
-    return (SetEnvironmentVariableW(NameW, (Value != nullptr) ? ValueW : nullptr) == TRUE) ? 0 : -1;
+    return (SetEnvironmentVariableW(NameW, (Value != NULL) ? ValueW : NULL) == TRUE) ? 0 : -1;
 }
 
 LQ_EXTERN_C int LQ_CALL LqEnvGet(const char* Name, char* Value, size_t ValueBufLen) {
@@ -1527,7 +1620,7 @@ LQ_EXTERN_C int LQ_CALL LqEnvGet(const char* Name, char* Value, size_t ValueBufL
 
 LQ_EXTERN_C int LQ_CALL LqEnvGetAll(char* Buf, size_t BufLen) {
     LPWCH Wch = GetEnvironmentStringsW();
-    if(Wch == nullptr)
+    if(Wch == NULL)
         return -1;
     if(BufLen <= 4) {
         FreeEnvironmentStringsW(Wch);
@@ -1574,6 +1667,9 @@ LQ_EXTERN_C void LQ_CALL LqThreadYield() {
     Sleep(0);
 }
 
+LQ_EXTERN_C void LQ_CALL LqSleep(LqTimeMillisec Millisec) {
+    Sleep(Millisec);
+}
 
 #define __METHOD_DECLS__
 #include "LqAlloc.hpp"
@@ -1784,7 +1880,7 @@ static int InitSignal() {
         struct sigaction Act = {0};
         Act.sa_sigaction = __LqAioSigHandler;
         Act.sa_flags = SA_RESTART | SA_SIGINFO;
-        sigaction(IO_SIGNAL, &Act, nullptr);
+        sigaction(IO_SIGNAL, &Act, NULL);
         return 0;
     }
     return -1;
@@ -1898,7 +1994,7 @@ LQ_EXTERN_C int LQ_CALL LqFileSetLock(int Fd, LqFileSz StartOffset, LqFileSz Len
 LQ_EXTERN_C intptr_t LQ_CALL LqFileRealPath(const char* Source, char* Dest, intptr_t DestLen) {
     char Buf[PATH_MAX];
     auto Ret = realpath(Source, Buf);
-    if(Ret == nullptr)
+    if(Ret == NULL)
         return -1;
     auto Len = LqStrCopyMax(Dest, Ret, DestLen);
     if(Ret != Buf)
@@ -2005,11 +2101,11 @@ LQ_EXTERN_C int LQ_CALL LqProcessCreate
         sigemptyset(&Act.sa_mask);
         sigaddset(&Act.sa_mask, SIGCHLD);
 
-        sigaction(SIGCHLD, &Act, nullptr);
+        sigaction(SIGCHLD, &Act, NULL);
         return 0;
     })();
 
-    if(EventKill != nullptr) {
+    if(EventKill != NULL) {
         if(LqPipeCreate(&EventParent, &EventChild, LQ_O_NONBLOCK | LQ_O_BIN, LQ_O_NONBLOCK) == -1)
             goto lblErr;
     }
@@ -2050,18 +2146,18 @@ LQ_EXTERN_C int LQ_CALL LqProcessCreate
         if(EventParent != -1)
             LqFileClose(EventParent);
 
-        if(WorkingDir != nullptr)
+        if(WorkingDir != NULL)
             chdir(WorkingDir);
 
         std::vector<char*> Argv2;
         Argv2.push_back(FileName);
-        if(Argv != nullptr) {
-            for(size_t i = 0; Argv[i] != nullptr; i++)
+        if(Argv != NULL) {
+            for(size_t i = 0; Argv[i] != NULL; i++)
                 Argv2.push_back(Argv[i]);
         }
-        Argv2.push_back(nullptr);
+        Argv2.push_back(NULL);
 
-        int r = (Envp == nullptr) ? execvp(FileName, Argv2.data()) : execve(FileName, Argv2.data(), Envp);
+        int r = (Envp == NULL) ? execvp(FileName, Argv2.data()) : execve(FileName, Argv2.data(), Envp);
         Err = lq_errno;
         write(TestPipe[1], &Err, sizeof(Err));
         exit(r);
@@ -2115,7 +2211,7 @@ LQ_EXTERN_C int LQ_CALL LqFileSetCurDir(const char* NewDir) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileGetCurDir(char* DirBuf, size_t LenBuf) {
-    return (getcwd(DirBuf, LenBuf) != nullptr) ? 0 : -1;
+    return (getcwd(DirBuf, LenBuf) != NULL) ? 0 : -1;
 }
 
 
@@ -2125,11 +2221,11 @@ LQ_EXTERN_C int LQ_CALL LqFileGetCurDir(char* DirBuf, size_t LenBuf) {
 
 LQ_EXTERN_C int LQ_CALL LqFileEnmStart(LqFileEnm* Enm, const char* Dir, char* DestName, size_t NameLen, uint8_t* Type) {
     auto Hndl = opendir(Dir);
-    if(Hndl == nullptr)
+    if(Hndl == NULL)
         return -1;
 
     auto Entry = readdir(Hndl);
-    if(Entry == nullptr) {
+    if(Entry == NULL) {
         closedir(Hndl);
         Enm->Hndl = 0;
         return -1;
@@ -2139,7 +2235,7 @@ LQ_EXTERN_C int LQ_CALL LqFileEnmStart(LqFileEnm* Enm, const char* Dir, char* De
 #if !defined(_DIRENT_HAVE_D_TYPE)
     Enm->Internal = LqStrDuplicate(Dir);
 #endif
-    if(Type != nullptr) {
+    if(Type != NULL) {
 #if defined(_DIRENT_HAVE_D_TYPE)
         if(Entry->d_type == DT_DIR)
             *Type = LQ_F_DIR;
@@ -2167,7 +2263,7 @@ LQ_EXTERN_C int LQ_CALL LqFileEnmStart(LqFileEnm* Enm, const char* Dir, char* De
 
 LQ_EXTERN_C int LQ_CALL LqFileEnmNext(LqFileEnm* Enm, char* DestName, size_t NameLen, uint8_t* Type) {
     auto Entry = readdir((DIR*)Enm->Hndl);
-    if(Entry == nullptr) {
+    if(Entry == NULL) {
         closedir((DIR*)Enm->Hndl);
         Enm->Hndl = 0;
 #if !defined(_DIRENT_HAVE_D_TYPE)
@@ -2176,7 +2272,7 @@ LQ_EXTERN_C int LQ_CALL LqFileEnmNext(LqFileEnm* Enm, char* DestName, size_t Nam
         return -1;
     }
     LqStrCopyMax(DestName, Entry->d_name, NameLen);
-    if(Type != nullptr) {
+    if(Type != NULL) {
 #if defined(_DIRENT_HAVE_D_TYPE)
         if(Entry->d_type == DT_DIR)
             *Type = LQ_F_DIR;
@@ -2309,7 +2405,7 @@ LQ_EXTERN_C int LQ_CALL LqTimerSet(int TimerFd, LqTimeMillisec Time) {
     itimerspec Ts;
     Ts.it_value.tv_sec = Ts.it_interval.tv_sec = (time_t)(Time / 1000);
     Ts.it_value.tv_nsec = Ts.it_interval.tv_nsec = (long int)((Time % 1000) * 1000 * 1000);
-    return syscall(SYS_timerfd_settime, TimerFd, (int)0, &Ts, (itimerspec*)nullptr);
+    return syscall(SYS_timerfd_settime, TimerFd, (int)0, &Ts, (itimerspec*)NULL);
 }
 
 /*------------------------------------------
@@ -2345,7 +2441,7 @@ LQ_EXTERN_C int LQ_CALL LqSharedUnmap(void *addr) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqSharedClose(int shmid) {
-    return syscall(SYS_shmctl, shmid, (int)IPC_RMID, (void*)nullptr);
+    return syscall(SYS_shmctl, shmid, (int)IPC_RMID, (void*)NULL);
 }
 
 #else
@@ -2389,7 +2485,7 @@ LQ_EXTERN_C int LQ_CALL LqTimerSet(int TimerFd, LqTimeMillisec Time) {
     itimerspec Ts;
     Ts.it_value.tv_sec = Ts.it_interval.tv_sec = (time_t)(Time / 1000);
     Ts.it_value.tv_nsec = Ts.it_interval.tv_nsec = (long int)((Time % 1000) * 1000 * 1000);
-    return timerfd_settime(TimerFd, 0, &Ts, nullptr);
+    return timerfd_settime(TimerFd, 0, &Ts, NULL);
 }
 
 /*------------------------------------------
@@ -2423,7 +2519,7 @@ LQ_EXTERN_C int LQ_CALL LqSharedUnmap(void *addr) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqSharedClose(int shmid) {
-    return shmctl(shmid, IPC_RMID, nullptr);
+    return shmctl(shmid, IPC_RMID, NULL);
 }
 
 #endif
@@ -2515,7 +2611,7 @@ static int InsertDir(LqFilePathEvnt* Evnt, int Pwd, const char* Name, const char
         Evnt->_Data.SubdirsCount = Wd + 1;
         for(int i = Evnt->_Data.Max + 1; i <= Wd; i++) {
             Evnt->_Data.Subdirs[i].Pwd = -1;
-            Evnt->_Data.Subdirs[i].Name = nullptr;
+            Evnt->_Data.Subdirs[i].Name = NULL;
         }
         Evnt->_Data.Max = Wd;
     }
@@ -2527,13 +2623,13 @@ static int InsertDir(LqFilePathEvnt* Evnt, int Pwd, const char* Name, const char
 
 static void RemoveByWd(LqFilePathEvnt* Evnt, int Wd) {
     free(Evnt->_Data.Subdirs[Wd].Name);
-    Evnt->_Data.Subdirs[Wd].Name = nullptr;
+    Evnt->_Data.Subdirs[Wd].Name = NULL;
     Evnt->_Data.Subdirs[Wd].Pwd = -1;
     inotify_rm_watch(Evnt->Fd, Wd);
     if(Wd == Evnt->_Data.Max) {
         int i;
         for(i = Evnt->_Data.SubdirsCount - 1; i >= 0; i--) {
-            if(Evnt->_Data.Subdirs[i].Name != nullptr)
+            if(Evnt->_Data.Subdirs[i].Name != NULL)
                 break;
         }
         Evnt->_Data.Max = i;
@@ -2590,21 +2686,21 @@ LQ_EXTERN_C int LQ_CALL LqFilePathEvntCreate(LqFilePathEvnt* Evnt, const char* D
 }
 
 LQ_EXTERN_C void LQ_CALL LqFilePathEvntFreeEnum(LqFilePathEvntEnm** Dest) {
-    if(Dest == nullptr)
+    if(Dest == NULL)
         return;
-    for(auto i = *Dest; i != nullptr; ) {
+    for(auto i = *Dest; i != NULL; ) {
         auto j = i;
         i = i->Next;
         free(j);
     }
-    *Dest = nullptr;
+    *Dest = NULL;
 }
 
 LQ_EXTERN_C int LQ_CALL LqFilePathEvntDoEnum(LqFilePathEvnt* Evnt, LqFilePathEvntEnm** Dest) {
     LqFilePathEvntFreeEnum(Dest);
     char Buf[32768];
 
-    LqFilePathEvntEnm* NewList = *Dest = nullptr;
+    LqFilePathEvntEnm* NewList = *Dest = NULL;
     int Count = 0;
 
     int Readed = read(Evnt->Fd, Buf, sizeof(Buf));
@@ -2666,10 +2762,10 @@ LQ_IMPORTEXPORT int LQ_CALL LqFilePathEvntGetName(LqFilePathEvnt* Evnt, char* De
 
 LQ_EXTERN_C void LQ_CALL LqFilePathEvntFree(LqFilePathEvnt* Evnt) {
     if(Evnt->Fd != -1) {
-        if(Evnt->_Data.Name != nullptr)
+        if(Evnt->_Data.Name != NULL)
             free(Evnt->_Data.Name);
         for(int i = 0; i < Evnt->_Data.SubdirsCount; i++) {
-            if(Evnt->_Data.Subdirs[i].Name != nullptr)
+            if(Evnt->_Data.Subdirs[i].Name != NULL)
                 free(Evnt->_Data.Subdirs[i].Name);
         }
         if(Evnt->Fd != -1)
@@ -2706,7 +2802,7 @@ static LqLocker<uintptr_t> EnvLocker;
 
 LQ_EXTERN_C int LQ_CALL LqEnvSet(const char* Name, const char* Value) {
     EnvLocker.LockWriteYield();
-    auto Ret = (Value != nullptr) ? setenv(Name, Value, 1) : unsetenv(Name);
+    auto Ret = (Value != NULL) ? setenv(Name, Value, 1) : unsetenv(Name);
     EnvLocker.UnlockWrite();
     return Ret;
 }
@@ -2715,7 +2811,7 @@ LQ_EXTERN_C int LQ_CALL LqEnvGet(const char* Name, char* Value, size_t ValueBufL
     EnvLocker.LockReadYield();
     auto Ret = getenv(Name);
     int Len;
-    if(Ret != nullptr)
+    if(Ret != NULL)
         Len = LqStrCopyMax(Value, Ret, ValueBufLen);
     else
         Len = -1;
@@ -2726,7 +2822,7 @@ LQ_EXTERN_C int LQ_CALL LqEnvGet(const char* Name, char* Value, size_t ValueBufL
 LQ_EXTERN_C int LQ_CALL LqEnvGetAll(char* Buf, size_t BufLen) {
     EnvLocker.LockReadYield();
     auto Envs = environ;
-    if(Envs == nullptr) {
+    if(Envs == NULL) {
         EnvLocker.UnlockRead();
         return -1;
     }
@@ -2776,6 +2872,10 @@ LQ_EXTERN_C void LQ_CALL LqThreadYield() {
     usleep(0);
 }
 
+LQ_EXTERN_C void LQ_CALL LqSleep(LqTimeMillisec Millisec) {
+    usleep(Millisec * ((LqTimeMillisec)1000));
+}
+
 #endif
 
 LQ_EXTERN_C bool LQ_CALL LqFileDirIsRoot(const char* DirOrFile) {
@@ -2800,7 +2900,7 @@ LQ_EXTERN_C int LQ_CALL LqFileMakeSubdirs(const char* NewSubdirsDirName, int Acc
     LqStrCopyMax(Name, NewSubdirsDirName, sizeof(Name));
     int RetStat = 1;
     while(true) {
-        if((Sep = LqStrChr(Sep, LQ_PATH_SEPARATOR)) == nullptr)
+        if((Sep = LqStrChr(Sep, LQ_PATH_SEPARATOR)) == NULL)
             break;
         Sep++;
         c = *Sep;

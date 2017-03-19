@@ -13,7 +13,7 @@
 
 LQ_EXTERN_C_BEGIN
 
-#define LqEvntIsWorking(LqSysPoll) (((LqEvntHdr*)(LqSysPoll))->WrkOwner != NULL)
+#define LqEvntIsWorking(LqSysPoll) (((LqClientHdr*)(LqSysPoll))->WrkOwner != NULL)
 
 static inline void LQ_CALL __LqProtoEmptyHandler(LqConn*, LqEvntFlag) {}
 static inline void LQ_CALL __LqProtoEmptyCloseHandler(LqConn*) {}
@@ -40,32 +40,39 @@ LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossKickAllWrk();
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossKickWrks(size_t Count);
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossKickWrk(size_t Index);
 
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseAllEvntAsync();
-LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseAllEvntSync();
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseAllClientsAsync();
+LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseAllClientsSync();
 
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossUpdateAllEvntFlagAsync();
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossUpdateAllEvntFlagSync();
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossUpdateAllClientsFlagAsync();
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossUpdateAllClientsFlagSync();
 
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseConnByIpAsync(const struct sockaddr* Addr);
-LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByIpSync(const struct sockaddr* Addr);
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseClientsByIpAsync(const struct sockaddr* Addr);
+LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseClientsByIpSync(const struct sockaddr* Addr);
 
-LQ_IMPORTEXPORT bool LQ_CALL LqWrkBossRemoveEvnt(LqEvntHdr* Conn);
-LQ_IMPORTEXPORT bool LQ_CALL LqWrkBossCloseEvnt(LqEvntHdr* Conn);
+LQ_IMPORTEXPORT bool LQ_CALL LqWrkBossRemoveClients(LqClientHdr* Conn);
+LQ_IMPORTEXPORT bool LQ_CALL LqWrkBossCloseClients(LqClientHdr* Conn);
 
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseConnByProtoAsync(const LqProto* Addr);
-LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByProtoSync(const LqProto* Addr);
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseClientsByProtoAsync(const LqProto* Addr);
+LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseClientsByProtoSync(const LqProto* Addr);
 
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseConnByTimeoutAsync(LqTimeMillisec TimeLive);
-LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByTimeoutSync(LqTimeMillisec TimeLive);
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseClientsByTimeoutAsync(LqTimeMillisec TimeLive);
+LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseClientsByTimeoutSync(LqTimeMillisec TimeLive);
 
-LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseConnByProtoTimeoutAsync(const LqProto* Proto, LqTimeMillisec TimeLive);
-LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseConnByProtoTimeoutSync(const LqProto* Proto, LqTimeMillisec TimeLive);
+LQ_IMPORTEXPORT int LQ_CALL LqWrkBossCloseClientsByProtoTimeoutAsync(const LqProto* Proto, LqTimeMillisec TimeLive);
+LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCloseClientsByProtoTimeoutSync(const LqProto* Proto, LqTimeMillisec TimeLive);
 
 LQ_IMPORTEXPORT int LQ_CALL LqWrkBossAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData);
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCancelAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData, bool IsAll);
 
-LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossEnumCloseRmEvntByProto(int(LQ_CALL*Proc)(void*, LqEvntHdr*), const LqProto* Proto, void * UserData);
-LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossEnumCloseRmEvnt(int(LQ_CALL*Proc)(void*, LqEvntHdr*), void * UserData);
+LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossEnumClientsCloseRmEvntByProto(int(LQ_CALL*Proc)(void*, LqClientHdr*), const LqProto* Proto, void * UserData);
+LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossEnumClients(int(LQ_CALL*Proc)(void*, LqClientHdr*), void * UserData);
+
+LQ_IMPORTEXPORT bool LQ_CALL LqWrkBossEnumClientsAndCallFinAsync(
+    int(LQ_CALL*EventAct)(void*, size_t, void*, LqClientHdr*, LqTimeMillisec),
+    uintptr_t(LQ_CALL*FinFunc)(void*, size_t),
+    void * UserData,
+    size_t UserDataSize
+);
 
 LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossSetMinWrkCount(size_t NewCount);
 
@@ -79,42 +86,42 @@ LQ_IMPORTEXPORT size_t LQ_CALL LqWrkBossCountWrk();
 * @Flag - New flags LQEVNT_FLAG_RD, LQEVNT_FLAG_WR, LQEVNT_FLAG_HUP, LQEVNT_FLAG_RDHUP
 * @return: 0 - Time out, 1 - thread work set a new value
 */
-LQ_IMPORTEXPORT int LQ_CALL LqEvntSetFlags(void* EvntOrConn, LqEvntFlag Flag, LqTimeMillisec WaitTime);
+LQ_IMPORTEXPORT int LQ_CALL LqClientSetFlags(void* EvntOrConn, LqEvntFlag Flag, LqTimeMillisec WaitTime);
 
-#define LqEvntGetFlags(EvntOrConn) (((LqEvntHdr*)EvntOrConn)->Flag)
+#define LqClientGetFlags(EvntOrConn) (((LqClientHdr*)EvntOrConn)->Flag)
 /*
 * Set close connection. (In async mode)
 *  @EvntOrConn: LqConn or LqEvntFd
 */
-LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose(void* EvntOrConn);
+LQ_IMPORTEXPORT int LQ_CALL LqClientSetClose(void* EvntOrConn);
 /*
 * Set close immediately(call close handler in worker owner)
 *  !!! Be careful when use this function !!!
 *  @EvntOrConn: LqConn or LqEvntFd
 */
-LQ_IMPORTEXPORT int LQ_CALL LqEvntSetClose2(void* EvntOrConn, LqTimeMillisec WaitTime);
+LQ_IMPORTEXPORT int LQ_CALL LqClientSetClose2(void* EvntOrConn, LqTimeMillisec WaitTime);
 /*
 * Set close force immediately(call close handler if found event header immediately)
 *  @EvntOrConn: LqConn or LqEvntFd
 *  @return: 1- when close handle called, <= 0 - when not deleted
 */
-LQ_IMPORTEXPORT bool LQ_CALL LqEvntSetClose3(void* lqaio EvntOrConn);
+LQ_IMPORTEXPORT bool LQ_CALL LqClientSetClose3(void* lqaio EvntOrConn);
 
 /*
-* Remove event from main worker boss immediately(not call close handler)
+* Remove event(not call close handler) from main worker boss immediately
 *  @EvntOrConn: LqConn or LqEvntFd
 *  @return: 1- when removed, <= 0 - when not removed
 */
-LQ_IMPORTEXPORT bool LQ_CALL LqEvntSetRemove3(void* lqaio EvntOrConn);
+LQ_IMPORTEXPORT bool LQ_CALL LqClientSetRemove3(void* lqaio EvntOrConn);
 
 /*
 * Add new file descriptor to follow async
 */
-LQ_IMPORTEXPORT bool LQ_CALL LqEvntAdd(void* lqaio EvntOrConn, void* lqaopt lqain WrkBoss);
+LQ_IMPORTEXPORT bool LQ_CALL LqClientAdd(void* lqaio EvntOrConn, void* lqaopt lqain WrkBoss);
 /*
 * Add new file descriptor force immediately
 */
-LQ_IMPORTEXPORT int LQ_CALL LqEvntAdd2(void* lqaio EvntOrConn, void* lqaopt lqain WrkBoss);
+LQ_IMPORTEXPORT int LQ_CALL LqClientAdd2(void* lqaio EvntOrConn, void* lqaopt lqain WrkBoss);
 
 
 LQ_IMPORTEXPORT void LQ_CALL LqConnInit(void* lqaout Conn, int NewFd, void* lqain NewProto, LqEvntFlag NewFlags);
@@ -127,11 +134,11 @@ LQ_IMPORTEXPORT void LQ_CALL LqEvntFdInit(
     void(LQ_CALL*CloseHandler)(LqEvntFd*)
 );
 
-LQ_IMPORTEXPORT void LQ_CALL LqEvntCallCloseHandler(void* lqain EvntHdr);
+LQ_IMPORTEXPORT void LQ_CALL LqClientCallCloseHandler(void* lqain EvntHdr);
 
-LQ_IMPORTEXPORT void LQ_CALL LqEvntSetOnlyOneBoss(void* lqaio EvntHdr, bool State);
+LQ_IMPORTEXPORT void LQ_CALL LqClientSetOnlyOneBoss(void* lqaio EvntHdr, bool State);
 
-#define LqEvntIsOnlyOneBoss(EvntHdr) (LqEvntGetFlags(EvntOrConn) & _LQEVNT_FLAG_ONLY_ONE_BOSS)
+#define LqClientIsOnlyOneBoss(EvntHdr) (LqClientGetFlags(EvntOrConn) & _LQEVNT_FLAG_ONLY_ONE_BOSS)
 
 LQ_EXTERN_C_END
 

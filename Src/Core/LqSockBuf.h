@@ -120,8 +120,6 @@ LQ_IMPORTEXPORT bool LQ_CALL LqSockBufGoWork(LqSockBuf* lqaio lqats SockBuf, voi
 
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufInterruptWork(LqSockBuf* lqaio lqats SockBuf);
 
-LQ_IMPORTEXPORT void LQ_CALL LqSockBufSetAutoHdr(LqSockBuf* lqaio lqats SockBuf, bool Val);
-
 /*
 * Set instance of cache to SockBuf
 */
@@ -242,7 +240,7 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufScanfVa(LqSockBuf* lqaio lqats SockBuf
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufRead(LqSockBuf* lqaio lqats SockBuf, void* lqaout lqaopt Dest, size_t Size);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufPeek(LqSockBuf* lqaio lqats SockBuf, void* lqaout lqaopt Dest, size_t Size);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqSockBufReadInStream(LqSockBuf* lqaio lqats SockBuf, LqFbuf* lqaout lqats Dest, size_t Size);
+LQ_IMPORTEXPORT LqFileSz LQ_CALL LqSockBufReadInStream(LqSockBuf* lqaio lqats SockBuf, LqFbuf* lqaout lqats Dest, LqFileSz Size);
 
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvCancelLastOperation(LqSockBuf* lqaio lqats SockBuf, bool IsSecondQueue);
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvClear(LqSockBuf* lqaio lqats SockBuf);
@@ -279,6 +277,8 @@ LQ_IMPORTEXPORT void LQ_CALL LqSockBufUnlock(LqSockBuf* lqaio lqats SockBuf);
 * @Proc - must return 0 - if you want continue, 2 - for close conn,  -1 - interrupt
 */
 LQ_IMPORTEXPORT size_t LQ_CALL LqSockBufEnum(void* WrkBoss, int(LQ_CALL*Proc)(void*, LqSockBuf*), void* UserData);
+
+LQ_IMPORTEXPORT LqSockBuf* LQ_CALL LqEvntToSockBuf(void* Hdr); // ((((LqClientHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN) ? ((LqEvntFd*)NULL) : ((LqEvntFd*)(Hdr)))
 
 /* Sock acceptor */
 LQ_IMPORTEXPORT LqSockAcceptor* LQ_CALL LqSockAcceptorCreate(

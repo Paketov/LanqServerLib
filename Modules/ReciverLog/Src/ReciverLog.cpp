@@ -544,7 +544,7 @@ static void LQ_CALL BindedReciveProc(LqConn* Conn, LqEvntFlag) {
 
     LqConnInit(ClientConn, fd, &ClientProto, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | ((ClientConn->SizeRecive > 0) ? LQEVNT_FLAG_RD : 0) | ((ClientConn->SizeWrite > 0) ? LQEVNT_FLAG_WR : 0));
     if((ClientConn->SizeRecive > 0) || (ClientConn->SizeWrite > 0))
-        LqEvntAdd(ClientConn, NULL);
+        LqClientAdd(ClientConn, NULL);
     else
         ClientEndConnProc((LqConn*)ClientConn);
 }
@@ -565,9 +565,9 @@ static void LQ_CALL ClientReciveWriteProc(LqConn* Conn, LqEvntFlag Flags) {
         ClientConn->SizeRecive -= Recived;
         if(ClientConn->SizeRecive == 0) {
             if(ClientConn->SizeWrite == 0)
-                LqEvntSetClose(Conn);
+                LqClientSetClose(Conn);
             else
-                LqEvntSetFlags(Conn, LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
+                LqClientSetFlags(Conn, LQEVNT_FLAG_WR | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
         }
     } else if(Flags & LQEVNT_FLAG_WR) {
         auto ClientConn = (LqClientConn*)Conn;
@@ -577,9 +577,9 @@ static void LQ_CALL ClientReciveWriteProc(LqConn* Conn, LqEvntFlag Flags) {
         ClientConn->SizeWrite -= Sended;
         if(ClientConn->SizeWrite == 0) {
             if(ClientConn->SizeRecive == 0)
-                LqEvntSetClose(Conn);
+                LqClientSetClose(Conn);
             else
-                LqEvntSetFlags(Conn, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
+                LqClientSetFlags(Conn, LQEVNT_FLAG_RD | LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP, 0);
         }
     }
 }
@@ -631,12 +631,12 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 
     if(sock != -1) {
         LqConnInit(&PktConn, sock, &PktProto, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RD);
-        LqEvntAdd2(&PktConn, NULL);
+        LqClientAdd2(&PktConn, NULL);
     }
 #ifndef LQPLATFORM_WINDOWS
     if(sockUdp != -1) {
         LqConnInit(&PktConnUdp, sockUdp, &PktProto, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RD);
-        LqWrkBossAddEvntSync((LqEvntHdr*)&PktConnUdp);
+		LqClientAdd((LqClientHdr*)&PktConnUdp, NULL);
     }
 #endif
 
@@ -863,7 +863,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                     NewListenSock->TimeLive = TimeLive;
                     NewListenSock->SizeRecive = RecvLen;
                     LqConnInit(NewListenSock, NewFd, &BindedProto, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RD);
-                    LqEvntAdd2(NewListenSock, NULL);
+                    LqClientAdd2(NewListenSock, NULL);
                 }
             }
             break;
@@ -915,7 +915,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                     NewListenSock->TimeLive = 0;
                     NewListenSock->SizeRecive = 0;
                     LqConnInit(NewListenSock, NewFd, &BindedProto, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RD);
-                    LqEvntAdd2(NewListenSock, NULL);
+                    LqClientAdd2(NewListenSock, NULL);
                 }
             }
             break;
@@ -927,9 +927,9 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
             }
             break;
             LQSTR_CASE("clear_bind_range") {
-                LqWrkBossEnumCloseRmEvnt(
-                    [](void*, LqEvntHdr* Conn) -> int {
-                    if(LqEvntIsConn(Conn) && (((LqConn*)Conn)->Proto == &BindedProto))
+                LqWrkBossEnumClients(
+                    [](void*, LqClientHdr* Conn) -> int {
+                    if(LqClientIsConn(Conn) && (((LqConn*)Conn)->Proto == &BindedProto))
                         return 2;
                     return 0;
                 },
@@ -967,22 +967,27 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     };
 
     Mod.FreeNotifyProc =
-        [](LqHttpMdl* This) -> uintptr_t {
+    [](LqHttpMdl* This) -> uintptr_t {
         LqZmbClrDelete(ZmbClr);
-        LqWrkBossEnumCloseRmEvnt(
-            [](void*, LqEvntHdr* Conn) -> int {
-                if(LqEvntIsConn(Conn) && ((((LqConn*)Conn)->Proto == &PktProto) || (((LqConn*)Conn)->Proto == &ClientProto) || (((LqConn*)Conn)->Proto == &BindedProto))) {
-                    return 2;
-                }
-                return 0;
-            },
-            nullptr
-        );
-        for(auto& i : PortRange) {
-            if(i.LogFd != -1)
-                LqFileClose(i.LogFd);
-        }
-        return This->Handle;
+		LqWrkBoss::GetGlobal()->EnumClientsAndCallFinAsync11(
+			[](LqWrkPtr&, LqClientHdr* Conn) -> int {
+				if(LqClientIsConn(Conn) && ((((LqConn*)Conn)->Proto == &PktProto) || (((LqConn*)Conn)->Proto == &ClientProto) || (((LqConn*)Conn)->Proto == &BindedProto))) {
+					return 2;
+				}
+				return 0;
+			},
+			std::bind(
+				[](uintptr_t Handle) -> uintptr_t {
+					for(auto& i : PortRange) {
+						if(i.LogFd != -1)
+							LqFileClose(i.LogFd);
+					}
+					return Handle;
+				},
+				This->Handle
+		    )
+		);
+        return 0;
     };
 
     return LQHTTPMDL_REG_OK;
