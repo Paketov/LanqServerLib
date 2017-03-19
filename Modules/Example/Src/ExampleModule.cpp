@@ -3,6 +3,7 @@
 #include "LqHttp.hpp"
 #include "LqHttpPth.h"
 #include "LqHttpAtz.h"
+#include "LqWrkBoss.hpp"
 
 #include <string>
 
@@ -21,12 +22,6 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                  "Admin", "Password");
     LqHttpMdlInit(Reg, &Mod, "Example2", ModuleHandle);
 
-    Mod.FreeNotifyProc =
-        [](LqHttpMdl* This) -> uintptr_t
-        {
-            return This->Handle;
-        };
-
     Mod.ReciveCommandProc =
         [](LqHttpMdl* Mdl, const char* Command, void* Data)
         {
@@ -41,7 +36,6 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
         {
             return This->Handle;
         };
-
 
     LqHttpPthRegisterDirRedirection
     (

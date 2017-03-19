@@ -44,8 +44,14 @@
 
 
 void __LqHttpMdlDelete(LqHttpMdl* Val) {
-    if(auto HandleModule = Val->FreeNotifyProc(Val))
-        LqLibFree(HandleModule);
+	uintptr_t Handle = Val->Handle;
+	uintptr_t ReturnedHandle;
+	LqLibSaveEnter(Handle);
+	ReturnedHandle = Val->FreeNotifyProc(Val);
+	LqLibSaveOut(Handle);
+	if(ReturnedHandle) {
+		LqLibFreeSave(ReturnedHandle);
+	}
 }
 
 void LqHttpMdlPathFree(LqHttpPth* Pth) {
@@ -76,8 +82,11 @@ static void _LqHttpMdlDeletePathsFromFs(LqHttpMdl* Module, bool IsFreeRelations)
 }
 
 static void LqHttpMdlEnmFree(LqHttpMdl* Module) {
+	uintptr_t Handle = Module->Handle;
     Module->IsFree = true;
+	LqLibSaveEnter(Handle);
     Module->BeforeFreeNotifyProc(Module);
+	LqLibSaveOut(Handle);
     _LqHttpMdlDeletePathsFromFs(Module, true);
 }
 

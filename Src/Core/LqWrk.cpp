@@ -301,7 +301,7 @@ typedef struct LqWrkAsyncCallFin {
     ~LqWrkAsyncCallFin() {
         uintptr_t MdlHandle = EventFin(UsrData, UsrDataSize);
         if(MdlHandle) {
-            LqLibFree(MdlHandle);
+            LqLibFreeSave(MdlHandle);
         }
         if(UsrData != NULL)
             ___free(UsrData);
@@ -355,7 +355,7 @@ typedef struct LqWrkAsyncCallFin11 {
     ~LqWrkAsyncCallFin11() {
         if(uintptr_t MdlHandle = FinFunc()) {
             FinFunc = nullptr;
-            LqLibFree(MdlHandle);
+            LqLibFreeSave(MdlHandle);
         }
     }
 } LqWrkAsyncCallFin11;
@@ -1256,7 +1256,7 @@ bool LqWrkBoss::EnumClientsAndCallFinForMultipleBossAsync(
     LqShdPtr<LqWrkAsyncCallFin, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin>(FinFunc, UserData, UserDataSize);
     for(size_t j = 0; j < BossesSize; j++) {
         for(auto i = Bosses[j].Wrks.begin(); !i.is_end(); i++) {
-			LqWrkAsyncEventForAllFdAndCallFin Arg(UserData, UserDataSize, EventAct, FinObject);
+            LqWrkAsyncEventForAllFdAndCallFin Arg(UserData, UserDataSize, EventAct, FinObject);
             Res |= (*i)->CommandQueue.PushBegin<LqWrkAsyncEventForAllFdAndCallFin>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN, Arg);
             (*i)->NotifyThread();
         }
@@ -1269,7 +1269,7 @@ bool LqWrkBoss::EnumClientsAndCallFinForMultipleBossAsync11(LqWrkBoss* Bosses, s
     LqShdPtr<LqWrkAsyncCallFin11, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin11>(FinFunc);
     for(size_t j = 0; j < BossesSize; j++) {
         for(auto i = Bosses[j].Wrks.begin(); !i.is_end(); i++) {
-			LqWrkAsyncEventForAllFdAndCallFin11 Arg(EventAct, FinObject);
+            LqWrkAsyncEventForAllFdAndCallFin11 Arg(EventAct, FinObject);
             Res |= (*i)->CommandQueue.PushBegin<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, Arg);
             (*i)->NotifyThread();
         }
@@ -1279,14 +1279,14 @@ bool LqWrkBoss::EnumClientsAndCallFinForMultipleBossAsync11(LqWrkBoss* Bosses, s
 
 bool LqWrk::EnumClientsAndCallFinAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct, std::function<uintptr_t()> FinFunc) {
     LqShdPtr<LqWrkAsyncCallFin11, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin11>(FinFunc);
-	LqWrkAsyncEventForAllFdAndCallFin11 Arg(EventAct, FinObject);
+    LqWrkAsyncEventForAllFdAndCallFin11 Arg(EventAct, FinObject);
     bool Res = CommandQueue.PushBegin<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, Arg);
     NotifyThread();
     return Res;
 }
 
 bool LqWrk::EnumClientsAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct) {
-	LqWrkAsyncEventForAllFd11 Arg(EventAct);
+    LqWrkAsyncEventForAllFd11 Arg(EventAct);
     bool Res = CommandQueue.PushBegin<LqWrkAsyncEventForAllFd11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD11, Arg);
     NotifyThread();
     return Res;
@@ -1319,7 +1319,7 @@ bool LqWrkBoss::EnumClientsAndCallFinAsync11(std::function<int(LqWrkPtr&, LqClie
     bool Res = false;
     LqShdPtr<LqWrkAsyncCallFin11, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin11>(FinFunc);
     for(auto i = Wrks.begin(); !i.is_end(); i++) {
-		LqWrkAsyncEventForAllFdAndCallFin11 Arg(EventAct, FinObject);
+        LqWrkAsyncEventForAllFdAndCallFin11 Arg(EventAct, FinObject);
         Res |= (*i)->CommandQueue.PushBegin<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, Arg);
         (*i)->NotifyThread();
     }

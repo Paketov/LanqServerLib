@@ -939,6 +939,7 @@ static void _LqHttpConnAfterCallUserHandler(LqHttpConn* HttpConn) {
         if((HttpConnData->Flags & LQHTTPCONN_FLAG_NO_BODY) && (RspLen > ((LqFileSz)0))) {
             LqSockBufRspClearAfterHdr(HttpConn);
         }
+        LqHttpConnPthRemove(HttpConn);
         ContentLengthLeft = LqHttpConnRcvGetContentLengthLeft(HttpConn);
         if(ContentLengthLeft > ((LqFileSz)0)) {
             if(ContentLengthLeft > HttpData->MaxSkipContentLength) {

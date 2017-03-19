@@ -19,6 +19,26 @@ LQ_IMPORTEXPORT uintptr_t LQ_CALL LqLibGetHandleByAddr(const void* Address);
 LQ_IMPORTEXPORT int LQ_CALL LqLibGetPathByHandle(uintptr_t Handle, char* lqaout lqacp DestName, size_t DestSize);
 LQ_IMPORTEXPORT void* LQ_CALL LqLibGetProc(uintptr_t ModuleHandle, const char* lqain ProcName);
 
+/* 
+    Used for safety delete library
+*/
+/*
+    LqLibSaveEnter call before module function
+        @ModuleHandle - handler module
+*/
+LQ_IMPORTEXPORT void LQ_CALL LqLibSaveEnter(uintptr_t ModuleHandle);
+/*
+    LqLibSaveOut call after module function
+        @ModuleHandle - handler module
+*/
+LQ_IMPORTEXPORT void LQ_CALL LqLibSaveOut(uintptr_t ModuleHandle);
+
+/*
+    LqLibFreeSave saved remove module
+        @ModuleHandle - handler module
+*/
+LQ_IMPORTEXPORT int LQ_CALL LqLibFreeSave(uintptr_t ModuleHandle);
+
 LQ_EXTERN_C_END
 
 

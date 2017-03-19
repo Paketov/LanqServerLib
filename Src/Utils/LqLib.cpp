@@ -2,7 +2,7 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-*   LqLib... - Use for load or unlod library from address space program.
+*   LqLib... - Use for load or unload library.
 */
 
 
@@ -10,7 +10,8 @@
 #include "LqCp.h"
 #include "LqFile.h"
 #include "LqStr.hpp"
-
+#include "LqLock.hpp"
+#include "LqAlloc.hpp"
 
 #if defined(LQPLATFORM_WINDOWS)
 # include <Windows.h>
@@ -82,3 +83,67 @@ LQ_EXTERN_C void* LQ_CALL LqLibGetProc(uintptr_t ModuleHandle, const char* ProcN
 #endif
 }
 
+typedef struct LqLibSaveElem {
+    uint16_t Deep;
+    uintptr_t Handle;
+} LqLibSaveElem;
+
+static LqLibSaveElem* LibSaveElemArr = NULL;
+static uintptr_t LibSaveElemArrCount = 0;
+static LqLocker<uintptr_t> LibSaveElemArrLocker;
+
+
+LQ_EXTERN_C void LQ_CALL LqLibSaveEnter(uintptr_t ModuleHandle) {
+    uintptr_t i;
+lblAgain:
+    LibSaveElemArrLocker.LockWriteYield();
+    for(i = 0; i < LibSaveElemArrCount; i++) {
+        if(LibSaveElemArr[i].Handle == ModuleHandle) {
+            LibSaveElemArr[i].Deep++;
+            LibSaveElemArrLocker.UnlockWrite();
+            return;
+        }
+    }
+    LibSaveElemArr = (LqLibSaveElem*)___realloc(LibSaveElemArr, (LibSaveElemArrCount + 1) * sizeof(LqLibSaveElem));
+    LibSaveElemArr[LibSaveElemArrCount].Deep = 1;
+    LibSaveElemArr[LibSaveElemArrCount].Handle = ModuleHandle;
+    LibSaveElemArrCount++;
+    LibSaveElemArrLocker.UnlockWrite();
+}
+
+
+LQ_EXTERN_C void LQ_CALL LqLibSaveOut(uintptr_t ModuleHandle) {
+    uintptr_t i;
+    int* InvalidAddr = NULL;
+    LibSaveElemArrLocker.LockWriteYield();
+    for(i = 0; i < LibSaveElemArrCount; i++) {
+        if(LibSaveElemArr[i].Handle == ModuleHandle) {
+            LibSaveElemArr[i].Deep--;
+            if(LibSaveElemArr[i].Deep == 0) {
+                LibSaveElemArrCount--;
+                memcpy(LibSaveElemArr + i, LibSaveElemArr + LibSaveElemArrCount, sizeof(LqLibSaveElem));
+                LibSaveElemArr = (LqLibSaveElem*)___realloc(LibSaveElemArr, LibSaveElemArrCount * sizeof(LqLibSaveElem));
+            }
+            LibSaveElemArrLocker.UnlockWrite();
+            return;
+        }
+    }
+    *InvalidAddr = 0;
+}
+
+LQ_EXTERN_C int LQ_CALL LqLibFreeSave(uintptr_t ModuleHandle) {
+    uintptr_t i;
+    int Res;
+lblAgain:
+    LibSaveElemArrLocker.LockWriteYield();
+    for(i = 0; i < LibSaveElemArrCount; i++) {
+        if(LibSaveElemArr[i].Handle == ModuleHandle) {
+            LibSaveElemArrLocker.UnlockWrite();
+            LqThreadYield();
+            goto lblAgain;
+        }
+    }
+    Res = LqLibFree(ModuleHandle);
+    LibSaveElemArrLocker.UnlockWrite();
+    return Res;
+}
