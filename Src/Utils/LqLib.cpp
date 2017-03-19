@@ -84,7 +84,7 @@ LQ_EXTERN_C void* LQ_CALL LqLibGetProc(uintptr_t ModuleHandle, const char* ProcN
 }
 
 typedef struct LqLibSaveElem {
-    uint16_t Deep;
+    int16_t Deep;
     uintptr_t Handle;
 } LqLibSaveElem;
 
@@ -99,9 +99,15 @@ lblAgain:
     LibSaveElemArrLocker.LockWriteYield();
     for(i = 0; i < LibSaveElemArrCount; i++) {
         if(LibSaveElemArr[i].Handle == ModuleHandle) {
-            LibSaveElemArr[i].Deep++;
-            LibSaveElemArrLocker.UnlockWrite();
-            return;
+            if(LibSaveElemArr[i].Deep >= ((int16_t)0)) {
+                LibSaveElemArr[i].Deep++;
+                LibSaveElemArrLocker.UnlockWrite();
+                return;
+            } else {
+                LibSaveElemArrLocker.UnlockWrite();
+                LqThreadYield();
+                goto lblAgain;
+            }
         }
     }
     LibSaveElemArr = (LqLibSaveElem*)___realloc(LibSaveElemArr, (LibSaveElemArrCount + 1) * sizeof(LqLibSaveElem));
@@ -143,7 +149,23 @@ lblAgain:
             goto lblAgain;
         }
     }
+    LibSaveElemArr = (LqLibSaveElem*)___realloc(LibSaveElemArr, (LibSaveElemArrCount + 1) * sizeof(LqLibSaveElem));
+    LibSaveElemArr[LibSaveElemArrCount].Deep = -((int16_t)1);
+    LibSaveElemArr[LibSaveElemArrCount].Handle = ModuleHandle;
+    LibSaveElemArrCount++;
+    LibSaveElemArrLocker.UnlockWrite();
+
     Res = LqLibFree(ModuleHandle);
+
+    LibSaveElemArrLocker.LockWriteYield();
+    for(i = 0; i < LibSaveElemArrCount; i++) {
+        if(LibSaveElemArr[i].Handle == ModuleHandle) {
+            LibSaveElemArrCount--;
+            memcpy(LibSaveElemArr + i, LibSaveElemArr + LibSaveElemArrCount, sizeof(LqLibSaveElem));
+            LibSaveElemArr = (LqLibSaveElem*)___realloc(LibSaveElemArr, LibSaveElemArrCount * sizeof(LqLibSaveElem));
+            break;
+        }
+    }
     LibSaveElemArrLocker.UnlockWrite();
     return Res;
 }
