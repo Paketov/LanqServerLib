@@ -259,7 +259,7 @@ struct LqWrkAsyncEventForAllFd {
         int(LQ_CALL*NewEventAct)(void*, size_t, void*, LqClientHdr*, LqTimeMillisec)
     ) {
         if((UserDataSize > ((size_t)0)) && (UserData != NULL)) {
-            UsrData = ___malloc(UserDataSize);
+            UsrData = LqMemMalloc(UserDataSize);
             UsrDataSize = UserDataSize;
             memcpy(UsrData, UserData, UserDataSize);
         } else {
@@ -276,7 +276,7 @@ struct LqWrkAsyncEventForAllFd {
     }
     ~LqWrkAsyncEventForAllFd() {
         if(UsrData != NULL)
-            ___free(UsrData);
+            LqMemFree(UsrData);
     }
 };
 
@@ -290,7 +290,7 @@ typedef struct LqWrkAsyncCallFin {
         EventFin(NewEventFin)
     {
         if((UserDataSize > ((size_t)0)) && (UserData != NULL)) {
-            UsrData = ___malloc(UserDataSize);
+            UsrData = LqMemMalloc(UserDataSize);
             UsrDataSize = UserDataSize;
             memcpy(UsrData, UserData, UserDataSize);
         } else {
@@ -304,7 +304,7 @@ typedef struct LqWrkAsyncCallFin {
             LqLibFreeSave(MdlHandle);
         }
         if(UsrData != NULL)
-            ___free(UsrData);
+            LqMemFree(UsrData);
     }
 } LqWrkAsyncCallFin;
 
@@ -322,7 +322,7 @@ struct LqWrkAsyncEventForAllFdAndCallFin {
     ): FinPtr(FinPtr) 
     {
         if((UserDataSize > ((size_t)0)) && (UserData != NULL)) {
-            UsrData = ___malloc(UserDataSize);
+            UsrData = LqMemMalloc(UserDataSize);
             UsrDataSize = UserDataSize;
             memcpy(UsrData, UserData, UserDataSize);
         } else {
@@ -340,7 +340,7 @@ struct LqWrkAsyncEventForAllFdAndCallFin {
     }
     ~LqWrkAsyncEventForAllFdAndCallFin() {
         if(UsrData != NULL)
-            ___free(UsrData);
+            LqMemFree(UsrData);
     }
 };
 
@@ -527,7 +527,7 @@ size_t LqWrkBoss::_TransferAllClients(LqWrk* Source, bool ByThisBoss) {
                 Res++;
             } else {
                 LqWrkUnsetWrkOwner(Hdr);
-                RmHdrs = (LqClientHdr**)___realloc(RmHdrs, RmHdrsSize + 1);
+                RmHdrs = (LqClientHdr**)LqMemRealloc(RmHdrs, RmHdrsSize + 1);
                 RmHdrs[RmHdrsSize] = Hdr;
                 RmHdrsSize++;
                 LqLogErr("LqWrkBoss::TransferAllClients() not adding event to list\n");
@@ -555,7 +555,7 @@ lblContinue:;
             Res++;
         } else {
             LqWrkUnsetWrkOwner(Hdr);
-            RmHdrs = (LqClientHdr**)___realloc(RmHdrs, RmHdrsSize + 1);
+            RmHdrs = (LqClientHdr**)LqMemRealloc(RmHdrs, RmHdrsSize + 1);
             RmHdrs[RmHdrsSize] = Hdr;
             RmHdrsSize++;
             LqLogErr("LqWrkBoss::TransferAllClients() not adding event to list\n");
@@ -566,7 +566,7 @@ lblContinue:;
         for(intptr_t i = ((intptr_t)0); i < RmHdrsSize; i++) {
             LqClientCallCloseHandler(RmHdrs[i]);
         }
-        ___free(RmHdrs);
+        LqMemFree(RmHdrs);
     }
     return Res;
 }
@@ -596,7 +596,7 @@ void LqWrk::ParseInputCommands() {
         Command.Pop<LqClientHdr*>();
         CountConnectionsInQueue--;
         if(LqClientGetFlags(Hdr) & LQEVNT_FLAG_END) {
-            RmHdrs = (LqClientHdr**)___realloc(RmHdrs, RmHdrsSize + 1);
+            RmHdrs = (LqClientHdr**)LqMemRealloc(RmHdrs, RmHdrsSize + 1);
             RmHdrs[RmHdrsSize] = Hdr;
             RmHdrsSize++;
         } else {
@@ -610,7 +610,7 @@ void LqWrk::ParseInputCommands() {
             LqWrkUnsetWrkOwner(RmHdrs[i]);
             LqClientCallCloseHandler(RmHdrs[i]);
         }
-        ___free(RmHdrs);
+        LqMemFree(RmHdrs);
     }
     for(auto Command = CommandQueue.Fork(); Command;) {
         switch(Command.Type) {

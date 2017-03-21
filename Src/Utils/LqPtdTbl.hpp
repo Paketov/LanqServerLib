@@ -40,7 +40,7 @@ class LqPtdTbl {
     static void Del(Arr* Val) {
         for(auto* i = Val->Line, *m = i + Val->Count; i < m; i++)
             i->Val.~TypeVal();
-        ___free(Val);
+        LqMemFree(Val);
     }
 
     typedef LqShdPtr<Arr, Del, true, false> GlobPtr;
@@ -55,7 +55,7 @@ class LqPtdTbl {
 
     static Arr* AllocNew(size_t Count) {
         Arr* Res;
-        if(Res = (Arr*)___malloc(Count * sizeof(TypeLine) + (sizeof(Arr) - sizeof(TypeLine)))) {
+        if(Res = (Arr*)LqMemMalloc(Count * sizeof(TypeLine) + (sizeof(Arr) - sizeof(TypeLine)))) {
             for(auto* i = Res->Line, *m = i + Count; i < m; i++)
                 i->Start = NullIndex;
             Res->Count = Count;

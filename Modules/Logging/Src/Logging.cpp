@@ -75,7 +75,7 @@ static void LQ_CALL RspFn(LqHttpConn* NewConn) {
     TimeZone = -TimeZone;
     struct tm Tm;
     LqTimeLocSecToLocTm(&Tm, CurTime / 1000);
-	Buffer[0] = Buffer[sizeof(Buffer) - 1] = '\0';
+    Buffer[0] = Buffer[sizeof(Buffer) - 1] = '\0';
     int Written = LqFbuf_snprintf(
         Buffer,
         sizeof(Buffer) - 3,
@@ -190,17 +190,17 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     Mod.FreeNotifyProc =
     [](LqHttpMdl* This) -> uintptr_t {
         LqHttpHndlsUnregisterResponse(Mod.HttpAcceptor, RspFn);
-		LqWrkBoss::GetGlobal()->EnumClientsAndCallFinAsync11(
-			nullptr,
-			std::bind(
-				[](uintptr_t Handle) -> uintptr_t {
-					if(OutFd != -1)
-						LqFileClose(OutFd);
-					return Handle;
-				},
-				This->Handle
-			)
-		);
+        LqWrkBoss::GetGlobal()->EnumClientsAndCallFinAsync11(
+            nullptr,
+            std::bind(
+                [](uintptr_t Handle) -> uintptr_t {
+                    if(OutFd != -1)
+                        LqFileClose(OutFd);
+                    return Handle;
+                },
+                This->Handle
+            )
+        );
         return 0;
     };
 

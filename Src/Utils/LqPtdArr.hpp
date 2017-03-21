@@ -30,7 +30,7 @@ class LqPtdArr {
     static void Del(Arr* Val) {
         for(auto* i = Val->Val, *m = i + Val->Count; i < m; i++)
             i->~TypeVal();
-        ___free(Val);
+        LqMemFree(Val);
     }
 
     typedef LqShdPtr<Arr, Del, true, false> GlobPtr;
@@ -45,7 +45,7 @@ class LqPtdArr {
 
     static Arr* AllocNew(size_t Count) {
         Arr* Res;
-        if(Res = (Arr*)___malloc(Count * sizeof(TypeVal) + (sizeof(Arr) - sizeof(TypeVal)))) {
+        if(Res = (Arr*)LqMemMalloc(Count * sizeof(TypeVal) + (sizeof(Arr) - sizeof(TypeVal)))) {
             Res->Count = Count;
             Res->CountPointers = 0;
         }

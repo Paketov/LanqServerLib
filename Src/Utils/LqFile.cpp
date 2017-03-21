@@ -177,35 +177,35 @@ static int LqFileOpenFlagsToCreateFileFlags(int openFlags) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileOpen(const char *FileName, uint32_t Flags, int Access) {
-    HANDLE              h;
+    HANDLE              ResultHandle;
     SECURITY_ATTRIBUTES InheritAttr = {sizeof(SECURITY_ATTRIBUTES), NULL, (Flags & LQ_O_NOINHERIT) ? FALSE : TRUE};
     wchar_t Name[LQ_MAX_PATH];
 
     _LqFileConvertNameToWcs(FileName, Name, LQ_MAX_PATH);
     if((
-        h = CreateFileW(
-        Name,
-        (Flags & LQ_O_RDWR) ? (GENERIC_WRITE | GENERIC_READ) :
-        ((Flags & LQ_O_WR) ? GENERIC_WRITE : GENERIC_READ),
-        (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE),
-        &InheritAttr,
-        LqFileOpenFlagsToCreateFileFlags(Flags),
-        FILE_ATTRIBUTE_NORMAL |
-        ((Flags & LQ_O_RND) ? FILE_FLAG_RANDOM_ACCESS : 0) |
-        ((Flags & LQ_O_SEQ) ? FILE_FLAG_SEQUENTIAL_SCAN : 0) |
-        ((Flags & LQ_O_SHORT_LIVED /*_O_SHORT_LIVED*/) ? FILE_ATTRIBUTE_TEMPORARY : 0) |
-        ((Flags & LQ_O_TMP) ? FILE_FLAG_DELETE_ON_CLOSE : 0) |
-        ((Flags & LQ_O_DSYNC) ? FILE_FLAG_WRITE_THROUGH : 0) |
-        ((Flags & LQ_O_NONBLOCK) ? FILE_FLAG_OVERLAPPED : 0),
-        NULL
+		ResultHandle = CreateFileW(
+			Name,
+			(Flags & LQ_O_RDWR) ? (GENERIC_WRITE | GENERIC_READ) :
+			((Flags & LQ_O_WR) ? GENERIC_WRITE : GENERIC_READ),
+			(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE),
+			&InheritAttr,
+			LqFileOpenFlagsToCreateFileFlags(Flags),
+			FILE_ATTRIBUTE_NORMAL |
+			((Flags & LQ_O_RND) ? FILE_FLAG_RANDOM_ACCESS : 0) |
+			((Flags & LQ_O_SEQ) ? FILE_FLAG_SEQUENTIAL_SCAN : 0) |
+			((Flags & LQ_O_SHORT_LIVED /*_O_SHORT_LIVED*/) ? FILE_ATTRIBUTE_TEMPORARY : 0) |
+			((Flags & LQ_O_TMP) ? FILE_FLAG_DELETE_ON_CLOSE : 0) |
+			((Flags & LQ_O_DSYNC) ? FILE_FLAG_WRITE_THROUGH : 0) |
+			((Flags & LQ_O_NONBLOCK) ? FILE_FLAG_OVERLAPPED : 0),
+			NULL
         )
-        ) == INVALID_HANDLE_VALUE)
+       ) == INVALID_HANDLE_VALUE)
         return -1;
     //if(
     //  ((fd = _open_osfhandle((long)h, (Flags & LQ_O_APND) ? O_APPEND : 0)) < 0) ||
     //  (Flags & (LQ_O_TXT | LQ_O_BIN) && (_setmode(fd, ((Flags & LQ_O_TXT) ? O_TEXT : 0) | ((Flags & LQ_O_BIN) ? O_BINARY : 0)) < 0))
     //  ) CloseHandle(h);
-    return (int)h;
+    return (int)ResultHandle;
 }
 
 
@@ -345,24 +345,24 @@ LQ_EXTERN_C int LQ_CALL LqFileFlush(int Fd) {
 }
 
 LQ_EXTERN_C int LQ_CALL __LqStdErrFileNo() {
-    HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
-    if(h == INVALID_HANDLE_VALUE)
+    HANDLE Res = GetStdHandle(STD_ERROR_HANDLE);
+    if(Res == INVALID_HANDLE_VALUE)
         return -1;
-    return (int)h;
+    return (int)Res;
 }
 
 LQ_EXTERN_C int LQ_CALL __LqStdOutFileNo() {
-    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-    if(h == INVALID_HANDLE_VALUE)
+    HANDLE Res = GetStdHandle(STD_OUTPUT_HANDLE);
+    if(Res == INVALID_HANDLE_VALUE)
         return -1;
-    return (int)h;
+    return (int)Res;
 }
 
 LQ_EXTERN_C int LQ_CALL __LqStdInFileNo() {
-    HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
-    if(h == INVALID_HANDLE_VALUE)
+    HANDLE Res = GetStdHandle(STD_INPUT_HANDLE);
+    if(Res == INVALID_HANDLE_VALUE)
         return -1;
-    return (int)h;
+    return (int)Res;
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileClose(int Fd) {
@@ -972,7 +972,7 @@ LQ_EXTERN_C int LQ_CALL LqTimerCreate(int InheritFlags) {
 
 LQ_EXTERN_C int LQ_CALL LqTimerSet(int TimerFd, LqTimeMillisec Time) {
     LARGE_INTEGER li;
-    li.QuadPart = -((LONGLONG)(Time * 10000));
+    li.QuadPart = -((LONGLONG)(Time * 10000LL));
     return (SetWaitableTimer((HANDLE)TimerFd, &li, 0, NULL, NULL, FALSE) == TRUE) ? 0 : -1;
 }
 

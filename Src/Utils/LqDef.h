@@ -83,13 +83,13 @@ typedef struct LqTblRow {
 #pragma pack(pop)
 
 #define LqTblRowInit(_Tbl) {\
-	(_Tbl)->Count = 0; (_Tbl)->MaxCount = 1; (_Tbl)->Tbl = (void**)___malloc(sizeof(void*)); (_Tbl)->Tbl[0] = NULL;\
+	(_Tbl)->Count = 0; (_Tbl)->MaxCount = 1; (_Tbl)->Tbl = (void**)LqMemMalloc(sizeof(void*)); (_Tbl)->Tbl[0] = NULL;\
 	(_Tbl)->IncCoef = 1.61803398874989484820; (_Tbl)->DecCoef = (_Tbl)->IncCoef + 0.1;\
 }
 
 #define LqTblRowRealloc(_Tbl, ___NewCount, _IndexByElem, _TypeElem, _Next) {\
 	size_t __NewCount = (size_t)(___NewCount);\
-	void** __NewArr = (void**)___malloc(__NewCount * sizeof(void*));\
+	void** __NewArr = (void**)LqMemMalloc(__NewCount * sizeof(void*));\
 	memset(__NewArr, 0, __NewCount * sizeof(void*));\
 	_TypeElem *_a, *_n;\
 	void **__Arr = (_Tbl)->Tbl, **__MaxArr = __Arr + (_Tbl)->MaxCount;\
@@ -99,7 +99,7 @@ typedef struct LqTblRow {
 			__i = _IndexByElem(_a, __NewCount); _n = (_TypeElem*)(_a->_Next);\
 			_a->_Next = ((_TypeElem*)__NewArr[__i]); __NewArr[__i] = _a;\
 	}}\
-	___free((_Tbl)->Tbl);\
+	LqMemFree((_Tbl)->Tbl);\
 	(_Tbl)->Tbl = __NewArr;\
 }
 
@@ -137,6 +137,6 @@ typedef struct LqTblRow {
 	for(_TypeElem **__b = (_TypeElem**)(_Tbl)->Tbl, **__m = __b + (_Tbl)->MaxCount, *__a = NULL, *__n; (__b < __m) && (__a == NULL); __b++)\
 		for(__a = *__b; (((_Elem) = __a) != NULL) && (__n = (_TypeElem*)__a->_Next, 1); __a = __n)
 
-#define LqTblRowUninit(_Tbl) { if((_Tbl)->Tbl != NULL) ___free((_Tbl)->Tbl); }
+#define LqTblRowUninit(_Tbl) { if((_Tbl)->Tbl != NULL) LqMemFree((_Tbl)->Tbl); }
 
 #endif

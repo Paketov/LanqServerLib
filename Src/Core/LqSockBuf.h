@@ -161,7 +161,7 @@ LQ_IMPORTEXPORT void LQ_CALL LqSockBufRspUnsetHdr(LqSockBuf* lqaio lqats SockBuf
 LQ_IMPORTEXPORT bool LQ_CALL LqSockBufRcvNotifyCompletion(
     LqSockBuf* lqaio lqats SockBuf,
     void* lqain UserData,
-    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData),
+    void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData), /* if @Buf != NULL */
     bool IsSecondQueue
 );
 
@@ -258,12 +258,25 @@ LQ_IMPORTEXPORT size_t LQ_CALL LqSockBufCloseByUserData2(void* lqain UserData2, 
 
 LQ_IMPORTEXPORT void* LQ_CALL LqSockBufGetSsl(LqSockBuf* lqaio lqats SockBuf);
 
+/*
+	LqSockBufRcvResetCount - reset recive counter to zero
+*/
 LQ_IMPORTEXPORT void LQ_CALL LqSockBufRcvResetCount(LqSockBuf* lqaio lqats SockBuf);
 
+
+/*
+	LqSockBufRspResetCount - reset response counter to zero
+*/
 LQ_IMPORTEXPORT void LQ_CALL LqSockBufRspResetCount(LqSockBuf* lqaio lqats SockBuf);
 
+/*
+	LqSockBufRcvGetCount - get count receved data from last reset.
+*/
 LQ_IMPORTEXPORT int64_t LQ_CALL LqSockBufRcvGetCount(LqSockBuf* lqaio lqats SockBuf);
 
+/*
+	LqSockBufRspGetCount - get count responsed data from last reset.
+*/
 LQ_IMPORTEXPORT int64_t LQ_CALL LqSockBufRspGetCount(LqSockBuf* lqaio lqats SockBuf);
 
 /* 
@@ -278,7 +291,7 @@ LQ_IMPORTEXPORT void LQ_CALL LqSockBufUnlock(LqSockBuf* lqaio lqats SockBuf);
 */
 LQ_IMPORTEXPORT size_t LQ_CALL LqSockBufEnum(void* WrkBoss, int(LQ_CALL*Proc)(void*, LqSockBuf*), void* UserData);
 
-LQ_IMPORTEXPORT LqSockBuf* LQ_CALL LqEvntToSockBuf(void* Hdr); // ((((LqClientHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN) ? ((LqEvntFd*)NULL) : ((LqEvntFd*)(Hdr)))
+LQ_IMPORTEXPORT LqSockBuf* LQ_CALL LqEvntToSockBuf(void* Hdr); /* ((((LqClientHdr*)(Hdr))->Flag & _LQEVNT_FLAG_CONN) ? ((LqEvntFd*)NULL) : ((LqEvntFd*)(Hdr))) */
 
 /* Sock acceptor */
 LQ_IMPORTEXPORT LqSockAcceptor* LQ_CALL LqSockAcceptorCreate(

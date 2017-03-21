@@ -112,7 +112,7 @@ protected:
     bool ReallocAndClear(IndexType NewAllocCount) {
         if(NewAllocCount <= 0)
             NewAllocCount = 1;
-        LpCell* Res = (LpCell*)___realloc(Table, sizeof(LpCell) * NewAllocCount);
+        LpCell* Res = (LpCell*)LqMemRealloc(Table, sizeof(LpCell) * NewAllocCount);
         if(Res == nullptr)
             return false;
         memset(Table = Res, 0, sizeof(LpCell) * (alloc_count = NewAllocCount));
@@ -123,7 +123,7 @@ protected:
         IndexType c = NewAllocCount;
         if(NewAllocCount <= 0)
             c = 1;
-        LpCell *Res = (LpCell*)___realloc(Table, sizeof(LpCell) * c);
+        LpCell *Res = (LpCell*)LqMemRealloc(Table, sizeof(LpCell) * c);
         if(Res == nullptr)
             return false;
         if(NewAllocCount <= 0)
@@ -151,7 +151,7 @@ public:
                     i = DelElem->HeadCell::Next;
                     LqFastAlloc::Delete(DelElem);
                 }
-            ___free(Table);
+            LqMemFree(Table);
         }
     }
 

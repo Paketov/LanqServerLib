@@ -169,6 +169,7 @@
 #define lqautf8                 /* LanQ Argument UTF-8 string */
 #define lqautf16                /* LanQ Argument UTF-16 string */
 #define lqacp                   /* LanQ Argument defined in LqCp ... code page */
+#define lqacpeng                /* LanQ Argument only english letters */
 
 #define LqStructByField(TypeStruct, FieldName, AddressField) ((TypeStruct*)(((char*)(AddressField)) - ((uintptr_t)&((TypeStruct*)0)->FieldName)))
 

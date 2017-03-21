@@ -19,13 +19,13 @@
 
 #if /*!defined(_DEBUG) &&*/ defined(LQPLATFORM_WINDOWS)
 #include <Windows.h>
-#define ___malloc(size) HeapAlloc(GetProcessHeap(), 0, (size))
-#define ___realloc(pointer, size) (((pointer) == nullptr)? ___malloc(size): HeapReAlloc(GetProcessHeap(), 0, (pointer), (size)))
-#define ___free(pointer) HeapFree(GetProcessHeap(), 0, (pointer))
+#define LqMemMalloc(size) HeapAlloc(GetProcessHeap(), 0, (size))
+#define LqMemFree(pointer) HeapFree(GetProcessHeap(), 0, (pointer))
+#define LqMemRealloc(pointer, size) (((pointer) == NULL)? LqMemMalloc(size): (((size) == 0)? (LqMemFree(pointer), NULL): HeapReAlloc(GetProcessHeap(), 0, (pointer), (size))))
 #else
-#define ___malloc(size) malloc(size)
-#define ___realloc(pointer, size) realloc(pointer, size)
-#define ___free(pointer) free(pointer)
+#define LqMemMalloc(size) malloc(size)
+#define LqMemRealloc(pointer, size) realloc(pointer, size)
+#define LqMemFree(pointer) free(pointer)
 #endif
 
 #pragma pack(push)
@@ -41,7 +41,7 @@ class LqFastAlloc {
         mutable LqLocker<uintptr_t> Locker;
 
         Fields(): StartElement(nullptr), SizeList(80), Count(0) {}
-        ~Fields() { for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next) Next = *(void**)Ptr, ___free(Ptr); }
+        ~Fields() { for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next) Next = *(void**)Ptr, LqMemFree(Ptr); }
 
         void* Alloc() {
             Locker.LockWrite();
@@ -53,14 +53,14 @@ class LqFastAlloc {
                 return Ret;
             } else {
                 Locker.UnlockWrite();
-                return ___malloc(SizeElem);
+                return LqMemMalloc(SizeElem);
             }
         }
         void Free(void* Data) {
             Locker.LockWrite();
             if(Count >= SizeList) {
                 Locker.UnlockWrite();
-                ___free(Data);
+                LqMemFree(Data);
             } else {
                 *(void**)Data = StartElement;
                 StartElement = Data;
@@ -71,7 +71,7 @@ class LqFastAlloc {
         void ClearList() {
             Locker.LockWrite();
             for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next)
-                Next = *(void**)Ptr, ___free(Ptr);
+                Next = *(void**)Ptr, LqMemFree(Ptr);
             Count = 0;
             Locker.UnlockWrite();
         }
@@ -106,7 +106,7 @@ public:
     Delete memory region without adding in stack.
     !!! Caution! In this case function not call destructor for type. !!!
     */
-    inline static void JustDelete(void* Val) { ___free(Val); }
+    inline static void JustDelete(void* Val) { LqMemFree(Val); }
 
     template<typename Type>
     inline static void Clear();
@@ -150,7 +150,7 @@ static Type* LqFastAlloc::ReallocCount(Type* Prev, size_t PrevCount, size_t NewC
         case 6: LqFastAlloc::Delete((StructSize<Type, 6>*)Prev);  break;
         case 7: LqFastAlloc::Delete((StructSize<Type, 7>*)Prev);  break;
         case 8: LqFastAlloc::Delete((StructSize<Type, 8>*)Prev);  break;
-        default: ___free(Prev); break;
+        default: LqMemFree(Prev); break;
     }
     return NewVal;
         case 1: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 1>>(); break;
@@ -161,7 +161,7 @@ static Type* LqFastAlloc::ReallocCount(Type* Prev, size_t PrevCount, size_t NewC
         case 6: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 6>>(); break;
         case 7: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 7>>(); break;
         case 8: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 8>>(); break;
-        default: NewVal = (Type*)___malloc(NewCount * sizeof(Type));
+        default: NewVal = (Type*)LqMemMalloc(NewCount * sizeof(Type));
     }
 
     if(NewVal == nullptr)

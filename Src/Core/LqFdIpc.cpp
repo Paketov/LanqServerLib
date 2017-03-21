@@ -298,7 +298,7 @@ lblErr:
     return NULL;
 }
 
-LQ_EXTERN_C int LQ_CALL LqFdIpcSend(LqFdIpc* FdIpc, int Fd, void* AttachedBuffer, int SizeBuffer) {
+LQ_EXTERN_C int LQ_CALL LqFdIpcSend(LqFdIpc* FdIpc, int Fd, const void* AttachedBuffer, int SizeBuffer) {
     int Res = -1;
 #ifdef LQPLATFORM_WINDOWS
     int NewPid;
@@ -477,7 +477,10 @@ LQ_EXTERN_C int LQ_CALL LqFdIpcRecive(LqFdIpc* FdIpc, int* Fd, void** AttachedBu
         GlobBuffer = malloc(SourceHandle2);
         if(_BlocketReadFromPipe(FdIpc->Evnt.Fd, WaitEvent, GlobBuffer, SourceHandle2) < SourceHandle2)
             goto lblOut;
-        *AttachedBuffer = GlobBuffer;
+		if(AttachedBuffer != NULL)
+			*AttachedBuffer = GlobBuffer;
+		else
+			free(GlobBuffer);
         GlobBuffer = NULL;
     }
     Res = SourceHandle2;
@@ -574,7 +577,10 @@ lblOut:
         LqConnSwitchNonBlock(FdIpc->Evnt.Fd, 1);
         if(Recived < LenBuf)
             goto lblOut;
-        *AttachedBuffer = GlobBuffer;
+		if(AttachedBuffer != NULL)
+			*AttachedBuffer = GlobBuffer;
+		else
+			free(GlobBuffer);
         GlobBuffer = NULL;
     }
     Res = LenBuf;

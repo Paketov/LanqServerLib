@@ -42,21 +42,21 @@
 
 #define LqArrUninit(Arr){\
     if(((__LqArr*)(Arr))->Data != NULL)\
-        ___free(((__LqArr*)(Arr))->Data);\
+        LqMemFree(((__LqArr*)(Arr))->Data);\
 }
 
 #define LqArrPushBack(Arr, TypeVal) {\
  if(((__LqArr*)(Arr))->Count >= ((__LqArr*)(Arr))->AllocCount){\
      intptr_t _NewSize = (intptr_t)((decltype(LQEVNT_INCREASE_COEFFICIENT))((__LqArr*)(Arr))->Count * LQEVNT_INCREASE_COEFFICIENT);\
 	 _NewSize++;\
-     ((__LqArr*)(Arr))->Data = ___realloc(((__LqArr*)(Arr))->Data, sizeof(TypeVal) * _NewSize);\
+     ((__LqArr*)(Arr))->Data = LqMemRealloc(((__LqArr*)(Arr))->Data, sizeof(TypeVal) * _NewSize);\
      ((__LqArr*)(Arr))->AllocCount = _NewSize;\
  }\
  ((__LqArr*)(Arr))->Count++;\
 }
 
 #define LqArrResize(Arr, TypeVal, NewSize) {\
- ((__LqArr*)(Arr))->Data = ___realloc(((__LqArr*)(Arr))->Data, sizeof(TypeVal) * (NewSize));\
+ ((__LqArr*)(Arr))->Data = LqMemRealloc(((__LqArr*)(Arr))->Data, sizeof(TypeVal) * (NewSize));\
  ((__LqArr*)(Arr))->AllocCount = (NewSize); \
  ((__LqArr*)(Arr))->Count = (NewSize); \
 }
@@ -83,7 +83,7 @@
         ((__LqArr*)(Arr))->Count = (((uintptr_t)_le) - (uintptr_t)&LqArrAt(Arr, TypeVal, 0)) / sizeof(TypeVal);\
         if((intptr_t)((decltype(LQEVNT_DECREASE_COEFFICIENT))((__LqArr*)(Arr))->Count * LQEVNT_DECREASE_COEFFICIENT) < ((__LqArr*)(Arr))->AllocCount){\
             intptr_t _NewCount = lq_max(((__LqArr*)(Arr))->Count, ((intptr_t)1));\
-            ((__LqArr*)(Arr))->Data = ___realloc(((__LqArr*)(Arr))->Data, _NewCount * sizeof(TypeVal));\
+            ((__LqArr*)(Arr))->Data = LqMemRealloc(((__LqArr*)(Arr))->Data, _NewCount * sizeof(TypeVal));\
             ((__LqArr*)(Arr))->AllocCount = _NewCount;\
         }\
    }\
@@ -100,7 +100,7 @@
 
 #define LqArr2Uninit(Arr) {\
     if(((__LqArr2*)(Arr))->Data != NULL)\
-        ___free(((__LqArr2*)(Arr))->Data);\
+        LqMemFree(((__LqArr2*)(Arr))->Data);\
 }
 
 #define LqArr2PushBack(Arr, TypeVal, NewIndex, EmptyVal) {\
@@ -119,7 +119,7 @@
  if(_n >= ((__LqArr2*)(Arr))->AllocCount){\
         intptr_t _NewSize = (intptr_t)(((decltype(LQEVNT_INCREASE_COEFFICIENT))((__LqArr2*)(Arr))->AllocCount) * LQEVNT_INCREASE_COEFFICIENT);\
 		_NewSize++;\
-        TypeVal* _NewArr = (TypeVal*)___realloc(((__LqArr2*)(Arr))->Data, sizeof(TypeVal) * _NewSize); \
+        TypeVal* _NewArr = (TypeVal*)LqMemRealloc(((__LqArr2*)(Arr))->Data, sizeof(TypeVal) * _NewSize); \
         register intptr_t _i = ((__LqArr2*)(Arr))->AllocCount;\
         ((__LqArr2*)(Arr))->Data = _NewArr; \
         ((__LqArr2*)(Arr))->AllocCount = _NewSize; \
@@ -145,7 +145,7 @@
         ((__LqArr2*)(Arr))->MaxUsed = _i;\
         intptr_t _n = _i + ((intptr_t)2);\
         if(((intptr_t)(((decltype(LQEVNT_DECREASE_COEFFICIENT))_n) * LQEVNT_DECREASE_COEFFICIENT)) < ((__LqArr2*)(Arr))->AllocCount){\
-            ((__LqArr2*)(Arr))->Data = ___realloc(((__LqArr2*)(Arr))->Data, _n * sizeof(TypeVal));\
+            ((__LqArr2*)(Arr))->Data = LqMemRealloc(((__LqArr2*)(Arr))->Data, _n * sizeof(TypeVal));\
             ((__LqArr2*)(Arr))->AllocCount = _n;\
         }\
     }\
@@ -163,17 +163,17 @@
 
 #define LqArr3Uninit(Arr){\
     if(((__LqArr3*)(Arr))->Data != NULL)\
-        ___free(((__LqArr3*)(Arr))->Data);\
+        LqMemFree(((__LqArr3*)(Arr))->Data);\
     if(((__LqArr3*)(Arr))->Data2 != NULL)\
-        ___free(((__LqArr3*)(Arr))->Data2);\
+        LqMemFree(((__LqArr3*)(Arr))->Data2);\
 }
 
 #define LqArr3PushBack(Arr, TypeVal1, TypeVal2) {\
  if(((__LqArr3*)(Arr))->Count >= ((__LqArr3*)(Arr))->AllocCount){\
      intptr_t _NewSize = (intptr_t)(((decltype(LQEVNT_INCREASE_COEFFICIENT))((__LqArr3*)(Arr))->Count) * LQEVNT_INCREASE_COEFFICIENT);\
 	 _NewSize++;\
-     ((__LqArr3*)(Arr))->Data = ___realloc(((__LqArr3*)(Arr))->Data, sizeof(TypeVal1) * _NewSize);\
-     ((__LqArr3*)(Arr))->Data2 = ___realloc(((__LqArr3*)(Arr))->Data2, sizeof(TypeVal2) * _NewSize);\
+     ((__LqArr3*)(Arr))->Data = LqMemRealloc(((__LqArr3*)(Arr))->Data, sizeof(TypeVal1) * _NewSize);\
+     ((__LqArr3*)(Arr))->Data2 = LqMemRealloc(((__LqArr3*)(Arr))->Data2, sizeof(TypeVal2) * _NewSize);\
      ((__LqArr3*)(Arr))->AllocCount = _NewSize;\
  }\
  ((__LqArr3*)(Arr))->Count++;\
@@ -207,8 +207,8 @@
     ((__LqArr3*)(Arr))->Count = _Count;\
     if(((intptr_t)(((decltype(LQEVNT_DECREASE_COEFFICIENT))_Count) * LQEVNT_DECREASE_COEFFICIENT)) < ((__LqArr3*)(Arr))->AllocCount){\
         intptr_t _NewCount = lq_max(((__LqArr3*)(Arr))->Count, ((intptr_t)1));\
-        ((__LqArr3*)(Arr))->Data = ___realloc(((__LqArr3*)(Arr))->Data, _NewCount * sizeof(TypeVal1));\
-        ((__LqArr3*)(Arr))->Data2 = ___realloc(((__LqArr3*)(Arr))->Data2, _NewCount * sizeof(TypeVal2));\
+        ((__LqArr3*)(Arr))->Data = LqMemRealloc(((__LqArr3*)(Arr))->Data, _NewCount * sizeof(TypeVal1));\
+        ((__LqArr3*)(Arr))->Data2 = LqMemRealloc(((__LqArr3*)(Arr))->Data2, _NewCount * sizeof(TypeVal2));\
         ((__LqArr3*)(Arr))->AllocCount = _NewCount;\
     }\
   }\

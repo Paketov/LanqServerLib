@@ -110,7 +110,7 @@ lblAgain:
             }
         }
     }
-    LibSaveElemArr = (LqLibSaveElem*)___realloc(LibSaveElemArr, (LibSaveElemArrCount + 1) * sizeof(LqLibSaveElem));
+    LibSaveElemArr = (LqLibSaveElem*)LqMemRealloc(LibSaveElemArr, (LibSaveElemArrCount + 1) * sizeof(LqLibSaveElem));
     LibSaveElemArr[LibSaveElemArrCount].Deep = 1;
     LibSaveElemArr[LibSaveElemArrCount].Handle = ModuleHandle;
     LibSaveElemArrCount++;
@@ -128,7 +128,7 @@ LQ_EXTERN_C void LQ_CALL LqLibSaveOut(uintptr_t ModuleHandle) {
             if(LibSaveElemArr[i].Deep == 0) {
                 LibSaveElemArrCount--;
                 memcpy(LibSaveElemArr + i, LibSaveElemArr + LibSaveElemArrCount, sizeof(LqLibSaveElem));
-                LibSaveElemArr = (LqLibSaveElem*)___realloc(LibSaveElemArr, LibSaveElemArrCount * sizeof(LqLibSaveElem));
+                LibSaveElemArr = (LqLibSaveElem*)LqMemRealloc(LibSaveElemArr, LibSaveElemArrCount * sizeof(LqLibSaveElem));
             }
             LibSaveElemArrLocker.UnlockWrite();
             return;
@@ -149,7 +149,7 @@ lblAgain:
             goto lblAgain;
         }
     }
-    LibSaveElemArr = (LqLibSaveElem*)___realloc(LibSaveElemArr, (LibSaveElemArrCount + 1) * sizeof(LqLibSaveElem));
+    LibSaveElemArr = (LqLibSaveElem*)LqMemRealloc(LibSaveElemArr, (LibSaveElemArrCount + 1) * sizeof(LqLibSaveElem));
     LibSaveElemArr[LibSaveElemArrCount].Deep = -((int16_t)1);
     LibSaveElemArr[LibSaveElemArrCount].Handle = ModuleHandle;
     LibSaveElemArrCount++;
@@ -162,7 +162,7 @@ lblAgain:
         if(LibSaveElemArr[i].Handle == ModuleHandle) {
             LibSaveElemArrCount--;
             memcpy(LibSaveElemArr + i, LibSaveElemArr + LibSaveElemArrCount, sizeof(LqLibSaveElem));
-            LibSaveElemArr = (LqLibSaveElem*)___realloc(LibSaveElemArr, LibSaveElemArrCount * sizeof(LqLibSaveElem));
+            LibSaveElemArr = (LqLibSaveElem*)LqMemRealloc(LibSaveElemArr, LibSaveElemArrCount * sizeof(LqLibSaveElem));
             break;
         }
     }
