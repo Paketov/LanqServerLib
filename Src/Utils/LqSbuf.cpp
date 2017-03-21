@@ -1365,9 +1365,11 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_set_ptr_cookie(LqFbuf* Dest, void* UserData,
     return Res;
 }
 
+/*
 LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_set_ptr_fd(LqFbuf* Dest, int Fd) {
     return LqFbuf_set_ptr_cookie(Dest, (void*)Fd, _GetCookie(Fd));
 }
+*/
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_close(LqFbuf* Context) {
     LqFbufVirtual* DelBuf;
@@ -1761,6 +1763,7 @@ static intptr_t _LqFbuf_flush(LqFbuf* Context) {
 
     Context->Flags &= ~(LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK);
     if(Context->Flags & LQFBUF_POINTER) {
+		/*
         OutBufSize = (Context->BufPtr.StreamBuf->GlobOffset + Context->BufPtr.StreamBuf->Len) - Context->BufPtr.GlobOffset;
         for(bool __r = LqSbufReadRegionPtrFirst(&Context->BufPtr, &RegionPtr, OutBufSize); __r; __r = LqSbufReadRegionPtrNext(&RegionPtr))
             if((RegionPtr.Written = Context->Cookie->WriteProc(Context, (char*)RegionPtr.Source, RegionPtr.SourceLen)) < ((intptr_t)0)) {
@@ -1768,6 +1771,9 @@ static intptr_t _LqFbuf_flush(LqFbuf* Context) {
                 RegionPtr.Fin = true;
             }
         return RegionPtr.CommonWritten;
+		*/
+		Context->Flags |= LQFBUF_WRITE_ERROR;
+		return 0;
     }
     for(bool __r = LqSbufReadRegionFirst(&Context->OutBuf, &Region, Context->OutBuf.Len); __r; __r = LqSbufReadRegionNext(&Region))
         if((Region.Written = Context->Cookie->WriteProc(Context, (char*)Region.Source, Region.SourceLen)) < ((intptr_t)0)) {

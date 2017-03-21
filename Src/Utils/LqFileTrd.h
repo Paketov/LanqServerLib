@@ -18,6 +18,7 @@
 
 LQ_EXTERN_C_BEGIN
 
+
 LQ_IMPORTEXPORT int LQ_CALL LqFileTrdCreate(const char* lqain lqacp NameFinnalyDest, uint32_t Flags, int Access);
 LQ_IMPORTEXPORT int LQ_CALL LqFileTrdCancel(int Fd);
 LQ_IMPORTEXPORT int LQ_CALL LqFileTrdCommit(int Fd);

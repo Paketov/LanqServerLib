@@ -962,8 +962,6 @@ lblContinue:;
 }
 
 bool LqWrk::AddClientAsync(LqClientHdr* EvntHdr) {
-    if(IsThisThread())
-        return AddClientSync(EvntHdr);
     if(!EvntFdQueue.Push(EvntHdr, this))
         return false;
     CountConnectionsInQueue++;

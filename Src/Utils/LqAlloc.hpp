@@ -40,7 +40,7 @@ class LqFastAlloc {
         size_t                  SizeList;
         mutable LqLocker<uintptr_t> Locker;
 
-        Fields(): StartElement(nullptr), SizeList(80), Count(0) {}
+        Fields(): StartElement(nullptr), SizeList(128), Count(0) {}
         ~Fields() { for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next) Next = *(void**)Ptr, LqMemFree(Ptr); }
 
         void* Alloc() {

@@ -424,22 +424,25 @@ LQ_IMPORTEXPORT bool LQ_CALL LqHttpConnRcvMultipartFbufNext(
 );
 
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpConnRcvMultipartFileNext(
-	LqHttpConn* HttpConn,
-	const char* Path,
-	bool(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*),
-	void* UserData,
-	const char* Boundary,
-	LqFileSz MaxLen,
-	int Access,
-	bool IsReplace,
-	bool IsCreateSubdir
+    LqHttpConn* HttpConn,
+    const char* Path,
+    bool(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*),
+    void* UserData,
+    const char* Boundary,
+    LqFileSz MaxLen,
+    int Access,
+    bool IsReplace,
+    bool IsCreateSubdir
 );
 
+/*
+	Wait until the required number of bytes is received in the internal buffer 
+*/
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpConnRcvWaitLen(
-	LqHttpConn* HttpConn,
-	void(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*),
-	void* UserData,
-	intptr_t TargetLen
+    LqHttpConn* HttpConn,
+    void(LQ_CALL*CompleteOrCancelProc)(LqHttpConnRcvResult*),
+    void* UserData,
+    intptr_t TargetLen
 );
 
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpConnGetRemoteIpStr(LqHttpConn* HttpConn, char* DestStr, size_t DestStrLen);
@@ -449,7 +452,7 @@ LQ_IMPORTEXPORT bool LQ_CALL LqHttpConnGetLocIpStr(LqHttpConn* HttpConn, char* D
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpConnGetLocIp(LqHttpConn* HttpConn, LqConnAddr* AddrDest);
 /*
  Call LqHttpConnRspEndLongPoll in @LongPollCloseHandler for release connection
-	You can set @LongPollCloseHandler parametr in NULL for no close conn 
+    You can set @LongPollCloseHandler parameter in NULL for non closing conn
 */
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpConnRspBeginLongPoll(LqHttpConn* HttpConn, void (LQ_CALL *LongPollCloseHandler)(LqHttpConn*));
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpConnRspEndLongPoll(LqHttpConn* HttpConn);

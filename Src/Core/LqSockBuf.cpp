@@ -1494,14 +1494,14 @@ LQ_EXTERN_C int LQ_CALL LqSockBufGetFd(LqSockBuf* SockBuf) {
     return SockBuf->Conn.Fd;
 }
 
-static int LQ_CALL _LqSockBufCloseByUserData2Proc(void *UserData2, LqClientHdr *EvntHdr) {
-    return (((LqSockBuf*)EvntHdr)->UserData2 == UserData2)? 2: 0;
+static int LQ_CALL _LqSockBufCloseByUserData2Proc(void *UserData2, size_t UserDataSize, void*, LqClientHdr *EvntHdr, LqTimeMillisec) {
+    return (LqClientIsConn(EvntHdr) && (((LqConn*)EvntHdr)->Proto ==  &___SockBufProto) && (((LqSockBuf*)EvntHdr)->UserData2 == *((void**)UserData2)))? 2: 0;
 }
 
 LQ_EXTERN_C size_t LQ_CALL LqSockBufCloseByUserData2(void* UserData2, void* WrkBoss) {
     if(WrkBoss == NULL)
         WrkBoss = LqWrkBossGet();
-    return ((LqWrkBoss*)WrkBoss)->EnumClientsByProto(_LqSockBufCloseByUserData2Proc, &___SockBufProto, UserData2);
+    return ((LqWrkBoss*)WrkBoss)->EnumClientsAsync(_LqSockBufCloseByUserData2Proc, &UserData2, sizeof(UserData2));
 }
 
 LQ_EXTERN_C void LQ_CALL LqSockBufLock(LqSockBuf* SockBuf) {

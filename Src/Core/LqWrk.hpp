@@ -128,7 +128,7 @@ public:
 
     bool     AsyncCall(void(LQ_CALL*AsyncProc)(void* Data), void* UserData = nullptr);
     size_t   CancelAsyncCall(void(LQ_CALL*AsyncProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
-	bool     AsyncCall11(std::function<void()> Proc);
+    bool     AsyncCall11(std::function<void()> Proc);
     /*
     This method return all connection from this worker.
     */
@@ -163,10 +163,10 @@ public:
         size_t UserDataSize
     );
 
-	bool     EnumClientsAndCallFinAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct,std::function<uintptr_t()> FinFunc);
-	bool     EnumClientsAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct);
-	size_t   EnumClients11(std::function<int(LqClientHdr*)> EventAct, bool* IsIterrupted = LqDfltPtr());
-	size_t   EnumClientsByProto11(std::function<int(LqClientHdr*)> EventAct, const LqProto* Proto, bool* IsIterrupted = LqDfltPtr());
+    bool     EnumClientsAndCallFinAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct,std::function<uintptr_t()> FinFunc);
+    bool     EnumClientsAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct);
+    size_t   EnumClients11(std::function<int(LqClientHdr*)> EventAct, bool* IsIterrupted = LqDfltPtr());
+    size_t   EnumClientsByProto11(std::function<int(LqClientHdr*)> EventAct, const LqProto* Proto, bool* IsIterrupted = LqDfltPtr());
 
 
     LqString DebugInfo() const;

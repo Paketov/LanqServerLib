@@ -70,7 +70,7 @@ static int AsyncClrProc(void* UserData, size_t UserDataSize, void*Wrk, LqClientH
     LqTimeMillisec TimeDiff;
     LqSockBuf* SockBuf;
 
-    if(!LqClientIsConn(EvntHdr) || (((LqConn*)EvntHdr)->Proto == &___SockBufProto))
+    if(!LqClientIsConn(EvntHdr) || (((LqConn*)EvntHdr)->Proto != &___SockBufProto))
         return 0;
     SockBuf = (LqSockBuf*)EvntHdr;
     if(SockBuf->UserData2 == *((void**)UserData)) {

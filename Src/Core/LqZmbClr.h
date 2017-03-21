@@ -38,6 +38,9 @@ typedef struct LqZmbClr {
 
 LQ_EXTERN_C_BEGIN
 
+/*
+	
+*/
 LQ_IMPORTEXPORT LqZmbClr* LQ_CALL LqZmbClrCreate(const void* lqain ProtoOrUserData2ForSockBuf, LqTimeMillisec Period, void*  lqain UserData, bool IsSockBuf);
 LQ_IMPORTEXPORT bool LQ_CALL LqZmbClrGoWork(LqZmbClr* lqaio lqats ZmbClr, void* lqaopt lqain WrkBoss);
 LQ_IMPORTEXPORT bool LQ_CALL LqZmbClrInterruptWork(LqZmbClr* lqaio lqats ZmbClr);
