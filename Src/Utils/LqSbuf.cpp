@@ -834,7 +834,7 @@ static char* _DoubleToString(
     }
     if((c == m) && (FractWidth > 0))
         *(--c) = CHAR_TYPE(char, '0');
-    for(size_t i = FractWidth; (c < m) && (i > 0); c++, s++, i--) *s = *c;
+    for(intptr_t i = FractWidth; (c < m) && (i > ((intptr_t)0)); c++, s++, i--) *s = *c;
     if((Flags & _DTOS_PRINT_EXP) || ((Flags & _DTOS_PRINT_EXP_AUTO) && Exp)) {
         if(Radix <= 10)
             *(s++) = (Flags & _DTOS_UPPER_CASE) ? CHAR_TYPE(char, 'E') : CHAR_TYPE(char, 'e');
@@ -846,7 +846,7 @@ static char* _DoubleToString(
             *(s++) = CHAR_TYPE(char, '-');
             Exp = -Exp;
         }
-        for(c = m; Exp > 0; Exp /= Radix) {
+        for(c = m; Exp > ((intptr_t)0); Exp /= Radix) {
             unsigned char digval = Exp % Radix;
             *(--c) = DIGIT_TO_ALPHA(char, digval);
         }
@@ -1071,7 +1071,7 @@ static intptr_t LQ_CALL _FileReadProc(LqFbuf* Context, char* Buf, size_t Size) {
     return Readed;
 }
 
-static intptr_t LQ_CALL _FileSeekProc(LqFbuf* Context, int64_t Offset, int Flags) {
+static int64_t LQ_CALL _FileSeekProc(LqFbuf* Context, int64_t Offset, int Flags) {
     return LqFileSeek((int)Context->UserData, Offset, Flags);
 }
 
@@ -1084,8 +1084,8 @@ static intptr_t LQ_CALL _FileCloseProc(LqFbuf* Context) {
     return LqFileClose((int)Context->UserData);
 }
 
-static intptr_t LQ_CALL _EmptySeekProc(LqFbuf*, int64_t, int) {
-    return -((intptr_t)1);
+static int64_t LQ_CALL _EmptySeekProc(LqFbuf*, int64_t, int) {
+    return -((int64_t)1);
 }
 
 static intptr_t LQ_CALL _EmptyReadProc(LqFbuf* Context, char*, size_t) {
@@ -1136,12 +1136,12 @@ static intptr_t LQ_CALL _NullWriteProc(LqFbuf*, char*, size_t Size) {
     return Size;
 }
 
-static intptr_t LQ_CALL _NullSeekProc(LqFbuf*, int64_t, int) {
-    return 0;
+static int64_t LQ_CALL _NullSeekProc(LqFbuf*, int64_t, int) {
+    return ((intptr_t)0);
 }
 
 static intptr_t LQ_CALL _NullCloseProc(LqFbuf*) {
-    return 0;
+    return ((intptr_t)0);
 }
 
 static intptr_t _LqFbuf_vscanf(LqFbuf_state* State, int Flags, const char* Fmt, va_list va);
@@ -1462,7 +1462,7 @@ lblWrite:
                 goto lblOut2;
         } else {
             while(true) {
-                WriteMax = lq_max(Dest->MaxFlush - Dest->OutBuf.Len, 0);
+                WriteMax = lq_max(Dest->MaxFlush - Dest->OutBuf.Len, ((intptr_t)0));
                 for(bool __r = LqSbufWriteRegionFirst(&Dest->OutBuf, &RegionW, ((intptr_t)lq_min(Size, WriteMax))); __r; __r = LqSbufWriteRegionNext(&RegionW))
                     if((RegionW.Readed = Source->Cookie->ReadProc(Source, (char*)RegionW.Dest, RegionW.DestLen)) < ((intptr_t)0)) {
                         RegionW.Readed = ((intptr_t)0);
@@ -1689,36 +1689,39 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_printf(LqFbuf* Context, const char* Fmt, ...
     return Res;
 }
 
+typedef struct _LqFbuf_svnprintf_ProcData {
+    char* Dest, *MaxDest;
+} _LqFbuf_svnprintf_ProcData;
+
+static intptr_t _LqFbuf_svnprintf_WriteProc(LqFbuf* Context, char* Buf, size_t Size) {
+    _LqFbuf_svnprintf_ProcData* Param = (_LqFbuf_svnprintf_ProcData*)Context->UserData;
+    if((Param->MaxDest - Param->Dest) <= 0) {
+        Context->Flags |= LQFBUF_WRITE_ERROR;
+        return 0;
+    }
+    intptr_t TargetSize = lq_min(((intptr_t)Size), Param->MaxDest - Param->Dest);
+    memcpy(Param->Dest, Buf, TargetSize);
+    Param->Dest += TargetSize;
+    return TargetSize;
+}
+
+static LqFbufCookie _LqFbuf_svnprintf_Cookie = {
+    _EmptyReadProc,
+    _LqFbuf_svnprintf_WriteProc,
+    _EmptySeekProc,
+    NULL,
+    _EmptyCloseProc
+};
+
 LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_svnprintf(char* Dest, size_t DestSize, const char* Fmt, va_list va) {
-    typedef struct ProcData {
-        char* Dest, *MaxDest;
-        static intptr_t WriteProc(LqFbuf* Context, char* Buf, size_t Size) {
-            ProcData* Param = (ProcData*)Context->UserData;
-            if((Param->MaxDest - Param->Dest) <= 0) {
-                Context->Flags |= LQFBUF_WRITE_ERROR;
-                return 0;
-            }
-            intptr_t TargetSize = lq_min(((intptr_t)Size), Param->MaxDest - Param->Dest);
-            memcpy(Param->Dest, Buf, TargetSize);
-            Param->Dest += TargetSize;
-            return TargetSize;
-        }
-    } ProcData;
-    static LqFbufCookie Cookie = {
-        _EmptyReadProc,
-        ProcData::WriteProc,
-        _EmptySeekProc,
-        NULL,
-        _EmptyCloseProc
-    };
-    ProcData Param = {Dest, Dest + DestSize};
+    _LqFbuf_svnprintf_ProcData Param = {Dest, Dest + DestSize};
     LqFbuf Context;
     LqSbufInit(&Context.OutBuf);
     LqSbufInit(&Context.InBuf);
     Context.Flags = ((LqFbufFlag)0);
     Context.MinFlush = ((intptr_t)0);
     Context.MaxFlush = ((intptr_t)0);
-    Context.Cookie = &Cookie;
+    Context.Cookie = &_LqFbuf_svnprintf_Cookie;
     Context.UserData = &Param;
     intptr_t Res = _LqFbuf_vprintf(&Context, Fmt, va);
     if((Param.Dest + 1) < Param.MaxDest)
@@ -1758,12 +1761,12 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_write(LqFbuf* Context, const void* Buf, size
 
 static intptr_t _LqFbuf_flush(LqFbuf* Context) {
     LqSbufReadRegion Region;
-    LqSbufReadRegionPtr RegionPtr;
-    size_t OutBufSize;
+    //LqSbufReadRegionPtr RegionPtr;
+    //size_t OutBufSize;
 
     Context->Flags &= ~(LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK);
     if(Context->Flags & LQFBUF_POINTER) {
-		/*
+        /*
         OutBufSize = (Context->BufPtr.StreamBuf->GlobOffset + Context->BufPtr.StreamBuf->Len) - Context->BufPtr.GlobOffset;
         for(bool __r = LqSbufReadRegionPtrFirst(&Context->BufPtr, &RegionPtr, OutBufSize); __r; __r = LqSbufReadRegionPtrNext(&RegionPtr))
             if((RegionPtr.Written = Context->Cookie->WriteProc(Context, (char*)RegionPtr.Source, RegionPtr.SourceLen)) < ((intptr_t)0)) {
@@ -1771,9 +1774,9 @@ static intptr_t _LqFbuf_flush(LqFbuf* Context) {
                 RegionPtr.Fin = true;
             }
         return RegionPtr.CommonWritten;
-		*/
-		Context->Flags |= LQFBUF_WRITE_ERROR;
-		return 0;
+        */
+        Context->Flags |= LQFBUF_WRITE_ERROR;
+        return ((intptr_t)0);
     }
     for(bool __r = LqSbufReadRegionFirst(&Context->OutBuf, &Region, Context->OutBuf.Len); __r; __r = LqSbufReadRegionNext(&Region))
         if((Region.Written = Context->Cookie->WriteProc(Context, (char*)Region.Source, Region.SourceLen)) < ((intptr_t)0)) {
@@ -1791,21 +1794,78 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_flush(LqFbuf* Context) {
     return Res;
 }
 
-LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_seek(LqFbuf* Context, int64_t Offset, int Flags) {
-    intptr_t Res = -((intptr_t)1);
-    if(Context->Flags & (LQFBUF_POINTER | LQFBUF_STREAM))
+LQ_EXTERN_C int64_t LQ_CALL LqFbuf_seek(LqFbuf* Context, int64_t Offset, int Flags) {
+    int64_t Res = -((int64_t)1);
+    int64_t CurPos;
+    if(Context->Flags & LQFBUF_STREAM)
         return Res;
     _LqFbuf_lock(Context);
-    _LqFbuf_flush(Context);
-    if(Context->OutBuf.Len > ((size_t)0))
-        goto lblOut;
-    Res = Context->Cookie->SeekProc(Context, Offset, Flags);
-    if(Res >= ((intptr_t)0)) {
-        Context->Flags &= ~(LQFBUF_READ_EOF | LQFBUF_READ_ERROR | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK);
-        LqSbufRead(&Context->OutBuf, NULL, Context->OutBuf.Len);
-        LqSbufRead(&Context->InBuf, NULL, Context->InBuf.Len);
+    if(Context->Flags & LQFBUF_POINTER) {
+        if(Flags == LQ_SEEK_CUR) {
+            if(Offset >= ((int64_t)0)) {
+                LqSbufReadByPtr(&Context->BufPtr, NULL, Offset);    
+            } else {
+                CurPos = Context->BufPtr.GlobOffset - Context->BufPtr.StreamBuf->GlobOffset;
+                if(CurPos == ((int64_t)0)) {
+                    Res = 0;
+                    goto lblOut;
+                }
+                CurPos += Offset;
+                LqSbufPtrSet(&Context->BufPtr, Context->BufPtr.StreamBuf);
+                if(CurPos > 0)
+                    LqSbufReadByPtr(&Context->BufPtr, NULL, CurPos);
+            }
+        } else if(Flags == LQ_SEEK_SET) {
+            if(Offset < ((int64_t)0)) {
+                lq_errno_set(EINVAL);
+                goto lblOut;
+            }
+            LqSbufPtrSet(&Context->BufPtr, Context->BufPtr.StreamBuf);
+            LqSbufReadByPtr(&Context->BufPtr, NULL, Offset);
+        } else {
+            if(Offset < ((int64_t)0)) {
+                lq_errno_set(EINVAL);
+                goto lblOut;
+            }
+            CurPos = Context->BufPtr.StreamBuf->Len;
+            CurPos -= Offset;
+            LqSbufPtrSet(&Context->BufPtr, Context->BufPtr.StreamBuf);
+            if(CurPos < ((int64_t)0)) {
+                Res = 0;
+                goto lblOut;
+            }
+            LqSbufReadByPtr(&Context->BufPtr, NULL, CurPos);
+        }
+        Res = Context->BufPtr.GlobOffset - Context->BufPtr.StreamBuf->GlobOffset;
+    } else {
+        if(Context->Cookie->SeekProc == NULL)
+            goto lblOut;
+        _LqFbuf_flush(Context);
+        if(Context->OutBuf.Len > ((size_t)0))
+            goto lblOut;
+        Res = Context->Cookie->SeekProc(Context, Offset, Flags);
+        if(Res >= ((int64_t)0)) {
+            Context->Flags &= ~(LQFBUF_READ_EOF | LQFBUF_READ_ERROR | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK);
+            LqSbufRead(&Context->OutBuf, NULL, Context->OutBuf.Len); /* Clear output buffer*/
+            LqSbufRead(&Context->InBuf, NULL, Context->InBuf.Len); /* Clear input buffer*/
+        }
     }
 lblOut:
+    _LqFbuf_unlock(Context);
+    return Res;
+}
+
+LQ_EXTERN_C int64_t LQ_CALL LqFbuf_tell(LqFbuf* Context) {
+    int64_t Res = -((int64_t)1);
+    _LqFbuf_lock(Context);
+    if(Context->Flags & LQFBUF_POINTER) {
+        Res = Context->BufPtr.GlobOffset - Context->BufPtr.StreamBuf->GlobOffset;
+    } else if(Context->Flags & LQFBUF_STREAM) {
+    } else if(Context->Cookie->SeekProc != NULL) {
+        Res = Context->Cookie->SeekProc(Context, 0, LQ_SEEK_CUR);
+        if(Res > ((int64_t)0))
+            Res -= ((int64_t)Context->InBuf.Len);
+    }
     _LqFbuf_unlock(Context);
     return Res;
 }
@@ -2889,7 +2949,7 @@ static intptr_t _LqFbuf_read(LqFbuf* Context, void* Buf, size_t Len) {
     intptr_t Res = 0, Len2;
     bool WithoutCopy = Buf == NULL;
     char *Dest = (char*)Buf, *MaxDest = (char*)Buf + Len;
-    char TempBuf[1000];
+    char TempBuf[1024];
     Context->Flags &= ~(LQFBUF_READ_ERROR | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_EOF);
     if(Context->Flags & LQFBUF_POINTER) {
         for(bool __r = LqSbufReadRegionPtrFirst(&Context->BufPtr, &RegionPtr, MaxDest - Dest); __r; __r = LqSbufReadRegionPtrNext(&RegionPtr)) {
@@ -2920,11 +2980,13 @@ static intptr_t _LqFbuf_read(LqFbuf* Context, void* Buf, size_t Len) {
         if(WithoutCopy) {
             while((Dest < MaxDest) && !(Context->Flags & (LQFBUF_READ_ERROR | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_EOF))) {
                 Len2 = Context->Cookie->ReadProc(Context, TempBuf, lq_min(MaxDest - Dest, sizeof(TempBuf)));
-                Dest += lq_max(Len2, ((intptr_t)0));
+                if(Len2 > ((intptr_t)0))
+                    Dest += Len2;
             }
         } else {
             Len2 = Context->Cookie->ReadProc(Context, Dest, MaxDest - Dest);
-            Res += lq_max(Len2, ((intptr_t)0));
+            if(Len2 > ((intptr_t)0))
+                Res += Len2;
         }
     } while(false);
     return Res;

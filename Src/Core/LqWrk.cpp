@@ -259,7 +259,7 @@ struct LqWrkAsyncEventForAllFd {
         int(LQ_CALL*NewEventAct)(void*, size_t, void*, LqClientHdr*, LqTimeMillisec)
     ) {
         if((UserDataSize > ((size_t)0)) && (UserData != NULL)) {
-            UsrData = LqMemMalloc(UserDataSize);
+            UsrData = LqMemAlloc(UserDataSize);
             UsrDataSize = UserDataSize;
             memcpy(UsrData, UserData, UserDataSize);
         } else {
@@ -290,7 +290,7 @@ typedef struct LqWrkAsyncCallFin {
         EventFin(NewEventFin)
     {
         if((UserDataSize > ((size_t)0)) && (UserData != NULL)) {
-            UsrData = LqMemMalloc(UserDataSize);
+            UsrData = LqMemAlloc(UserDataSize);
             UsrDataSize = UserDataSize;
             memcpy(UsrData, UserData, UserDataSize);
         } else {
@@ -322,7 +322,7 @@ struct LqWrkAsyncEventForAllFdAndCallFin {
     ): FinPtr(FinPtr) 
     {
         if((UserDataSize > ((size_t)0)) && (UserData != NULL)) {
-            UsrData = LqMemMalloc(UserDataSize);
+            UsrData = LqMemAlloc(UserDataSize);
             UsrDataSize = UserDataSize;
             memcpy(UsrData, UserData, UserDataSize);
         } else {

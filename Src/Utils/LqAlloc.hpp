@@ -19,11 +19,11 @@
 
 #if /*!defined(_DEBUG) &&*/ defined(LQPLATFORM_WINDOWS)
 #include <Windows.h>
-#define LqMemMalloc(size) HeapAlloc(GetProcessHeap(), 0, (size))
+#define LqMemAlloc(size) HeapAlloc(GetProcessHeap(), 0, (size))
 #define LqMemFree(pointer) HeapFree(GetProcessHeap(), 0, (pointer))
-#define LqMemRealloc(pointer, size) (((pointer) == NULL)? LqMemMalloc(size): (((size) == 0)? (LqMemFree(pointer), NULL): HeapReAlloc(GetProcessHeap(), 0, (pointer), (size))))
+#define LqMemRealloc(pointer, size) (((pointer) == NULL)? LqMemAlloc(size): (((size) == 0)? (LqMemFree(pointer), NULL): HeapReAlloc(GetProcessHeap(), 0, (pointer), (size))))
 #else
-#define LqMemMalloc(size) malloc(size)
+#define LqMemAlloc(size) malloc(size)
 #define LqMemRealloc(pointer, size) realloc(pointer, size)
 #define LqMemFree(pointer) free(pointer)
 #endif
@@ -53,7 +53,7 @@ class LqFastAlloc {
                 return Ret;
             } else {
                 Locker.UnlockWrite();
-                return LqMemMalloc(SizeElem);
+                return LqMemAlloc(SizeElem);
             }
         }
         void Free(void* Data) {
@@ -161,7 +161,7 @@ static Type* LqFastAlloc::ReallocCount(Type* Prev, size_t PrevCount, size_t NewC
         case 6: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 6>>(); break;
         case 7: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 7>>(); break;
         case 8: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 8>>(); break;
-        default: NewVal = (Type*)LqMemMalloc(NewCount * sizeof(Type));
+        default: NewVal = (Type*)LqMemAlloc(NewCount * sizeof(Type));
     }
 
     if(NewVal == nullptr)

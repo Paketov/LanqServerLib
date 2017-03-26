@@ -45,7 +45,7 @@ class LqPtdArr {
 
     static Arr* AllocNew(size_t Count) {
         Arr* Res;
-        if(Res = (Arr*)LqMemMalloc(Count * sizeof(TypeVal) + (sizeof(Arr) - sizeof(TypeVal)))) {
+        if(Res = (Arr*)LqMemAlloc(Count * sizeof(TypeVal) + (sizeof(Arr) - sizeof(TypeVal)))) {
             Res->Count = Count;
             Res->CountPointers = 0;
         }

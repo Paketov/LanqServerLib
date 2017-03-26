@@ -132,35 +132,6 @@ LqFbuf* OutFile = &StdOut;
 LqFbuf InCmd;
 LqHttp* Http = nullptr;
 
-//LqFche* Che;
-//void* SslCtx;
-//
-//void ff(void*, LqSockBuf* SockBuf) {
-//  char Buf[4096];
-//  LqSockBufScanf(SockBuf, false, "%{^\r\n\r\n}%*{\r\n\r\n}", Buf);
-//
-//  LqSockBufRcvNotifyWhenMatch(SockBuf, nullptr, ff, "%*{^\r\n\r\n}", 1, 32768);
-//  
-//  LqSockBufRspSetHdr(SockBuf);
-//  LqSockBufPrintfHdr(SockBuf, "HTTP/1.1 200 OK\r\n");
-//  
-//  //LqSockBufPrintf(SockBuf, "Hello world");
-//  LqSockBufRspFile(SockBuf, "E:\\serv\\www\\IMG_20150811_044731.jpg");
-//  LqFileSz  Len = LqSockBufRspLen(SockBuf);
-//  LqSockBufPrintfHdr(SockBuf, "Content-Length: %lli\r\n", Len);
-//  LqSockBufPrintfHdr(SockBuf, "Content-Type: image/jpeg\r\n", Len);
-//  //LqSockBufPrintfHdr(SockBuf, "Content-Type: application/octet-stream\r\n");
-//  LqSockBufPrintfHdr(SockBuf, "\r\n", Len);
-//  
-//  LqSockBufRspUnsetHdr(SockBuf);
-//  //LqSockBufRspNotifyCompletion(
-//  //  SockBuf,
-//  //  [](void*, LqSockBuf* Buf) { 
-//  //      int yy = 0; 
-//  //  }, 
-//  //  nullptr);
-//};
-
 int main(int argc, char* argv[]) {
     int StdFd = LqDescrDup(LQ_STDIN, 0);
     fclose(stdin);

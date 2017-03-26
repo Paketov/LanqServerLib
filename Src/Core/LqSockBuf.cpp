@@ -68,7 +68,7 @@ typedef struct RcvElementMatch {
     RcvFlag Flag;
 
     char* Fmt;
-    int MatchCount;
+    intptr_t MatchCount;
     size_t MaxSize;
     void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf*, void*);
     void* Data;
@@ -331,14 +331,6 @@ static intptr_t LQ_CALL _SockCloseProc(LqFbuf* Context) {
     return closesocket((int)Context->UserData);
 }
 
-static intptr_t LQ_CALL _EmptySeekProc(LqFbuf*, int64_t, int) {
-    return -((intptr_t)1);
-}
-
-static intptr_t LQ_CALL _StreamSeekProc(LqFbuf*, int64_t, int) {
-    return -((intptr_t)1);
-}
-
 static intptr_t LQ_CALL _EmptyWriteProc(LqFbuf* Context, char*, size_t) {
     Context->Flags |= LQFBUF_WRITE_WOULD_BLOCK;
     return -((intptr_t)1);
@@ -354,7 +346,7 @@ static bool _EmptyCopyProc(LqFbuf* Dest, LqFbuf*Source) {
 static LqFbufCookie _SocketCookie = {
     _SockReadProc,
     _SockWriteProc,
-    _EmptySeekProc,
+    NULL,
     _EmptyCopyProc,
     _SockCloseProc
 };
@@ -362,7 +354,7 @@ static LqFbufCookie _SocketCookie = {
 static LqFbufCookie _SslCookie = {
     _SslReadProc,
     _SslWriteProc,
-    _EmptySeekProc,
+    NULL,
     _EmptyCopyProc,
     _SslCloseProc
 };
@@ -602,7 +594,7 @@ LQ_EXTERN_C LqSockBuf* LQ_CALL LqSockBufCreateSsl(int SockFd, void* SslCtx, bool
 
     if((NewBuf = LqFastAlloc::New<LqSockBuf>()) == NULL) {
         lq_errno_set(ENOMEM);
-        goto lblErr;
+        return NULL;
     }
 
     if((Ssl = SSL_new((SSL_CTX*)SslCtx)) == NULL)
@@ -621,7 +613,7 @@ LQ_EXTERN_C LqSockBuf* LQ_CALL LqSockBufCreateSsl(int SockFd, void* SslCtx, bool
     }
 
     LqConnInit(&NewBuf->Conn, SockFd, &___SockBufProto, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
-    if(LqFbuf_open_cookie(&NewBuf->Stream, Ssl, &_SslCookie, LQFBUF_FAST_LK | Flag, 0, 4090, 32768) < ((intptr_t)0))
+    if(LqFbuf_open_cookie(&NewBuf->Stream, Ssl, &_SslCookie, LQFBUF_FAST_LK | Flag, ((intptr_t)0), ((intptr_t)4090), ((intptr_t)32768)) < ((intptr_t)0))
         goto lblErr;
     LqListInit(&NewBuf->Rcv);
     LqListInit(&NewBuf->Rcv2);
@@ -650,6 +642,36 @@ lblErr:
         LqFastAlloc::Delete(NewBuf);
 #endif
     return NULL;
+}
+
+LQ_EXTERN_C LqSockBuf* LQ_CALL LqSockBufCreateFromCookie(int SockFd, LqFbufCookie* Cookie, void* CookieData, void* UserData) {
+    LqSockBuf* NewBuf;
+    if((NewBuf = LqFastAlloc::New<LqSockBuf>()) == NULL) {
+        lq_errno_set(ENOMEM);
+        return NULL;
+    }
+    LqConnInit(&NewBuf->Conn, SockFd, &___SockBufProto, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+    if(LqFbuf_open_cookie(&NewBuf->Stream, CookieData, Cookie, LQFBUF_FAST_LK, ((intptr_t)0), ((intptr_t)4090), ((intptr_t)32768)) < ((intptr_t)0)) {
+        LqFastAlloc::Delete(NewBuf);
+        return NULL;
+    }
+    LqListInit(&NewBuf->Rcv);
+    LqListInit(&NewBuf->Rcv2);
+    LqListInit(&NewBuf->Rsp);
+    NewBuf->KeepAlive = LqTimeGetMaxMillisec();
+    NewBuf->LastExchangeTime = NewBuf->StartTime = LqTimeGetLocMillisec();
+    NewBuf->UserData = UserData;
+    NewBuf->Flags = LQSOCKBUF_FLAG_USED;
+    NewBuf->RspHeader = NULL;
+    NewBuf->UserData2 = NULL;
+    NewBuf->ErrHandler = NULL;
+    NewBuf->CloseHandler = NULL;
+    NewBuf->Cache = NULL;
+    NewBuf->ReadOffset = NewBuf->WriteOffset = ((int64_t)0);
+    NewBuf->ThreadOwnerId = 0;
+    NewBuf->Deep = ((int16_t)0);
+    LqAtmLkInit(NewBuf->Lk);
+    return NewBuf;
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufDelete(LqSockBuf* SockBuf) {
@@ -757,14 +779,13 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufGoWork(LqSockBuf* SockBuf, void* WrkBoss) {
     _SockBufLock(SockBuf);
     if(SockBuf->Flags & LQSOCKBUF_FLAG_WORK)
         goto lblOut;
+    LqFbuf_sizes(&SockBuf->Stream, NULL, &InBufSize);
+    if(InBufSize > 0)
+        _LqSockBufRecvOrSendHandler(&SockBuf->Conn, LQEVNT_FLAG_RD);
     LqClientSetFlags(&SockBuf->Conn, LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_RD | LQEVNT_FLAG_WR, 0);
     if(LqClientAdd(&SockBuf->Conn, WrkBoss)) {
         SockBuf->Flags |= LQSOCKBUF_FLAG_WORK;
         Res = true;
-        LqFbuf_sizes(&SockBuf->Stream, NULL, &InBufSize);
-        if(InBufSize > 0)
-            _LqSockBufRecvOrSendHandler(&SockBuf->Conn, LQEVNT_FLAG_RD);
-        goto lblOut;
     }
 lblOut:
     _SockBufUnlock(SockBuf);
@@ -1105,7 +1126,7 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRcvNotifyWhenMatch(
     void* UserData,
     void(LQ_CALL*CompleteOrCancelProc)(LqSockBuf* Buf, void* UserData),
     const char* Fmt,
-    int MatchCount,
+    intptr_t MatchCount,
     size_t MaxSize,
     bool IsSecondQueue
 ) {
@@ -1326,7 +1347,7 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufRcvWaitLenData(
 }
 
 LQ_EXTERN_C LqFileSz LQ_CALL LqSockBufReadInStream(LqSockBuf* SockBuf, LqFbuf* Dest, LqFileSz Size) {
-	LqFileSz Res;
+    LqFileSz Res;
     _SockBufLock(SockBuf);
     Res = LqFbuf_transfer(Dest, &SockBuf->Stream, Size);
     if((Res < Size) && (SockBuf->Stream.Flags & (LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_WOULD_BLOCK)))
@@ -1521,6 +1542,74 @@ LQ_EXTERN_C void* LQ_CALL LqSockBufGetSsl(LqSockBuf* SockBuf) {
     return Res;
 }
 
+LQ_EXTERN_C bool LQ_CALL LqSockBufBeginSslSession(LqSockBuf* SockBuf, void* SslCtx, bool IsAccept) {
+    SSL* Ssl = NULL;
+    int Ret;
+    bool Res = false;
+    size_t InBufSize;
+    BIO* ReadBio, *WriteBio;
+    void* TempBuf = NULL;
+    _SockBufLock(SockBuf);
+    if(SockBuf->Stream.Cookie != &_SocketCookie) {
+        lq_errno_set(EINVAL);
+        goto lblErr;
+    }
+    if((Ssl = SSL_new((SSL_CTX*)SslCtx)) == NULL)
+        goto lblErr;
+    if(SSL_set_fd(Ssl, SockBuf->Conn.Fd) != 1)
+        goto lblErr;
+    /* Otherwise OpenSSL lib. generate SSLerr(SSL_F_SSL3_WRITE_PENDING, SSL_R_BAD_WRITE_RETRY); */
+    SSL_set_mode(Ssl, SSL_get_mode(Ssl) | SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+    InBufSize = 0;
+    LqFbuf_sizes(&SockBuf->Stream, NULL, &InBufSize);
+    if(InBufSize > ((size_t)0)) {
+        /* If have handshake data in internall buffer */
+        TempBuf = LqMemAlloc(InBufSize);
+        if(TempBuf == NULL)
+            goto lblErr;
+        LqFbuf_read(&SockBuf->Stream, TempBuf, InBufSize);
+        ReadBio = BIO_new_mem_buf(TempBuf, InBufSize);
+        WriteBio = BIO_new_socket(SockBuf->Conn.Fd, 0);
+        SSL_set_bio(Ssl, ReadBio, WriteBio);
+        SSL_accept(Ssl);
+        SSL_set_fd(Ssl, SockBuf->Conn.Fd);
+        LqMemFree(TempBuf);
+    }
+    if((Ret = ((IsAccept) ? SSL_accept(Ssl) : SSL_connect(Ssl))) <= 0) {
+        switch(SSL_get_error(Ssl, Ret)) {
+            case SSL_ERROR_WANT_READ: break;
+            case SSL_ERROR_WANT_WRITE: break;
+            default: goto lblErr;
+        }
+    }
+    SockBuf->Stream.UserData = Ssl;
+    SockBuf->Stream.Cookie = &_SslCookie;
+    _SockBufUnlock(SockBuf);
+    return true;
+lblErr:
+    if(Ssl != NULL)
+        SSL_free(Ssl);
+    _SockBufUnlock(SockBuf);
+    return false;
+}
+
+LQ_EXTERN_C bool LQ_CALL LqSockBufEndSslSession(LqSockBuf* SockBuf) {
+    bool Res = false;
+    _SockBufLock(SockBuf);
+    if(SockBuf->Stream.Cookie != &_SslCookie) {
+        lq_errno_set(EINVAL);
+        goto lblErr;
+    }
+    SSL_shutdown((SSL*)SockBuf->Stream.UserData);
+    SSL_free((SSL*)SockBuf->Stream.UserData);
+    SockBuf->Stream.UserData = (void*)SockBuf->Conn.Fd;
+    SockBuf->Stream.Cookie = &_SocketCookie;
+    Res = true;
+lblErr:
+    _SockBufUnlock(SockBuf);
+    return Res;
+}
+
 LQ_EXTERN_C size_t LQ_CALL LqSockBufEnum(void* WrkBoss, int(LQ_CALL*Proc)(void*, LqSockBuf*), void* UserData) {
     if(WrkBoss == NULL)
         WrkBoss = LqWrkBossGet();
@@ -1548,7 +1637,7 @@ static void LQ_CALL _LqSockBufRecvOrSendHandler(LqConn* Sock, LqEvntFlag RetFlag
     void* Dest1;
     LqFbuf* Fbuf;
     LqFileSz Sended;
-	LqFileSz Readed4;
+    LqFileSz Readed4;
     bool IsFound;
 
     _SockBufLock(SockBuf);
@@ -1683,7 +1772,7 @@ lblReadAgain:
                 }
                 break;
             case LQRCV_FLAG_RECV_IN_FBUF:
-				Readed4 = LqFbuf_transfer(((RcvElementFbuf*)RdElem)->DestStream, &SockBuf->Stream, ((RcvElementFbuf*)RdElem)->Size);
+                Readed4 = LqFbuf_transfer(((RcvElementFbuf*)RdElem)->DestStream, &SockBuf->Stream, ((RcvElementFbuf*)RdElem)->Size);
                 FbufFlags |= (SockBuf->Stream.Flags & (LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_ERROR | LQFBUF_READ_ERROR));
                 if(Readed4 > ((LqFileSz)0))
                     ((RcvElementFbuf*)RdElem)->Size -= Readed4;
@@ -1712,7 +1801,7 @@ lblReadAgain:
                 break;
             case LQRCV_FLAG_RECV_IN_FBUF_TO_SEQ:
                 IsFound = false;
-				Readed4 = LqFbuf_transfer_while_not_same(
+                Readed4 = LqFbuf_transfer_while_not_same(
                     ((RcvElementFbufToSeq*)RdElem)->DestStream,
                     &SockBuf->Stream,
                     ((RcvElementFbufToSeq*)RdElem)->Size,
@@ -2070,7 +2159,7 @@ LQ_EXTERN_C LqSockBuf* LQ_CALL LqSockAcceptorAccept(LqSockAcceptor* SockAcceptor
     LqSockBuf* Res = NULL;
     _SockAcceptorLock(SockAcceptor);
     if((Fd = accept(SockAcceptor->Conn.Fd, NULL, NULL)) != -1) {
-		LqConnSwitchNonBlock(Fd, true);
+        LqConnSwitchNonBlock(Fd, true);
         Res = LqSockBufCreate(Fd, UserData);
         if(Res == NULL) {
             closesocket(Fd);
@@ -2088,7 +2177,7 @@ LQ_EXTERN_C LqSockBuf* LQ_CALL LqSockAcceptorAcceptSsl(LqSockAcceptor* SockAccep
     LqSockBuf* Res = NULL;
     _SockAcceptorLock(SockAcceptor);
     if((Fd = accept(SockAcceptor->Conn.Fd, NULL, NULL)) != -1) {
-		LqConnSwitchNonBlock(Fd, true);
+        LqConnSwitchNonBlock(Fd, true);
         Res = LqSockBufCreateSsl(Fd, SslCtx, true, UserData);
         if(Res == NULL) {
             closesocket(Fd);

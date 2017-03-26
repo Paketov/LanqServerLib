@@ -83,13 +83,13 @@ typedef struct LqTblRow {
 #pragma pack(pop)
 
 #define LqTblRowInit(_Tbl) {\
-	(_Tbl)->Count = 0; (_Tbl)->MaxCount = 1; (_Tbl)->Tbl = (void**)LqMemMalloc(sizeof(void*)); (_Tbl)->Tbl[0] = NULL;\
+	(_Tbl)->Count = 0; (_Tbl)->MaxCount = 1; (_Tbl)->Tbl = (void**)LqMemAlloc(sizeof(void*)); (_Tbl)->Tbl[0] = NULL;\
 	(_Tbl)->IncCoef = 1.61803398874989484820; (_Tbl)->DecCoef = (_Tbl)->IncCoef + 0.1;\
 }
 
 #define LqTblRowRealloc(_Tbl, ___NewCount, _IndexByElem, _TypeElem, _Next) {\
 	size_t __NewCount = (size_t)(___NewCount);\
-	void** __NewArr = (void**)LqMemMalloc(__NewCount * sizeof(void*));\
+	void** __NewArr = (void**)LqMemAlloc(__NewCount * sizeof(void*));\
 	memset(__NewArr, 0, __NewCount * sizeof(void*));\
 	_TypeElem *_a, *_n;\
 	void **__Arr = (_Tbl)->Tbl, **__MaxArr = __Arr + (_Tbl)->MaxCount;\

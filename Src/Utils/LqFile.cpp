@@ -183,21 +183,21 @@ LQ_EXTERN_C int LQ_CALL LqFileOpen(const char *FileName, uint32_t Flags, int Acc
 
     _LqFileConvertNameToWcs(FileName, Name, LQ_MAX_PATH);
     if((
-		ResultHandle = CreateFileW(
-			Name,
-			(Flags & LQ_O_RDWR) ? (GENERIC_WRITE | GENERIC_READ) :
-			((Flags & LQ_O_WR) ? GENERIC_WRITE : GENERIC_READ),
-			(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE),
-			&InheritAttr,
-			LqFileOpenFlagsToCreateFileFlags(Flags),
-			FILE_ATTRIBUTE_NORMAL |
-			((Flags & LQ_O_RND) ? FILE_FLAG_RANDOM_ACCESS : 0) |
-			((Flags & LQ_O_SEQ) ? FILE_FLAG_SEQUENTIAL_SCAN : 0) |
-			((Flags & LQ_O_SHORT_LIVED /*_O_SHORT_LIVED*/) ? FILE_ATTRIBUTE_TEMPORARY : 0) |
-			((Flags & LQ_O_TMP) ? FILE_FLAG_DELETE_ON_CLOSE : 0) |
-			((Flags & LQ_O_DSYNC) ? FILE_FLAG_WRITE_THROUGH : 0) |
-			((Flags & LQ_O_NONBLOCK) ? FILE_FLAG_OVERLAPPED : 0),
-			NULL
+        ResultHandle = CreateFileW(
+            Name,
+            (Flags & LQ_O_RDWR) ? (GENERIC_WRITE | GENERIC_READ) :
+            ((Flags & LQ_O_WR) ? GENERIC_WRITE : GENERIC_READ),
+            (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE),
+            &InheritAttr,
+            LqFileOpenFlagsToCreateFileFlags(Flags),
+            FILE_ATTRIBUTE_NORMAL |
+            ((Flags & LQ_O_RND) ? FILE_FLAG_RANDOM_ACCESS : 0) |
+            ((Flags & LQ_O_SEQ) ? FILE_FLAG_SEQUENTIAL_SCAN : 0) |
+            ((Flags & LQ_O_SHORT_LIVED /*_O_SHORT_LIVED*/) ? FILE_ATTRIBUTE_TEMPORARY : 0) |
+            ((Flags & LQ_O_TMP) ? FILE_FLAG_DELETE_ON_CLOSE : 0) |
+            ((Flags & LQ_O_DSYNC) ? FILE_FLAG_WRITE_THROUGH : 0) |
+            ((Flags & LQ_O_NONBLOCK) ? FILE_FLAG_OVERLAPPED : 0),
+            NULL
         )
        ) == INVALID_HANDLE_VALUE)
         return -1;

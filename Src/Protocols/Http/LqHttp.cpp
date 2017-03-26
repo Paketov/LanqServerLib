@@ -263,7 +263,7 @@ static LqHttpMultipartHdrs* _LqHttpMultipartHdrsRead(LqSockBuf* HttpConn, const 
     LqFbuf_snprintf(Buf, sizeof(Buf) - 1, "%%?*{\r\n}--%s%%*{\r\n}", Boundary);
     LqSockBufScanf(HttpConn, 0, Buf);
 
-    CurPos = (char*)LqMemMalloc((End - Start) + sizeof(LqHttpMultipartHdrs) + 20);
+    CurPos = (char*)LqMemAlloc((End - Start) + sizeof(LqHttpMultipartHdrs) + 20);
 
     Res = (LqHttpMultipartHdrs*)CurPos;
     memset(Res, 0, sizeof(LqHttpMultipartHdrs));
@@ -611,7 +611,7 @@ static void LQ_CALL _LqHttpConnRcvHdrProc(LqSockBuf* SockBuf, void* UserData) {
         goto lblOut;
     }
     LenBuffer = LenHdr + (sizeof(LqHttpRcvHdrs) + 4);
-    Buffer2 = CurPos = (char*)LqMemMalloc(LenBuffer);
+    Buffer2 = CurPos = (char*)LqMemAlloc(LenBuffer);
     if(CurPos == NULL) {
         LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
         HttpConnData->Flags |= LQHTTPCONN_FLAG_CLOSE;
@@ -1954,7 +1954,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpConnRcvFileAboveBoundary(
         goto lblErr;
     }   
     BndrLen = LqStrLen(Boundary);
-    if((FullSeq = (char*)LqMemMalloc(BndrLen + 20)) == NULL) {
+    if((FullSeq = (char*)LqMemAlloc(BndrLen + 20)) == NULL) {
         LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
         lq_errno_set(ENOMEM);
         goto lblErr;
@@ -2061,7 +2061,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpConnRcvFbufAboveBoundary(
         goto lblErr;
     }
     BndrLen = LqStrLen(Boundary);
-    if((FullSeq = (char*)LqMemMalloc(BndrLen + 20)) == NULL) {
+    if((FullSeq = (char*)LqMemAlloc(BndrLen + 20)) == NULL) {
         LqLogErr("LqHttp: Src %s:%i; not alloc mem", __FILE__, __LINE__);
         lq_errno_set(ENOMEM);
         goto lblErr;

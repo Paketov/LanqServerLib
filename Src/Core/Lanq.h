@@ -47,19 +47,14 @@ typedef struct LqProto LqProto;
 #define _LQEVNT_FLAG_NOW_EXEC                   ((LqEvntFlag)256)        /*Exec by handles*/
 #define _LQEVNT_FLAG_CONN                       ((LqEvntFlag)512)        /*Use for check is connection*/
 
-
-
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
-
 
 #define LQ_CONN_COMMON_EVNT_HDR                         \
     LqEvntFlag          Flag;                           \
 	uint16_t			Lk;								\
     int                 Fd;      /*Sock descriptor*/	\
 	void*		        WrkOwner;
-
-
 
 struct LqClientHdr {
     LQ_CONN_COMMON_EVNT_HDR;
@@ -139,7 +134,6 @@ struct LqProto {
     char* (LQ_CALL *DebugInfoProc)(LqConn* Conn);
 
 };
-
 
 #pragma pack(pop)
 

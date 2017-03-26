@@ -55,7 +55,7 @@ class LqPtdTbl {
 
     static Arr* AllocNew(size_t Count) {
         Arr* Res;
-        if(Res = (Arr*)LqMemMalloc(Count * sizeof(TypeLine) + (sizeof(Arr) - sizeof(TypeLine)))) {
+        if(Res = (Arr*)LqMemAlloc(Count * sizeof(TypeLine) + (sizeof(Arr) - sizeof(TypeLine)))) {
             for(auto* i = Res->Line, *m = i + Count; i < m; i++)
                 i->Start = NullIndex;
             Res->Count = Count;

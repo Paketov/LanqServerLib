@@ -155,7 +155,7 @@ typedef uint16_t LqFbufFlag;
 
 /* Type of stream */
 #define LQFBUF_POINTER           ((LqFbufFlag)0x0100) /* Virtual read-only stream (The stream exists only in RAM). When using LqFbuf_copy 
-														only a pointer to this stream is copied, the pointer count increases */
+                                                        only a pointer to this stream is copied, the pointer count increases */
 #define LQFBUF_STREAM            ((LqFbufFlag)0x0200) /* Virtual pipe (The stream exists only in RAM). You can write in one side and read in other side */
 
 /* Used when call LqFbuf_vscanf, LqFbuf_scanf  */
@@ -181,12 +181,12 @@ typedef struct LqFbuf {
         LqSbufPtr BufPtr;
     };
 
-    void* UserData;		   /* Can be changed by user */
-    LqFbufFlag Flags;	   /* Read/write flags, ex: LQFBUF_WRITE_ERROR, LQFBUF_READ_WOULD_BLOCK ... . Can be readed by user */
+    void* UserData;        /* Can be changed by user */
+    LqFbufFlag Flags;      /* Read/write flags, ex: LQFBUF_WRITE_ERROR, LQFBUF_READ_WOULD_BLOCK ... . Can be readed by user */
     
 
-    intptr_t MinFlush;	   /* When this volume is reached, a flushing. Can be changed by user */
-    intptr_t MaxFlush;	   /* When this volume is reached, it must necessarily be flushing. Can be changed by user */
+    intptr_t MinFlush;     /* When this volume is reached, a flushing. Can be changed by user */
+    intptr_t MaxFlush;     /* When this volume is reached, it must necessarily be flushing. Can be changed by user */
     intptr_t PortionSize;  /* The amount of data requested for reading. Can be changed by user */
 
     LqFbufCookie* Cookie;  /* Can be readed by user */
@@ -199,7 +199,7 @@ typedef struct LqFbuf {
 struct LqFbufCookie {
     intptr_t(LQ_CALL *ReadProc)(LqFbuf*, char*, size_t);
     intptr_t(LQ_CALL *WriteProc)(LqFbuf*, char*, size_t);
-    intptr_t(LQ_CALL *SeekProc)(LqFbuf*, int64_t Offset, int Flags);
+    int64_t(LQ_CALL *SeekProc)(LqFbuf*, int64_t Offset, int Flags);
     bool(LQ_CALL *CopyProc)(LqFbuf*Dest, LqFbuf*Source);
     intptr_t(LQ_CALL *CloseProc)(LqFbuf*);
 };
@@ -236,18 +236,30 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_open(
 );
 
 /*
-	Create null stream. This is analog /dev/null, but without call kernell
+    Create null stream. This is analog /dev/null, but without call kernell write/read
 */
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_null(LqFbuf* lqaout lqats Context);
 /* 
-	Create virtual pipe (The stream exists only in RAM). You can write in one side and read in other side 
+    Create virtual pipe (The stream exists only in RAM). You can write in one side and read in other side 
 */
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_stream(LqFbuf* lqaout lqats Context);
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_close(LqFbuf* lqain lqats Context);
 
-LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_seek(LqFbuf* lqaio lqats Context, int64_t Offset, int Flags);
+/*
+	Move the pointer to another area of the file or virt. file
+		@Context - Target file buffer
+		@Offset - Offset in file
+		@Flags - Must be LQ_SEEK_CUR/LQ_SEEK_SET/LQ_SEEK_END
+		@return - New offset from the beginning of the file
+*/
+LQ_IMPORTEXPORT int64_t LQ_CALL LqFbuf_seek(LqFbuf* lqaio lqats Context, int64_t Offset, int Flags);
 
+/*
+	 Return offset from the beginning of the file
+		@Context - Target file buffer
+*/
+LQ_IMPORTEXPORT int64_t LQ_CALL LqFbuf_tell(LqFbuf* lqaio lqats Context);
 //////////////////
 
 /*
@@ -313,41 +325,41 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_puts(LqFbuf* lqaio lqats Context, const 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_write(LqFbuf* lqaio lqats Context, const void* lqain Buf, size_t Size);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_putsn(LqFbuf* lqaio lqats Context, const char* lqain lqacp Val, size_t Len);
 /*
-	LqFbuf_sizes
-	Get current sizes internall buffers
-		@Context - Target file stream
-		@OutBuf - size output buffer
-		@InBuf - size input buffer
+    LqFbuf_sizes
+    Get current sizes internall buffers
+        @Context - Target file stream
+        @OutBuf - size output buffer
+        @InBuf - size input buffer
 */
 LQ_IMPORTEXPORT size_t LQ_CALL LqFbuf_sizes(const LqFbuf* lqain Context, size_t* lqaopt lqaout OutBuf, size_t* lqaopt lqaout InBuf);
 
 LQ_IMPORTEXPORT bool LQ_CALL LqFbuf_eof(LqFbuf* lqaio lqats Context);
 
 /*
-	Make a pointer to the virtual stream from the file stream.
-	Only the intermediate buffer is saved.
-	From the input or output buffer - selected by the largest size
-	if @DestSource already a pointer, then only reset position pointer on start.
-	Example1:
-		char Buf[1024];
-		LqFbuf Stream, Stream2;
-		LqFbuf_stream(&Stream);
-		LqFbuf_printf(&Stream, "Hello world");
-		LqFbuf_make_ptr(&Stream);
-		LqFbuf_copy(&Stream2, &Stream);  //When copy cookie proc CopyProc is called.
-		LqFbuf_read(&Stream, Buf, 1024); //Readed "Hello world" from shared reagion
-		LqFbuf_read(&Stream2, Buf, 1024); //Readed "Hello world" from shared reagion
-		LqFbuf_make_ptr(&Stream);         //Reset pointer on begin stream.
-		LqFbuf_close(&Stream);
-		LqFbuf_close(&Stream2); //Here shared stream is deleted
-	Example2:
-		char Buf[1024];
-		LqFbuf Stream;
-		LqFbuf_open(&Stream, "/usr/me/data.bin", LQ_O_RD | LQ_O_BIN | LQ_O_SEQ, 0, 10, 4096, 128);
-		LqFbuf_peek(&Stream, NULL, 1024); //Load 1024 bytes from file in RAM buffer
-		LqFbuf_make_ptr(&Stream);         //We leave the internal buffer, close the file and make ptr on this internal buffer.
-		LqFbuf_read(&Stream, Buf, 123); //Read in Buf 123 bytes
-		LqFbuf_close(&Stream); //Here shared stream is deleted
+    Make a pointer to the virtual stream from the file stream.
+    Only the intermediate buffer is saved.
+    From the input or output buffer - selected by the largest size
+    if @DestSource already a pointer, then only reset position pointer on start.
+    Example1:
+        char Buf[1024];
+        LqFbuf Stream, Stream2;
+        LqFbuf_stream(&Stream);
+        LqFbuf_printf(&Stream, "Hello world");
+        LqFbuf_make_ptr(&Stream);
+        LqFbuf_copy(&Stream2, &Stream);  //When copy cookie proc CopyProc is called.
+        LqFbuf_read(&Stream, Buf, 1024); //Readed "Hello world" from shared reagion
+        LqFbuf_read(&Stream2, Buf, 1024); //Readed "Hello world" from shared reagion
+        LqFbuf_make_ptr(&Stream);         //Reset pointer on begin stream.
+        LqFbuf_close(&Stream);
+        LqFbuf_close(&Stream2); //Here shared stream is deleted
+    Example2:
+        char Buf[1024];
+        LqFbuf Stream;
+        LqFbuf_open(&Stream, "/usr/me/data.bin", LQ_O_RD | LQ_O_BIN | LQ_O_SEQ, 0, 10, 4096, 128);
+        LqFbuf_peek(&Stream, NULL, 1024); //Load 1024 bytes from file in RAM buffer
+        LqFbuf_make_ptr(&Stream);         //We leave the internal buffer, close the file and make ptr on this internal buffer.
+        LqFbuf_read(&Stream, Buf, 123); //Read in Buf 123 bytes
+        LqFbuf_close(&Stream); //Here shared stream is deleted
 */
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_make_ptr(LqFbuf* lqaio lqats DestSource);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_copy(LqFbuf* lqats lqaout Dest, LqFbuf* lqain lqats Source);
@@ -358,27 +370,27 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_set_ptr_cookie(LqFbuf* lqats lqaout Dest
 /*LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_set_ptr_fd(LqFbuf* lqats lqaio Dest, int Fd); */
 
 /*
-	Transferring data directly to another stream.
-	It's faster than stupid double copying.
-		@Dest - Dest stream
-		@Source - Source stream
-		@Size - Maximum transfer length
-		@return - Length transferred
+    Transferring data directly to another stream.
+    It's faster than stupid double copying.
+        @Dest - Dest stream
+        @Source - Source stream
+        @Size - Maximum transfer length
+        @return - Length transferred
 */
 LQ_IMPORTEXPORT LqFileSz LQ_CALL LqFbuf_transfer(LqFbuf* lqats lqaio Dest, LqFbuf* lqats lqaio Source, LqFileSz Size); /* Transfer transfer data from pointer/file in to another file (Without double buffering)*/
 
 
 /*
-	Transferring data directly to another stream, before the user-defined sequence.
-	It's faster than stupid double copying.
-		@Dest - Dest stream
-		@Source - Source stream
-		@Size - Maximum transfer length
-		@Seq - A user-declared sequence, in which the transmission ends
-		@SeqSize - Size of serched seq.
-		@IsCaseIndependet - For different letter sizes(only for english letters)
-		@IsFound - Return true, if @seq founded
-		@return - Length transferred
+    Transferring data directly to another stream, before the user-defined sequence.
+    It's faster than stupid double copying.
+        @Dest - Dest stream
+        @Source - Source stream
+        @Size - Maximum transfer length
+        @Seq - A user-declared sequence, in which the transmission ends
+        @SeqSize - Size of serched seq.
+        @IsCaseIndependet - Is used different sequence letter sizes(only for english letters)
+        @IsFound - Return true, if @seq founded
+        @return - Length transferred
 */
 LQ_IMPORTEXPORT LqFileSz LQ_CALL LqFbuf_transfer_while_not_same(
     LqFbuf* lqats lqaio Dest, 

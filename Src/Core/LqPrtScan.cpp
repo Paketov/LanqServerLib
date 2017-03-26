@@ -99,8 +99,7 @@ LQ_EXTERN_CPP bool LQ_CALL LqPrtScanDo(LqConnAddr* Addr, std::vector<std::pair<u
     LqProtoInit(&Proto.Proto);
     Proto.Proto.Handler = ConnScanHandler;
     Proto.Proto.CloseHandler = EndProc;
-    Proto.WaitEvent = LqEventCreate(LQ_O_NOINHERIT);
-    if(Proto.WaitEvent == -1)
+    if((Proto.WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
         return -1;
     Proto.CountConn = 0;
     for(auto& i : PortRanges) {
