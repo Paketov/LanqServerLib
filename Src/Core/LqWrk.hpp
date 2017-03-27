@@ -47,8 +47,9 @@ class LQ_IMPORTEXPORT LqWrk: public LqThreadBase {
     /* GetCount waiting connections */
     LqAtomic<size_t>                                    CountConnectionsInQueue;
 
-    LqQueueCmd<uchar>                                   EvntFdQueue;
-    LqQueueCmd<uchar>                                   CommandQueue;
+    LqQueueCmd<uint8_t>                                 EvntFdQueue;
+    LqQueueCmd<uint8_t>                                 CommandQueue;
+	LqQueueCmd<uint8_t>::Interator                      CurrentCmdInterator;
     LqSysPoll                                           EventChecker;
     LqEvntFd                                            NotifyEvent;
     intptr_t                                            DeepLoop;

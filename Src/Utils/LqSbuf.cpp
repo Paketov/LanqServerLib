@@ -20,9 +20,6 @@
 #include <math.h>
 #endif
 
-#define __METHOD_DECLS__
-#include "LqAlloc.hpp"
-
 
 #define LQFRWBUF_FAST_LOCK_INIT(Var)    LqAtmLkInit(Var)
 #define LQFRWBUF_FAST_LOCK(Var)         LqAtmLkWr(Var)
@@ -331,10 +328,19 @@ zreturn:
 #define memcpy cust_memcpy
 #endif
 
+#pragma pack(push)
+#pragma pack(LQSTRUCT_ALIGN_MEM)
+
+template<size_t LenPage>
+struct __LqPageSize {
+    uint8_t v[LenPage]; 
+};
+
+#pragma pack(pop)
+
 template<size_t LenPage>
 static PageHeader* LqSbufCreatePage(LqSbuf* StreamBuf) {
-    typedef struct PageSize { uint8_t v[LenPage]; }PageSize;
-    auto NewPage = LqFastAlloc::New<PageSize>();
+    auto NewPage = LqFastAlloc::New<__LqPageSize<LenPage>>();
     if(NewPage == nullptr)
         return nullptr;
     PageHeader* Hdr = (PageHeader*)NewPage;
@@ -346,7 +352,7 @@ static PageHeader* LqSbufCreatePage(LqSbuf* StreamBuf) {
     }
     Hdr->NextPage = nullptr;
     Hdr->EndOffset = Hdr->StartOffset = ((size_t)0);
-    Hdr->SizePage = sizeof(PageSize) - sizeof(PageHeader);
+    Hdr->SizePage = sizeof(__LqPageSize<LenPage>) - sizeof(PageHeader);
     return Hdr;
 }
 
@@ -362,12 +368,11 @@ static PageHeader* LqSbufCreatePage(LqSbuf* StreamBuf, intptr_t Size) {
 
 template<size_t LenPage>
 static void LqSbufRemovePage(LqSbuf* StreamBuf) {
-    struct PageSize { uint8_t v[LenPage]; };
     PageHeader* Hdr = (PageHeader*)StreamBuf->Page0;
     StreamBuf->Page0 = Hdr->NextPage;
     if(StreamBuf->Page0 == nullptr)
         StreamBuf->PageN = nullptr;
-    LqFastAlloc::Delete<PageSize>((PageSize*)Hdr);
+    LqFastAlloc::Delete<__LqPageSize<LenPage>>((__LqPageSize<LenPage>*)Hdr);
 }
 
 static void LqSbufRemoveLastPage(LqSbuf* StreamBuf) {
@@ -3499,3 +3504,8 @@ LQ_EXTERN_C intptr_t LQ_CALL LqStrFromDouble(char* Dest, double Source, unsigned
     char * ResOff = _DoubleToString(Source, Dest, Radix, 0.00000000000000001, _DTOS_SCALE_EPS | _DTOS_PRINT_EXP_AUTO, '.', 30);
     return ResOff - Dest;
 }
+
+
+
+#define __METHOD_DECLS__
+#include "LqAlloc.hpp"

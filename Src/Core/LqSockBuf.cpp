@@ -1543,6 +1543,7 @@ LQ_EXTERN_C void* LQ_CALL LqSockBufGetSsl(LqSockBuf* SockBuf) {
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufBeginSslSession(LqSockBuf* SockBuf, void* SslCtx, bool IsAccept) {
+#if defined(HAVE_OPENSSL) 
     SSL* Ssl = NULL;
     int Ret;
     bool Res = false;
@@ -1591,9 +1592,14 @@ lblErr:
         SSL_free(Ssl);
     _SockBufUnlock(SockBuf);
     return false;
+#else
+    lq_errno_set(ENOSYS);
+    return false;
+#endif
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSockBufEndSslSession(LqSockBuf* SockBuf) {
+#if defined(HAVE_OPENSSL) 
     bool Res = false;
     _SockBufLock(SockBuf);
     if(SockBuf->Stream.Cookie != &_SslCookie) {
@@ -1608,6 +1614,10 @@ LQ_EXTERN_C bool LQ_CALL LqSockBufEndSslSession(LqSockBuf* SockBuf) {
 lblErr:
     _SockBufUnlock(SockBuf);
     return Res;
+#else
+    lq_errno_set(ENOSYS);
+    return false;
+#endif
 }
 
 LQ_EXTERN_C size_t LQ_CALL LqSockBufEnum(void* WrkBoss, int(LQ_CALL*Proc)(void*, LqSockBuf*), void* UserData) {

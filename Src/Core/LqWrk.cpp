@@ -301,7 +301,7 @@ typedef struct LqWrkAsyncCallFin {
     ~LqWrkAsyncCallFin() {
         uintptr_t MdlHandle = EventFin(UsrData, UsrDataSize);
         if(MdlHandle) {
-            LqLibFreeSave(MdlHandle);
+            LqLibFreeSafe(MdlHandle);
         }
         if(UsrData != NULL)
             LqMemFree(UsrData);
@@ -355,7 +355,7 @@ typedef struct LqWrkAsyncCallFin11 {
     ~LqWrkAsyncCallFin11() {
         if(uintptr_t MdlHandle = FinFunc()) {
             FinFunc = nullptr;
-            LqLibFreeSave(MdlHandle);
+            LqLibFreeSafe(MdlHandle);
         }
     }
 } LqWrkAsyncCallFin11;
@@ -497,7 +497,20 @@ size_t LqWrkBoss::_TransferAllClients(LqWrk* Source, bool ByThisBoss) {
 #ifdef LQWRK_ENABLE_RW_HNDL_PROTECT
     const LqEvntFlag NowExec = Source->IsThisThread() ? ((LqEvntFlag)0) : _LQEVNT_FLAG_NOW_EXEC;
 #endif
-    Source->Lock();
+    do {
+        Source->Lock();
+        if(Source->EvntFdQueue.IsHaveCmds() || Source->CommandQueue.IsHaveCmds() || (Source->IsThisThread() && ((bool)Source->CurrentCmdInterator))) {
+            Source->Unlock();
+            if(Source->IsThisThread()) {
+                Source->CommandQueue.InsertBegin(Source->CurrentCmdInterator);
+                Source->ParseInputCommands();
+            }
+            LqThreadYield();
+        } else {
+            break;
+        }
+    } while(true);
+
     NotifyEvntHdr = (LqClientHdr*)&Source->NotifyEvent;
     LqWrkEnumEvntNoLkDo(Source, i) {
         if((Hdr = LqSysPollGetHdrByInterator(&Source->EventChecker, &i)) == NotifyEvntHdr)
@@ -527,7 +540,7 @@ size_t LqWrkBoss::_TransferAllClients(LqWrk* Source, bool ByThisBoss) {
                 Res++;
             } else {
                 LqWrkUnsetWrkOwner(Hdr);
-                RmHdrs = (LqClientHdr**)LqMemRealloc(RmHdrs, RmHdrsSize + 1);
+                RmHdrs = (LqClientHdr**)LqMemRealloc(RmHdrs, (RmHdrsSize + 1) * sizeof(RmHdrs[0]));
                 RmHdrs[RmHdrsSize] = Hdr;
                 RmHdrsSize++;
                 LqLogErr("LqWrkBoss::TransferAllClients() not adding event to list\n");
@@ -535,32 +548,6 @@ size_t LqWrkBoss::_TransferAllClients(LqWrk* Source, bool ByThisBoss) {
         }
 lblContinue:;
     }LqWrkEnumEvntNoLkWhile(Source);
-
-    for(auto Command = Source->EvntFdQueue.Fork(); Command;) {
-        Hdr = Command.Val<LqClientHdr*>();
-        Command.Pop<LqClientHdr*>();
-        Source->CountConnectionsInQueue--;
-        WrkArray::interator LocWrks = Wrks.begin();
-        Min = INTPTR_MAX;
-        Index = -((intptr_t)1);
-        for(intptr_t i = ((intptr_t)0), m = LocWrks.size(); i < m; i++) {
-            if(LocWrks[i] == Source)
-                continue;
-            Busy = LocWrks[i]->GetAssessmentBusy();
-            if(Busy < Min)
-                Min = Busy, Index = i;
-        }
-
-        if((ByThisBoss || !(LqClientGetFlags(Hdr) & _LQEVNT_FLAG_ONLY_ONE_BOSS)) && (Index != -((intptr_t)1)) && LocWrks[Index]->AddClientAsync(Hdr)) {
-            Res++;
-        } else {
-            LqWrkUnsetWrkOwner(Hdr);
-            RmHdrs = (LqClientHdr**)LqMemRealloc(RmHdrs, RmHdrsSize + 1);
-            RmHdrs[RmHdrsSize] = Hdr;
-            RmHdrsSize++;
-            LqLogErr("LqWrkBoss::TransferAllClients() not adding event to list\n");
-        }
-    }
     Source->Unlock();
     if(RmHdrs != NULL) {
         for(intptr_t i = ((intptr_t)0); i < RmHdrsSize; i++) {
@@ -588,38 +575,45 @@ void LqWrk::ParseInputCommands() {
     /*
     * Recive async command loop.
     */
-    LqClientHdr** RmHdrs = NULL;
-    size_t RmHdrsSize = 0;
-    Lock();
-    for(auto Command = EvntFdQueue.Fork(); Command;) {
-        LqClientHdr* Hdr = Command.Val<LqClientHdr*>();
-        Command.Pop<LqClientHdr*>();
-        CountConnectionsInQueue--;
-        if(LqClientGetFlags(Hdr) & LQEVNT_FLAG_END) {
-            RmHdrs = (LqClientHdr**)LqMemRealloc(RmHdrs, RmHdrsSize + 1);
-            RmHdrs[RmHdrsSize] = Hdr;
-            RmHdrsSize++;
-        } else {
-            LqLogInfo("LqWrk::AddEvnt()#%llu event {%i, %llx} recived\n", Id, Hdr->Fd, (ullong)Hdr->Flag);
-            LqSysPollAddHdr(&EventChecker, Hdr);
+    
+    {
+        auto Command = EvntFdQueue.Fork();
+        if(Command) {
+            size_t RmHdrsSize = 0;
+            LqClientHdr** RmHdrs = NULL;
+            Lock();
+            do {
+                LqClientHdr* Hdr = Command.Val<LqClientHdr*>();
+                Command.Pop<LqClientHdr*>();
+                CountConnectionsInQueue--;
+                if(LqClientGetFlags(Hdr) & LQEVNT_FLAG_END) {
+                    RmHdrs = (LqClientHdr**)LqMemRealloc(RmHdrs, (RmHdrsSize + 1) * sizeof(RmHdrs[0]));
+                    RmHdrs[RmHdrsSize] = Hdr;
+                    RmHdrsSize++;
+                } else {
+                    LqLogInfo("LqWrk::AddEvnt()#%llu event {%i, %llx} recived\n", Id, Hdr->Fd, (ullong)Hdr->Flag);
+                    LqSysPollAddHdr(&EventChecker, Hdr);
+                }
+            } while(Command);
+            Unlock();
+            if(RmHdrs != NULL) {
+                for(size_t i = 0; i < RmHdrsSize; i++) {
+                    LqWrkUnsetWrkOwner(RmHdrs[i]);
+                    LqClientCallCloseHandler(RmHdrs[i]);
+                }
+                LqMemFree(RmHdrs);
+            }
         }
     }
-    Unlock();
-    if(RmHdrs != NULL) {
-        for(size_t i = 0; i < RmHdrsSize; i++) {
-            LqWrkUnsetWrkOwner(RmHdrs[i]);
-            LqClientCallCloseHandler(RmHdrs[i]);
-        }
-        LqMemFree(RmHdrs);
-    }
-    for(auto Command = CommandQueue.Fork(); Command;) {
-        switch(Command.Type) {
+
+    for(CurrentCmdInterator = CommandQueue.Fork(); CurrentCmdInterator;) {
+        switch(CurrentCmdInterator.Type) {
             case LQWRK_CMD_RM_CONN_ON_TIME_OUT:{
                 /*
                 * Remove zombie connections by time val.
                 */
-                auto TimeLiveMilliseconds = Command.Val<LqTimeMillisec>();
-                Command.Pop<LqTimeMillisec>();
+                auto TimeLiveMilliseconds = CurrentCmdInterator.Val<LqTimeMillisec>();
+                CurrentCmdInterator.Pop<LqTimeMillisec>();
                 auto CurTime = LqTimeGetLocMillisec();
                 LqWrkEnumEvntOwnerDo(this, i) {
                     auto Evnt = LqSysPollGetHdrByInterator(&EventChecker, &i);
@@ -633,9 +627,9 @@ void LqWrk::ParseInputCommands() {
             }
             break;
             case LQWRK_CMD_RM_CONN_ON_TIME_OUT_PROTO:{
-                auto TimeLiveMilliseconds = Command.Val<LqWrkCmdCloseByTimeout>().TimeLive;
-                auto Proto = Command.Val<LqWrkCmdCloseByTimeout>().Proto;
-                Command.Pop<LqWrkCmdCloseByTimeout>();
+                auto TimeLiveMilliseconds = CurrentCmdInterator.Val<LqWrkCmdCloseByTimeout>().TimeLive;
+                auto Proto = CurrentCmdInterator.Val<LqWrkCmdCloseByTimeout>().Proto;
+                CurrentCmdInterator.Pop<LqWrkCmdCloseByTimeout>();
 
                 auto CurTime = LqTimeGetLocMillisec();
                 LqWrkEnumEvntOwnerDo(this, i) {
@@ -653,15 +647,16 @@ void LqWrk::ParseInputCommands() {
                 /*
                 Call procedure for wait event.
                 */
-                Command.Val<LqWrkCmdWaitEvnt>().EventAct(Command.Val<LqWrkCmdWaitEvnt>().UserData);
-                Command.Pop<LqWrkCmdWaitEvnt>();
+                LqWrkCmdWaitEvnt Tmp = CurrentCmdInterator.Val<LqWrkCmdWaitEvnt>();
+                CurrentCmdInterator.Pop<LqWrkCmdWaitEvnt>();
+                Tmp.EventAct(Tmp.UserData);
             }
             break;
             case LQWRK_CMD_CLOSE_ALL_CONN:{
                 /*
                 Close all waiting connections.
                 */
-                Command.Pop();
+                CurrentCmdInterator.Pop();
                 LqWrkEnumEvntOwnerDo(this, i) {
                     auto Evnt = LqSysPollRemoveByInterator(&EventChecker, &i);
                     LqWrkUnsetWrkOwner(Evnt);
@@ -670,13 +665,14 @@ void LqWrk::ParseInputCommands() {
             }
             break;
             case LQWRK_CMD_RM_CONN_BY_IP:{
-                CloseClientsByIpSync(&Command.Val<LqConnAddr>().Addr);
-                Command.Pop<LqConnAddr>();
+                LqConnAddr TmpVal = CurrentCmdInterator.Val<LqConnAddr>();
+                CurrentCmdInterator.Pop<LqConnAddr>();
+                CloseClientsByIpSync(&TmpVal.Addr);
             }
             break;
             case LQWRK_CMD_CLOSE_CONN_BY_PROTO:{
-                auto Proto = Command.Val<const LqProto*>();
-                Command.Pop<const LqProto*>();
+                auto Proto = CurrentCmdInterator.Val<const LqProto*>();
+                CurrentCmdInterator.Pop<const LqProto*>();
                 LqWrkEnumEvntOwnerDo(this, i) {
                     auto Evnt = LqSysPollGetHdrByInterator(&EventChecker, &i);
                     if(LqClientIsConn(Evnt) && (((LqConn*)Evnt)->Proto == Proto)) {
@@ -689,6 +685,7 @@ void LqWrk::ParseInputCommands() {
             }
             break;
             case LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD:{
+                auto Command = CurrentCmdInterator.DeattachLast();
                 auto AsyncEvnt = &Command.Val<LqWrkAsyncEventForAllFd>();
                 auto CurTime = LqTimeGetLocMillisec();
                 LqWrkEnumEvntOwnerDo(this, i) {
@@ -709,6 +706,7 @@ void LqWrk::ParseInputCommands() {
             }
             break;
             case LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN:{
+                auto Command = CurrentCmdInterator.DeattachLast();
                 auto AsyncEvnt = &Command.Val<LqWrkAsyncEventForAllFdAndCallFin>();
                 if(AsyncEvnt->EventAct != NULL) {
                     auto CurTime = LqTimeGetLocMillisec();
@@ -731,6 +729,7 @@ void LqWrk::ParseInputCommands() {
             }
             break;
             case LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11: {
+                auto Command = CurrentCmdInterator.DeattachLast();
                 auto AsyncEvnt = &Command.Val<LqWrkAsyncEventForAllFdAndCallFin11>();
                 LqWrkPtr ThisWrk = this;
                 if(AsyncEvnt->EventAct != nullptr) {
@@ -755,6 +754,7 @@ void LqWrk::ParseInputCommands() {
             }
             break;
             case LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD11: {
+                auto Command = CurrentCmdInterator.DeattachLast();
                 auto AsyncEvnt = &Command.Val<LqWrkAsyncEventForAllFd11>();
                 LqWrkPtr ThisWrk = this;
                 if(AsyncEvnt->EventAct != nullptr) {
@@ -782,9 +782,11 @@ void LqWrk::ParseInputCommands() {
                 /*
                 Is command unknown.
                 */
-                Command.JustPop();
+                CurrentCmdInterator.JustPop();
         }
     }
+
+
 }
 
 void LqWrk::ClearQueueCommands() {
@@ -884,7 +886,7 @@ void LqWrk::BeginThread() {
 }
 
 bool LqWrk::RemoveClientsOnTimeOutAsync(LqTimeMillisec TimeLiveMilliseconds) {
-    if(!CommandQueue.PushBegin(LQWRK_CMD_RM_CONN_ON_TIME_OUT, TimeLiveMilliseconds))
+    if(!CommandQueue.PushBegin<LqTimeMillisec>(LQWRK_CMD_RM_CONN_ON_TIME_OUT, TimeLiveMilliseconds))
         return false;
     NotifyThread();
     return true;
@@ -923,7 +925,7 @@ lblContinue:;
 }
 
 bool LqWrk::RemoveClientsOnTimeOutAsync(const LqProto* Proto, LqTimeMillisec TimeLiveMilliseconds) {
-    if(!CommandQueue.PushBegin<LqWrkCmdCloseByTimeout>(LQWRK_CMD_RM_CONN_ON_TIME_OUT_PROTO, LqWrkCmdCloseByTimeout(Proto, TimeLiveMilliseconds)))
+    if(!CommandQueue.PushBegin<LqWrkCmdCloseByTimeout>(LQWRK_CMD_RM_CONN_ON_TIME_OUT_PROTO, Proto, TimeLiveMilliseconds))
         return false;
     NotifyThread();
     return true;
@@ -1059,7 +1061,7 @@ int LqWrk::UpdateAllClientFlagSync() {
 }
 
 bool LqWrk::AsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData) {
-    if(!CommandQueue.PushBegin<LqWrkCmdWaitEvnt>(LQWRK_CMD_WAIT_EVENT, LqWrkCmdWaitEvnt(AsyncProc, UserData)))
+    if(!CommandQueue.Push<LqWrkCmdWaitEvnt>(LQWRK_CMD_WAIT_EVENT, AsyncProc, UserData))
         return false;
     NotifyThread();
     return true;
@@ -1177,7 +1179,7 @@ bool LqWrk::CloseClientsByIpAsync(const sockaddr* Addr) {
         {
             LqConnAddr s;
             s.AddrInet = *(sockaddr_in*)Addr;
-            if(!CommandQueue.PushBegin<LqConnAddr>(LQWRK_CMD_RM_CONN_BY_IP, s)) {
+            if(!CommandQueue.Push<LqConnAddr>(LQWRK_CMD_RM_CONN_BY_IP, s)) {
                 StartThreadLocker.UnlockWrite();
                 return false;
             }
@@ -1187,7 +1189,7 @@ bool LqWrk::CloseClientsByIpAsync(const sockaddr* Addr) {
         {
             LqConnAddr s;
             s.AddrInet6 = *(sockaddr_in6*)Addr;
-            if(!CommandQueue.PushBegin<LqConnAddr>(LQWRK_CMD_RM_CONN_BY_IP, s)) {
+            if(!CommandQueue.Push<LqConnAddr>(LQWRK_CMD_RM_CONN_BY_IP, s)) {
                 StartThreadLocker.UnlockWrite();
                 return false;
             }
@@ -1206,8 +1208,7 @@ bool LqWrk::EnumClientsAsync(
     size_t UserDataSize
 ) { 
     bool Res;
-    LqWrkAsyncEventForAllFd Arg(UserData, UserDataSize, EventAct);
-    Res = CommandQueue.PushBegin<LqWrkAsyncEventForAllFd>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD, Arg);
+    Res = CommandQueue.Push<LqWrkAsyncEventForAllFd>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD, UserData, UserDataSize, EventAct);
     NotifyThread();
     return Res;
 }
@@ -1220,8 +1221,7 @@ bool LqWrk::EnumClientsAndCallFinAsync(
 ) {
     bool Res;
     LqShdPtr<LqWrkAsyncCallFin, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin>(FinFunc, UserData, UserDataSize);
-    LqWrkAsyncEventForAllFdAndCallFin Arg(UserData, UserDataSize, EventAct, FinObject);
-    Res = CommandQueue.PushBegin<LqWrkAsyncEventForAllFdAndCallFin>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN, Arg);
+    Res = CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN, UserData, UserDataSize, EventAct, FinObject);
     NotifyThread();
     return Res;
 }
@@ -1233,10 +1233,12 @@ bool LqWrkBoss::EnumClientsAndCallFinAsync(
     size_t UserDataSize
 ) const {
     bool Res = false;
+    auto i = Wrks.begin();
+    if(i.is_end())
+        return false;
     LqShdPtr<LqWrkAsyncCallFin, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin>(FinFunc, UserData, UserDataSize);
-    for(auto i = Wrks.begin(); !i.is_end(); i++) {
-        LqWrkAsyncEventForAllFdAndCallFin Arg(UserData, UserDataSize, EventAct, FinObject);
-        Res |= (*i)->CommandQueue.PushBegin<LqWrkAsyncEventForAllFdAndCallFin>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN, Arg);
+    for(; !i.is_end(); i++) {
+        Res |= (*i)->CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN, UserData, UserDataSize, EventAct, FinObject);
         (*i)->NotifyThread();
     }
     return Res;
@@ -1251,41 +1253,51 @@ bool LqWrkBoss::EnumClientsAndCallFinForMultipleBossAsync(
     size_t UserDataSize
 ) {
     bool Res = false;
-    LqShdPtr<LqWrkAsyncCallFin, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin>(FinFunc, UserData, UserDataSize);
+    size_t AllCountWorkers = 0;
+    LqPtdArr<WrkArray::interator> BossesInterators;
     for(size_t j = 0; j < BossesSize; j++) {
-        for(auto i = Bosses[j].Wrks.begin(); !i.is_end(); i++) {
-            LqWrkAsyncEventForAllFdAndCallFin Arg(UserData, UserDataSize, EventAct, FinObject);
-            Res |= (*i)->CommandQueue.PushBegin<LqWrkAsyncEventForAllFdAndCallFin>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN, Arg);
-            (*i)->NotifyThread();
-        }
+        WrkArray::interator CurInterator = Bosses[j].Wrks.begin();
+        AllCountWorkers += CurInterator.size();
+        BossesInterators.push_back(CurInterator);
+    }
+    if(AllCountWorkers == 0)
+        return false;
+    LqShdPtr<LqWrkAsyncCallFin, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin>(FinFunc, UserData, UserDataSize);
+    for(auto j : BossesInterators) {
+        j->Get()->CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN, UserData, UserDataSize, EventAct, FinObject);
+        j->Get()->NotifyThread();
     }
     return Res;
 }
 
 bool LqWrkBoss::EnumClientsAndCallFinForMultipleBossAsync11(LqWrkBoss* Bosses, size_t BossesSize, std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct, std::function<uintptr_t()> FinFunc) const {
     bool Res = false;
-    LqShdPtr<LqWrkAsyncCallFin11, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin11>(FinFunc);
+    size_t AllCountWorkers = 0;
+    LqPtdArr<WrkArray::interator> BossesInterators;
     for(size_t j = 0; j < BossesSize; j++) {
-        for(auto i = Bosses[j].Wrks.begin(); !i.is_end(); i++) {
-            LqWrkAsyncEventForAllFdAndCallFin11 Arg(EventAct, FinObject);
-            Res |= (*i)->CommandQueue.PushBegin<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, Arg);
-            (*i)->NotifyThread();
-        }
+        WrkArray::interator CurInterator = Bosses[j].Wrks.begin();
+        AllCountWorkers += CurInterator.size();
+        BossesInterators.push_back(CurInterator);
+    }
+    if(AllCountWorkers == 0)
+        return false;
+    LqShdPtr<LqWrkAsyncCallFin11, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin11>(FinFunc);
+    for(auto j : BossesInterators) {
+        j->Get()->CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, EventAct, FinObject);
+        j->Get()->NotifyThread();
     }
     return Res;
 }
 
 bool LqWrk::EnumClientsAndCallFinAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct, std::function<uintptr_t()> FinFunc) {
     LqShdPtr<LqWrkAsyncCallFin11, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin11>(FinFunc);
-    LqWrkAsyncEventForAllFdAndCallFin11 Arg(EventAct, FinObject);
-    bool Res = CommandQueue.PushBegin<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, Arg);
+    bool Res = CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, EventAct, FinObject);
     NotifyThread();
     return Res;
 }
 
 bool LqWrk::EnumClientsAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct) {
-    LqWrkAsyncEventForAllFd11 Arg(EventAct);
-    bool Res = CommandQueue.PushBegin<LqWrkAsyncEventForAllFd11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD11, Arg);
+    bool Res = CommandQueue.Push<LqWrkAsyncEventForAllFd11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD11, EventAct);
     NotifyThread();
     return Res;
 }
@@ -1315,10 +1327,13 @@ size_t LqWrk::EnumClientsByProto11(std::function<int(LqClientHdr*)> EventAct, co
 
 bool LqWrkBoss::EnumClientsAndCallFinAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct, std::function<uintptr_t()> FinFunc) const {
     bool Res = false;
+    auto i = Wrks.begin();
+    if(i.is_end())
+        return false;
+
     LqShdPtr<LqWrkAsyncCallFin11, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin11>(FinFunc);
-    for(auto i = Wrks.begin(); !i.is_end(); i++) {
-        LqWrkAsyncEventForAllFdAndCallFin11 Arg(EventAct, FinObject);
-        Res |= (*i)->CommandQueue.PushBegin<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, Arg);
+    for(; !i.is_end(); i++) {
+        Res |= (*i)->CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, EventAct, FinObject);
         (*i)->NotifyThread();
     }
     return Res;
@@ -1326,7 +1341,7 @@ bool LqWrkBoss::EnumClientsAndCallFinAsync11(std::function<int(LqWrkPtr&, LqClie
 
 bool LqWrk::CloseClientsByProtoAsync(const LqProto* Proto) {
     StartThreadLocker.LockWriteYield();
-    auto Res = CommandQueue.PushBegin<const LqProto*>(LQWRK_CMD_CLOSE_CONN_BY_PROTO, Proto);
+    auto Res = CommandQueue.Push<const LqProto*>(LQWRK_CMD_CLOSE_CONN_BY_PROTO, Proto);
     StartThreadLocker.UnlockWrite();
     NotifyThread();
     return Res;

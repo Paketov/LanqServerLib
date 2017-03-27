@@ -114,6 +114,9 @@ static void _LqHttpDereference(LqHttp* Http) {
         if(HttpData->SslCtx != NULL)
             SSL_CTX_free((SSL_CTX*)HttpData->SslCtx);
 #endif
+        if(HttpData->IsDeleteFlag != NULL)
+            *HttpData->IsDeleteFlag = true;
+        LqFastAlloc::Delete(HttpData);
     }
     LqSockAcceptorUnlock(Http);
 }
@@ -2263,7 +2266,7 @@ LQ_EXTERN_C LqHttp* LQ_CALL LqHttpCreate(const char* Host, const char* Port, int
     HttpData->MaxCountConn = 32768;
 
     HttpData->KeepAlive = 5 * 60 * 1000;
-
+    HttpData->IsDeleteFlag = NULL;
     HttpData->UseDefaultDmn = true;
     HttpData->WrkBoss = NULL;
     HttpData->MaxSkipContentLength = 1024ll * 1024ll * 1024ll * 5ll; /* 5 gb*/
@@ -2295,12 +2298,13 @@ lblErr:
     return NULL;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpDelete(LqHttp* Http) {
+LQ_EXTERN_C int LQ_CALL LqHttpDelete(LqHttp* Http, bool* lqaout lqaopt DeleteFlag) {
     LqHttpData* HttpData;
     void* WrkBoss;
 
     LqSockAcceptorLock(Http);
     HttpData = LqHttpGetHttpData(Http);
+    HttpData->IsDeleteFlag = DeleteFlag;
     WrkBoss = HttpData->WrkBoss;
     _LqHttpDereference(Http);
     LqSockAcceptorUnlock(Http);

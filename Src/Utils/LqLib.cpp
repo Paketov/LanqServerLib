@@ -93,7 +93,7 @@ static uintptr_t LibSaveElemArrCount = 0;
 static LqLocker<uintptr_t> LibSaveElemArrLocker;
 
 
-LQ_EXTERN_C void LQ_CALL LqLibSaveEnter(uintptr_t ModuleHandle) {
+LQ_EXTERN_C void LQ_CALL LqLibSafeEnter(uintptr_t ModuleHandle) {
     uintptr_t i;
 lblAgain:
     LibSaveElemArrLocker.LockWriteYield();
@@ -118,7 +118,7 @@ lblAgain:
 }
 
 
-LQ_EXTERN_C void LQ_CALL LqLibSaveOut(uintptr_t ModuleHandle) {
+LQ_EXTERN_C void LQ_CALL LqLibSafeOut(uintptr_t ModuleHandle) {
     uintptr_t i;
     int* InvalidAddr = NULL;
     LibSaveElemArrLocker.LockWriteYield();
@@ -137,7 +137,7 @@ LQ_EXTERN_C void LQ_CALL LqLibSaveOut(uintptr_t ModuleHandle) {
     *InvalidAddr = 0;
 }
 
-LQ_EXTERN_C int LQ_CALL LqLibFreeSave(uintptr_t ModuleHandle) {
+LQ_EXTERN_C int LQ_CALL LqLibFreeSafe(uintptr_t ModuleHandle) {
     uintptr_t i;
     int Res;
 lblAgain:

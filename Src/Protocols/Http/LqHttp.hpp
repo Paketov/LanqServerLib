@@ -55,6 +55,7 @@ struct LqHttpData {
 	LqHttpDmnTbl             Dmns;
 
 	void*                    WrkBoss;
+	bool*                    IsDeleteFlag;
 
 	LqPtdArr<LqHttpMdlPtr>   Modules;
 

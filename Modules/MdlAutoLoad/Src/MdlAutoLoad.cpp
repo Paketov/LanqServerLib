@@ -301,7 +301,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     };
 
     Mod.FreeNotifyProc = [](LqHttpMdl* This) -> uintptr_t {
-		LqWrkBoss::GetGlobal()->EnumClientsAndCallFinAsync11(
+		bool Res = LqWrkBoss::GetGlobal()->EnumClientsAndCallFinAsync11(
 			[](LqWrkPtr&, LqClientHdr* Evnt) -> int {
 				return (((LqClientHdr*)&Task.TimerFd) == Evnt)? 2 : 0;
 			},
@@ -318,6 +318,15 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 				This->Handle
 			)
 		);
+		if(!Res) {
+			Task.PathsLocker.LockWrite();
+			for(auto& i : Task.Dirs) {
+				LqFilePathEvntFree(i);
+				LqFastAlloc::Delete(i);
+			}
+			Task.PathsLocker.Unlock();
+			return This->Handle;
+		}
         return 0;
     };
     Task.RegDest = Reg;

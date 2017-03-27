@@ -190,7 +190,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     Mod.FreeNotifyProc =
     [](LqHttpMdl* This) -> uintptr_t {
         LqHttpHndlsUnregisterResponse(Mod.HttpAcceptor, RspFn);
-        LqWrkBoss::GetGlobal()->EnumClientsAndCallFinAsync11(
+        bool Res = LqWrkBoss::GetGlobal()->EnumClientsAndCallFinAsync11(
             nullptr,
             std::bind(
                 [](uintptr_t Handle) -> uintptr_t {
@@ -201,6 +201,11 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
                 This->Handle
             )
         );
+		if(!Res) {
+			if(OutFd != -1)
+				LqFileClose(OutFd);
+			return This->Handle;
+		}
         return 0;
     };
 

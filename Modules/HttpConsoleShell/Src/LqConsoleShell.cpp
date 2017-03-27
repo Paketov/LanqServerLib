@@ -413,7 +413,7 @@ lblAgain:
                     LqFbuf_printf(OutFile, " ERROR: Has been closed\n");
                     IsSuccess = false;
                 } else {
-                    LqHttpDelete(Http);
+                    LqHttpDelete(Http, nullptr);
                     Http = nullptr;
                     LqFbuf_printf(OutFile, " OK\n");
                 }
@@ -1367,8 +1367,13 @@ lblAgain:
             break;
         }
     }
-    if(Http != NULL)
-        LqHttpDelete(Http);
+    bool IsHttpProtoDeleted = false;
+    if(Http != NULL) {
+        LqHttpDelete(Http, &IsHttpProtoDeleted);
+        while(!IsHttpProtoDeleted)
+            LqThreadYield();
+    }
+
     LqWrkBossSetMinWrkCount(0);
     LqWrkBossKickAllWrk();
     return 0;

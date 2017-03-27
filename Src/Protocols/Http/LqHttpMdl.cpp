@@ -44,14 +44,14 @@
 
 
 void __LqHttpMdlDelete(LqHttpMdl* Val) {
-	uintptr_t Handle = Val->Handle;
-	uintptr_t ReturnedHandle;
-	LqLibSaveEnter(Handle);
-	ReturnedHandle = Val->FreeNotifyProc(Val);
-	LqLibSaveOut(Handle);
-	if(ReturnedHandle) {
-		LqLibFreeSave(ReturnedHandle);
-	}
+    uintptr_t Handle = Val->Handle;
+    uintptr_t ReturnedHandle;
+    LqLibSafeEnter(Handle);
+    ReturnedHandle = Val->FreeNotifyProc(Val);
+    LqLibSafeOut(Handle);
+    if(ReturnedHandle) {
+        LqLibFreeSafe(ReturnedHandle);
+    }
 }
 
 void LqHttpMdlPathFree(LqHttpPth* Pth) {
@@ -82,11 +82,11 @@ static void _LqHttpMdlDeletePathsFromFs(LqHttpMdl* Module, bool IsFreeRelations)
 }
 
 static void LqHttpMdlEnmFree(LqHttpMdl* Module) {
-	uintptr_t Handle = Module->Handle;
+    uintptr_t Handle = Module->Handle;
     Module->IsFree = true;
-	LqLibSaveEnter(Handle);
+    LqLibSafeEnter(Handle);
     Module->BeforeFreeNotifyProc(Module);
-	LqLibSaveOut(Handle);
+    LqLibSafeOut(Handle);
     _LqHttpMdlDeletePathsFromFs(Module, true);
 }
 
@@ -97,7 +97,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByName(LqHttp* Http, const char* NameModule
         if(LqStrSame(i->Name, NameModule)) {
             Res++;
             LqHttpMdlEnmFree(i.Get());
-			HttpData->Modules.remove_by_val(i);
+            HttpData->Modules.remove_by_val(i);
             if(!IsAll)
                 break;
         }
@@ -106,14 +106,14 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByName(LqHttp* Http, const char* NameModule
 }
 
 LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeAll(LqHttp* Http) {
-	auto HttpData = LqHttpGetHttpData(Http);
+    auto HttpData = LqHttpGetHttpData(Http);
     LqPtdArr<LqHttpMdlPtr> CurList;
     CurList.swap(HttpData->Modules);
     int Res = 0;
     for(auto& i : CurList) {
         Res++;
         LqHttpMdlEnmFree(i.Get());
-		HttpData->Modules.remove_by_val(i);
+        HttpData->Modules.remove_by_val(i);
     }
     return Res;
 }
@@ -123,11 +123,11 @@ LQ_EXTERN_C void LQ_CALL LqHttpMdlFreeMain(LqHttp* Http) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByHandle(LqHttp* Http, uintptr_t Handle) {
-	auto HttpData = LqHttpGetHttpData(Http);
+    auto HttpData = LqHttpGetHttpData(Http);
     for(auto& i : HttpData->Modules) {
         if(i->Handle == Handle) {
             LqHttpMdlEnmFree(i.Get());
-			HttpData->Modules.remove_by_val(i);
+            HttpData->Modules.remove_by_val(i);
             return 1;
         }
     }
@@ -135,7 +135,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlFreeByHandle(LqHttp* Http, uintptr_t Handle) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqHttpMdlSendCommandByHandle(LqHttp* Http, uintptr_t Handle, const char* Command, void* Data) {
-	auto HttpData = LqHttpGetHttpData(Http);
+    auto HttpData = LqHttpGetHttpData(Http);
     for(auto& i : HttpData->Modules) {
         if(i->Handle == Handle) {
             i->ReciveCommandProc(i.Get(), Command, Data);
@@ -146,7 +146,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlSendCommandByHandle(LqHttp* Http, uintptr_t Han
 }
 
 LQ_EXTERN_C int LQ_CALL LqHttpMdlSendCommandByName(LqHttp* Http, const char* Name, const char* Command, void* Data) {
-	auto HttpData = LqHttpGetHttpData(Http);
+    auto HttpData = LqHttpGetHttpData(Http);
     for(auto& i : HttpData->Modules) {
         if(LqStrSame(i->Name, Name)) {
             i->ReciveCommandProc(i.Get(), Command, Data);
@@ -157,7 +157,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlSendCommandByName(LqHttp* Http, const char* Nam
 }
 
 LQ_EXTERN_C int LQ_CALL LqHttpMdlIsHave(LqHttp* Http, uintptr_t Handle) {
-	auto HttpData = LqHttpGetHttpData(Http);
+    auto HttpData = LqHttpGetHttpData(Http);
     for(auto& i : HttpData->Modules) {
         if(i->Handle == Handle)
             return 1;
@@ -166,7 +166,7 @@ LQ_EXTERN_C int LQ_CALL LqHttpMdlIsHave(LqHttp* Http, uintptr_t Handle) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqHttpMdlEnm(LqHttp* Http, uintptr_t* ModuleHandle, char* Name, size_t NameLen, bool* IsFree) {
-	auto HttpData = LqHttpGetHttpData(Http);
+    auto HttpData = LqHttpGetHttpData(Http);
     if(*ModuleHandle == 0) {
         auto i = HttpData->Modules.begin();
         if(i.is_end())
@@ -224,18 +224,18 @@ LQ_EXTERN_C void LQ_CALL LqHttpMdlInit(LqHttp* Http, LqHttpMdl* Module, const ch
     Module->AllowProc = LqHttpMdlHandlersAllowMethods;
     Module->NonceProc = LqHttpMdlHandlersNonce;
     Module->ResponseRedirectionProc = LqHttpMdlHandlersResponseRedirection;
-	Module->SockError = LqHttpMdlHandlerSockErr;
+    Module->SockError = LqHttpMdlHandlerSockErr;
     Module->HttpAcceptor = Http;
     Module->UserData = 0;
     new(&Module->_Paths[0]) LqHttpPthArr();
     if(Name != NULL)
         Module->Name = LqStrDuplicate(Name);
-	auto HttpData = LqHttpGetHttpData(Http);
-	HttpData->Modules.push_back(Module);
+    auto HttpData = LqHttpGetHttpData(Http);
+    HttpData->Modules.push_back(Module);
 }
 
 LQ_EXTERN_C int LQ_CALL LqHttpMdlGetNameByHandle(LqHttp* Http, uintptr_t Handle, char* NameDest, size_t NameDestSize) {
-	auto HttpData = LqHttpGetHttpData(Http);
+    auto HttpData = LqHttpGetHttpData(Http);
     for(auto& i : HttpData->Modules) {
         if(i->Handle == Handle) {
             LqStrCopyMax(NameDest, i->Name, NameDestSize);

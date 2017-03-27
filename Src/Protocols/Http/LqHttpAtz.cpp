@@ -41,23 +41,23 @@ static bool LqHttpAtzGetBasicBase64LoginPassword(const char* Str, const char** R
 static char* LqHttpAtzGetBasicCode(const char* User, const char* Password);
 
 
-///*
+//*
 //* Handler for responce digest nonce
 //*/
 void LQ_CALL LqHttpMdlHandlersNonce(LqHttpConn* HttpConn, char* MethodBuf, size_t MethodBufSize) {
     LqTimeMillisec Ms = LqTimeGetLocMillisec();
     LqTimeSec Sec = Ms / 1000;
-	uint64_t h;
-	char IpBuf[100];
-	LqHttpData* HttpData;
+    uint64_t h;
+    char IpBuf[100];
+    LqHttpData* HttpData;
 
-	HttpData = LqHttpConnGetHttpData(HttpConn);
+    HttpData = LqHttpConnGetHttpData(HttpConn);
     if((Sec - LastCheck) > HttpData->PeriodChangeDigestNonce) {
         LastCheck = Sec;
         Random = (((uint64_t)rand() << 32) | (uint64_t)rand()) + Ms % 50000;
     }
     IpBuf[0] = '\0';
-	LqHttpConnGetRemoteIpStr(HttpConn, IpBuf, sizeof(IpBuf));
+    LqHttpConnGetRemoteIpStr(HttpConn, IpBuf, sizeof(IpBuf));
     h = Random;
     for(const char* k = IpBuf; *k != '\0'; k++)
         h = 63 * h + *k;
@@ -65,24 +65,24 @@ void LQ_CALL LqHttpMdlHandlersNonce(LqHttpConn* HttpConn, char* MethodBuf, size_
 }
 
 LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* HttpConn, uint8_t AccessMask) {
-	LqHttpConnData* HttpConnData;
-	LqHttpData* HttpData;
-	LqHttpMdl* Mdl;
-	LqHttpPth* Pth;
-	LqHttpRcvHdrs* RcvHdr;
-	const char *HdrVal, *NonceParam, *UsernameParam, *UriParam, *ResponsePraram, *Base64LogPass; 
-	char *t;
+    LqHttpConnData* HttpConnData;
+    LqHttpData* HttpData;
+    LqHttpMdl* Mdl;
+    LqHttpPth* Pth;
+    LqHttpRcvHdrs* RcvHdr;
+    const char *HdrVal, *NonceParam, *UsernameParam, *UriParam, *ResponsePraram, *Base64LogPass; 
+    char *t;
     size_t LenLogPass, NonceParamLen, i, UsernameParamLen, UriParamLen, ResponsePraramLen;
-	char Nonce[100];
-	char HashMethodPath[LqMd5HexStringLen + 1];
-	char HashBuf[LqMd5HexStringLen + 1];
-	LqMd5 h;
-	LqMd5Ctx ctx;
+    char Nonce[100];
+    char HashMethodPath[LqMd5HexStringLen + 1];
+    char HashBuf[LqMd5HexStringLen + 1];
+    LqMd5 h;
+    LqMd5Ctx ctx;
 
 
-	Mdl = LqHttpConnGetMdl(HttpConn);
-	HttpConnData = LqHttpConnGetData(HttpConn);
-	HttpData = LqHttpConnGetHttpData(HttpConn);
+    Mdl = LqHttpConnGetMdl(HttpConn);
+    HttpConnData = LqHttpConnGetData(HttpConn);
+    HttpData = LqHttpConnGetHttpData(HttpConn);
     RcvHdr = HttpConnData->RcvHdr;
     Pth = HttpConnData->Pth;
 
@@ -117,12 +117,12 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* HttpConn, uint8_t AccessMask) {
         LqHttpAtzRsp401Basic(HttpConn);
     } else if(a->AuthType == LQHTTPATZ_TYPE_DIGEST) {
         Nonce[0] = '\0';
-		Mdl->NonceProc(HttpConn, Nonce, sizeof(Nonce) - 1);
-		if((HdrVal = LqHttpConnRcvHdrGet(HttpConn, "authorization")) == NULL) {
-			LqHttpAtzRsp401Digest(HttpConn, a.Get(), Nonce, false);
-			LqHttpAtzUnlock(a.Get());
-			return false;
-		}
+        Mdl->NonceProc(HttpConn, Nonce, sizeof(Nonce) - 1);
+        if((HdrVal = LqHttpConnRcvHdrGet(HttpConn, "authorization")) == NULL) {
+            LqHttpAtzRsp401Digest(HttpConn, a.Get(), Nonce, false);
+            LqHttpAtzUnlock(a.Get());
+            return false;
+        }
         if(!LqHttpAtzGetAuthorizationParametr(HdrVal, "nonce", &NonceParam, &NonceParamLen, true)) {
             LqHttpAtzRsp401Digest(HttpConn, a.Get(), Nonce, false);
             LqHttpAtzUnlock(a.Get());
@@ -179,7 +179,7 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* HttpConn, uint8_t AccessMask) {
 
 static bool LqHttpAtzGetBasicBase64LoginPassword(const char* Str, const char** Res, size_t* ResLen) {
     int a = -1, b = -1;
-	LqFbuf_snscanf(Str, LqStrLen(Str), "%#*{basic}%*[ ]%n%*[a-zA-Z0-9/+=]%n", &a, &b);
+    LqFbuf_snscanf(Str, LqStrLen(Str), "%#*{basic}%*[ ]%n%*[a-zA-Z0-9/+=]%n", &a, &b);
     if((a != -1) && (b != -1)) {
         *Res = Str + a;
         *ResLen = b - a;
@@ -189,7 +189,7 @@ static bool LqHttpAtzGetBasicBase64LoginPassword(const char* Str, const char** R
 }
 
 static bool LqHttpAtzGetAuthorizationParametr(const char* Str, const char* NameParametr, const char** Res, size_t* ResLen, bool IsBracketsRequired) {
-	size_t i;
+    size_t i;
     size_t npl = LqStrLen(NameParametr);
     for(size_t i = 0; Str[i]; i++)
         if(LqStrUtf8CmpCaseLen(NameParametr, Str + i, npl)) {
@@ -218,21 +218,21 @@ static bool LqHttpAtzGetAuthorizationParametr(const char* Str, const char* NameP
 }
 
 static void LqHttpAtzRsp401Basic(LqHttpConn* HttpConn) {
-	char HdrVal[4096];
-	LqHttpConnData* HttpConnData;
-	HttpConnData = LqHttpConnGetData(HttpConn);
+    char HdrVal[4096];
+    LqHttpConnData* HttpConnData;
+    HttpConnData = LqHttpConnGetData(HttpConn);
 
-	LqFbuf_snprintf(HdrVal, sizeof(HdrVal) - 1, "Basic realm=\"%s\"", HttpConnData->Pth->Atz->Realm);
-	LqHttpConnRspHdrInsert(HttpConn, "WWW-Authenticate", HdrVal);
+    LqFbuf_snprintf(HdrVal, sizeof(HdrVal) - 1, "Basic realm=\"%s\"", HttpConnData->Pth->Atz->Realm);
+    LqHttpConnRspHdrInsert(HttpConn, "WWW-Authenticate", HdrVal);
     LqHttpConnRspError(HttpConn, 401);
 }
 
 static void LqHttpAtzRsp401Digest(LqHttpConn* HttpConn, LqHttpAtz* Authoriz, const char* Nonce, bool IsStale) {
-	char HdrVal[4096];
+    char HdrVal[4096];
 
-	LqFbuf_snprintf(HdrVal, sizeof(HdrVal) - 1, "Digest realm=\"%s\", nonce=\"%s\"%s", Authoriz->Realm, Nonce, ((IsStale) ? ", stale=true" : ""));
-	LqHttpConnRspHdrInsert(HttpConn, "WWW-Authenticate", HdrVal);
-	LqHttpConnRspError(HttpConn, 401);
+    LqFbuf_snprintf(HdrVal, sizeof(HdrVal) - 1, "Digest realm=\"%s\", nonce=\"%s\"%s", Authoriz->Realm, Nonce, ((IsStale) ? ", stale=true" : ""));
+    LqHttpConnRspHdrInsert(HttpConn, "WWW-Authenticate", HdrVal);
+    LqHttpConnRspError(HttpConn, 401);
 }
 
 static char* LqHttpAtzGetBasicCode(const char* User, const char* Password) {

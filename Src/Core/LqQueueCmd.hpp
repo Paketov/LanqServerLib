@@ -37,9 +37,7 @@ class LqQueueCmd {
     template<typename TypeVal>
     struct Element {
         ElementHeader           Header;
-        TypeVal                 Value;
-		Element(TypeVal NewVal): Value(NewVal) {}
-		Element() {}
+        char                    Value[sizeof(TypeVal)];
     };
 
     ElementHeader               *Begin, *End;
@@ -57,6 +55,15 @@ public:
             */
             inline operator TypeCommand() const { return Cmd->Type; }
         } Type;
+
+        inline Interator() { Type.Cmd = NULL; }
+
+        inline Interator DeattachLast() {
+            Interator Ret;
+            Ret.Type.Cmd = Type.Cmd;
+            Type.Cmd = Type.Cmd->Next;
+            return Ret;
+        }
 
         /*
         * Is have last command. Use for termunate in loop.
@@ -91,9 +98,13 @@ public:
     */
     Interator Fork();
 
+    inline bool IsHaveCmds() { return Begin != nullptr; }
+
     LqQueueCmd();
 
     ~LqQueueCmd();
+
+    bool InsertBegin(Interator& Inter);
 
     /*
     * Add only type command to the end of the queue.
@@ -104,10 +115,13 @@ public:
     * Add data command to the end of the queue.
     *  @Val - value
     */
-    template<typename ValType>
-    bool Push(TypeCommand tCommand, ValType Val);
+    //template<typename ValType>
+    //bool Push(TypeCommand tCommand, ValType Val);
 
-	bool Push(LqClientHdr* Val, void* WorkerOwner);
+    template<typename ValType, typename... _Args>
+    bool Push(TypeCommand tCommand, _Args&&... _Ax);
+
+    bool Push(LqClientHdr* Val, void* WorkerOwner);
     /*
     * Add only type command to the start of the queue.
     */
@@ -118,8 +132,13 @@ public:
     * Add data command to the start of the queue.
     *  @Val - value
     */
-    template<typename ValType>
-    bool PushBegin(TypeCommand tCommand, ValType Val);
+    template<typename ValType, typename... _Args>
+    bool PushBegin(TypeCommand tCommand, _Args&&... _Ax);
+
+
+    //template<typename ValType>
+    //bool PushBegin(TypeCommand tCommand, ValType Val);
+
 
     Interator SeparateBegin() {
         Interator i;
@@ -167,7 +186,7 @@ inline LqQueueCmd<TypeCommand>::Interator::operator bool() const {
 template<typename TypeCommand>
 template<typename ValType>
 inline ValType& LqQueueCmd<TypeCommand>::Interator::Val() {
-    return ((Element<ValType>*)Type.Cmd)->Value;
+    return *((ValType*)((Element<ValType>*)Type.Cmd)->Value);
 }
 
 template<typename TypeCommand>
@@ -175,6 +194,7 @@ template<typename ValType>
 void LqQueueCmd<TypeCommand>::Interator::Pop() {
     Element<ValType>* DelCommand = (Element<ValType>*)Type.Cmd;
     Type.Cmd = Type.Cmd->Next;
+    ((ValType*)(DelCommand->Value))->~ValType();
     LqFastAlloc::Delete(DelCommand);
 }
 
@@ -217,6 +237,22 @@ LqQueueCmd<TypeCommand>::~LqQueueCmd() {
 }
 
 template<typename TypeCommand>
+bool LqQueueCmd<TypeCommand>::InsertBegin(Interator& Inter) {
+    if(Inter.Type.Cmd == nullptr)
+        return true;
+    Locker.LockWriteYield();
+    ElementHeader** i = &Inter.Type.Cmd;
+    for(; *i; i = &(*i)->Next);
+    *i = Begin;
+    Begin = Inter.Type.Cmd;
+    if(End == nullptr)
+        End = Begin;
+    Inter.Type.Cmd = nullptr;
+    Locker.UnlockWrite();
+    return true;
+}
+
+template<typename TypeCommand>
 bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand) {
     auto NewCommand = LqFastAlloc::New<ElementHeader>();
     if(NewCommand == nullptr) {
@@ -237,13 +273,14 @@ bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand) {
 }
 
 template<typename TypeCommand>
-template<typename ValType>
-bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand, ValType Val) {
-    auto NewCommand = LqFastAlloc::New<Element<ValType>>(Val);
+template<typename ValType, typename... _Args>
+inline bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand, _Args&&... _Ax) {
+    auto NewCommand = LqFastAlloc::New<Element<ValType>>();
     if(NewCommand == nullptr) {
         LqLogErr("LqQueueCmd<TypeCommand>::Push<ValType>() not alloc memory\n");
         return false;
     }
+    new(NewCommand->Value) ValType(_Ax...);
     NewCommand->Header.Next = nullptr;
     NewCommand->Header.Type = tCommand;
 
@@ -259,34 +296,36 @@ bool LqQueueCmd<TypeCommand>::Push(TypeCommand tCommand, ValType Val) {
 
 template<typename TypeCommand>
 bool LqQueueCmd<TypeCommand>::Push(LqClientHdr* Val, void* WorkerOwner) {
-	auto NewCommand = LqFastAlloc::New<Element<LqClientHdr*>>(Val);
-	if(NewCommand == nullptr) {
-		LqLogErr("LqQueueCmd<TypeCommand>::Push() not alloc memory\n");
-		return false;
-	}
-	NewCommand->Header.Next = nullptr;
-	NewCommand->Header.Type = 0;
-	Locker.LockWriteYield();
-	LqAtmLkWr(Val->Lk);
-	Val->WrkOwner = WorkerOwner;
-	LqAtmUlkWr(Val->Lk);
-	if(End != nullptr)
-		End->Next = &(NewCommand->Header);
-	else
-		Begin = &(NewCommand->Header);
-	End = &(NewCommand->Header);
-	Locker.UnlockWrite();
-	return true;
+    auto NewCommand = LqFastAlloc::New<Element<LqClientHdr*>>();
+    if(NewCommand == nullptr) {
+        LqLogErr("LqQueueCmd<TypeCommand>::Push() not alloc memory\n");
+        return false;
+    }
+    *((LqClientHdr**)NewCommand->Value) = Val;
+    NewCommand->Header.Next = nullptr;
+    NewCommand->Header.Type = 0;
+    Locker.LockWriteYield();
+    LqAtmLkWr(Val->Lk);
+    Val->WrkOwner = WorkerOwner;
+    LqAtmUlkWr(Val->Lk);
+    if(End != nullptr)
+        End->Next = &(NewCommand->Header);
+    else
+        Begin = &(NewCommand->Header);
+    End = &(NewCommand->Header);
+    Locker.UnlockWrite();
+    return true;
 }
 
 template<typename TypeCommand>
-template<typename ValType>
-bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand, ValType Val) {
-    auto NewCommand = LqFastAlloc::New<Element<ValType>>(Val);
+template<typename ValType, typename... _Args>
+bool LqQueueCmd<TypeCommand>::PushBegin(TypeCommand tCommand, _Args&&... _Ax) {
+    auto NewCommand = LqFastAlloc::New<Element<ValType>>();
     if(NewCommand == nullptr) {
         LqLogErr("LqQueueCmd<TypeCommand>::PushBegin<ValType>() not alloc memory\n");
         return false;
     }
+    new(NewCommand->Value) ValType(_Ax...);
     NewCommand->Header.Type = tCommand;
     Locker.LockWriteYield();
     NewCommand->Header.Next = Begin;

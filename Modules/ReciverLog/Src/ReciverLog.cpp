@@ -969,7 +969,7 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
     Mod.FreeNotifyProc =
     [](LqHttpMdl* This) -> uintptr_t {
         LqZmbClrDelete(ZmbClr);
-		LqWrkBoss::GetGlobal()->EnumClientsAndCallFinAsync11(
+		bool Res = LqWrkBoss::GetGlobal()->EnumClientsAndCallFinAsync11(
 			[](LqWrkPtr&, LqClientHdr* Conn) -> int {
 				if(LqClientIsConn(Conn) && ((((LqConn*)Conn)->Proto == &PktProto) || (((LqConn*)Conn)->Proto == &ClientProto) || (((LqConn*)Conn)->Proto == &BindedProto))) {
 					return 2;
@@ -987,6 +987,13 @@ LQ_EXTERN_C LQ_EXPORT LqHttpMdlRegistratorEnm LQ_CALL LqHttpMdlRegistrator(LqHtt
 				This->Handle
 		    )
 		);
+		if(!Res) {
+			for(auto& i : PortRange) {
+				if(i.LogFd != -1)
+					LqFileClose(i.LogFd);
+			}
+			return This->Handle;
+		}
         return 0;
     };
 
