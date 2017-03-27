@@ -1367,7 +1367,7 @@ lblAgain:
             break;
         }
     }
-    bool IsHttpProtoDeleted = false;
+    volatile bool IsHttpProtoDeleted = false;
     if(Http != NULL) {
         LqHttpDelete(Http, &IsHttpProtoDeleted);
         while(!IsHttpProtoDeleted)

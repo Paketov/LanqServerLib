@@ -2298,7 +2298,7 @@ lblErr:
     return NULL;
 }
 
-LQ_EXTERN_C int LQ_CALL LqHttpDelete(LqHttp* Http, bool* lqaout lqaopt DeleteFlag) {
+LQ_EXTERN_C int LQ_CALL LqHttpDelete(LqHttp* Http, volatile bool* lqaout lqaopt DeleteFlag) {
     LqHttpData* HttpData;
     void* WrkBoss;
 

@@ -290,7 +290,7 @@ struct LqHttpAtz {
 */
 LQ_IMPORTEXPORT LqHttp* LQ_CALL LqHttpCreate(const char* Host, const char* Port, int RouteProto, void* SslCtx, bool IsSetCache, bool IsSetZmbClr);
 
-LQ_IMPORTEXPORT int LQ_CALL LqHttpDelete(LqHttp* Http, bool* lqaout lqaopt DeleteFlag);
+LQ_IMPORTEXPORT int LQ_CALL LqHttpDelete(LqHttp* Http, volatile bool* lqaout lqaopt DeleteFlag);
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpGoWork(LqHttp* Http, void* WrkBoss);
 LQ_IMPORTEXPORT bool LQ_CALL LqHttpInterruptWork(LqHttp* Http);
 
