@@ -1226,6 +1226,8 @@ bool LqWrk::EnumClientsAndCallFinAsync(
     return Res;
 }
 
+static uintptr_t LQ_CALL __LqWrkEmptyFin(void*, size_t) { return 0; }
+
 bool LqWrkBoss::EnumClientsAndCallFinAsync(
     int(LQ_CALL*EventAct)(void*, size_t, void*, LqClientHdr*, LqTimeMillisec),
     uintptr_t(LQ_CALL*FinFunc)(void*, size_t),
@@ -1233,13 +1235,38 @@ bool LqWrkBoss::EnumClientsAndCallFinAsync(
     size_t UserDataSize
 ) const {
     bool Res = false;
-    auto i = Wrks.begin();
-    if(i.is_end())
-        return false;
+    const LqWrkPtr* Arr;
+    intptr_t Count;
+
     LqShdPtr<LqWrkAsyncCallFin, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin>(FinFunc, UserData, UserDataSize);
-    for(; !i.is_end(); i++) {
-        Res |= (*i)->CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN, UserData, UserDataSize, EventAct, FinObject);
-        (*i)->NotifyThread();
+    Wrks.begin_locket_enum(&Arr, &Count);
+    for(intptr_t i = 0; i < Count; i++) {
+        Res |= Arr[i]->CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN, UserData, UserDataSize, EventAct, FinObject);
+        Arr[i]->NotifyThread();
+    }
+    Wrks.end_locket_enum();
+
+    if(!Res) {
+        FinObject->EventFin = __LqWrkEmptyFin;
+    }
+    return Res;
+}
+
+bool LqWrkBoss::EnumClientsAndCallFinAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct, std::function<uintptr_t()> FinFunc) const {
+    bool Res = false;
+    const LqWrkPtr* Arr;
+    intptr_t Count;
+
+    LqShdPtr<LqWrkAsyncCallFin11, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin11>(FinFunc);
+    Wrks.begin_locket_enum(&Arr, &Count);
+    for(intptr_t i = 0; i < Count; i++) {
+        Res |= Arr[i]->CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, EventAct, FinObject);
+        Arr[i]->NotifyThread();
+    }
+    Wrks.end_locket_enum();
+
+    if(!Res) {
+        FinObject->FinFunc = [] { return 0; };
     }
     return Res;
 }
@@ -1253,38 +1280,40 @@ bool LqWrkBoss::EnumClientsAndCallFinForMultipleBossAsync(
     size_t UserDataSize
 ) {
     bool Res = false;
-    size_t AllCountWorkers = 0;
-    LqPtdArr<WrkArray::interator> BossesInterators;
-    for(size_t j = 0; j < BossesSize; j++) {
-        WrkArray::interator CurInterator = Bosses[j].Wrks.begin();
-        AllCountWorkers += CurInterator.size();
-        BossesInterators.push_back(CurInterator);
-    }
-    if(AllCountWorkers == 0)
-        return false;
+    const LqWrkPtr* Arr;
+    intptr_t Count;
+
     LqShdPtr<LqWrkAsyncCallFin, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin>(FinFunc, UserData, UserDataSize);
-    for(auto j : BossesInterators) {
-        j->Get()->CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN, UserData, UserDataSize, EventAct, FinObject);
-        j->Get()->NotifyThread();
+    for(intptr_t j = 0; j < BossesSize; j++) {
+        Bosses[j].Wrks.begin_locket_enum(&Arr, &Count);
+        for(intptr_t i = 0; i < Count; i++) {
+            Res |= Arr[i]->CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN, UserData, UserDataSize, EventAct, FinObject);
+            Arr[i]->NotifyThread();
+        }
+        Bosses[j].Wrks.end_locket_enum();
+    }
+    if(!Res) {
+        FinObject->EventFin = __LqWrkEmptyFin;
     }
     return Res;
 }
 
 bool LqWrkBoss::EnumClientsAndCallFinForMultipleBossAsync11(LqWrkBoss* Bosses, size_t BossesSize, std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct, std::function<uintptr_t()> FinFunc) const {
     bool Res = false;
-    size_t AllCountWorkers = 0;
-    LqPtdArr<WrkArray::interator> BossesInterators;
-    for(size_t j = 0; j < BossesSize; j++) {
-        WrkArray::interator CurInterator = Bosses[j].Wrks.begin();
-        AllCountWorkers += CurInterator.size();
-        BossesInterators.push_back(CurInterator);
-    }
-    if(AllCountWorkers == 0)
-        return false;
+    const LqWrkPtr* Arr;
+    intptr_t Count;
+
     LqShdPtr<LqWrkAsyncCallFin11, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin11>(FinFunc);
-    for(auto j : BossesInterators) {
-        j->Get()->CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, EventAct, FinObject);
-        j->Get()->NotifyThread();
+    for(intptr_t j = 0; j < BossesSize; j++) {
+        Bosses[j].Wrks.begin_locket_enum(&Arr, &Count);
+        for(intptr_t i = 0; i < Count; i++) {
+            Res |= Arr[i]->CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, EventAct, FinObject);
+            Arr[i]->NotifyThread();
+        }
+        Bosses[j].Wrks.end_locket_enum();
+    }
+    if(!Res) {
+        FinObject->FinFunc = [] { return 0; };
     }
     return Res;
 }
@@ -1323,20 +1352,6 @@ size_t LqWrk::EnumClientsByProto11(std::function<int(LqClientHdr*)> EventAct, co
         &EventAct,
         IsIterrupted
     );
-}
-
-bool LqWrkBoss::EnumClientsAndCallFinAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct, std::function<uintptr_t()> FinFunc) const {
-    bool Res = false;
-    auto i = Wrks.begin();
-    if(i.is_end())
-        return false;
-
-    LqShdPtr<LqWrkAsyncCallFin11, LqFastAlloc::Delete, true, false, uintptr_t> FinObject = LqFastAlloc::New<LqWrkAsyncCallFin11>(FinFunc);
-    for(; !i.is_end(); i++) {
-        Res |= (*i)->CommandQueue.Push<LqWrkAsyncEventForAllFdAndCallFin11>(LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11, EventAct, FinObject);
-        (*i)->NotifyThread();
-    }
-    return Res;
 }
 
 bool LqWrk::CloseClientsByProtoAsync(const LqProto* Proto) {

@@ -291,14 +291,14 @@ public:
         typename InType,
         typename = decltype(TypeVal(std::declval<InType>()))
     >
-        inline bool push_back(InType&& NewVal) { return _AddByArr(&NewVal, 1); }
+    inline bool push_back(InType&& NewVal) { return _AddByArr(&NewVal, 1); }
 
     template<
         typename InType,
         typename = decltype(std::declval<TypeVal>() == std::declval<InType>()),
         typename = decltype(TypeVal(std::declval<InType>()))
     >
-        int push_back_uniq(InType&& NewVal) {
+    int push_back_uniq(InType&& NewVal) {
         auto Cur = Ptr.NewStart();
         for(size_t m = Cur->Count, i = 0; i < m; i++)
             if(Cur->Val[i] == NewVal) {
@@ -325,7 +325,7 @@ public:
         typename = decltype(std::declval<TypeVal>() == std::declval<InType>()),
         typename = decltype(TypeVal(std::declval<InType2>()))
     >
-        int replace(InType&& PrevVal, InType2&& NewVal) {
+    int replace(InType&& PrevVal, InType2&& NewVal) {
         auto Cur = Ptr.NewStart();
         intptr_t RmIndex = -1;
         for(intptr_t i = 0, m = Cur->Count; i < m; i++) {
@@ -360,7 +360,7 @@ public:
         typename InType,
         typename = decltype(std::declval<TypeVal>() == std::declval<InType>())
     >
-        inline bool remove_by_val(InType&& RmVal) { return remove_by_val<TypeVal>(RmVal, nullptr); }
+    inline bool remove_by_val(InType&& RmVal) { return remove_by_val<TypeVal>(RmVal, nullptr); }
 
     template<
         typename TypeGetVal,
@@ -368,7 +368,7 @@ public:
         typename = decltype(std::declval<TypeVal>() == std::declval<InType>()),
         typename = decltype(TypeGetVal(std::declval<TypeVal>()))
     >
-        bool remove_by_val(InType&& RmVal, TypeGetVal* RemovedVal) {
+    bool remove_by_val(InType&& RmVal, TypeGetVal* RemovedVal) {
         auto Cur = Ptr.NewStart();
         intptr_t RmIndex = -1;
         for(intptr_t i = 0, m = Cur->Count; i < m; i++) {
@@ -405,7 +405,7 @@ public:
         typename InType,
         typename = decltype(std::declval<TypeVal>() == std::declval<InType>())
     >
-        intptr_t remove_mult_by_val(InType&& RmVal) {
+    intptr_t remove_mult_by_val(InType&& RmVal) {
         auto Cur = Ptr.NewStart();
         intptr_t RmCount = 0;
         for(intptr_t i = 0, m = Cur->Count; i < m; i++) {
@@ -441,20 +441,20 @@ public:
         typename TypeGetVal,
         typename = decltype(TypeGetVal(std::declval<TypeVal>()))
     >
-        bool remove_by_compare_fn(std::function<bool(TypeVal&)> CompareFn, TypeGetVal* RemovedVal) {
+    bool remove_by_compare_fn(std::function<bool(TypeVal&)> CompareFn, TypeGetVal* RemovedVal) {
         auto Cur = Ptr.NewStart();
-        intptr_t RmIndex = -1;
+        intptr_t RmIndex = -((intptr_t)1);
         for(intptr_t i = 0, m = Cur->Count; i < m; i++) {
             if(CompareFn(Cur->Val[i])) {
                 RmIndex = i;
                 break;
             }
         }
-        if(RmIndex == -1) {
+        if(RmIndex == -((intptr_t)1)) {
             Ptr.NewFin(Cur);
             return false;
         }
-        intptr_t NewCount = Cur->Count - 1;
+        intptr_t NewCount = Cur->Count - ((intptr_t)1);
         if(NewCount <= 0) {
             Ptr.NewFin(AllocNew());
             return true;
@@ -490,6 +490,16 @@ public:
         NewArr->Count = i;
         Ptr.NewFin(NewArr);
         return j - i;
+    }
+
+    void begin_locket_enum(const TypeVal ** Arr, intptr_t* Count) const {
+        auto Cur = ((LqPtdArr*)this)->Ptr.NewStart();
+        *Count = Cur->Count;
+        *Arr = Cur->Val;
+    }
+
+    void end_locket_enum() const {
+        ((LqPtdArr*)this)->Ptr.NewFin(Ptr.Get());
     }
 
     int clear() {
