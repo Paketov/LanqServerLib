@@ -17,8 +17,9 @@
 
 
 #include <fcntl.h>
-#include <string>
+#include <stdlib.h> 
 #include <string.h>
+#include <string>
 #include <vector>
 #include "LqWrkBoss.h"
 
@@ -28,11 +29,36 @@
 
 #undef max
 
-static LqWrkBoss Boss;
+static LqWrkBoss* Boss = LqWrkBoss::New();
 
-LqWrkBoss::LqWrkBoss(): MinCount(0) { }
+LqWrkBoss::LqWrkBoss(): MinCount(1), NeedDelete(false) { }
 
-LqWrkBoss::LqWrkBoss(size_t CountWorkers) : MinCount(0) { AddWorkers(CountWorkers); }
+LqWrkBoss::LqWrkBoss(size_t CountWorkers) : MinCount(1) { AddWorkers(CountWorkers); }
+
+LqWrkBoss * LqWrkBoss::New() {
+    return LqFastAlloc::New<LqWrkBoss>();
+}
+
+LqWrkBoss * LqWrkBoss::New(size_t CountWorkers) {
+    return LqFastAlloc::New<LqWrkBoss>(CountWorkers);
+}
+
+void LqWrkBoss::Delete(LqWrkBoss * Target) {
+    const LqWrkPtr* Arr;
+    intptr_t ArrCount;
+    bool IsDelete = false;
+    Target->Wrks.begin_locket_enum(&Arr, &ArrCount);
+    Target->NeedDelete = true;
+    if(ArrCount <= 0) {
+        IsDelete = true;
+    } else {
+        for(intptr_t i = 0; i < ArrCount; i++)
+            Arr[i]->TransferClientsAndRemoveFromBossAsync(Target, false);
+    }
+    Target->Wrks.end_locket_enum(-((intptr_t)1));
+    if(IsDelete)
+        LqFastAlloc::Delete(Target);
+}
 
 LqWrkBoss::~LqWrkBoss(){ }
 
@@ -98,10 +124,18 @@ size_t LqWrkBoss::CountClients() const {
 
 size_t LqWrkBoss::MinBusy(const WrkArray::interator& AllWrks, size_t* MinCount) {
     size_t Min = std::numeric_limits<size_t>::max(), Index = 0;
-    for(size_t i = 0, m = AllWrks.size(); i < m; i++) {
+    bool IsAllSame = true;
+    size_t i = 0, m = AllWrks.size();
+    for(; i < m; i++) {
         size_t l = AllWrks[i]->GetAssessmentBusy();
+        if(i > 0)
+            IsAllSame &= (Min == l);
         if(l < Min)
             Min = l, Index = i;
+    }
+    if(IsAllSame) {
+        Index = rand() % m;
+        Min = AllWrks[Index]->GetAssessmentBusy();
     }
     *MinCount = Min;
     return Index;
@@ -109,10 +143,18 @@ size_t LqWrkBoss::MinBusy(const WrkArray::interator& AllWrks, size_t* MinCount) 
 
 size_t LqWrkBoss::MaxBusy(const WrkArray::interator& AllWrks, size_t* MaxCount) {
     size_t Max = std::numeric_limits<size_t>::max(), Index = 0;
-    for(size_t i = 0, m = AllWrks.size(); i < m; i++) {
+    bool IsAllSame = true;
+    size_t i = 0, m = AllWrks.size();
+    for(; i < m; i++) {
         size_t l = AllWrks[i]->GetAssessmentBusy();
+        if(i > 0)
+            IsAllSame &= (Max == l);
         if(l > Max)
             Max = l, Index = i;
+    }
+    if(IsAllSame) {
+        Index = rand() % m;
+        Max = AllWrks[Index]->GetAssessmentBusy();
     }
     *MaxCount = Max;
     return Index;
@@ -126,88 +168,46 @@ size_t LqWrkBoss::MinBusy(size_t* MinCount) {
 size_t LqWrkBoss::StartAllWorkersSync() const {
     size_t Res = 0;
     for(auto i = Wrks.begin(); !i.is_end(); i++)
-        Res += ((*i)->StartSync() ? 1 : 0);
+        Res += ((*i)->StartThreadSync() ? 1 : 0);
     return Res;
 }
 
 size_t LqWrkBoss::StartAllWorkersAsync() const {
     size_t Ret = 0;
     for(auto i = Wrks.begin(); !i.is_end(); i++)
-        Ret += ((*i)->StartAsync() ? 1 : 0);
+        Ret += ((*i)->StartThreadAsync() ? 1 : 0);
     return Ret;
-}
-
-size_t LqWrkBoss::TransferAllClientsFromWrkList(WrkArray& SourceWrks, bool ByThisBoss) {
-    struct AsyncData {
-        int Fd;
-        LqWrkBoss* This;
-        LqWrk* Wrk;
-        size_t Res;
-        bool ByThisBoss;
-        static void Handler(void* Data) {
-            auto v = (AsyncData*)Data;
-            v->Res = v->This->_TransferAllClients(v->Wrk, v->ByThisBoss);
-            LqEventSet(v->Fd);
-        }
-    };
-    size_t Res = 0;
-    size_t CountTryng = 0;
-    AsyncData Context;
-    Context.Fd = LqEventCreate(LQ_O_NOINHERIT);
-    Context.This = this;
-    Context.ByThisBoss = ByThisBoss;
-    for(auto& i : SourceWrks) {
-        if(i->IsThisThread() || i->IsThreadEnd()) {
-            _TransferAllClients(i.Get(), ByThisBoss);
-        } else {
-            Context.Wrk = i.Get();
-            Context.Res = 0;
-            i->AsyncCall(AsyncData::Handler, &Context);
-            CountTryng = 0;
-lblWaitAgain:
-            if(LqPollCheckSingle(Context.Fd, LQ_POLLIN, 700) == 0) {
-                if(((++CountTryng) >= 3) || i->IsThreadEnd()) {
-                    i->CancelAsyncCall(AsyncData::Handler, &Context, false);
-                    Res += _TransferAllClients(i.Get(), ByThisBoss);
-                } else {
-                    goto lblWaitAgain;
-                }
-            } else {
-                Res += Context.Res;
-            }
-            LqEventReset(Context.Fd);
-        }
-    }
-    LqFileClose(Context.Fd);
-    return Res;
 }
 
 bool LqWrkBoss::KickWorker(ullong IdWorker, bool IsTransferAllEvnt) {
     /*Lock operation remove from array*/
-    if(!IsTransferAllEvnt)
-        return Wrks.remove_by_compare_fn([&](LqWrkPtr& Wrk) { return Wrk->GetId() == IdWorker; });
-    WrkArray DelArr;
-    auto Res = Wrks.remove_by_compare_fn([&](LqWrkPtr& Wrk) {
-        if(Wrk->GetId() != IdWorker)
-            return false;
-        DelArr.push_back(Wrk);
-        return true;
-    }); 
-    TransferAllClientsFromWrkList(DelArr, true);
+    const LqWrkPtr* Arr;
+    intptr_t ArrCount;
+    bool Res = false;
+    Wrks.begin_locket_enum(&Arr, &ArrCount);
+    for(intptr_t i = 0; i < ArrCount; i++) {
+        if(Arr[i]->GetId() == IdWorker) {
+            Arr[i]->TransferClientsAndRemoveFromBossAsync(this, IsTransferAllEvnt);
+            Res = true;
+            break;
+        }
+    }
+    Wrks.end_locket_enum(-((intptr_t)1));
     return Res;
 }
 
-size_t LqWrkBoss::TransferAllClients(LqWrkBoss* Source) {
-    return TransferAllClientsFromWrkList(Source->Wrks, false);
-}
-
 size_t LqWrkBoss::KickWorkers(uintptr_t Count, bool IsTransferAllEvnt) {
-    if(!IsTransferAllEvnt)
-        return Wrks.unappend(Count, MinCount);
-
-    WrkArray DelWrks;
-    auto Res = Wrks.unappend(Count, MinCount, DelWrks);
-    TransferAllClientsFromWrkList(DelWrks, true);
+    const LqWrkPtr* Arr;
+    intptr_t ArrCount;
+    size_t Res = 0;
+    Wrks.begin_locket_enum(&Arr, &ArrCount);
+    for(intptr_t i = 0; i < ArrCount; i++) {
+        if((i >= Count) || ((i + MinCount) >= ArrCount))
+            break;
+        Arr[i]->TransferClientsAndRemoveFromBossAsync(this, IsTransferAllEvnt);
+        Res++;
+    }
+    Wrks.end_locket_enum(-((intptr_t)1));
     return Res;
 }
 
@@ -298,26 +298,26 @@ size_t LqWrkBoss::EnumClientsByProto(int(LQ_CALL*Proc)(void *, LqClientHdr*), co
 }
 
 size_t LqWrkBoss::EnumClients11(std::function<int(LqClientHdr*)> EventAct) const {
-	size_t Res = 0;
-	bool IsIterrupted = false;
-	for(auto i = Wrks.begin(); !i.is_end() && !IsIterrupted; i++)
-		Res += (*i)->EnumClients11(EventAct, &IsIterrupted);
-	return Res;
+    size_t Res = 0;
+    bool IsIterrupted = false;
+    for(auto i = Wrks.begin(); !i.is_end() && !IsIterrupted; i++)
+        Res += (*i)->EnumClients11(EventAct, &IsIterrupted);
+    return Res;
 }
 
 size_t LqWrkBoss::EnumClientsByProto11(std::function<int(LqClientHdr*)> EventAct, const LqProto* Proto) const {
-	size_t Res = 0;
-	bool IsIterrupted = false;
-	for(auto i = Wrks.begin(); !i.is_end() && !IsIterrupted; i++)
-		Res += (*i)->EnumClientsByProto11(EventAct, Proto, &IsIterrupted);
-	return Res;
+    size_t Res = 0;
+    bool IsIterrupted = false;
+    for(auto i = Wrks.begin(); !i.is_end() && !IsIterrupted; i++)
+        Res += (*i)->EnumClientsByProto11(EventAct, Proto, &IsIterrupted);
+    return Res;
 }
 
 bool LqWrkBoss::EnumClientsAsync11(std::function<int(LqWrkPtr&, LqClientHdr*)> EventAct) const {
-	bool Res = false;
-	for(auto i = Wrks.begin(); !i.is_end(); i++)
-		Res |= (*i)->EnumClientsAsync11(EventAct);
-	return Res;
+    bool Res = false;
+    for(auto i = Wrks.begin(); !i.is_end(); i++)
+        Res |= (*i)->EnumClientsAsync11(EventAct);
+    return Res;
 }
 
 bool LqWrkBoss::EnumClientsAsync(
@@ -376,19 +376,19 @@ bool LqWrkBoss::AsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData) {
 }
 
 bool LqWrkBoss::AsyncCall11(std::function<void()> Proc) {
-	bool Res = true;
-	auto LocalWrks = Wrks.begin();
-	if(LocalWrks.size() <= 0) {
-		if(!AddWorkers(1)) {
-			return false;
-		} else {
-			LocalWrks = Wrks.begin();
-			if(LocalWrks.size() <= 0)
-				return false;
-		}
-	}
-	auto IndexMinUsed = MinBusy(LocalWrks);
-	return LocalWrks[IndexMinUsed]->AsyncCall11(Proc);
+    bool Res = true;
+    auto LocalWrks = Wrks.begin();
+    if(LocalWrks.size() <= 0) {
+        if(!AddWorkers(1)) {
+            return false;
+        } else {
+            LocalWrks = Wrks.begin();
+            if(LocalWrks.size() <= 0)
+                return false;
+        }
+    }
+    auto IndexMinUsed = MinBusy(LocalWrks);
+    return LocalWrks[IndexMinUsed]->AsyncCall11(Proc);
 }
 
 size_t LqWrkBoss::CancelAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData, bool IsAll) {
@@ -428,7 +428,7 @@ LqString LqWrkBoss::AllDebugInfo() {
     return DbgStr;
 }
 
-LqWrkBoss* LqWrkBoss::GetGlobal() { return &Boss; }
+LqWrkBoss* LqWrkBoss::GetGlobal() { return Boss; }
 
 LQ_EXTERN_C int LQ_CALL LqClientSetFlags(void* EvntOrConn, LqEvntFlag NewFlag, LqTimeMillisec WaitTime) {
     LqClientHdr* EvntHdr = (LqClientHdr*)EvntOrConn;
@@ -597,51 +597,51 @@ LQ_EXTERN_C void LQ_CALL LqClientSetOnlyOneBoss(void * EvntHdr, bool State) {
 
 
 
-LQ_EXTERN_C void *LQ_CALL LqWrkBossGet() { return &Boss; }
+LQ_EXTERN_C void *LQ_CALL LqWrkBossGet() { return Boss; }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossKickWrks(size_t Count) { return Boss.KickWorkers(Count); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossKickWrks(size_t Count) { return Boss->KickWorkers(Count); }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossKickWrk(size_t Index) { return Boss.KickWorker(Index) ? 0 : -1; }
+LQ_EXTERN_C int LQ_CALL LqWrkBossKickWrk(size_t Index) { return Boss->KickWorker(Index) ? 0 : -1; }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossAddWrks(size_t Count, bool IsStart) { return Boss.AddWorkers(Count, IsStart); }
+LQ_EXTERN_C int LQ_CALL LqWrkBossAddWrks(size_t Count, bool IsStart) { return Boss->AddWorkers(Count, IsStart); }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossAddWrk(void * Wrk) { LqWrkPtr Ptr = (LqWrk*)Wrk; return Boss.AddWorker(Ptr) ? 0 : -1; }
+LQ_EXTERN_C int LQ_CALL LqWrkBossAddWrk(void * Wrk) { LqWrkPtr Ptr = (LqWrk*)Wrk; return Boss->AddWorker(Ptr) ? 0 : -1; }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossKickAllWrk() { return Boss.KickAllWorkers(); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossKickAllWrk() { return Boss->KickAllWorkers(); }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossCloseAllClientsAsync() { return Boss.CloseAllClientsAsync() ? 0 : -1; }
+LQ_EXTERN_C int LQ_CALL LqWrkBossCloseAllClientsAsync() { return Boss->CloseAllClientsAsync() ? 0 : -1; }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseAllClientsSync() { return Boss.CloseAllClientsSync(); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseAllClientsSync() { return Boss->CloseAllClientsSync(); }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossUpdateAllClientsFlagAsync() { return Boss.UpdateAllClientsFlagAsync() ? 0 : -1; }
+LQ_EXTERN_C int LQ_CALL LqWrkBossUpdateAllClientsFlagAsync() { return Boss->UpdateAllClientsFlagAsync() ? 0 : -1; }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossUpdateAllClientsFlagSync() { return Boss.UpdateAllClientsFlagSync() ? 0 : -1; }
+LQ_EXTERN_C int LQ_CALL LqWrkBossUpdateAllClientsFlagSync() { return Boss->UpdateAllClientsFlagSync() ? 0 : -1; }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossCloseClientsByIpAsync(const struct sockaddr* Addr) { return Boss.CloseClientsByIpAsync(Addr) ? 0 : -1; }
+LQ_EXTERN_C int LQ_CALL LqWrkBossCloseClientsByIpAsync(const struct sockaddr* Addr) { return Boss->CloseClientsByIpAsync(Addr) ? 0 : -1; }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseClientsByIpSync(const struct sockaddr* Addr) { return Boss.CloseClientsByIpSync(Addr); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseClientsByIpSync(const struct sockaddr* Addr) { return Boss->CloseClientsByIpSync(Addr); }
 
-LQ_EXTERN_C bool LQ_CALL LqWrkBossRemoveClients(LqClientHdr * Conn) { return Boss.RemoveClient(Conn); }
+LQ_EXTERN_C bool LQ_CALL LqWrkBossRemoveClients(LqClientHdr * Conn) { return Boss->RemoveClient(Conn); }
 
-LQ_EXTERN_C bool LQ_CALL LqWrkBossCloseClients(LqClientHdr * Conn) { return Boss.CloseClient(Conn); }
+LQ_EXTERN_C bool LQ_CALL LqWrkBossCloseClients(LqClientHdr * Conn) { return Boss->CloseClient(Conn); }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossCloseClientsByProtoAsync(const LqProto* Addr) { return Boss.CloseClientsByProtoAsync(Addr); }
+LQ_EXTERN_C int LQ_CALL LqWrkBossCloseClientsByProtoAsync(const LqProto* Addr) { return Boss->CloseClientsByProtoAsync(Addr); }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseClientsByProtoSync(const LqProto* Addr) { return Boss.CloseClientsByProtoSync(Addr); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseClientsByProtoSync(const LqProto* Addr) { return Boss->CloseClientsByProtoSync(Addr); }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossCloseClientsByTimeoutAsync(LqTimeMillisec TimeLive) { return Boss.CloseClientsByTimeoutAsync(TimeLive) ? 0 : -1; }
+LQ_EXTERN_C int LQ_CALL LqWrkBossCloseClientsByTimeoutAsync(LqTimeMillisec TimeLive) { return Boss->CloseClientsByTimeoutAsync(TimeLive) ? 0 : -1; }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseClientsByTimeoutSync(LqTimeMillisec TimeLive) { return Boss.CloseClientsByTimeoutSync(TimeLive); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseClientsByTimeoutSync(LqTimeMillisec TimeLive) { return Boss->CloseClientsByTimeoutSync(TimeLive); }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossCloseClientsByProtoTimeoutAsync(const LqProto* Proto, LqTimeMillisec TimeLive) { return Boss.CloseClientsByTimeoutAsync(Proto, TimeLive) ? 0 : -1; }
+LQ_EXTERN_C int LQ_CALL LqWrkBossCloseClientsByProtoTimeoutAsync(const LqProto* Proto, LqTimeMillisec TimeLive) { return Boss->CloseClientsByTimeoutAsync(Proto, TimeLive) ? 0 : -1; }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseClientsByProtoTimeoutSync(const LqProto* Proto, LqTimeMillisec TimeLive) { return Boss.CloseClientsByTimeoutSync(Proto, TimeLive) ? 0 : -1; }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCloseClientsByProtoTimeoutSync(const LqProto* Proto, LqTimeMillisec TimeLive) { return Boss->CloseClientsByTimeoutSync(Proto, TimeLive) ? 0 : -1; }
 
 LQ_EXTERN_C size_t LQ_CALL LqWrkBossEnumClientsCloseRmEvntByProto(int(LQ_CALL*Proc)(void*, LqClientHdr*), const LqProto* Proto, void* UserData) {
-    return Boss.EnumClientsByProto(Proc, Proto, UserData);
+    return Boss->EnumClientsByProto(Proc, Proto, UserData);
 }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossEnumClients(int(LQ_CALL*Proc)(void*, LqClientHdr*), void * UserData) { return Boss.EnumClients(Proc, UserData); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossEnumClients(int(LQ_CALL*Proc)(void*, LqClientHdr*), void * UserData) { return Boss->EnumClients(Proc, UserData); }
 
 LQ_IMPORTEXPORT bool LQ_CALL LqWrkBossEnumClientsAndCallFinAsync(
     int(LQ_CALL*EventAct)(void*, size_t, void*, LqClientHdr*, LqTimeMillisec),
@@ -649,17 +649,17 @@ LQ_IMPORTEXPORT bool LQ_CALL LqWrkBossEnumClientsAndCallFinAsync(
     void * UserData,
     size_t UserDataSize
 ) {
-    return Boss.EnumClientsAndCallFinAsync(EventAct, FinFunc, UserData, UserDataSize);
+    return Boss->EnumClientsAndCallFinAsync(EventAct, FinFunc, UserData, UserDataSize);
 }
 
-LQ_EXTERN_C int LQ_CALL LqWrkBossAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData) { return Boss.AsyncCall(AsyncProc, UserData) ? 0 : -1; }
+LQ_EXTERN_C int LQ_CALL LqWrkBossAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData) { return Boss->AsyncCall(AsyncProc, UserData) ? 0 : -1; }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossCancelAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData, bool IsAll) { return Boss.CancelAsyncCall(AsyncProc, UserData, IsAll); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCancelAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData, bool IsAll) { return Boss->CancelAsyncCall(AsyncProc, UserData, IsAll); }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossSetMinWrkCount(size_t NewCount) { return Boss.SetWrkMinCount(NewCount); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossSetMinWrkCount(size_t NewCount) { return Boss->SetWrkMinCount(NewCount); }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossStartAllWrkSync() { return Boss.StartAllWorkersSync(); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossStartAllWrkSync() { return Boss->StartAllWorkersSync(); }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossStartAllWrkAsync() { return Boss.StartAllWorkersAsync(); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossStartAllWrkAsync() { return Boss->StartAllWorkersAsync(); }
 
-LQ_EXTERN_C size_t LQ_CALL LqWrkBossCountWrk() { return Boss.CountWorkers(); }
+LQ_EXTERN_C size_t LQ_CALL LqWrkBossCountWrk() { return Boss->CountWorkers(); }

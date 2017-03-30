@@ -58,17 +58,26 @@ public:
 
         inline Interator() { Type.Cmd = NULL; }
 
-        inline Interator DeattachLast() {
+        inline Interator GetSkipped() const {
             Interator Ret;
-            Ret.Type.Cmd = Type.Cmd;
-            Type.Cmd = Type.Cmd->Next;
+            Ret.Type.Cmd = Type.Cmd->Next;
             return Ret;
+        }
+
+        inline void Move(Interator & Dest) {
+            ElementHeader** i = &Dest.Type.Cmd;
+            for(; *i; i = &(*i)->Next);
+            *i = Type.Cmd;
+            Type.Cmd = Type.Cmd->Next;
+            (*i)->Next = nullptr;
         }
 
         /*
         * Is have last command. Use for termunate in loop.
         */
         operator bool() const;
+
+
 
         /*
         * Get value command.
@@ -139,34 +148,27 @@ public:
     //template<typename ValType>
     //bool PushBegin(TypeCommand tCommand, ValType Val);
 
-
-    Interator SeparateBegin() {
+    Interator LocketFork() {
         Interator i;
         Locker.LockWriteYield();
         i.Type.Cmd = Begin;
         Begin = End = nullptr;
         return i;
     }
-
-    void SeparatePush(Interator& Source) {
-        ElementHeader* NewCommand = Source.Type.Cmd;
-        Source.Type.Cmd = Source.Type.Cmd->Next;
-        NewCommand->Next = nullptr;
-        if(End != nullptr)
-            End->Next = NewCommand;
-        else
-            Begin = NewCommand;
-        End = NewCommand;
-    }
-
-    bool SeparateIsEnd(Interator& Source) {
-        if(!Source) {
-            Locker.UnlockWrite();
-            return true;
+    void LocketUnfork(Interator & Inter) {
+        if(Inter.Type.Cmd != nullptr) {
+            ElementHeader* i = Inter.Type.Cmd;
+            if(i != nullptr) {
+                for(; i->Next; i = i->Next);
+                i->Next = Begin;
+                Begin = Inter.Type.Cmd;
+                if(End == nullptr)
+                    End = i;
+                Inter.Type.Cmd = nullptr;
+            }
         }
-        return false;
+        Locker.UnlockWrite();
     }
-
 };
 
 #pragma pack(pop)

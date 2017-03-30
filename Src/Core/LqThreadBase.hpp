@@ -28,23 +28,30 @@ enum LqThreadPriorEnm
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
-class LQ_IMPORTEXPORT LqThreadBase:
-    protected LqSystemThread
-{
+class LQ_IMPORTEXPORT LqThreadBase {
 protected:
     LqThreadPriorEnm                                    Priority;
     ullong                                              AffinMask;
-    mutable LqLocker<uchar>                             ThreadParamLocker;
-    mutable LqLocker<uchar>                             StartThreadLocker;
-    volatile bool                                       IsShouldEnd;
-    volatile bool                                       IsOut;
+    mutable LqLocker<uintptr_t>                         StartThreadLocker;
     char*                                               Name;
     void*                                               UserData;
+    intptr_t                                            CurThreadId;
+    uintptr_t                                           ThreadHandler;
+    std::atomic<bool>                                   IsStarted;
+    std::atomic<bool>                                   IsShouldEnd;
+
+#ifdef LQPLATFORM_WINDOWS
+    static unsigned __stdcall BeginThreadHelper(void* ProcData);
+#else
+    static void* BeginThreadHelper(void * Data);
+#endif
+
     void(*EnterHandler)(void *UserData);
     void(*ExitHandler)(void *UserData);
-    static void BeginThreadHelper(LqThreadBase* This);
     virtual void BeginThread() = 0;
     virtual void NotifyThread() = 0;
+
+    uintptr_t NativeHandle();
 public:
 
     LqThreadBase(const char* NewName);
@@ -52,23 +59,21 @@ public:
 
     intptr_t ThreadId() const;
 
-    void SetPriority(LqThreadPriorEnm New);
+    bool SetPriority(LqThreadPriorEnm New);
     LqThreadPriorEnm GetPriority() const;
 
     ullong GetAffinity() const;
-    void SetAffinity(ullong Mask);
+    bool SetAffinity(ullong Mask);
 
     void WaitEnd();
 
-    bool StartAsync();
-    bool StartSync();
+    bool StartThreadAsync();
+    bool StartThreadSync();
 
     bool EndWorkAsync();
     bool EndWorkSync();
 
-    bool IsThreadEnd() const;
-
-    bool IsJoinable() const;
+    bool IsThreadRunning() const;
 
     bool IsThisThread();
 

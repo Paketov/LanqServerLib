@@ -498,8 +498,28 @@ public:
         *Arr = Cur->Val;
     }
 
-    void end_locket_enum() const {
-        ((LqPtdArr*)this)->Ptr.NewFin(Ptr.Get());
+    void end_locket_enum(intptr_t RmIndex) const {
+		auto Cur = Ptr.Get();
+		if(RmIndex == -((intptr_t)1)) {
+			((LqPtdArr*)this)->Ptr.NewFin(Cur);
+			return;
+		}
+		intptr_t NewCount = Cur->Count - 1;
+		if(NewCount <= 0) {
+			((LqPtdArr*)this)->Ptr.NewFin(AllocNew());
+			return;
+		}
+		auto NewArr = AllocNew(NewCount);
+		if(NewArr == nullptr) {
+			((LqPtdArr*)this)->Ptr.NewFin(Cur);
+			return;
+		}
+		intptr_t i = 0;
+		for(; i < RmIndex; i++)
+			new(NewArr->Val + i) TypeVal(Cur->Val[i]);
+		for(; i < NewCount; i++)
+			new(NewArr->Val + i) TypeVal(Cur->Val[i + 1]);
+		((LqPtdArr*)this)->Ptr.NewFin(NewArr);
     }
 
     int clear() {

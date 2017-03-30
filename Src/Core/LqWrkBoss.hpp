@@ -41,25 +41,27 @@ class LqWrk;
 
 class LQ_IMPORTEXPORT LqWrkBoss {
     friend LqWrk;
+	friend LqFastAlloc;
     friend void LqWrkDelete(LqWrk* This);
 
     typedef LqPtdArr<LqWrkPtr> WrkArray;
 
     WrkArray      Wrks;
     intptr_t      MinCount;
+	bool          NeedDelete;
 
     static size_t MinBusy(const WrkArray::interator& AllWrks, size_t* MinCount = LqDfltPtr());
     static size_t MaxBusy(const WrkArray::interator& AllWrks, size_t* MaxCount = LqDfltPtr());
     size_t        MinBusy(size_t* MinCount = LqDfltPtr());
-
-    size_t      TransferAllClientsFromWrkList(WrkArray& SourceWrks, bool ByThisBoss);
-
-    size_t      _TransferAllClients(LqWrk* Source, bool ByThisBoss);
+	LqWrkBoss();
+    LqWrkBoss(size_t CountWorkers);
 
 public:
+	static LqWrkBoss* New();
+	static LqWrkBoss* New(size_t CountWorkers);
 
-    LqWrkBoss();
-    LqWrkBoss(size_t CountWorkers);
+	static void Delete(LqWrkBoss * Target);
+
     ~LqWrkBoss();
 
     int         AddWorkers(size_t Count = LqSystemThread::hardware_concurrency(), bool IsStart = true);
@@ -206,13 +208,6 @@ public:
     */
     size_t       CancelAsyncCall(void(LQ_CALL*AsyncProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
 
-    /*
-       Transfer all events follovers to other workers.
-        @Source - Source worker or worker list(Boss).
-        @return - count transfered events
-    */
-    size_t      TransferAllClients(LqWrk* Source) { return _TransferAllClients(Source, false);  }
-    size_t      TransferAllClients(LqWrkBoss* Source);
 
     size_t      KickAllWorkers();
 

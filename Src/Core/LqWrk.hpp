@@ -49,7 +49,6 @@ class LQ_IMPORTEXPORT LqWrk: public LqThreadBase {
 
     LqQueueCmd<uint8_t>                                 EvntFdQueue;
     LqQueueCmd<uint8_t>                                 CommandQueue;
-	LqQueueCmd<uint8_t>::Interator                      CurrentCmdInterator;
     LqSysPoll                                           EventChecker;
     LqEvntFd                                            NotifyEvent;
     intptr_t                                            DeepLoop;
@@ -60,6 +59,7 @@ class LQ_IMPORTEXPORT LqWrk: public LqThreadBase {
     long long                                           Id;
     LqTimeMillisec                                      TimeStart;
     bool                                                IsDelete;
+    bool                                                IsRecurseSkipCommands;
     uintptr_t                                           IsSyncAllFlags;
 
     
@@ -76,7 +76,7 @@ class LQ_IMPORTEXPORT LqWrk: public LqThreadBase {
             for(uintptr_t i = ((uintptr_t)0); i < ((uintptr_t)50); i++)
                 if(WaitLocker.TryLockWrite())
                     return;
-            if(IsThreadEnd())
+            if(!IsThreadRunning())
                 break;
         }
     }
@@ -84,6 +84,8 @@ class LQ_IMPORTEXPORT LqWrk: public LqThreadBase {
 
     void ClearQueueCommands();
     void ParseInputCommands();
+    static bool CmdIsOnlyOneTypeOfCommandInQueue(LqQueueCmd<uint8_t>::Interator& Inter, uint8_t TypeOfCommand);
+
     void AcceptAllEventFromQueue();
 
     static void ExitHandlerFn(void* Data);
@@ -169,6 +171,7 @@ public:
     size_t   EnumClients11(std::function<int(LqClientHdr*)> EventAct, bool* IsIterrupted = LqDfltPtr());
     size_t   EnumClientsByProto11(std::function<int(LqClientHdr*)> EventAct, const LqProto* Proto, bool* IsIterrupted = LqDfltPtr());
 
+    bool     TransferClientsAndRemoveFromBossAsync(LqWrkBoss* TargetBoss, bool IsTransferClients);
 
     LqString DebugInfo() const;
     LqString AllDebugInfo();

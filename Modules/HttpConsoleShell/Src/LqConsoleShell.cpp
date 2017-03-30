@@ -133,27 +133,26 @@ LqFbuf InCmd;
 LqHttp* Http = nullptr;
 
 int main(int argc, char* argv[]) {
-    int StdFd = LqDescrDup(LQ_STDIN, 0);
-    fclose(stdin);
-    LqDescrDupToStd(StdFd, LQ_STDIN);
-    LqFileClose(StdFd);
-    StdFd = LqDescrDup(LQ_STDOUT, 0);
+	int StdFd = LqDescrDup(LQ_STDIN, 0);
+	fclose(stdin);
+	LqDescrDupToStd(StdFd, LQ_STDIN);
+	LqFileClose(StdFd);
+	StdFd = LqDescrDup(LQ_STDOUT, 0);
 
-    fclose(stdout);
-    LqDescrDupToStd(StdFd, LQ_STDOUT);
-    LqFileClose(StdFd);
-    StdFd = LqDescrDup(LQ_STDERR, 0);
+	fclose(stdout);
+	LqDescrDupToStd(StdFd, LQ_STDOUT);
+	LqFileClose(StdFd);
+	StdFd = LqDescrDup(LQ_STDERR, 0);
 
-    fclose(stderr);
-    LqDescrDupToStd(StdFd, LQ_STDERR);
-    LqFileClose(StdFd);
+	fclose(stderr);
+	LqDescrDupToStd(StdFd, LQ_STDERR);
+	LqFileClose(StdFd);
 
-    LqFbuf_fdopen(&StdIn, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH | LQFBUF_FAST_LK, LQ_STDIN, 50, 4096, 20);
-    LqFbuf_fdopen(&StdOut, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH | LQFBUF_FAST_LK, LQ_STDOUT, 50, 4096, 20);
-    LqFbuf_fdopen(&StdErr, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH | LQFBUF_FAST_LK, LQ_STDERR, 50, 4096, 20);
+	LqFbuf_fdopen(&StdIn, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH | LQFBUF_FAST_LK, LQ_STDIN, 50, 4096, 20);
+	LqFbuf_fdopen(&StdOut, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH | LQFBUF_FAST_LK, LQ_STDOUT, 50, 4096, 20);
+	LqFbuf_fdopen(&StdErr, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH | LQFBUF_FAST_LK, LQ_STDERR, 50, 4096, 20);
 
-    LqFbuf_null(&NullOut);
-    
+	LqFbuf_null(&NullOut);
 
 #if !defined(LQPLATFORM_WINDOWS)
     signal(SIGTERM, [](int) -> void { IsLoop = false; });
