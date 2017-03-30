@@ -221,7 +221,8 @@
 enum {
     LQWRK_CMD_RM_CONN_ON_TIME_OUT,
     LQWRK_CMD_RM_CONN_ON_TIME_OUT_PROTO,
-    LQWRK_CMD_WAIT_EVENT,
+    LQWRK_CMD_ASYNC_CALL,
+    LQWRK_CMD_ASYNC_CALL_11,
     LQWRK_CMD_CLOSE_ALL_CONN,
     LQWRK_CMD_RM_CONN_BY_IP,
     LQWRK_CMD_CLOSE_CONN_BY_PROTO,
@@ -590,7 +591,7 @@ void LqWrk::ParseInputCommands() {
                 }LqWrkEnumEvntOwnerWhile(this);
             }
             break;
-            case LQWRK_CMD_WAIT_EVENT:
+            case LQWRK_CMD_ASYNC_CALL:
             {
                 /*
                 Call procedure for wait event.
@@ -598,6 +599,12 @@ void LqWrk::ParseInputCommands() {
                 LqWrkCmdWaitEvnt Tmp = Command.Val<LqWrkCmdWaitEvnt>();
                 Command.Pop<LqWrkCmdWaitEvnt>();
                 Tmp.EventAct(Tmp.UserData);
+            }
+            break;
+            case LQWRK_CMD_ASYNC_CALL_11: 
+            {
+                Command.Val<std::function<void()>>()();
+                Command.Pop<std::function<void()>>();
             }
             break;
             case LQWRK_CMD_CLOSE_ALL_CONN:
@@ -882,6 +889,7 @@ void LqWrk::ClearQueueCommands() {
 
     for(auto Command = CommandQueue.Fork(); Command;) {
         switch(Command.Type) {
+            case LQWRK_CMD_ASYNC_CALL_11: Command.Pop<std::function<void()>>(); break;
             case LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD: Command.Pop<LqWrkAsyncEventForAllFd>(); break;
             case LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN: Command.Pop<LqWrkAsyncEventForAllFdAndCallFin>(); break;
             case LQWRK_CMD_ASYNC_EVENT_FOR_ALL_FD_FIN11: Command.Pop<LqWrkAsyncEventForAllFdAndCallFin11>(); break;
@@ -1142,29 +1150,17 @@ int LqWrk::UpdateAllClientFlagSync() {
 }
 
 bool LqWrk::AsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData) {
-    if(!CommandQueue.Push<LqWrkCmdWaitEvnt>(LQWRK_CMD_WAIT_EVENT, AsyncProc, UserData))
+    if(!CommandQueue.Push<LqWrkCmdWaitEvnt>(LQWRK_CMD_ASYNC_CALL, AsyncProc, UserData))
         return false;
     NotifyThread();
     return true;
 }
 
 bool LqWrk::AsyncCall11(std::function<void()> Proc) {
-    struct LqAsyncData {
-        std::function<void()> Func;
-
-        static void Proc(void* UserData) {
-            LqAsyncData* Async = (LqAsyncData*)UserData;
-            Async->Func();
-            LqFastAlloc::Delete(Async);
-        }
-    };
-    LqAsyncData* Async = LqFastAlloc::New<LqAsyncData>();
-    Async->Func = Proc;
-    if(AsyncCall(LqAsyncData::Proc, Async))
-        return true;
-    LqFastAlloc::Delete(Async);
-    return false;
-
+    if(!CommandQueue.Push<std::function<void()>>(LQWRK_CMD_ASYNC_CALL_11, Proc))
+        return false;
+    NotifyThread();
+    return true;
 }
 
 size_t LqWrk::CancelAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData, bool IsAll) {
@@ -1174,7 +1170,7 @@ size_t LqWrk::CancelAsyncCall(void(LQ_CALL*AsyncProc)(void*), void* UserData, bo
     LqQueueCmd<uint8_t>::Interator NewQueueCmd;
     while(Command) {
         switch(Command.Type) {
-            case LQWRK_CMD_WAIT_EVENT:
+            case LQWRK_CMD_ASYNC_CALL:
             {
                 if((IsAll || (Res == 0)) && (Command.Val<LqWrkCmdWaitEvnt>().EventAct == AsyncProc) && (Command.Val<LqWrkCmdWaitEvnt>().UserData == UserData)) {
                     Command.Pop<LqWrkCmdWaitEvnt>();
