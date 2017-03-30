@@ -326,6 +326,11 @@ bool LqThreadBase::StartThreadAsync() {
     CurThreadId = threadID;
     ThreadHandler = Handler;
     if(Handler == -1L) {
+        switch(errno) {
+            case EAGAIN: lq_errno_set(EAGAIN); break;
+            case EINVAL: lq_errno_set(EINVAL); break;
+            case EACCES: lq_errno_set(EACCES); break;
+        }
 #else
     pthread_t threadID = 0;
     int Err = pthread_create(&threadID, NULL, BeginThreadHelper, this);
@@ -356,6 +361,11 @@ bool LqThreadBase::StartThreadSync() {
     CurThreadId = threadID;
     ThreadHandler = Handler;
     if(Handler == -1L) {
+        switch(errno) {
+            case EAGAIN: lq_errno_set(EAGAIN); break;
+            case EINVAL: lq_errno_set(EINVAL); break;
+            case EACCES: lq_errno_set(EACCES); break;
+        }
 #else
     pthread_t threadID = 0;
     int Err = pthread_create(&threadID, NULL, BeginThreadHelper, this);
