@@ -142,6 +142,7 @@ extern "C" __kernel_entry NTSTATUS NTAPI NtUnlockFile(
 
 extern "C" __kernel_entry NTSTATUS NTAPI NtClearEvent(IN HANDLE EventHandle);
 
+
 //NtQueryObject
 
 int _LqFileConvertNameToWcs(const char* Name, wchar_t* DestBuf, size_t DestBufSize) {
@@ -208,6 +209,12 @@ LQ_EXTERN_C int LQ_CALL LqFileOpen(const char *FileName, uint32_t Flags, int Acc
     return (int)ResultHandle;
 }
 
+LQ_EXTERN_C bool LQ_CALL LqFileIsExist(const char* FileName) {
+    WIN32_FILE_ATTRIBUTE_DATA info;
+    wchar_t Name[LQ_MAX_PATH];
+    _LqFileConvertNameToWcs(FileName, Name, LQ_MAX_PATH);
+    return GetFileAttributesExW(Name, GetFileExInfoStandard, &info) == TRUE;
+}
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileGetPath(int Fd, char* DestBuf, intptr_t SizeBuf) {
     wchar_t Name[LQ_MAX_PATH];
@@ -1687,6 +1694,7 @@ LQ_EXTERN_C void LQ_CALL LqSleep(LqTimeMillisec Millisec) {
 #include <signal.h>
 #include <dirent.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h> 
 
 #include <sys/wait.h>
 
@@ -1761,6 +1769,10 @@ LQ_EXTERN_C int LQ_CALL LqFileOpen(const char *FileName, uint32_t Flags, int Acc
         ((Flags & LQ_O_SHORT_LIVED) ? O_SHORT_LIVED : 0) |
         ((Flags & LQ_O_NONBLOCK) ? O_NONBLOCK : 0);
     return open(FileName, DecodedFlags, Access);
+}
+
+LQ_EXTERN_C bool LQ_CALL LqFileIsExist(const char* FileName) {
+    return access(FileName, F_OK) == 0;
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileGetStat(const char* FileName, LqFileStat* StatDest) {
@@ -2042,7 +2054,21 @@ LQ_EXTERN_C int LQ_CALL LqPipeCreateNamed(const char* NameOfPipe, uint32_t Flags
 }
 
 LQ_EXTERN_C int LQ_CALL LqPipeCreateRw(int* Pipe1, int* Pipe2, uint32_t Flags1, uint32_t Flags2) {
-    return LqPipeCreate(Pipe1, Pipe2, Flags1, Flags2);
+    int SocketFd[2];
+    if(socketpair(AF_UNIX, SOCK_STREAM, 0, SocketFd) < 0)
+        return -1;
+    if(Flags1 & LQ_O_NONBLOCK)
+        fcntl(SocketFd[0], F_SETFL, fcntl(SocketFd[0], F_GETFL, 0) | O_NONBLOCK);
+    if(Flags1 & LQ_O_NOINHERIT)
+        fcntl(SocketFd[0], F_SETFD, fcntl(SocketFd[0], F_GETFD) | FD_CLOEXEC);
+
+    if(Flags2 & LQ_O_NONBLOCK)
+        fcntl(SocketFd[1], F_SETFL, fcntl(SocketFd[1], F_GETFL, 0) | O_NONBLOCK);
+    if(Flags2 & LQ_O_NOINHERIT)
+        fcntl(SocketFd[1], F_SETFD, fcntl(SocketFd[1], F_GETFD) | FD_CLOEXEC);
+    *Pipe1 = SocketFd[0];
+    *Pipe2 = SocketFd[1];
+    return 0;
 }
 
 /*------------------------------------------

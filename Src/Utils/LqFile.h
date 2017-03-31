@@ -240,6 +240,8 @@ struct LqFilePathEvntEnm {
 */
 LQ_IMPORTEXPORT int LQ_CALL LqFileOpen(const char* lqacp lqain FileName, uint32_t Flags, int Access);
 
+LQ_IMPORTEXPORT bool LQ_CALL LqFileIsExist(const char* lqacp lqain FileName);
+
 /*
 * On windows or linux you can read/write in non block mode (LQ_O_NONBLOCK)
 *  @Fd: Open file descriptor or LQ_STDIN
