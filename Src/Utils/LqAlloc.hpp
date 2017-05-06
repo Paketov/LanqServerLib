@@ -163,7 +163,6 @@ static Type* LqFastAlloc::ReallocCount(Type* Prev, size_t PrevCount, size_t NewC
         case 8: NewVal = (Type*)LqFastAlloc::New<StructSize<Type, 8>>(); break;
         default: NewVal = (Type*)LqMemAlloc(NewCount * sizeof(Type));
     }
-
     if(NewVal == nullptr)
         return nullptr;
     memcpy(NewVal, Prev, lq_min(PrevCount, NewCount) * sizeof(Type));

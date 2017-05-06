@@ -24,6 +24,7 @@
 #include "LqDef.hpp"
 #include "LqFche.h"
 #include "LqSockBuf.h"
+#include "LqCrypt.h"
 
 #include "LqFdIpc.h"
 
@@ -40,7 +41,6 @@
 #ifndef LQPLATFORM_WINDOWS
 # include <signal.h>
 #endif
-
 
 const char* PrintHlp();
 LqString PermToString(uint8_t Perm);
@@ -153,15 +153,15 @@ int main(int argc, char* argv[]) {
 	LqFbuf_fdopen(&StdErr, LQFBUF_PRINTF_FLUSH | LQFBUF_PUT_FLUSH | LQFBUF_FAST_LK, LQ_STDERR, 50, 4096, 20);
 
 	LqFbuf_null(&NullOut);
-
 #if !defined(LQPLATFORM_WINDOWS)
     signal(SIGTERM, [](int) -> void { IsLoop = false; });
 #endif
     LqCpSet(LQCP_UTF_8);
 
-    LqFbuf_printf(OutFile,
-                  "Name: LanQ (Lan Quick) Server Shell\n"
-                  " hotSAN 2016\n\n"
+    LqFbuf_printf(
+		OutFile,
+        "Name: LanQ (Lan Quick) Server Shell\n"
+        " hotSAN 2016\n\n"
     );
     char CommandBuf[128];
     int CommandLen;

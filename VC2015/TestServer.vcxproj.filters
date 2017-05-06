@@ -72,9 +72,6 @@
     <ClCompile Include="..\Src\Utils\LqSbuf.cpp">
       <Filter>Utils</Filter>
     </ClCompile>
-    <ClCompile Include="..\Src\Utils\LqMd5.cpp">
-      <Filter>Utils</Filter>
-    </ClCompile>
     <ClCompile Include="..\Src\Core\LqZmbClr.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -92,6 +89,9 @@
     </ClCompile>
     <ClCompile Include="..\Src\Core\LqPrtScan.cpp">
       <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Src\Utils\LqCrypt.cpp">
+      <Filter>Utils</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -197,9 +197,6 @@
     <ClInclude Include="..\Src\Utils\LqErr.h">
       <Filter>Utils</Filter>
     </ClInclude>
-    <ClInclude Include="..\Src\Utils\LqMd5.h">
-      <Filter>Utils</Filter>
-    </ClInclude>
     <ClInclude Include="..\Src\Core\LqWrkBoss.h">
       <Filter>Core</Filter>
     </ClInclude>
@@ -246,6 +243,12 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="..\Src\Core\LqPrtScan.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqCrypt.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Core\LqSysPollWinIocp.hpp">
       <Filter>Core</Filter>
     </ClInclude>
   </ItemGroup>

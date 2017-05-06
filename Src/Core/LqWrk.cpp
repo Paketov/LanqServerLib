@@ -440,7 +440,7 @@ LQ_IMPORTEXPORT void LQ_CALL LqWrkDelete(LqWrk* This) {
             LqThreadYield();
         }
         This->IsDelete = true;
-        This->EndWorkAsync();
+        This->ExitThreadAsync();
         return;
     }
     LqFastAlloc::Delete(This);
@@ -452,7 +452,6 @@ void LqWrk::AcceptAllEventFromQueue() {
         Command.Pop<LqClientHdr*>();
         CountConnectionsInQueue--;
         LqLogInfo("LqWrk::AddEvnt()#%llu event {%i, %llx} recived\n", Id, Hdr->Fd, (ullong)Hdr->Flag);
-        LqSysPollAddHdr(&EventChecker, Hdr);
     }
 }
 
@@ -483,7 +482,7 @@ LqWrk::LqWrk(bool IsStart):
 }
 
 LqWrk::~LqWrk() {
-    EndWorkSync();
+    ExitThreadSync();
     CloseAllClientsSync();
     for(volatile size_t* t = &CountPointers; *t > 0; LqThreadYield());
     for(unsigned i = 0; i < 10; i++) {

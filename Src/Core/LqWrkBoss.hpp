@@ -64,7 +64,7 @@ public:
 
     ~LqWrkBoss();
 
-    int         AddWorkers(size_t Count = LqSystemThread::hardware_concurrency(), bool IsStart = true);
+    int         AddWorkers(size_t Count = LqThreadConcurrency(), bool IsStart = true);
     bool        AddWorker(const LqWrkPtr& LqWorker);
 
     bool        AddClientAsync(LqClientHdr* Evnt);

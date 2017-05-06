@@ -75,12 +75,43 @@ typedef union LqConnAddr {
 
 LQ_EXTERN_C_BEGIN
 
-LQ_IMPORTEXPORT int LQ_CALL LqConnCountPendingData(LqConn* c);
-/* Return -1 is err. */
+/* Returns the amount of data in the input socket buffer */
+LQ_IMPORTEXPORT int LQ_CALL LqConnCountPendingData(int Fd);
+
+/*
+    Switch socket to (non)blocket mode
+    @IsNonBlock - 1 For enable to non blocking mode, 0 for disable non blocking mode
+    @return - 0 wwhen done, -1 on error
+*/
 LQ_IMPORTEXPORT int LQ_CALL LqConnSwitchNonBlock(int Fd, int IsNonBlock);
 
+/*
+LqConnBind
+  Start accepting connections on a specific port
+    @Host - Target host address string. It can be domen name or just IP
+    @Port - Target host port. It can be number of port or name of service (check your /etc/services or %SystemRoot%\System32\drivers\etc\services)
+    @RouteProto - Routing protocol. Can be AF_UNSPEC, AF_INET, AF_INET6 or another
+    @SockType - Type of socket. Can be SOCK_STREAM, SOCK_DGRAM, SOCK_RAW or another
+    @TransportProto - Type of transport protocol. Can be IPPROTO_TCP, IPPROTO_ICMP or another
+    @MaxConnections - Max accepting connections
+    @IsNonBlock - Is connect in non block mode
+    @return - -1 when error, otherwise descriptor on new listen socket
+*/
 LQ_IMPORTEXPORT int LQ_CALL LqConnBind(const char* lqain Host, const char* lqain Port, int RouteProto, int SockType, int TransportProto, int MaxConnections, bool IsNonBlock);
 
+/*
+LqConnConnect
+  Connect to remote host.
+    @Address - Target host address string. It can be domen name or just IP
+    @Port - Target host port. It can be number of port or name of service (check your /etc/services or %SystemRoot%\System32\drivers\etc\services)
+    @RouteProto - Routing protocol. Can be AF_UNSPEC, AF_INET, AF_INET6 or another
+    @SockType - Type of socket. Can be SOCK_STREAM, SOCK_DGRAM, SOCK_RAW or another
+    @TransportProto - Type of transport protocol. Can be IPPROTO_TCP, IPPROTO_ICMP or another
+    @IpPrtAddress - (Optional) Remote host address result.
+    @IpPrtAddressLen - (Optional) Remote host address length result.
+    @IsNonBlock - Is connect in non block mode
+    @return - -1 when error, otherwise descriptor on new socket
+*/
 LQ_IMPORTEXPORT int LQ_CALL LqConnConnect(const char* lqain Address, const char* lqain Port, int RouteProto, int SockType, int TransportProto, void* lqaout lqaopt IpPrtAddress, socklen_t* lqaio lqaopt IpPrtAddressLen, bool IsNonBlock);
 
 LQ_IMPORTEXPORT int LQ_CALL LqConnStrToRowIp(int TypeIp, const char* lqain SourseStr, LqConnAddr* lqaout DestAddress);
@@ -97,7 +128,7 @@ LQ_IMPORTEXPORT void* LQ_CALL LqConnSslCreate(
     const char*lqain lqaopt CipherList,
     int TypeCertFile, /*SSL_FILETYPE_ASN1 (The file is in abstract syntax notation 1 (ASN.1) format.) or SSL_FILETYPE_PEM (The file is in base64 privacy enhanced mail (PEM) format.)*/
     const char* lqain lqaopt CAFile,
-    const char* lqain lqaopt DhpFile
+    const char* lqain lqaopt DhpFile /* File for Diffie–Hellman handshake */
 );
 
 LQ_IMPORTEXPORT void LQ_CALL LqConnSslDelete(void* Ctx);

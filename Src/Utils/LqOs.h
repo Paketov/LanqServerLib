@@ -11,7 +11,12 @@
 #if defined(_WIN64) || defined(_WIN32)
 
 # define _CRT_SECURE_NO_WARNINGS
-# define LQEVNT_WIN_EVENT
+/* Poll method */
+
+# if !defined(LQEVNT_WIN_EVENT_INTERNAL_IOCP_POLL) && !defined(LQEVNT_WIN_EVENT)
+#  define LQEVNT_WIN_EVENT_INTERNAL_IOCP_POLL
+# endif
+//# define LQEVNT_WIN_EVENT
 # define LQPLATFORM_WINDOWS
 
 # pragma warning(disable : 4996)
@@ -21,8 +26,26 @@
 # define LQ_EXPORT      __declspec(dllexport)
 # define LQ_IMPORT      __declspec(dllimport)
 # define LQ_PATH_SEPARATOR  '\\'
-# define LQ_WINEVNT_WAIT_WHEN_GR_64_OBJECTS 50 //millisec
-# define LQ_WINEVNT_WAIT_WHEN_HAVE_ONLY_HUP_OBJ 50 //millisec
+
+
+/* For windows SysPoll*/
+# ifndef LQ_WINEVNT_WAIT_WHEN_GR_64_OBJECTS
+#  define LQ_WINEVNT_WAIT_WHEN_GR_64_OBJECTS 20 /* millisec */
+# endif
+# ifndef LQ_WINEVNT_WAIT_WHEN_HAVE_ONLY_HUP_OBJ
+#  define LQ_WINEVNT_WAIT_WHEN_HAVE_ONLY_HUP_OBJ 100 /* millisec */
+# endif
+# ifndef LQ_WINEVNT_WAIT_WHEN_HAVE_IOCP_AND_EVNTOBJ
+#  define LQ_WINEVNT_WAIT_WHEN_HAVE_IOCP_AND_EVNTOBJ 10
+# endif
+
+/* For windows PollCheck*/
+# ifndef LQ_POLLCHECK_WAIT_WHEN_GR_MAXIMUM_WAIT_OBJECTS
+#  define LQ_POLLCHECK_WAIT_WHEN_GR_MAXIMUM_WAIT_OBJECTS ((LqTimeMillisec)10)
+# endif
+# ifndef LQ_POLLCHECK_WAIT_WHEN_HAVE_PIPE_OR_TERMINAL
+#  define LQ_POLLCHECK_WAIT_WHEN_HAVE_PIPE_OR_TERMINAL ((LqTimeMillisec)30)
+# endif
 
 #else
 
@@ -34,7 +57,7 @@
 
 # if defined(__linux__)
 #  ifndef LQEVNT_EPOOL_MAX_WAIT_EVENTS
-#   define LQEVNT_EPOOL_MAX_WAIT_EVENTS 70
+#   define LQEVNT_EPOOL_MAX_WAIT_EVENTS 128
 #  endif
 #  ifndef LQPLATFORM_ANDROID
 #   define LQPLATFORM_LINUX
@@ -43,14 +66,19 @@
 
 # elif defined(__FreeBSD__) || defined(__APPLE__)
 
-# if defined(__FreeBSD__)
-#  define LQPLATFORM_FREEBSD
-# elif defined(__APPLE__)
-#  define LQPLATFORM_APPLE
-# endif
+#  if defined(__FreeBSD__)
+#   define LQPLATFORM_FREEBSD
+/*#  define LQEVNT_KEVENT */
+#   define LQEVNT_POLL
+#  elif defined(__APPLE__)
+/*#  define LQEVNT_KEVENT */
+#   define LQEVNT_POLL
+#   define LQPLATFORM_APPLE
+#  endif
 
-#  define LQEVNT_KEVENT
+/*#  define LQEVNT_KEVENT
 #  error "Kevent not implemented"
+*/
 # else
 //For others unix systems
 #  define LQEVNT_POLL
@@ -137,10 +165,48 @@
 
 #if defined(LQCOMPILER_VC)
 #define LQ_NO_INLINE __declspec(noinline)
+#define LQ_FORCE_INLINE __forceinline
 #elif defined(LQCOMPILER_GCC_GPP)
 #define LQ_NO_INLINE __attribute__ ((noinline))
+#define LQ_FORCE_INLINE inline
 #else
 #define LQ_NO_INLINE
+#define LQ_FORCE_INLINE inline
+#endif
+
+#ifdef _MSC_VER
+#    if (_MSC_VER >= 1800)
+#        define __alignas_is_defined 1
+#    endif
+#    if (_MSC_VER >= 1900)
+#        define __alignof_is_defined 1
+#    endif
+#else
+#    include <stdalign.h>   // __alignas/of_is_defined directly from the implementation
+#endif
+
+#ifdef __alignas_is_defined
+#    define LQ_ALIGN(X) alignas(X)
+#else
+#    ifdef __GNUG__
+#        define LQ_ALIGN(X) __attribute__ ((aligned(X)))
+#    elif defined(_MSC_VER)
+#        define LQ_ALIGN(X) __declspec(align(X))
+#    else
+#        define LQ_ALIGN(X) 
+#    endif
+#endif
+
+#ifdef __alignof_is_defined
+#    define ALIGNOF(X) alignof(x)
+#else
+#    ifdef __GNUG__
+#        define ALIGNOF(X) __alignof__ (X)
+#    elif defined(_MSC_VER)
+#        define ALIGNOF(X) __alignof(X)
+#    else
+#        define ALIGNOF(X)
+#    endif
 #endif
 
 #ifndef LQSTRUCT_ALIGN_FAST

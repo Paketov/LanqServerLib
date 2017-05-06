@@ -36,6 +36,7 @@
     <ClCompile Include="..\Src\Protocols\Http\LqHttpPth.cpp" />
     <ClCompile Include="..\Src\Utils\LqConn.cpp" />
     <ClCompile Include="..\Src\Utils\LqCp.cpp" />
+    <ClCompile Include="..\Src\Utils\LqCrypt.cpp" />
     <ClCompile Include="..\Src\Utils\LqErr.cpp" />
     <ClCompile Include="..\Src\Utils\LqFche.cpp" />
     <ClCompile Include="..\Src\Utils\LqFile.cpp" />
@@ -44,7 +45,6 @@
     <ClCompile Include="..\Src\Utils\LqSbuf.cpp" />
     <ClCompile Include="..\Src\Utils\LqStr.cpp" />
     <ClCompile Include="..\Src\Utils\LqTime.cpp" />
-    <ClCompile Include="..\Src\Utils\LqMd5.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Src\Core\Lanq.h" />
@@ -57,6 +57,7 @@
     <ClInclude Include="..\Src\Core\LqSysPollWin.hpp" />
     <ClInclude Include="..\Src\Core\LqLog.h" />
     <ClInclude Include="..\Src\Core\LqQueueCmd.hpp" />
+    <ClInclude Include="..\Src\Core\LqSysPollWinIocp.hpp" />
     <ClInclude Include="..\Src\Core\LqThreadBase.hpp" />
     <ClInclude Include="..\Src\Core\LqWrk.hpp" />
     <ClInclude Include="..\Src\Core\LqWrkBoss.h" />
@@ -74,6 +75,7 @@
     <ClInclude Include="..\Src\Utils\LqAtm.hpp" />
     <ClInclude Include="..\Src\Utils\LqConn.h" />
     <ClInclude Include="..\Src\Utils\LqCp.h" />
+    <ClInclude Include="..\Src\Utils\LqCrypt.h" />
     <ClInclude Include="..\Src\Utils\LqDef.h" />
     <ClInclude Include="..\Src\Utils\LqDef.hpp" />
     <ClInclude Include="..\Src\Utils\LqDfltRef.hpp" />
@@ -97,7 +99,6 @@
     <ClInclude Include="..\Src\Utils\LqStrSwitch.h" />
     <ClInclude Include="..\Src\Utils\LqTime.h" />
     <ClInclude Include="..\Src\Utils\LqTime.hpp" />
-    <ClInclude Include="..\Src\Utils\LqMd5.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{B7EB2CE3-2ADA-4AAE-90E2-9FB826162B5F}</ProjectGuid>
@@ -175,7 +176,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;LANQBUILD;HAVE_OPENSSL;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;LANQBUILD;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>E:\openssl-1.0.1l-vs2008\include;$(LocalDebuggerWorkingDirectory)..\Src\Utils;$(LocalDebuggerWorkingDirectory)..\Src\Tasks;$(LocalDebuggerWorkingDirectory)..\Src\Protocols\Http;$(LocalDebuggerWorkingDirectory)..\Src\Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions</EnableEnhancedInstructionSet>
       <StructMemberAlignment>1Byte</StructMemberAlignment>
@@ -219,7 +220,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;LANQBUILD;HAVE_OPENSSL;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;LANQBUILD;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>E:\openssl-1.0.1l-vs2008\include;$(LocalDebuggerWorkingDirectory)..\Src\Utils;$(LocalDebuggerWorkingDirectory)..\Src\Tasks;$(LocalDebuggerWorkingDirectory)..\Src\Protocols\Http;$(LocalDebuggerWorkingDirectory)..\Src\Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <InlineFunctionExpansion>Default</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>

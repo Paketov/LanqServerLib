@@ -226,8 +226,9 @@ static LqEvntFlag _LqEvntGetFlagForUpdate(void* EvntOrConn) {
 
 
 //////////////////////
-
-#if defined(LQEVNT_WIN_EVENT)
+#if defined(LQEVNT_WIN_EVENT_INTERNAL_IOCP_POLL)
+# include "LqSysPollWinIocp.hpp"
+#elif defined(LQEVNT_WIN_EVENT)
 # include "LqSysPollWin.hpp"
 #elif defined(LQEVNT_KEVENT)
 #err "Not implemented kevent"

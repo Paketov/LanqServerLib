@@ -348,7 +348,9 @@ static LqFbufCookie _SocketCookie = {
     _SockWriteProc,
     NULL,
     _EmptyCopyProc,
-    _SockCloseProc
+    _SockCloseProc,
+	NULL,
+	"socket_buf"
 };
 
 static LqFbufCookie _SslCookie = {
@@ -356,7 +358,9 @@ static LqFbufCookie _SslCookie = {
     _SslWriteProc,
     NULL,
     _EmptyCopyProc,
-    _SslCloseProc
+    _SslCloseProc,
+	NULL,
+	"ssl_buf"
 };
 
 static RspElementFbuf* _LqSockBufGetLastWriteStream(LqSockBuf* SockBuf) {

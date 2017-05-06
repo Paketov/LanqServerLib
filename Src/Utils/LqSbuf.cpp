@@ -38,8 +38,14 @@
 
 #ifdef LQSBUF_IS_DEBUG
 # define LqSbufTest(Sbuf) _LqSbufTest(Sbuf)
+# define LqSbufTestRegionWrite(Wreg) _LqSbufTestRegionWrite(Wreg)
+# define LqSbufTestRegionRead(Rreg) _LqSbufTestRegionRead(Reg)
+# define LqSbufTestRegionReadByPtr(PtrReg)  _LqSbufTestRegionReadByPtr(PtrReg)
 #else
 # define LqSbufTest(Sbuf) ((void)0)
+# define LqSbufTestRegionWrite(Wreg) ((void)0)
+# define LqSbufTestRegionRead(Rreg) ((void)0)
+# define LqSbufTestRegionReadByPtr(PtrReg) ((void)0)
 #endif
 
 #pragma pack(push)
@@ -422,6 +428,36 @@ static void _LqSbufTest(LqSbuf* StreamBuf) {
     }
 }
 
+static void _LqSbufTestRegionWrite(LqSbufWriteRegion* Reg) {
+	int* InvalidPtr = NULL;
+	if(Reg->Readed < ((intptr_t)0)) {
+		*InvalidPtr = 0;
+	}
+	if(Reg->Readed > Reg->DestLen) {
+		*InvalidPtr = 0;
+	}
+}
+
+static void _LqSbufTestRegionRead(LqSbufReadRegion* Reg) {
+	int* InvalidPtr = NULL;
+	if(Reg->Written < ((intptr_t)0)) {
+		*InvalidPtr = 0;
+	}
+	if(Reg->Written > Reg->SourceLen) {
+		*InvalidPtr = 0;
+	}
+}
+
+static void _LqSbufTestRegionReadByPtr(LqSbufReadRegionPtr* Reg) {
+	int* InvalidPtr = NULL;
+	if(Reg->Written < ((intptr_t)0)) {
+		*InvalidPtr = 0;
+	}
+	if(Reg->Written > Reg->SourceLen) {
+		*InvalidPtr = 0;
+	}
+}
+
 LQ_EXTERN_C intptr_t LQ_CALL LqSbufWrite(LqSbuf* StreamBuf, const void* DataSource, intptr_t Size) {
     intptr_t CommonWritten, SizeWrite;
     PageHeader* Hdr;
@@ -526,6 +562,7 @@ LQ_EXTERN_C bool LQ_CALL LqSbufReadRegionFirst(LqSbuf* StreamBuf, LqSbufReadRegi
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSbufReadRegionNext(LqSbufReadRegion* Reg) {
+	LqSbufTestRegionRead(Reg);
     Reg->CommonWritten += Reg->Written;
     Reg->_Size -= Reg->Written;
     if(Reg->Written < Reg->_PageDataSize) {
@@ -583,13 +620,14 @@ lblOperationZero:
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSbufWriteRegionNext(LqSbufWriteRegion* Reg) {
+	LqSbufTestRegionWrite(Reg);
     Reg->CommonReaded += Reg->Readed;
     ((PageHeader*)Reg->_Hdr)->EndOffset += Reg->Readed;
     Reg->_Size -= Reg->Readed;
     if(Reg->_TypeOperat == ((intptr_t)0)) {
         if((Reg->Readed < Reg->DestLen) || (Reg->_Size <= ((intptr_t)0)) || Reg->Fin) {
-           // if(Reg->Readed == ((intptr_t)0))
-              //  LqSbufRemoveLastPage(Reg->_StreamBuf);
+            /* if(Reg->Readed == ((intptr_t)0))
+                LqSbufRemoveLastPage(Reg->_StreamBuf); */
             goto lblOut;
         }
 lblOpZero:
@@ -663,6 +701,7 @@ LQ_EXTERN_C bool LQ_CALL LqSbufReadRegionPtrFirst(LqSbufPtr* StreamPointer, LqSb
 }
 
 LQ_EXTERN_C bool LQ_CALL LqSbufReadRegionPtrNext(LqSbufReadRegionPtr* Reg) {
+	LqSbufTestRegionReadByPtr(Reg);
     Reg->CommonWritten += Reg->Written;
     Reg->_StreamPointer->GlobOffset += Reg->Written;
     if((((PageHeader*)Reg->_StreamPointer->Page)->NextPage == NULL) || (Reg->CommonWritten >= Reg->_Size) || (Reg->Written < Reg->SourceLen) || Reg->Fin) {
@@ -1090,7 +1129,7 @@ static intptr_t LQ_CALL _FileCloseProc(LqFbuf* Context) {
 }
 
 static int64_t LQ_CALL _EmptySeekProc(LqFbuf*, int64_t, int) {
-    return -((int64_t)1);
+    return -1ll;
 }
 
 static intptr_t LQ_CALL _EmptyReadProc(LqFbuf* Context, char*, size_t) {
@@ -1142,7 +1181,7 @@ static intptr_t LQ_CALL _NullWriteProc(LqFbuf*, char*, size_t Size) {
 }
 
 static int64_t LQ_CALL _NullSeekProc(LqFbuf*, int64_t, int) {
-    return ((intptr_t)0);
+    return 0ll;
 }
 
 static intptr_t LQ_CALL _NullCloseProc(LqFbuf*) {
@@ -1155,53 +1194,65 @@ static intptr_t _LqFbuf_write(LqFbuf* Context, const void* Buf, intptr_t Size);
 static intptr_t _LqFbuf_flush(LqFbuf* Context);
 static intptr_t _LqFbuf_read(LqFbuf* Context, void* Buf, size_t Len);
 
-static LqFbufCookie _EmptyCookie = {
+LQ_ALIGN(128) static LqFbufCookie _EmptyCookie = {
     _EmptyReadProc,
     _EmptyWriteProc,
     _EmptySeekProc,
     NULL,
-    _EmptyCloseProc
+    _EmptyCloseProc,
+    NULL,
+    "empty"
 };
 
-static LqFbufCookie _NullCookie = {
+LQ_ALIGN(128) static LqFbufCookie _NullCookie = {
     _NullReadProc,
     _NullWriteProc,
     _NullSeekProc,
     NULL,
-    _NullCloseProc
+    _NullCloseProc,
+    NULL,
+    "null"
 };
-static LqFbufCookie _SocketCookie = {
+LQ_ALIGN(128) static LqFbufCookie _SocketCookie = {
     _SockReadProc,
     _SockWriteProc,
     _EmptySeekProc,
     _FileCopyProc,
-    _SockCloseProc
+    _SockCloseProc,
+    NULL,
+    "socket"
 };
 
 #ifdef LQPLATFORM_WINDOWS
-static LqFbufCookie _TerminalCookie = {
+LQ_ALIGN(128) static LqFbufCookie _TerminalCookie = {
     _TermReadProc,
     _TermWriteProc,
     _EmptySeekProc,
     _FileCopyProc,
-    _FileCloseProc
+    _FileCloseProc,
+    NULL,
+    "terminal"
 };
 #endif
 
-static LqFbufCookie _FileCookie = {
+LQ_ALIGN(128) static LqFbufCookie _FileCookie = {
     _FileReadProc,
     _FileWriteProc,
     _FileSeekProc,
     _FileCopyProc,
-    _FileCloseProc
+    _FileCloseProc,
+    NULL,
+    "file"
 };
 
-static LqFbufCookie _VirtPipeCookie = {
+LQ_ALIGN(128) static LqFbufCookie _VirtPipeCookie = {
     _VirtPipeReadProc,
     _VirtPipeWriteProc,
     _EmptySeekProc,
     NULL,
-    _EmptyCloseProc
+    _EmptyCloseProc,
+    NULL,
+    "virt_pipe"
 };
 
 static LqFbufCookie* _GetCookie(int Fd) {
@@ -1286,6 +1337,31 @@ LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_stream(LqFbuf* Context) {
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_null(LqFbuf* Context) {
     return LqFbuf_open_cookie(Context, NULL, &_NullCookie, LQFBUF_FAST_LK, (intptr_t)0, (intptr_t)0, (intptr_t)1);
+}
+
+LQ_EXTERN_C void LQ_CALL LqFbuf_lock(LqFbuf* Context) {
+	_LqFbuf_lock(Context);
+}
+
+LQ_EXTERN_C void LQ_CALL LqFbuf_unlock(LqFbuf* Context) {
+	_LqFbuf_unlock(Context);
+}
+
+LQ_EXTERN_C int LQ_CALL LqFbuf_ctrl(LqFbuf* Context, int Layer, int Code, ...) {
+	va_list va;
+	va_start(va, Code);
+	int Res = LqFbuf_vctrl(Context, Layer, Code, va);
+	va_end(va);
+	return Res;
+}
+
+LQ_EXTERN_C int LQ_CALL LqFbuf_vctrl(LqFbuf* Context, int Layer, int Code, va_list Va) {
+	int Res = -1;
+	_LqFbuf_lock(Context);
+	if(Context->Cookie->LayerCtrlProc != NULL)
+		Res = Context->Cookie->LayerCtrlProc(Context, Layer, Code, Va);
+	_LqFbuf_unlock(Context);
+	return Res;
 }
 
 LQ_EXTERN_C bool LQ_CALL LqFbuf_eof(LqFbuf* Context) {
@@ -1710,12 +1786,14 @@ static intptr_t _LqFbuf_svnprintf_WriteProc(LqFbuf* Context, char* Buf, size_t S
     return TargetSize;
 }
 
-static LqFbufCookie _LqFbuf_svnprintf_Cookie = {
+LQ_ALIGN(128) static LqFbufCookie _LqFbuf_svnprintf_Cookie = {
     _EmptyReadProc,
     _LqFbuf_svnprintf_WriteProc,
     _EmptySeekProc,
     NULL,
-    _EmptyCloseProc
+    _EmptyCloseProc,
+	NULL,
+	"svnprintf"
 };
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_svnprintf(char* Dest, size_t DestSize, const char* Fmt, va_list va) {
@@ -1849,7 +1927,7 @@ LQ_EXTERN_C int64_t LQ_CALL LqFbuf_seek(LqFbuf* Context, int64_t Offset, int Fla
         if(Context->OutBuf.Len > ((size_t)0))
             goto lblOut;
         Res = Context->Cookie->SeekProc(Context, Offset, Flags);
-        if(Res >= ((int64_t)0)) {
+        if(Res >= 0ll) {
             Context->Flags &= ~(LQFBUF_READ_EOF | LQFBUF_READ_ERROR | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK);
             LqSbufRead(&Context->OutBuf, NULL, Context->OutBuf.Len); /* Clear output buffer*/
             LqSbufRead(&Context->InBuf, NULL, Context->InBuf.Len); /* Clear input buffer*/
@@ -1924,10 +2002,10 @@ static intptr_t _LqFbuf_write(LqFbuf* Context, const void* Buf, intptr_t Size) {
     if((Context)->Flags & (LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK)) { (Context)->Flags &= ~(LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK);\
         (Context)->MinFlush = (Context)->MaxFlush; }\
 }
-static const unsigned char CodeChainBase64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-static const unsigned char CodeChainBase64URL[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"; //-_-
-static const unsigned char CodeChainHexLower[] = "0123456789abcdef";
-static const unsigned char CodeChainHexUpper[] = "0123456789ABCDEF";
+LQ_ALIGN(128) static const unsigned char CodeChainBase64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+LQ_ALIGN(128) static const unsigned char CodeChainBase64URL[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"; //-_-
+LQ_ALIGN(128) static const unsigned char CodeChainHexLower[] = "0123456789abcdef";
+LQ_ALIGN(128) static const unsigned char CodeChainHexUpper[] = "0123456789ABCDEF";
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFbuf_vprintf(LqFbuf* Context, const char* Fmt, va_list va) {
     intptr_t Res;
@@ -2672,7 +2750,7 @@ ReadPortionBegin(LqFbuf_ReadInt, bool Signed2 = !Signed; int HaveSign = 0, unsig
     Fin |= (Dest >= MaxDest) || (Eof && ((Dest - Dst) > HaveSign));
 ReadPortionEnd(((void)0))
 
-static const unsigned char _DecodeChain[] = {
+LQ_ALIGN(128) static const unsigned char _DecodeChain[] = {
     77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77,
     77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77,
     77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 62, 77, 77, 77, 63,
@@ -2683,7 +2761,7 @@ static const unsigned char _DecodeChain[] = {
     41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
 };
 
-static const unsigned char _DecodeSeqURL[] = {
+LQ_ALIGN(128) static const unsigned char _DecodeSeqURL[] = {
     77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77,
     77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77,
     77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 77, 62, 77, 77,

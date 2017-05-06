@@ -10,11 +10,7 @@
 #include "LqLock.hpp"
 #include "LqDef.hpp"
 
-#include <thread>
-
-
-enum LqThreadPriorEnm
-{
+enum LqThreadPriorEnm {
     LQTHREAD_PRIOR_IDLE,
     LQTHREAD_PRIOR_LOWER,
     LQTHREAD_PRIOR_LOW,
@@ -31,7 +27,7 @@ enum LqThreadPriorEnm
 class LQ_IMPORTEXPORT LqThreadBase {
 protected:
     LqThreadPriorEnm                                    Priority;
-    ullong                                              AffinMask;
+    unsigned long long                                  AffinMask;
     mutable LqLocker<uintptr_t>                         StartThreadLocker;
     char*                                               Name;
     void*                                               UserData;
@@ -43,7 +39,7 @@ protected:
 #ifdef LQPLATFORM_WINDOWS
     static unsigned __stdcall BeginThreadHelper(void* ProcData);
 #else
-    static void* BeginThreadHelper(void * Data);
+    static void* BeginThreadHelper(void * ProcData);
 #endif
 
     void(*EnterHandler)(void *UserData);
@@ -51,13 +47,14 @@ protected:
     virtual void BeginThread() = 0;
     virtual void NotifyThread() = 0;
 
-    uintptr_t NativeHandle();
+    uintptr_t NativeHandle() const;
 public:
 
     LqThreadBase(const char* NewName);
     ~LqThreadBase();
 
-    intptr_t ThreadId() const;
+    inline intptr_t ThreadId() const { return CurThreadId; }
+    inline bool IsThreadRunning() const { return CurThreadId != -((intptr_t)1); }
 
     bool SetPriority(LqThreadPriorEnm New);
     LqThreadPriorEnm GetPriority() const;
@@ -65,17 +62,15 @@ public:
     ullong GetAffinity() const;
     bool SetAffinity(ullong Mask);
 
-    void WaitEnd();
+    void WaitEnd() const;
 
     bool StartThreadAsync();
     bool StartThreadSync();
 
-    bool EndWorkAsync();
-    bool EndWorkSync();
+    bool ExitThreadAsync();
+    bool ExitThreadSync();
 
-    bool IsThreadRunning() const;
-
-    bool IsThisThread();
+    bool IsThisThread() const;
 
     static int GetName(intptr_t Id, char* DestBuf, size_t Len);
 

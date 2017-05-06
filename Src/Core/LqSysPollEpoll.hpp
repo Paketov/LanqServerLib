@@ -4,7 +4,8 @@
 * 2016
 * LqSysPoll... - Multiplatform abstracted event folower
 * This part of server support:
-*   +Windows native events objects.
+*   +Windows window message. (one thread processing all message for multiple threads)
+*   +Windows internal async iocp poll. (most powerfull method in windows)
 *   +linux epoll.
 *   +kevent for BSD like systems.(*But not yet implemented)
 *   +poll for others unix systems.
@@ -41,14 +42,14 @@ bool LqSysPollInit(LqSysPoll* Dest) {
     Dest->CountReady = -((intptr_t)1);
     Dest->EventEnumIndex = 0;
     Dest->CommonCount = 0;
-    LqArrInit(&Dest->ClientArr);
+    LqArr2Init(&Dest->ClientArr);
     LqArrInit(&Dest->EventArr);
     LqArrResize(&Dest->EventArr, epoll_event, LQEVNT_EPOOL_MAX_WAIT_EVENTS);
     return true;
 }
 
 void LqSysPollUninit(LqSysPoll* Dest) {
-    LqArrUninit(&Dest->ClientArr);
+    LqArr2Uninit(&Dest->ClientArr);
     LqArrUninit(&Dest->EventArr);
     if(Dest->EpollFd != -1)
         close(Dest->EpollFd);
@@ -60,9 +61,8 @@ bool LqSysPollAddHdr(LqSysPoll* Dest, LqClientHdr* Client) {
     bool Res;
 
     NewFlags = _LqEvntGetFlagForUpdate(Client);
-    LqArrPushBack(&Dest->ClientArr, LqClientHdr*);
-    LqArrBack(&Dest->ClientArr, LqClientHdr*) = Client;
-   
+	LqArr2PushBack(&Dest->ClientArr, LqClientHdr*, Client->_EpollIndex, NULL);
+	LqArr2At(&Dest->ClientArr, LqClientHdr*, Client->_EpollIndex) = Client;
     ev.data.ptr = Client;
     ev.events = LqEvntSystemEventByConnFlag(NewFlags);
     Res = true;
@@ -115,15 +115,13 @@ void LqSysPollRemoveCurrent(LqSysPoll* Events) {
     LqArrAt(&Events->EventArr, epoll_event, Events->EventEnumIndex).data.ptr = nullptr;
     _LqEvntGetFlagForUpdate(c);
     epoll_ctl(Events->EpollFd, EPOLL_CTL_DEL, c->Fd, nullptr);
-    register auto Evnts = &LqArrAt(&Events->ClientArr, LqClientHdr*, 0);
-    for(; *Evnts != c; Evnts++);
-    intptr_t Index = (((uintptr_t)Evnts) - (uintptr_t)&LqArrAt(&Events->ClientArr, LqClientHdr*, 0)) / sizeof(LqClientHdr*);
-    LqArrRemoveAt(&Events->ClientArr, LqClientHdr*, Index, nullptr);
+	LqArr2RemoveAt(&Events->ClientArr, LqClientHdr*, c->_EpollIndex, NULL);
+	c->_EpollIndex = -1;
     Events->CommonCount--;
 }
 
 void __LqSysPollRestructAfterRemoves(LqSysPoll* Events) {
-    LqArrAlignAfterRemove(&Events->ClientArr, LqClientHdr*, nullptr);
+	LqArr2AlignAfterRemove(&Events->ClientArr, LqClientHdr*, NULL);
 }
 
 LqClientHdr* LqSysPollGetHdrByCurrent(LqSysPoll* Events) {
@@ -148,15 +146,15 @@ int LqSysPollUpdateAllMask(LqSysPoll* Events, void* UserData, void(*DelProc)(voi
     epoll_event ev;
     LqEvntFlag NewFlags;
 
-    for(register auto i = &LqArrAt(&Events->ClientArr, LqClientHdr*, 0), m = i + Events->ClientArr.Count; i < m; i++)
+    for(register auto i = &LqArr2At(&Events->ClientArr, LqClientHdr*, 0), m = i + Events->ClientArr.AllocCount; i < m; i++)
         if((*i != NULL) && (LqClientGetFlags(*i) & _LQEVNT_FLAG_SYNC)) {
             NewFlags = _LqEvntGetFlagForUpdate(*i);
             if(NewFlags & LQEVNT_FLAG_END) {
-                Index = ((uintptr_t)i - (uintptr_t)&LqArrAt(&Events->ClientArr, LqClientHdr*, 0)) / sizeof(LqClientHdr*);
+                Index = ((uintptr_t)i - (uintptr_t)&LqArr2At(&Events->ClientArr, LqClientHdr*, 0)) / sizeof(LqClientHdr*);
                 Iter.Index = Index;
                 DelProc(UserData, &Iter);
-                i = &LqArrAt(&Events->ClientArr, LqClientHdr*, Index);
-                m = &LqArrAt(&Events->ClientArr, LqClientHdr*, Events->ClientArr.Count);
+                i = &LqArr2At(&Events->ClientArr, LqClientHdr*, Index);
+                m = &LqArr2At(&Events->ClientArr, LqClientHdr*, Events->ClientArr.AllocCount);
             } else {
                 ev.events = LqEvntSystemEventByConnFlag(NewFlags);
                 ev.data.ptr = (*i);
@@ -172,8 +170,8 @@ bool __LqSysPollEnumBegin(LqSysPoll* Events, LqEvntInterator* Interator) {
 }
 
 bool __LqSysPollEnumNext(LqSysPoll* Events, LqEvntInterator* Interator) {
-    for(register intptr_t i = Interator->Index + ((intptr_t)1), m = Events->ClientArr.Count; i < m; i++)
-        if(LqArrAt(&Events->ClientArr, LqClientHdr*, i) != NULL) {
+    for(register intptr_t i = Interator->Index + ((intptr_t)1), m = Events->ClientArr.AllocCount; i < m; i++)
+        if(LqArr2At(&Events->ClientArr, LqClientHdr*, i) != NULL) {
             Interator->Index = i;
             return true;
         }
@@ -181,22 +179,22 @@ bool __LqSysPollEnumNext(LqSysPoll* Events, LqEvntInterator* Interator) {
 }
 
 LqClientHdr* LqSysPollRemoveByInterator(LqSysPoll* Events, LqEvntInterator* Interator) {
-    LqClientHdr* c = LqArrAt(&Events->ClientArr, LqClientHdr*, Interator->Index);
-    LqArrRemoveAt(&Events->ClientArr, LqClientHdr*, Interator->Index, NULL);
+    LqClientHdr* c = LqArr2At(&Events->ClientArr, LqClientHdr*, Interator->Index);
+	LqArr2RemoveAt(&Events->ClientArr, LqClientHdr*, Interator->Index, NULL);
     _LqEvntGetFlagForUpdate(c);
     epoll_ctl(Events->EpollFd, EPOLL_CTL_DEL, c->Fd, NULL);
-
     for(register auto i = &LqArrAt(&Events->EventArr, epoll_event, 0), m = i + Events->CountReady; i < m; i++)
         if(i->data.ptr == c) {
             i->data.ptr = nullptr;
             break;
         }
+	c->_EpollIndex = -1;
     Events->CommonCount--;
     return c;
 }
 
 LqClientHdr* LqSysPollGetHdrByInterator(LqSysPoll* Events, LqEvntInterator* Interator) {
-    return LqArrAt(&Events->ClientArr, LqClientHdr*, Interator->Index);
+    return LqArr2At(&Events->ClientArr, LqClientHdr*, Interator->Index);
 }
 
 int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime) {

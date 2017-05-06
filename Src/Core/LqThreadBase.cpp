@@ -13,10 +13,6 @@
 #include "LqSbuf.h"
 #include "LqErr.h"
 
-#include <string>
-#include <sstream>
-
-
 
 #if defined(LQPLATFORM_WINDOWS)
 #include <Windows.h>
@@ -142,7 +138,7 @@ LqThreadBase::LqThreadBase(const char* NewName):
 }
 
 LqThreadBase::~LqThreadBase() {
-    EndWorkSync();
+    ExitThreadSync();
     if(Name != nullptr)
         free(Name);
 }
@@ -177,7 +173,7 @@ ullong LqThreadBase::GetAffinity() const {
     return AffinMask;
 }
 
-uintptr_t LqThreadBase::NativeHandle() {
+uintptr_t LqThreadBase::NativeHandle() const {
 #if defined(LQPLATFORM_WINDOWS)
     return ThreadHandler;
 #else
@@ -205,7 +201,7 @@ bool LqThreadBase::SetAffinity(ullong Mask) {
     return Res;
 }
 
-void LqThreadBase::WaitEnd() {
+void LqThreadBase::WaitEnd() const {
     bool IsNotOut = true;
     if(IsThisThread())
         return;
@@ -383,11 +379,7 @@ bool LqThreadBase::StartThreadSync() {
     return Res;
 }
 
-bool LqThreadBase::IsThreadRunning() const {
-    return CurThreadId != -((intptr_t)1);
-}
-
-bool LqThreadBase::IsThisThread() {
+bool LqThreadBase::IsThisThread() const {
 #ifdef LQPLATFORM_WINDOWS
     return GetCurrentThreadId() == CurThreadId;
 #else
@@ -395,7 +387,7 @@ bool LqThreadBase::IsThisThread() {
 #endif
 }
 
-bool LqThreadBase::EndWorkAsync() {
+bool LqThreadBase::ExitThreadAsync() {
     bool r = true;
     StartThreadLocker.LockWrite();
     if(IsThreadRunning()) {
@@ -410,16 +402,12 @@ bool LqThreadBase::EndWorkAsync() {
     return r;
 }
 
-bool LqThreadBase::EndWorkSync() {
+bool LqThreadBase::ExitThreadSync() {
     bool Res;
-    if(Res = EndWorkAsync()) {
+    if(Res = ExitThreadAsync()) {
         WaitEnd();
     }
     return Res;
-}
-
-intptr_t LqThreadBase::ThreadId() const {
-    return CurThreadId;
 }
 
 LqString LqThreadBase::DebugInfo() const {

@@ -92,7 +92,7 @@ static intptr_t LQ_CALL _EmptyWriteProc(LqFbuf* Context, char*, size_t) {
     return 0;
 }
 
-static LqFbufCookie TrdCookie = {_EmptyReadProc, _EmptyWriteProc, NULL, NULL, NULL};
+static LqFbufCookie TrdCookie = {_EmptyReadProc, _EmptyWriteProc, NULL, NULL, NULL, NULL, "trd_cookie"};
 
 static void _LqHttpConnAfterCallUserHandler(LqHttpConn* HttpConn);
 static void LQ_CALL _LqHttpConnErrHandler(LqSockBuf* SockBuf, int Err);

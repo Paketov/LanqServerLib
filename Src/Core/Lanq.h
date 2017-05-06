@@ -50,11 +50,17 @@ typedef struct LqProto LqProto;
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
-#define LQ_CONN_COMMON_EVNT_HDR                         \
+#define _LQ_CONN_COMMON_EVNT_HDR                         \
     LqEvntFlag          Flag;                           \
-	uint16_t			Lk;								\
-    int                 Fd;      /*Sock descriptor*/	\
-	void*		        WrkOwner;
+    uint16_t            Lk;                             \
+    int                 Fd;      /*Sock descriptor*/    \
+    void*               WrkOwner;
+
+#if defined(LQEVNT_EPOLL)
+#define LQ_CONN_COMMON_EVNT_HDR _LQ_CONN_COMMON_EVNT_HDR int32_t _EpollIndex;
+#else
+#define LQ_CONN_COMMON_EVNT_HDR _LQ_CONN_COMMON_EVNT_HDR
+#endif
 
 struct LqClientHdr {
     LQ_CONN_COMMON_EVNT_HDR;
@@ -65,7 +71,12 @@ struct LqClientHdr {
 */
 struct LqConn {
     LQ_CONN_COMMON_EVNT_HDR;
-    LqProto*            Proto;      /*Protocol registartion(or maybe just handlers)*/
+	LqProto*            Proto;      /*Protocol registartion(or maybe just handlers)*/
+#if defined(LQEVNT_WIN_EVENT_INTERNAL_IOCP_POLL)
+	void* _EmptyPollInfo;
+    unsigned long _AsyncSelectSerialNumber;
+    unsigned long _AsyncPollEvents;
+#endif
 };
 
 
@@ -76,14 +87,17 @@ struct LqEvntFd {
     LQ_CONN_COMMON_EVNT_HDR;
     void (LQ_CALL      *Handler)(LqEvntFd* Fd, LqEvntFlag RetFlags);
     void (LQ_CALL      *CloseHandler)(LqEvntFd* Fd);
-#if defined(LQPLATFORM_WINDOWS)
+#if defined(LQPLATFORM_WINDOWS) 
     struct {
         union {
             long        Status;
             void*       Pointer;
         };
         uintptr_t       Information;
-    } __Reserved1, __Reserved2;    /*IO_STATUS_BLOCK for read/write check in windows*/
+    } __Reserved1;    /*IO_STATUS_BLOCK for read check in windows*/
+	LqEvntFlag _AsyncPollEvents;
+	LqEvntFlag _ResAsyncPollEvents;
+	uint8_t    _Type;
 #endif
 };
 

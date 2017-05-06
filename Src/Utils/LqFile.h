@@ -253,6 +253,10 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileRead(int Fd, void* lqaout DestBuf, intptr
 */
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileWrite(int Fd, const void* lqain SourceBuf, intptr_t SizeBuf);
 
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileReadBlocked(int Fd, void* lqaout DestBuf, intptr_t SizeBuf);
+
+LQ_IMPORTEXPORT intptr_t LQ_CALL LqFileWriteBlocked(int Fd, const void* lqain SourceBuf, intptr_t SizeBuf);
+
 /*-------------------------------------------
 * Async read/write
 */
@@ -523,6 +527,8 @@ LQ_IMPORTEXPORT bool LQ_CALL LqMutexClose(LqMutex* lqain Dest);
 LQ_IMPORTEXPORT int LQ_CALL LqThreadId();
 
 LQ_IMPORTEXPORT void LQ_CALL LqThreadYield();
+
+LQ_IMPORTEXPORT int LQ_CALL LqThreadConcurrency();
 
 LQ_IMPORTEXPORT void LQ_CALL LqSleep(LqTimeMillisec Millisec);
 

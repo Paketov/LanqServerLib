@@ -13,6 +13,7 @@
 #include "LqAtm.hpp"
 #include "LqTime.h"
 #include "LqStr.hpp"
+#include "LqCrypt.h"
 
 #include "LqHttpPth.hpp"
 #include "LqHttp.hpp"
@@ -983,13 +984,12 @@ void LqHttpPthRecognize(LqHttpConn* HttpConn) {
 	}
 }
 
-static void CalcFileMD5(int FileDescriptor, LqMd5* HashDest) {
-	LqMd5Ctx md5;
-	LqMd5Init(&md5);
+static void CalcFileMD5(int FileDescriptor, void* HashDest) {
+	LqCryptHash md5;
+	LqCryptHashOpen(&md5, "md5");
 	char Buf[1024];
 	intptr_t Readed;
 	while((Readed = LqFileRead(FileDescriptor, Buf, sizeof(Buf))) > 0)
-		LqMd5Update(&md5, Buf, Readed);
-	LqMd5Update(&md5, Buf, Readed);
-	LqMd5Final((unsigned char*)HashDest, &md5);
+		LqCryptHashUpdate(&md5, Buf, Readed);
+	LqCryptHashFinal(&md5, HashDest);
 }

@@ -19,6 +19,7 @@
 #include "LqOs.h"
 #include "LqDef.h"
 
+
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)
 
@@ -27,7 +28,7 @@ typedef struct LqEvntInterator {
 #else
     intptr_t Index;
 #endif
-#ifdef LQEVNT_WIN_EVENT
+#if defined(LQEVNT_WIN_EVENT) || defined(LQEVNT_WIN_EVENT_INTERNAL_IOCP_POLL)
     bool  IsEnumConn;
 #endif
 } LqEvntInterator;
@@ -58,9 +59,25 @@ typedef struct __LqArr3 {
 
 typedef struct LqSysPoll {
     intptr_t            CommonCount;
-#if defined(LQEVNT_WIN_EVENT)
+#if defined(LQEVNT_WIN_EVENT_INTERNAL_IOCP_POLL)
+    __LqArr2            IocpArr;
+    __LqArr3            EvntArr;
+
+	void*               IocpHandle;
+	void*               AfdAsyncHandle;
+
+	intptr_t            EventObjectIndex;
+	intptr_t            ConnIndex;
+
+	uintptr_t           IsHaveOnlyHup;
+	intptr_t			EnumCalledCount;
+
+	void*               PollBlock;
+
+	            
+#elif defined(LQEVNT_WIN_EVENT)
     __LqArr2            ConnArr;
-    __LqArr3            EvntFdArr;
+    __LqArr3            EvntArr;
 
     uintptr_t           WinHandle;
 
@@ -70,7 +87,7 @@ typedef struct LqSysPoll {
     uintptr_t           IsHaveOnlyHup;
 #elif defined(LQEVNT_KEVENT)
 #elif defined(LQEVNT_EPOLL)
-    __LqArr             ClientArr;
+    __LqArr2            ClientArr;
     __LqArr             EventArr;
     intptr_t            CountReady;
     intptr_t            EventEnumIndex;
@@ -82,9 +99,10 @@ typedef struct LqSysPoll {
 } LqSysPoll;
 
 #pragma pack(pop)
-
-#if defined(LQEVNT_WIN_EVENT)
-#define __LqSysPollIsRestruct(EventFollower)  ((EventFollower)->EvntFdArr.IsRemoved || (EventFollower)->ConnArr.IsRemoved)
+#if defined(LQEVNT_WIN_EVENT_INTERNAL_IOCP_POLL)
+#define __LqSysPollIsRestruct(EventFollower)  ((EventFollower)->IocpArr.IsRemoved || (EventFollower)->EvntArr.IsRemoved)
+#elif defined(LQEVNT_WIN_EVENT)
+#define __LqSysPollIsRestruct(EventFollower)  ((EventFollower)->ConnArr.IsRemoved || (EventFollower)->EvntArr.IsRemoved)
 #elif defined(LQEVNT_KEVENT)
 
 #elif defined(LQEVNT_EPOLL)
@@ -107,7 +125,7 @@ typedef struct LqSysPoll {
 */
 bool LqSysPollInit(LqSysPoll* Dest);
 
-#if defined(LQEVNT_WIN_EVENT)
+#if defined(LQEVNT_WIN_EVENT) && !defined(LQEVNT_WIN_EVENT_INTERNAL_IOCP_POLL)
 bool LqSysPollThreadInit(LqSysPoll* Dest);
 
 void LqSysPollThreadUninit(LqSysPoll* Dest);
@@ -153,7 +171,7 @@ void __LqSysPollRestructAfterRemoves(LqSysPoll* Events);
 LqClientHdr* LqSysPollGetHdrByCurrent(LqSysPoll* Events);
 
 
-#if defined(LQEVNT_WIN_EVENT)
+#if defined(LQEVNT_WIN_EVENT) || defined(LQEVNT_WIN_EVENT_INTERNAL_IOCP_POLL)
 /*
 * Use only in Windows
 *  Call before enum next coonnection

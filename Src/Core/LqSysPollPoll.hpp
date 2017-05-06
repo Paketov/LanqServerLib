@@ -4,7 +4,8 @@
 * 2016
 * LqSysPoll... - Multiplatform abstracted event folower
 * This part of server support:
-*   +Windows native events objects.
+*   +Windows window message. (one thread processing all message for multiple threads)
+*   +Windows internal async iocp poll. (most powerfull method in windows)
 *   +linux epoll.
 *   +kevent for BSD like systems.(*But not yet implemented)
 *   +poll for others unix systems.
@@ -58,7 +59,7 @@ LqEvntFlag __LqSysPollEnumEventBegin(LqSysPoll* Events) {
 
 LqEvntFlag __LqEvntEnumEventNext(LqSysPoll* Events) {
     for(register intptr_t i = Events->EventEnumIndex + 1, m = Events->EvntFdArr.Count; i < m; i++) {
-        if(LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, i) == nullptr)
+        if(LqArr3At_2(&Events->EvntFdArr, LqClientHdr*, i) == NULL)
             continue;
         auto e = LqArr3At_1(&Events->EvntFdArr, pollfd, i).revents;
         if(e & (POLLIN | POLLOUT | POLLHUP | POLLERR)) {

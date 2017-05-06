@@ -166,6 +166,9 @@ typedef uint16_t LqFbufFlag;
 #define LQFRWBUF_FAST_LOCKER     int
 #define LQFRWBUF_DEFAULT_LOCKER  LqMutex
 
+
+#define LQFBUF_CTR_REMOVE_LAYER -2
+
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
@@ -202,6 +205,8 @@ struct LqFbufCookie {
     int64_t(LQ_CALL *SeekProc)(LqFbuf*, int64_t Offset, int Flags);
     bool(LQ_CALL *CopyProc)(LqFbuf*Dest, LqFbuf*Source);
     intptr_t(LQ_CALL *CloseProc)(LqFbuf*);
+	int(LQ_CALL *LayerCtrlProc)(LqFbuf*, int CurLayer, int Code, va_list Va);
+	const char* Name;
 };
 
 #pragma pack(pop)
@@ -246,6 +251,8 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_stream(LqFbuf* lqaout lqats Context);
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_close(LqFbuf* lqain lqats Context);
 
+LQ_IMPORTEXPORT void LQ_CALL LqFbuf_lock(LqFbuf* lqain lqats Context);
+LQ_IMPORTEXPORT void LQ_CALL LqFbuf_unlock(LqFbuf* lqain lqats Context);
 /*
 	Move the pointer to another area of the file or virt. file
 		@Context - Target file buffer
@@ -314,6 +321,9 @@ LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_scanf(LqFbuf* lqaio lqats Context, int F
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_getc(LqFbuf* lqaio lqats Context, int* lqaout Dest);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_read(LqFbuf* lqaio lqats Context, void* lqaout lqaopt Buf, size_t Len);
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_peek(LqFbuf* lqaio lqats Context, void* lqaout lqaopt Buf, size_t Len);
+
+LQ_IMPORTEXPORT int LQ_CALL LqFbuf_ctrl(LqFbuf* lqaio lqats Context, int Layer, int Code, ...);
+LQ_IMPORTEXPORT int LQ_CALL LqFbuf_vctrl(LqFbuf* lqaio lqats Context, int Layer, int Code, va_list Va);
 
 LQ_IMPORTEXPORT intptr_t LQ_CALL LqFbuf_flush(LqFbuf* lqaio lqats Context);
 

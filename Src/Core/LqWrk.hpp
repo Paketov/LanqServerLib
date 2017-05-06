@@ -23,6 +23,8 @@ class LqWrkBoss;
 #include "Lanq.h"
 #include "LqDfltRef.hpp"
 
+#include <functional>
+
 
 LQ_IMPORTEXPORT void LQ_CALL LqWrkDelete(LqWrk* This);
 
@@ -96,7 +98,9 @@ class LQ_IMPORTEXPORT LqWrk: public LqThreadBase {
 public:
 
     static LqWrkPtr New(bool IsStart = false);
-
+	/*
+		Get a processing worker by client
+	*/
     static LqWrkPtr ByEvntHdr(LqClientHdr* EvntHdr);
 
     static LqWrkPtr GetNull();
@@ -133,11 +137,11 @@ public:
     size_t   CancelAsyncCall(void(LQ_CALL*AsyncProc)(void* Data), void* UserData = nullptr, bool IsAll = false);
     bool     AsyncCall11(std::function<void()> Proc);
     /*
-    This method return all connection from this worker.
+		This method return all connection from this worker.
     */
-
     size_t   CloseAllClientsSync();
     bool     CloseAllClientsAsync();
+
 
     size_t   CloseClientsByIpSync(const sockaddr* Addr);
     bool     CloseClientsByIpAsync(const sockaddr* Addr);

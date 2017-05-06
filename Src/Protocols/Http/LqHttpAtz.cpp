@@ -10,11 +10,11 @@
 #include "LqHttp.hpp"
 #include "LqHttp.h"
 #include "LqTime.h"
-#include "LqMd5.h"
 #include "LqAtm.hpp"
 #include "LqHttpAtz.h"
 #include "LqHttpMdl.h"
 #include "LqStr.hpp"
+#include "LqCrypt.h"
 
 #define __METHOD_DECLS__
 #include "LqAlloc.hpp"
@@ -74,10 +74,10 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* HttpConn, uint8_t AccessMask) {
     char *t;
     size_t LenLogPass, NonceParamLen, i, UsernameParamLen, UriParamLen, ResponsePraramLen;
     char Nonce[100];
-    char HashMethodPath[LqMd5HexStringLen + 1];
-    char HashBuf[LqMd5HexStringLen + 1];
-    LqMd5 h;
-    LqMd5Ctx ctx;
+    char HashMethodPath[32 + 1];
+    char HashBuf[32 + 1];
+    char h[16];
+    LqCryptHash ctx;
 
 
     Mdl = LqHttpConnGetMdl(HttpConn);
@@ -143,29 +143,29 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzDo(LqHttpConn* HttpConn, uint8_t AccessMask) {
             LqHttpAtzUnlock(a.Get());
             return false;
         }
-        if(!LqHttpAtzGetAuthorizationParametr(HdrVal, "response", &ResponsePraram, &ResponsePraramLen, true) || (ResponsePraramLen != LqMd5HexStringLen)) {
+        if(!LqHttpAtzGetAuthorizationParametr(HdrVal, "response", &ResponsePraram, &ResponsePraramLen, true) || (ResponsePraramLen != 32)) {
             LqHttpAtzRsp401Digest(HttpConn, a.Get(), Nonce, false);
             LqHttpAtzUnlock(a.Get());
             return false;
         }
 
-        LqMd5Init(&ctx);
-        LqMd5Update(&ctx, RcvHdr->Method, LqStrLen(RcvHdr->Method));
-        LqMd5Update(&ctx, ":", 1);
-        LqMd5Update(&ctx, UriParam, UriParamLen);
-        LqMd5Final((unsigned char*)&h, &ctx);
-        LqMd5ToString(HashMethodPath, &h);
+		LqCryptHashOpen(&ctx, "md5");
+		LqCryptHashUpdate(&ctx, RcvHdr->Method, LqStrLen(RcvHdr->Method));
+		LqCryptHashUpdate(&ctx, ":", 1);
+		LqCryptHashUpdate(&ctx, UriParam, UriParamLen);
+		LqCryptHashFinal(&ctx, h);
+		LqFbuf_snprintf(HashMethodPath, 100, "%.*v", 16, h); /* Print hash as HEX string */
         for(size_t i = 0; i < a->CountAuthoriz; i++) {
             if((UsernameParamLen == LqStrLen(a->Digest[i].UserName)) && LqStrSameMax(UsernameParam, a->Digest[i].UserName, UsernameParamLen)) {
-                LqMd5Init(&ctx);
-                LqMd5Update(&ctx, a->Digest[i].DigestLoginPassword, LqMd5HexStringLen);
-                LqMd5Update(&ctx, ":", 1);
-                LqMd5Update(&ctx, Nonce, LqStrLen(Nonce));
-                LqMd5Update(&ctx, ":", 1);
-                LqMd5Update(&ctx, HashMethodPath, LqMd5HexStringLen);
-                LqMd5Final((unsigned char*)&h, &ctx);
-                LqMd5ToString(HashBuf, &h);
-                if(LqStrSameMax(HashBuf, ResponsePraram, LqMd5HexStringLen) && ((a->Digest[i].AccessMask & AccessMask) == AccessMask)) {
+				LqCryptHashOpen(&ctx, "md5");
+				LqCryptHashUpdate(&ctx, a->Digest[i].DigestLoginPassword, 32);
+				LqCryptHashUpdate(&ctx, ":", 1);
+				LqCryptHashUpdate(&ctx, Nonce, LqStrLen(Nonce));
+				LqCryptHashUpdate(&ctx, ":", 1);
+				LqCryptHashUpdate(&ctx, HashMethodPath, 32);
+				LqCryptHashFinal(&ctx, h);
+				LqFbuf_snprintf(HashBuf, 100, "%.*v", 16, h); /* Print hash as HEX string */
+                if(LqStrSameMax(HashBuf, ResponsePraram, 32) && ((a->Digest[i].AccessMask & AccessMask) == AccessMask)) {
                     LqHttpAtzUnlock(a.Get());
                     return true;
                 }
@@ -308,15 +308,15 @@ LQ_EXTERN_C bool LQ_CALL LqHttpAtzAdd(LqHttpAtz* NetAutoriz, uint8_t AccessMask,
         NetAutoriz->Digest[NetAutoriz->CountAuthoriz].AccessMask = AccessMask;
         NetAutoriz->Digest[NetAutoriz->CountAuthoriz].UserName = un;
 
-        LqMd5Ctx ctx;
-        LqMd5Init(&ctx);
-        LqMd5Update(&ctx, UserName, LqStrLen(UserName));
-        LqMd5Update(&ctx, ":", 1);
-        LqMd5Update(&ctx, NetAutoriz->Realm, LqStrLen(NetAutoriz->Realm));
-        LqMd5Update(&ctx, ":", 1);
-        LqMd5Update(&ctx, Password, LqStrLen(Password));
-        LqMd5 h;
-        LqMd5Final((unsigned char*)&h, &ctx);
+		LqCryptHash ctx;
+		LqCryptHashOpen(&ctx, "md5");
+		LqCryptHashUpdate(&ctx, UserName, LqStrLen(UserName));
+		LqCryptHashUpdate(&ctx, ":", 1);
+		LqCryptHashUpdate(&ctx, NetAutoriz->Realm, LqStrLen(NetAutoriz->Realm));
+		LqCryptHashUpdate(&ctx, ":", 1);
+		LqCryptHashUpdate(&ctx, Password, LqStrLen(Password));
+        char h[16];
+		LqCryptHashFinal(&ctx, h);
         LqFbuf_snprintf(
             NetAutoriz->Digest[NetAutoriz->CountAuthoriz].DigestLoginPassword,
             sizeof(NetAutoriz->Digest[NetAutoriz->CountAuthoriz].DigestLoginPassword),

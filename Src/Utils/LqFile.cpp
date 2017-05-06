@@ -111,7 +111,8 @@ extern "C" __kernel_entry NTSTATUS NTAPI NtCreateEvent(
 
 extern "C" __kernel_entry NTSTATUS NTAPI NtSetEvent(
     IN HANDLE EventHandle,
-    OUT PLONG PreviousState OPTIONAL);
+    OUT PLONG PreviousState OPTIONAL
+);
 
 extern "C" __kernel_entry NTSTATUS NTAPI NtResetEvent(
     IN HANDLE               EventHandle,
@@ -419,6 +420,64 @@ lblAgain:
         case STATUS_PENDING:
             NtCancelIoFile((HANDLE)Fd, &iosb);
             SetLastError(ERROR_IO_PENDING);
+            break;
+        case STATUS_SUCCESS: return iosb.Information;
+        case STATUS_END_OF_FILE: SetLastError(ERROR_HANDLE_EOF); break;//For improve performance
+        case STATUS_INVALID_PARAMETER:
+            if(ppl == NULL) {
+                ppl = &pl;
+                pl.QuadPart = LqFileTell(Fd);
+                goto lblAgain;
+            }
+        default: SetLastError(RtlNtStatusToDosError(Stat));
+    }
+    return -((intptr_t)1);
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqFileReadBlocked(int Fd, void* lqaout DestBuf, intptr_t SizeBuf) {
+    /*
+    * Use NtReadFile in this because, native function more faster and more flexible
+    */
+    IO_STATUS_BLOCK iosb;
+    LARGE_INTEGER pl, *ppl = NULL;
+    NTSTATUS Stat;
+lblAgain:
+    switch(Stat = NtReadFile((HANDLE)Fd, NULL, NULL, NULL, &iosb, (PVOID)DestBuf, SizeBuf, ppl, NULL)) {
+        case STATUS_PENDING:
+            Stat = NtWaitForSingleObject((HANDLE)Fd, FALSE, NULL);
+            if(NT_SUCCESS(Stat))
+                Stat = iosb.Status;
+            if(NT_SUCCESS(Stat))
+                return iosb.Information;
+            SetLastError(RtlNtStatusToDosError(Stat));
+            break;
+        case STATUS_SUCCESS: return iosb.Information;
+        case STATUS_END_OF_FILE: SetLastError(ERROR_HANDLE_EOF); return 0;
+        case STATUS_INVALID_PARAMETER:
+            if(ppl == NULL) {
+                ppl = &pl;
+                pl.QuadPart = LqFileTell(Fd);
+                goto lblAgain;
+            }
+        default: SetLastError(RtlNtStatusToDosError(Stat));
+    }
+    return -((intptr_t)1);
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqFileWriteBlocked(int Fd, const void* lqain SourceBuf, intptr_t SizeBuf) {
+    IO_STATUS_BLOCK iosb;
+    LARGE_INTEGER pl, *ppl = NULL;
+    NTSTATUS Stat;
+
+lblAgain:
+    switch(Stat = NtWriteFile((HANDLE)Fd, NULL, NULL, NULL, &iosb, (PVOID)SourceBuf, SizeBuf, ppl, NULL)) {
+        case STATUS_PENDING:
+            Stat = NtWaitForSingleObject((HANDLE)Fd, FALSE, NULL);
+            if(NT_SUCCESS(Stat))
+                Stat = iosb.Status;
+            if(NT_SUCCESS(Stat))
+                return iosb.Information;
+            SetLastError(RtlNtStatusToDosError(Stat));
             break;
         case STATUS_SUCCESS: return iosb.Information;
         case STATUS_END_OF_FILE: SetLastError(ERROR_HANDLE_EOF); break;//For improve performance
@@ -1057,345 +1116,356 @@ LQ_EXTERN_C void LQ_CALL LqFileEnmBreak(LqFileEnm* Enm) {
 * You must send to function only native descriptors (Not CRT).
 * Supports:
 *   +Read/Write events
-*   +Any type of Read/Write file types (sockets, files, pipes, ...)
+*   +Supports types of files (sockets, pipes, console)
 *   +Event objects (when have signal simulate POLLIN and POLLOUT)
-*   +Supports disconnect event POLLHUP (but use only with POLLIN or POLLOUT)
 *   -In widows only can be use with LQ_O_NONBLOCK creation parametr
 */
+#define LqEvntSystemEventByConnFlag(EvntFlags)        \
+    ((((EvntFlags) & LQ_POLLOUT)  ? FD_WRITE : 0)    |\
+    (((EvntFlags) & LQ_POLLIN)    ? FD_READ : 0)     |\
+    (((EvntFlags) & LQ_POLLIN)    ? FD_ACCEPT : 0)   |\
+    (((EvntFlags) & LQ_POLLOUT)   ? FD_CONNECT : 0)  |\
+    (((EvntFlags) & LQ_POLLHUP)   ? FD_CLOSE: 0))
+
+#define LqConnFlagBySysEvent(EvntFlags)               \
+    ((((EvntFlags) & FD_READ)     ? LQ_POLLIN : 0)   |\
+    (((EvntFlags) & FD_WRITE)     ? LQ_POLLOUT : 0)  |\
+    (((EvntFlags) & FD_ACCEPT)    ? LQ_POLLOUT : 0)  |\
+    (((EvntFlags) & FD_CONNECT)   ? LQ_POLLIN : 0)   |\
+    (((EvntFlags) & FD_CLOSE)     ? LQ_POLLHUP: 0))
+
+#define LQ_POLL_TYPE_EVENT 0
+#define LQ_POLL_TYPE_PIPE 1
+#define LQ_POLL_TYPE_SOCKET 2
+#define LQ_POLL_TYPE_TERMINAL 3
+#define LQ_POLL_TYPE_DRIVER 4
+
+typedef struct __FILE_PIPE_LOCAL_INFORMATION {
+    ULONG NamedPipeType;
+    ULONG NamedPipeConfiguration;
+    ULONG MaximumInstances;
+    ULONG CurrentInstances;
+    ULONG InboundQuota;
+    ULONG ReadDataAvailable;
+    ULONG OutboundQuota;
+    ULONG WriteQuotaAvailable;
+    ULONG NamedPipeState;
+    ULONG NamedPipeEnd;
+} __FILE_PIPE_LOCAL_INFORMATION;
+
+
+static DWORD CheckAllEvents(const HANDLE* EventObjs, const intptr_t EventsCount) {
+    intptr_t StartIndex = ((intptr_t)0);
+    intptr_t Count;
+    DWORD Status;
+    while(true) {
+        Count = EventsCount - StartIndex;
+        if(Count >= ((intptr_t)MAXIMUM_WAIT_OBJECTS))
+            Count = ((intptr_t)MAXIMUM_WAIT_OBJECTS) - ((intptr_t)1);
+        Status = WaitForMultipleObjects(Count, EventObjs + StartIndex, FALSE, 0);
+        if((Status >= WAIT_OBJECT_0) && (Status < (WAIT_OBJECT_0 + MAXIMUM_WAIT_OBJECTS))) {
+            return Status;
+        } else if(Status != WAIT_TIMEOUT) {
+            return Status;
+        }
+        StartIndex += Count;
+        if(StartIndex >= ((intptr_t)EventsCount))
+            return Status;
+    }
+}
+static char LqPollCheckBuf;
 LQ_EXTERN_C int LQ_CALL LqPollCheck(LqPoll* Fds, size_t CountFds, LqTimeMillisec TimeoutMillisec) {
-    enum {
-        LQ_POLL_MODE_IN = 1,
-        LQ_POLL_MODE_OUT = 2,
-        LQ_POLL_MODE_HUP = 4,
-        LQ_POLL_MODE_EVENT = 8
-    };
-
-    struct OvlpHdr {
-        size_t Index;
-        uint8_t Mode;
-        IO_STATUS_BLOCK Sb;
-    };
-
-    LARGE_INTEGER pl, *ppl;
+    bool HavePipeOrTerminal = false;
+    bool HaveEvents = false;
+    LARGE_INTEGER li, *pli;
+    IO_STATUS_BLOCK StatusBlock;
+    static IO_STATUS_BLOCK ReadStatusBlock;
+    WSANETWORKEVENTS NetEvnts;
+    DWORD num_read;
+    INPUT_RECORD ir;
+    NTSTATUS Status;
     DWORD WaitRes;
-    bool HasOnlyHup = false;
-    HANDLE TempEvnt = NULL;
-    IO_STATUS_BLOCK TempIoBlock;
-    std::vector<HANDLE> Events;
-    std::vector<OvlpHdr*> EventsData;
-    ULONGLONG TimePassed;
-    HANDLE Event = NULL;
-    OvlpHdr *Ovlp = NULL;
-    static char Buf;
-    LqPoll* Fd;
-    size_t HasEvnt;
-    bool Hpl = false;
+    __FILE_PIPE_LOCAL_INFORMATION PipeInfo;
     int CountEvents = 0;
-    size_t i;
-    DWORD Res;
-
-
-    TempEvnt = CreateEventW(NULL, TRUE, FALSE, NULL);
-    for(i = 0; i < CountFds; i++) {
-        HasEvnt = 0;
+    HANDLE* Handles;
+    uint8_t* Types;
+    LqTimeMillisec CurWaitTime, CurWaitTime2, WaitTime;
+    if(CountFds == 0) {
+        Sleep(TimeoutMillisec);
+        return 0;
+    }
+    Handles = (HANDLE*)LqMemAlloc(CountFds * sizeof(HANDLE) + CountFds * sizeof(uint8_t));
+    Types = (uint8_t*)(Handles + CountFds);
+    for(size_t i = 0; i < CountFds; i++) {
         Fds[i].revents = 0;
-        Hpl = false;
-        if(Fds[i].events & LQ_POLLIN) {
-            Ovlp = LqFastAlloc::New<OvlpHdr>();
-            Ovlp->Index = i;
-            Ovlp->Mode = LQ_POLL_MODE_IN;
-            ppl = NULL;
-#ifdef IsUseDynamicEvnt
-            if(Event == NULL)
-                Event = CreateEventW(NULL, TRUE, FALSE, NULL);
-#endif
-lblAgain:
-#ifdef IsUseDynamicEvnt
-            ResetEvent(Event);
-#endif
-            Ovlp->Sb.Status = STATUS_PENDING;
-            switch(NtReadFile((HANDLE)Fds[i].fd, Event, NULL, NULL, &Ovlp->Sb, &Buf, 0, ppl, NULL)) {
-                case STATUS_MORE_PROCESSING_REQUIRED:
-                case STATUS_SUCCESS:
-                    LqFastAlloc::Delete(Ovlp);
-                    Fds[i].revents |= LQ_POLLIN;
-                    HasEvnt = 1;
-                    break;
-                case STATUS_PENDING:
-                    if(Ovlp->Sb.Status == STATUS_INVALID_DEVICE_REQUEST)
-                        goto lblWatchEventRd;
-                    EventsData.push_back(Ovlp);
-#ifdef IsUseDynamicEvnt
-                    Events.push_back(Event);
-                    Event = NULL;
-#else
-                    Events.push_back((HANDLE)Fds[i].fd);
-#endif
-                    break;
-                case STATUS_PIPE_BROKEN:
-                case STATUS_PIPE_CLOSING:
-                    if(Fds[i].events & LQ_POLLHUP) {
-                        Fds[i].revents |= LQ_POLLHUP;
-                        HasEvnt = 1;
-                    }
-                    LqFastAlloc::Delete(Ovlp);
-                    break;
-                case STATUS_INVALID_PARAMETER:
-                    if(ppl == NULL) {
-                        ppl = &pl;
-                        pl.QuadPart = LqFileTell(Fds[i].fd);
-                        Hpl = true;
-                        goto lblAgain;
-                    }
-                    goto lblErr;
-                case STATUS_OBJECT_TYPE_MISMATCH: lblWatchEventRd: {
-                        if((Res = WaitForSingleObject((HANDLE)Fds[i].fd, 0)) == WAIT_OBJECT_0) {
-                            Fds[i].revents |= LQ_POLLIN;
-                            HasEvnt = 1;
-                            LqFastAlloc::Delete(Ovlp);
-                            break;
-                        } else if(Res != WAIT_FAILED) {
-                            Ovlp->Mode |= LQ_POLL_MODE_EVENT;
-                            Ovlp->Sb.Status = STATUS_OBJECT_TYPE_MISMATCH;
-                            Events.push_back((HANDLE)Fds[i].fd);
-                            EventsData.push_back(Ovlp);
-                            break;
-                        }
-                    }
-lblErr:
-                default:
-                    LqFastAlloc::Delete(Ovlp);
-                    Fds[i].revents |= LQ_POLLERR;
-                    HasEvnt = 1;
+        if(LqDescrIsSocket(Fds[i].fd)) {
+            Types[i] = LQ_POLL_TYPE_SOCKET;
+            Handles[i] = CreateEventW(NULL, TRUE, FALSE, NULL);
+            WSAEventSelect(Fds[i].fd, Handles[i], LqEvntSystemEventByConnFlag(Fds[i].events));
+            WSAEnumNetworkEvents(Fds[i].fd, Handles[i], &NetEvnts);
+            if(NetEvnts.lNetworkEvents != 0) {
+                Fds[i].revents = LqConnFlagBySysEvent(NetEvnts.lNetworkEvents);
+                CountEvents++;
+                CloseHandle(Handles[i]);
+                Handles[i] = (HANDLE)Fds[i].fd;
             }
-        }
-        if(Fds[i].events & LQ_POLLOUT) {
-            Ovlp = LqFastAlloc::New<OvlpHdr>();
-            Ovlp->Index = i;
-            Ovlp->Mode = LQ_POLL_MODE_OUT;
-            ppl = NULL;
-#ifdef IsUseDynamicEvnt
-            if(Event == NULL)
-                Event = CreateEventW(NULL, TRUE, FALSE, NULL);
-#endif
-lblAgain2:
-#ifdef IsUseDynamicEvnt
-            ResetEvent(Event);
-#endif
-            Ovlp->Sb.Status = STATUS_PENDING;
-            switch(NtWriteFile((HANDLE)Fds[i].fd, Event, NULL, NULL, &Ovlp->Sb, &Buf, 0, ppl, NULL)) {
-                case STATUS_MORE_PROCESSING_REQUIRED:
-                case STATUS_SUCCESS:
-                    LqFastAlloc::Delete(Ovlp);
-                    Fds[i].revents |= LQ_POLLOUT;
-                    HasEvnt = 1;
-                    break;
-                case STATUS_PENDING:
-                    if(Ovlp->Sb.Status == STATUS_INVALID_DEVICE_REQUEST)
-                        goto lblWatchEventWr;
-                    EventsData.push_back(Ovlp);
-#ifdef IsUseDynamicEvnt
-                    Events.push_back(Event);
-                    Event = NULL;
-#else
-                    Events.push_back((HANDLE)Fds[i].fd);
-#endif
-                    break;
-                case STATUS_PIPE_BROKEN:
-                case STATUS_PIPE_CLOSING:
-                    if(Fds[i].events & LQ_POLLHUP) {
-                        Fds[i].revents |= LQ_POLLHUP;
-                        HasEvnt = 1;
+        } else if(LqDescrIsTerminal(Fds[i].fd)) {
+            Types[i] = LQ_POLL_TYPE_TERMINAL;
+            HavePipeOrTerminal = true;
+            if(Fds[i].events & LQ_POLLIN) {
+                while(true) {
+                    if(!PeekConsoleInputW((HANDLE)Fds[i].fd, &ir, 1, &num_read)) {
+                        Fds[i].revents = LQ_POLLERR;
+                        break;
                     }
-                    LqFastAlloc::Delete(Ovlp);
-                    break;
-                case STATUS_INVALID_PARAMETER:
-                    if(ppl == NULL) {
-                        ppl = &pl;
-                        if(!Hpl)
-                            pl.QuadPart = LqFileTell(Fds[i].fd);
-                        goto lblAgain2;
+                    if(num_read <= 0)
+                        break;
+                    if(ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
+                        Fds[i].revents = LQ_POLLIN;
+                        break;
+                    } else {
+                        ReadConsoleInputW((HANDLE)Fds[i].fd, &ir, 1, &num_read);
                     }
-                    goto lblErr2;
-                case STATUS_OBJECT_TYPE_MISMATCH: lblWatchEventWr: {
-                        if((Fds[i].revents & LQ_POLLIN) || ((Res = WaitForSingleObject((HANDLE)Fds[i].fd, 0)) == WAIT_OBJECT_0)) {
-                            Fds[i].revents |= LQ_POLLOUT;
-                            HasEvnt = 1;
-                            LqFastAlloc::Delete(Ovlp);
-                            break;
-                        } else if(Res != WAIT_FAILED) {
-                            if(Fds[i].events & LQ_POLLIN)
-                                break;
-                            Ovlp->Mode |= LQ_POLL_MODE_EVENT;
-                            Ovlp->Sb.Status = STATUS_OBJECT_TYPE_MISMATCH;
-                            Events.push_back((HANDLE)Fds[i].fd);
-                            EventsData.push_back(Ovlp);
-                            break;
-                        }
-                    }
-lblErr2:
-                default:
-                    LqFastAlloc::Delete(Ovlp);
-                    Fds[i].revents |= LQ_POLLERR; //Only follow POLLIN or POLLOUT
-                    HasEvnt = 1;
-            }
-        }
-        if(
-            (Fds[i].events & LQ_POLLHUP) &&
-            !(Fds[i].events & LQ_POLLOUT) &&
-            !(Fds[i].events & LQ_POLLIN) &&
-            (Fds[i].revents == 0)
-        ) {
-            ppl = NULL;
-lblAgain6:
-            ResetEvent(TempEvnt);
-            switch(NtWriteFile((HANDLE)Fds[i].fd, TempEvnt, NULL, NULL, &TempIoBlock, &Buf, 0, ppl, NULL)) {
-                case STATUS_PENDING: 
-                    NtCancelIoFile((HANDLE)Fds[i].fd, &TempIoBlock);
-                case STATUS_MORE_PROCESSING_REQUIRED:
-                case STATUS_SUCCESS:
-                    Ovlp = LqFastAlloc::New<OvlpHdr>();
-                    Ovlp->Index = i;
-                    Ovlp->Mode = LQ_POLL_MODE_HUP;
-                    Ovlp->Sb.Status = STATUS_SUCCESS;
-                    EventsData.push_back(Ovlp);
-                    HasOnlyHup = true;
-                    break;
-                case STATUS_PIPE_BROKEN:
-                case STATUS_PIPE_CLOSING: Fds[i].revents |= LQ_POLLHUP; HasEvnt = 1; break;
-                case STATUS_INVALID_PARAMETER:
-                    if(ppl == NULL) {
-                        ppl = &pl;
-                        pl.QuadPart = LqFileTell(Fds[i].fd);
-                        goto lblAgain6;
-                    }
-                default:
-                    Fds[i].revents |= LQ_POLLERR;
-                    HasEvnt = 1;
-            }
-        }
-        CountEvents += HasEvnt;
-    }
-#ifdef IsUseDynamicEvnt
-    if(Event != NULL)
-        CloseHandle(Event);
-#endif
-    WaitRes = WAIT_FAILED + 1;
-    if(CountEvents > 0)
-        goto lblOut3;
-lblAgainWait:
-    TimePassed = GetTickCount64();
-
-    if(Events.size() > 0) {
-        WaitRes = WaitForMultipleObjects(
-            lq_min(Events.size(), MAXIMUM_WAIT_OBJECTS - 1), 
-            Events.data(), 
-            FALSE, 
-            (HasOnlyHup || (Events.size() > (MAXIMUM_WAIT_OBJECTS - 1))) ? lq_min(50, TimeoutMillisec) : TimeoutMillisec
-        );
-    } else {
-        WaitRes = WAIT_TIMEOUT;
-        Sleep(50);
-    }
-    if(WaitRes != WAIT_FAILED) {
-        TimePassed = GetTickCount64() - TimePassed;
-        
-        for(i = 0; i < EventsData.size(); i++) {
-            HasEvnt = 0;
-            Fd = Fds + EventsData[i]->Index;
-            Ovlp = EventsData[i];
-            if(Ovlp->Mode & LQ_POLL_MODE_HUP) {
-                ppl = NULL;
-                
-lblAgain5:
-                ResetEvent(TempEvnt);
-                switch(NtWriteFile((HANDLE)Fd->fd, TempEvnt, NULL, NULL, &TempIoBlock, &Buf, 0, ppl, NULL)) {
-                    case STATUS_MORE_PROCESSING_REQUIRED:
-                    case STATUS_SUCCESS: break;
-                    case STATUS_PENDING: NtCancelIoFile((HANDLE)Fd->fd, &TempIoBlock); break;
-                    case STATUS_PIPE_BROKEN:
-                    case STATUS_PIPE_CLOSING: Fd->revents |= LQ_POLLHUP; HasEvnt = 1; break;
-                    case STATUS_INVALID_PARAMETER:
-                        if(ppl == NULL) {
-                            ppl = &pl;
-                            pl.QuadPart = LqFileTell(Fd->fd);
-                            goto lblAgain5;
-                        }
-                    default: Fd->revents |= LQ_POLLERR; HasEvnt = 1;
                 }
             }
-            if(Ovlp->Mode & LQ_POLL_MODE_EVENT) {
-                switch(WaitForSingleObject((HANDLE)Fd->fd, 0)) {
+            Fds[i].revents |= (Fds[i].events & LQ_POLLOUT);
+            if(Fds[i].revents != 0)
+                CountEvents++;
+            if(CountEvents > 0)
+                Handles[i] = (HANDLE)Fds[i].fd;
+            else
+                Handles[i] = CreateEventW(NULL, TRUE, FALSE, NULL);
+        } else if(NtCancelIoFile((HANDLE)Fds[i].fd, &StatusBlock) == STATUS_OBJECT_TYPE_MISMATCH) { /* Is Event */
+            Types[i] = LQ_POLL_TYPE_EVENT;
+            if(Fds[i].events & (LQ_POLLIN | LQ_POLLOUT)) {
+                Handles[i] = (HANDLE)Fds[i].fd;
+                switch(WaitForSingleObject((HANDLE)Fds[i].fd, 0)) {
                     case WAIT_OBJECT_0:
-                        if(Ovlp->Mode & LQ_POLL_MODE_OUT)
-                            Fd->revents |= LQ_POLLOUT;
-                        if(Ovlp->Mode & LQ_POLL_MODE_IN)
-                            Fd->revents |= LQ_POLLIN;
-                        HasEvnt = 1;
+                        Fds[i].revents = Fds[i].events & (LQ_POLLIN | LQ_POLLOUT);
                         break;
-                    case WAIT_FAILED:
-                        Fd->revents |= LQ_POLLERR;
-                        HasEvnt = 1;
-                }
-            } else if(Ovlp->Mode & (LQ_POLL_MODE_OUT | LQ_POLL_MODE_IN)) {
-                switch(Ovlp->Sb.Status) {
-                    case STATUS_MORE_PROCESSING_REQUIRED:
-                    case STATUS_SUCCESS:
-                        if(Ovlp->Mode & LQ_POLL_MODE_OUT)
-                            Fd->revents |= LQ_POLLOUT;
-                        if(Ovlp->Mode & LQ_POLL_MODE_IN)
-                            Fd->revents |= LQ_POLLIN;
-                        HasEvnt = 1;
-#ifdef IsUseDynamicEvnt
-                        if(CountEvnt <= 0)
-                            ResetEvent(Events[i]);
-#endif
+                    case WAIT_TIMEOUT:
                         break;
-                    case STATUS_PENDING: continue;
-                    case STATUS_PIPE_BROKEN:
-                    case STATUS_PIPE_CLOSING:
-                        if(Fd->events & LQ_POLLHUP) {
-                            Fd->revents |= LQ_POLLHUP;
-                            HasEvnt = 1;
-                        } else {
-#ifdef IsUseDynamicEvnt
-                            CloseHandle(Events[i]);
-#endif
-                            LqFastAlloc::Delete(EventsData[i]);
-                            EventsData[i] = EventsData[EventsData.size() - 1];
-                            Events[i] = EventsData[Events.size() - 1];
-                            i--;
-                        }
+                    default:
+                        Fds[i].revents = LQ_POLLERR;
                         break;
-                    default: lblErr3:
-                        Fd->revents |= LQ_POLLERR;
-                        HasEvnt = 1;
                 }
             }
-            CountEvents += HasEvnt;
-        }
-        if(CountEvents <= 0) {
-            if(TimePassed >= TimeoutMillisec)
-                goto lblOut3;
-            TimeoutMillisec -= TimePassed;
-            goto lblAgainWait;
+            if(Fds[i].revents != 0)
+                CountEvents++;
+            if((CountEvents > 0) || (Fds[i].events & (LQ_POLLIN | LQ_POLLOUT)))
+                Handles[i] = (HANDLE)Fds[i].fd;
+            else
+                Handles[i] = CreateEventW(NULL, TRUE, FALSE, NULL);
+        } else if(
+            (Status = NtQueryInformationFile((HANDLE)Fds[i].fd, &StatusBlock, &PipeInfo, sizeof(PipeInfo), (FILE_INFORMATION_CLASS)24)) !=
+            STATUS_INVALID_PARAMETER
+            ) { /* Is pipe */
+            Types[i] = LQ_POLL_TYPE_PIPE;
+            HavePipeOrTerminal = true;
+
+            if(Status != STATUS_SUCCESS) {
+                Fds[i].revents |= LQ_POLLERR;
+            } else {
+                if((Fds[i].events & LQ_POLLOUT) && (PipeInfo.WriteQuotaAvailable > 0))
+                    Fds[i].revents |= LQ_POLLOUT;
+                if((Fds[i].events & LQ_POLLIN) && (PipeInfo.ReadDataAvailable > 0))
+                    Fds[i].revents |= LQ_POLLIN;
+                if((Fds[i].events & LQ_POLLHUP) && (PipeInfo.NamedPipeState != 3))
+                    Fds[i].revents |= LQ_POLLHUP;
+            }
+            if(Fds[i].revents != 0)
+                CountEvents++;
+            if(CountEvents > 0)
+                Handles[i] = (HANDLE)Fds[i].fd;
+            else
+                Handles[i] = CreateEventW(NULL, TRUE, FALSE, NULL);
+        } else {
+            Types[i] = LQ_POLL_TYPE_DRIVER;
+            Fds[i].revents = 0;
+            if(Fds[i].events & LQ_POLLOUT) {
+                Fds[i].revents |= LQ_POLLERR;
+            } else {
+                Handles[i] = CreateEventW(NULL, TRUE, FALSE, NULL);
+                if(Fds[i].events & (LQ_POLLIN | LQ_POLLHUP)) {
+                    pli = NULL;
+lblAgain:
+                    switch(NtReadFile((HANDLE)Fds[i].fd, Handles[i], NULL, NULL, &ReadStatusBlock, &LqPollCheckBuf, 0, pli, NULL)) {
+                        case STATUS_SUCCESS:
+                            if(Fds[i].events & LQ_POLLIN)
+                                Fds[i].revents |= LQ_POLLIN;
+                            else
+                                ResetEvent(Handles[i]);
+                            break;
+                        case STATUS_PENDING:
+                            if(!(Fds[i].events & LQ_POLLIN)) {
+                                CancelIo((HANDLE)Fds[i].fd);
+                                ResetEvent(Handles[i]);
+                                HavePipeOrTerminal = true;
+                            }
+                            break;
+                        case STATUS_PIPE_BROKEN:
+                        case STATUS_PIPE_CLOSING:
+                            if(Fds[i].events & LQ_POLLHUP)
+                                Fds[i].revents |= LQ_POLLHUP;
+                            ResetEvent(Handles[i]);
+                            break;
+                        case STATUS_INVALID_PARAMETER:
+                            if(pli == NULL) {
+                                pli = &li;
+                                NtQueryInformationFile((HANDLE)Fds[i].fd, &ReadStatusBlock, &li.QuadPart, sizeof(li.QuadPart), (FILE_INFORMATION_CLASS)14);
+                                goto lblAgain;
+                            }
+                        default:
+                            Fds[i].revents |= LQEVNT_FLAG_ERR;
+                    }
+                }
+            }
+            if(Fds[i].revents != 0)
+                CountEvents++;
+            if(CountEvents > 0) {
+                CancelIo((HANDLE)Fds[i].fd);
+                CloseHandle(Handles[i]);
+                Handles[i] = (HANDLE)Fds[i].fd;
+            }
         }
     }
-lblOut3:
-    for(i = 0; i < EventsData.size(); i++) {
-        Ovlp = EventsData[i];
-        if(Ovlp->Sb.Status == STATUS_PENDING)
-            NtCancelIoFile((HANDLE)Fds[Ovlp->Index].fd, &Ovlp->Sb);
-#ifdef IsUseDynamicEvnt
-        if(Fds[Ovlp->Index].fd != (int)Events[i])
-            CloseHandle(Events[i]);
-#endif
-        LqFastAlloc::Delete(Ovlp);
+
+    if(CountEvents > 0)
+        goto lblOut;
+
+    WaitTime = TimeoutMillisec;
+lblAgainCheck:
+
+    if(HavePipeOrTerminal)
+        CurWaitTime2 = CurWaitTime = LQ_POLLCHECK_WAIT_WHEN_HAVE_PIPE_OR_TERMINAL;
+    else
+        CurWaitTime2 = CurWaitTime = WaitTime;
+
+    if(CountFds >= MAXIMUM_WAIT_OBJECTS) {
+        while(true) {
+            WaitRes = CheckAllEvents(Handles, CountFds);
+            if(((WaitRes >= WAIT_OBJECT_0) && (WaitRes < (WAIT_OBJECT_0 + MAXIMUM_WAIT_OBJECTS))) || (WaitRes != WAIT_TIMEOUT))
+                break;
+            CurWaitTime -= ((LqTimeMillisec)LQ_POLLCHECK_WAIT_WHEN_GR_MAXIMUM_WAIT_OBJECTS);
+            WaitRes = WaitForMultipleObjects(MAXIMUM_WAIT_OBJECTS - 1, Handles, FALSE, lq_min(((LqTimeMillisec)LQ_POLLCHECK_WAIT_WHEN_GR_MAXIMUM_WAIT_OBJECTS), CurWaitTime));
+            if(((WaitRes >= WAIT_OBJECT_0) && (WaitRes < (WAIT_OBJECT_0 + MAXIMUM_WAIT_OBJECTS))) || (WaitRes != WAIT_TIMEOUT))
+                break;
+            if(CurWaitTime <= ((LqTimeMillisec)0))
+                break;
+        }
+    } else {
+        WaitForMultipleObjects(CountFds, Handles, FALSE, CurWaitTime);
     }
-    if(TempEvnt != NULL)
-        CloseHandle(TempEvnt);
-    if(WaitRes == WAIT_FAILED)
-        return -1;
+    WaitTime -= CurWaitTime2;
+    for(size_t i = 0; i < CountFds; i++) {
+        switch(Types[i]) {
+            case LQ_POLL_TYPE_EVENT:
+                switch(WaitForSingleObject(Handles[i], 0)) {
+                    case WAIT_OBJECT_0:
+                        Fds[i].revents = Fds[i].events & (LQ_POLLIN | LQ_POLLOUT);
+                        break;
+                    case WAIT_TIMEOUT:
+                        break;
+                    default:
+                        Fds[i].revents = LQ_POLLERR;
+                        break;
+                }
+                break;
+            case LQ_POLL_TYPE_SOCKET:
+                NetEvnts.lNetworkEvents = 0;
+                WSAEnumNetworkEvents(Fds[i].fd, Handles[i], &NetEvnts);
+                if(NetEvnts.lNetworkEvents != 0)
+                    Fds[i].revents = LqConnFlagBySysEvent(NetEvnts.lNetworkEvents);
+                break;
+            case LQ_POLL_TYPE_PIPE:
+                Status = NtQueryInformationFile((HANDLE)Fds[i].fd, &StatusBlock, &PipeInfo, sizeof(PipeInfo), (FILE_INFORMATION_CLASS)24);
+                if(Status != STATUS_SUCCESS) {
+                    Fds[i].revents |= LQ_POLLERR;
+                } else {
+                    if((Fds[i].events & LQ_POLLOUT) && (PipeInfo.WriteQuotaAvailable > 0))
+                        Fds[i].revents |= LQ_POLLOUT;
+                    if((Fds[i].events & LQ_POLLIN) && (PipeInfo.ReadDataAvailable > 0))
+                        Fds[i].revents |= LQ_POLLIN;
+                    if((Fds[i].events & LQ_POLLHUP) && (PipeInfo.NamedPipeState != 3))
+                        Fds[i].revents |= LQ_POLLHUP;
+                }
+                break;
+            case LQ_POLL_TYPE_TERMINAL:
+                if(Fds[i].events & LQ_POLLIN) {
+                    while(true) {
+                        if(!PeekConsoleInputW((HANDLE)Fds[i].fd, &ir, 1, &num_read)) {
+                            Fds[i].revents = LQ_POLLERR;
+                            break;
+                        }
+                        if(num_read <= 0)
+                            break;
+                        if(ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
+                            Fds[i].revents = LQ_POLLIN;
+                            break;
+                        } else {
+                            ReadConsoleInputW((HANDLE)Fds[i].fd, &ir, 1, &num_read);
+                        }
+                    }
+                }
+                Fds[i].revents |= (Fds[i].events & LQ_POLLOUT);
+                break;
+            case LQ_POLL_TYPE_DRIVER:
+                switch(((Fds[i].events & LQ_POLLHUP) && !(Fds[i].events & LQ_POLLIN)) ? WAIT_OBJECT_0 : WaitForSingleObject(Handles[i], 0)) {
+                    case WAIT_OBJECT_0:
+                        pli = NULL;
+lblAgain2:
+                        switch(NtReadFile((HANDLE)Fds[i].fd, Handles[i], NULL, NULL, &ReadStatusBlock, &LqPollCheckBuf, 0, pli, NULL)) {
+                            case STATUS_SUCCESS:
+                                if(Fds[i].events & LQ_POLLIN)
+                                    Fds[i].revents |= LQ_POLLIN;
+                                else
+                                    ResetEvent(Handles[i]);
+                                break;
+                            case STATUS_PENDING:
+                                if(!(Fds[i].events & LQ_POLLIN)) {
+                                    CancelIo((HANDLE)Fds[i].fd);
+                                    ResetEvent(Handles[i]);
+                                }
+                                break;
+                            case STATUS_PIPE_BROKEN:
+                            case STATUS_PIPE_CLOSING:
+                                if(Fds[i].events & LQ_POLLHUP)
+                                    Fds[i].revents |= LQ_POLLHUP;
+                                ResetEvent(Handles[i]);
+                                break;
+                            case STATUS_INVALID_PARAMETER:
+                                if(pli == NULL) {
+                                    pli = &li;
+                                    NtQueryInformationFile((HANDLE)Fds[i].fd, &ReadStatusBlock, &li.QuadPart, sizeof(li.QuadPart), (FILE_INFORMATION_CLASS)14);
+                                    goto lblAgain2;
+                                }
+                            default:
+                                Fds[i].revents |= LQEVNT_FLAG_ERR;
+                        }
+                        break;
+                    case WAIT_TIMEOUT:
+                        break;
+                    default:
+                        Fds[i].revents = LQ_POLLERR;
+                        break;
+                }
+                break;
+        }
+        if(Fds[i].revents != 0)
+            CountEvents++;
+    }
+    if(CountEvents > 0)
+        goto lblOut;
+    if(WaitTime > ((LqTimeMillisec)0))
+        goto lblAgainCheck;
+lblOut:
+    for(size_t i = 0; i < CountFds; i++) {
+        if(Types[i] == LQ_POLL_TYPE_DRIVER)
+            CancelIo((HANDLE)Fds[i].fd);
+        if((HANDLE)Fds[i].fd != Handles[i])
+            CloseHandle(Handles[i]);
+    }
+    LqMemFree(Handles);
     return CountEvents;
 }
 
@@ -1674,6 +1744,12 @@ LQ_EXTERN_C void LQ_CALL LqThreadYield() {
     Sleep(0);
 }
 
+LQ_EXTERN_C int LQ_CALL LqThreadConcurrency() {
+    SYSTEM_INFO sysinfo = {0};
+    GetSystemInfo(&sysinfo);
+    return sysinfo.dwNumberOfProcessors;
+}
+
 LQ_EXTERN_C void LQ_CALL LqSleep(LqTimeMillisec Millisec) {
     Sleep(Millisec);
 }
@@ -1860,11 +1936,37 @@ LQ_EXTERN_C int LQ_CALL LqFileEof(int Fd) {
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileRead(int Fd, void* DestBuf, intptr_t SizeBuf) {
-    return read(Fd, DestBuf, SizeBuf);
+    int Res = read(Fd, DestBuf, SizeBuf);
+    if(Res == -1)
+        return -((intptr_t)1);
+    return Res;
 }
 
 LQ_EXTERN_C intptr_t LQ_CALL LqFileWrite(int Fd, const void* SourceBuf, intptr_t SizeBuf) {
-    return write(Fd, SourceBuf, SizeBuf);
+    int Res = write(Fd, SourceBuf, SizeBuf);
+    if(Res == -1)
+        return -((intptr_t)1);
+    return Res;
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqFileReadBlocked(int Fd, void* lqaout DestBuf, intptr_t SizeBuf) {
+    int Flags = fcntl(Fd, F_GETFL, 0);
+    fcntl(Fd, F_SETFL, Flags | ~O_NONBLOCK);
+    int Res = read(Fd, DestBuf, SizeBuf);
+    fcntl(Fd, F_SETFL, Flags);
+    if(Res == -1)
+        return -((intptr_t)1);
+    return Res;
+}
+
+LQ_EXTERN_C intptr_t LQ_CALL LqFileWriteBlocked(int Fd, const void* lqain SourceBuf, intptr_t SizeBuf) {
+    int Flags = fcntl(Fd, F_GETFL, 0);
+    fcntl(Fd, F_SETFL, Flags | ~O_NONBLOCK);
+    int Res = write(Fd, SourceBuf, SizeBuf);
+    fcntl(Fd, F_SETFL, Flags);
+    if(Res == -1)
+        return -((intptr_t)1);
+    return Res;
 }
 
 
@@ -2893,6 +2995,32 @@ LQ_EXTERN_C bool LQ_CALL LqMutexClose(LqMutex* Dest) {
 LQ_EXTERN_C int LQ_CALL LqThreadId() {
     return pthread_self();
 }
+
+#if defined(LQPLATFORM_FREEBSD) || defined(LQPLATFORM_APPLE)
+
+LQ_EXTERN_C int LQ_CALL LqThreadConcurrency() {
+    int mib[4];
+    int numCPU;
+    size_t len = sizeof(numCPU);
+    mib[0] = CTL_HW;
+    mib[1] = HW_AVAILCPU;
+    sysctl(mib, 2, &numCPU, &len, NULL, 0);
+    if(numCPU < 1) {
+        mib[1] = HW_NCPU;
+        sysctl(mib, 2, &numCPU, &len, NULL, 0);
+        if(numCPU < 1)
+            numCPU = 1;
+    }
+    return numCPU;
+}
+
+#elif defined(LQPLATFORM_LINUX) || defined(LQPLATFORM_ANDROID)
+
+LQ_EXTERN_C int LQ_CALL LqThreadConcurrency() {
+    return sysconf(_SC_NPROCESSORS_ONLN);
+}
+
+#endif
 
 LQ_EXTERN_C void LQ_CALL LqThreadYield() {
     usleep(0);

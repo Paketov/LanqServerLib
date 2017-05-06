@@ -12,6 +12,7 @@
 
 #include <vector>
 #include <type_traits>
+#include <functional>
 
 
 #pragma pack(push)

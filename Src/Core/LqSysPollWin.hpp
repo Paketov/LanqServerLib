@@ -4,7 +4,8 @@
 * 2016
 * LqSysPoll... - Multiplatform abstracted event folower
 * This part of server support:
-*   +Windows native events objects.
+*   +Windows window message. (one thread processing all message for multiple threads)
+*   +Windows internal async iocp poll. (most powerfull method in windows)
 *   +linux epoll.
 *   +kevent for BSD like systems.(*But not yet implemented)
 *   +poll for others unix systems.
@@ -54,6 +55,94 @@ extern "C" NTSYSAPI NTSTATUS NTAPI NtCancelIoFile(
     _Out_ PIO_STATUS_BLOCK    IoStatusBlock
 );
 
+typedef enum _EVENT_TYPE {
+    NotificationEvent,
+    SynchronizationEvent
+} EVENT_TYPE, *PEVENT_TYPE;
+
+extern "C" __kernel_entry NTSTATUS NTAPI NtCreateEvent(
+    OUT PHANDLE             EventHandle,
+    IN ACCESS_MASK          DesiredAccess,
+    IN POBJECT_ATTRIBUTES   ObjectAttributes OPTIONAL,
+    IN EVENT_TYPE           EventType,
+    IN BOOLEAN              InitialState
+);
+extern "C" __kernel_entry NTSTATUS NTAPI NtClearEvent(
+    __in HANDLE EventHandle
+);
+
+extern "C" __kernel_entry NTSTATUS NTAPI NtSetEvent(
+    IN HANDLE EventHandle,
+    OUT PLONG PreviousState OPTIONAL
+);
+
+typedef enum __FILE_INFORMATION_CLASS {
+    // end_wdm
+    _FileDirectoryInformation = 1,
+    _FileFullDirectoryInformation,   // 2
+    _FileBothDirectoryInformation,   // 3
+    _FileBasicInformation,           // 4  wdm
+    _FileStandardInformation,        // 5  wdm
+    _FileInternalInformation,        // 6
+    _FileEaInformation,              // 7
+    _FileAccessInformation,          // 8
+    _FileNameInformation,            // 9
+    _FileRenameInformation,          // 10
+    _FileLinkInformation,            // 11
+    _FileNamesInformation,           // 12
+    _FileDispositionInformation,     // 13
+    _FilePositionInformation,        // 14 wdm
+    _FileFullEaInformation,          // 15
+    _FileModeInformation,            // 16
+    _FileAlignmentInformation,       // 17
+    _FileAllInformation,             // 18
+    _FileAllocationInformation,      // 19
+    _FileEndOfFileInformation,       // 20 wdm
+    _FileAlternateNameInformation,   // 21
+    _FileStreamInformation,          // 22
+    _FilePipeInformation,            // 23
+    _FilePipeLocalInformation,       // 24
+    _FilePipeRemoteInformation,      // 25
+    _FileMailslotQueryInformation,   // 26
+    _FileMailslotSetInformation,     // 27
+    _FileCompressionInformation,     // 28
+    _FileObjectIdInformation,        // 29
+    _FileCompletionInformation,      // 30
+    _FileMoveClusterInformation,     // 31
+    _FileQuotaInformation,           // 32
+    _FileReparsePointInformation,    // 33
+    _FileNetworkOpenInformation,     // 34
+    _FileAttributeTagInformation,    // 35
+    _FileTrackingInformation,        // 36
+    _FileIdBothDirectoryInformation, // 37
+    _FileIdFullDirectoryInformation, // 38
+    _FileValidDataLengthInformation, // 39
+    _FileShortNameInformation,       // 40
+    _FileReplaceCompletionInformation = 56 /* Since version  Win 8.1*/
+                                           // begin_wdm
+} __FILE_INFORMATION_CLASS;
+
+extern "C" __kernel_entry NTSTATUS NTAPI NtQueryInformationFile(
+    __in HANDLE FileHandle,
+    __out PIO_STATUS_BLOCK IoStatusBlock,
+    __out_bcount(Length) PVOID FileInformation,
+    __in ULONG Length,
+    __in __FILE_INFORMATION_CLASS FileInformationClass
+);
+
+typedef struct __FILE_PIPE_LOCAL_INFORMATION {
+    ULONG NamedPipeType;
+    ULONG NamedPipeConfiguration;
+    ULONG MaximumInstances;
+    ULONG CurrentInstances;
+    ULONG InboundQuota;
+    ULONG ReadDataAvailable;
+    ULONG OutboundQuota;
+    ULONG WriteQuotaAvailable;
+    ULONG NamedPipeState;
+    ULONG NamedPipeEnd;
+} __FILE_PIPE_LOCAL_INFORMATION;
+
 
 typedef enum _WAIT_TYPE {
     WaitAll,
@@ -81,6 +170,9 @@ extern "C" __kernel_entry NTSTATUS NTAPI NtClearEvent(IN HANDLE EventHandle);
 #define IsWrAgain(Client)  ((LqClientGetFlags(Client) & (LQCONN_FLAG_WR_AGAIN | LQEVNT_FLAG_WR)) == (LQCONN_FLAG_WR_AGAIN | LQEVNT_FLAG_WR))
 #define IsAgain(Client)    (IsRdAgain(Client) || IsWrAgain(Client))
 
+static LARGE_INTEGER ZeroTimeWait = {0};
+static char AsyncBuf;
+
 static LRESULT CALLBACK WindowProcedure(HWND window, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(window, msg, wp, lp);
 }
@@ -105,7 +197,7 @@ static struct _wnd_class {
 
 bool LqSysPollInit(LqSysPoll* Dest) {
     LqArr2Init(&Dest->ConnArr);
-    LqArr3Init(&Dest->EvntFdArr);
+    LqArr3Init(&Dest->EvntArr);
 
     Dest->EventObjectIndex = INTPTR_MAX;
     Dest->ConnIndex = -((intptr_t)1);
@@ -152,139 +244,216 @@ void LqSysPollThreadUninit(LqSysPoll* Dest) {
 }
 
 void LqSysPollUninit(LqSysPoll* Dest) {
-	intptr_t i, m;
-    if(Dest->EvntFdArr.Count > ((intptr_t)0)) {
-        for(i = 0, m = Dest->EvntFdArr.Count; i < m; i++) {
-            if(LqArr3At_1(&Dest->EvntFdArr, HANDLE, i) != (HANDLE)LqArr3At_2(&Dest->EvntFdArr, LqEvntFd*, i)->Fd)
-                LqFileClose((int)LqArr3At_1(&Dest->EvntFdArr, HANDLE, i)); //close only events
+    intptr_t i, m;
+    if(Dest->EvntArr.Count > ((intptr_t)0)) {
+        for(i = 0, m = Dest->EvntArr.Count; i < m; i++) {
+            if(LqArr3At_1(&Dest->EvntArr, HANDLE, i) != (HANDLE)LqArr3At_2(&Dest->EvntArr, LqEvntFd*, i)->Fd)
+                LqFileClose((int)LqArr3At_1(&Dest->EvntArr, HANDLE, i)); //close only events
         }
     }
     LqArr2Uninit(&Dest->ConnArr);
-    LqArr3Uninit(&Dest->EvntFdArr);
+    LqArr3Uninit(&Dest->EvntArr);
 }
+
+inline static intptr_t AddIocpElement(LqSysPoll* Events, LqConn* NewVal) {
+    intptr_t InsertIndex;
+    LqArr2PushBack(&(Events)->ConnArr, LqConn*, InsertIndex, NULL);
+    LqArr2At(&(Events)->ConnArr, LqConn*, InsertIndex) = NewVal;
+    return InsertIndex;
+}
+
+inline static void AddKernelEvent(LqSysPoll* Events, LqEvntFd* NewPtr, HANDLE NewHandleVal) {
+    LqArr3PushBack(&(Events)->EvntArr, HANDLE, LqEvntFd*);
+    LqArr3Back_1(&(Events)->EvntArr, HANDLE) = NewHandleVal;
+    LqArr3Back_2(&(Events)->EvntArr, LqEvntFd*) = NewPtr;
+}
+
+#define RemoveKernelEvent(Events, Index) LqArr3RemoveAt(&(Events)->EvntArr, HANDLE, LqEvntFd*, (Index), NULL);
+
+#define HandleKernelEventAt(Events, Index) LqArr3At_1(&(Events)->EvntArr, HANDLE, (Index))
+#define PtrKernelEventAt(Events, Index) LqArr3At_2(&(Events)->EvntArr, LqEvntFd*, (Index))
+#define ConnAt(Events, Index) LqArr2At(&(Events)->ConnArr, LqConn*, (Index))
+
+#define LQ_AFD_POLL_TYPE_PIPE       ((uint8_t)0)
+#define LQ_AFD_POLL_TYPE_EVENT      ((uint8_t)1)
+#define LQ_AFD_POLL_TYPE_TERMINAL   ((uint8_t)2)
+
+static void PipeProcessAsyncSelect(LqSysPoll* Events, const intptr_t Index) {
+    LARGE_INTEGER *ppl, pl;
+    NTSTATUS Status;
+    IO_STATUS_BLOCK ioStatusBlock;
+    __FILE_PIPE_LOCAL_INFORMATION PipeInfo;
+    LqEvntFd* Fd = PtrKernelEventAt(Events, Index);
+    HANDLE EventHandle = HandleKernelEventAt(Events, Index);
+    const LqEvntFlag Flag = Fd->_AsyncPollEvents;
+    LqEvntFlag ResFlag = (LqEvntFlag)0;
+    if((Flag & LQEVNT_FLAG_WR) || ((Flag & (LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_HUP)) && !(Flag & LQEVNT_FLAG_RD))) {
+        Status = NtQueryInformationFile((HANDLE)Fd->Fd, &ioStatusBlock, &PipeInfo, sizeof(PipeInfo), _FilePipeLocalInformation);
+        if(Status != STATUS_SUCCESS) {
+            ResFlag |= LQEVNT_FLAG_ERR;
+        } else {
+            if((Flag & LQEVNT_FLAG_WR) && (PipeInfo.WriteQuotaAvailable > 0))
+                ResFlag |= LQEVNT_FLAG_WR;
+            if((Flag & LQEVNT_FLAG_RD) && (PipeInfo.ReadDataAvailable > 0))
+                ResFlag |= LQEVNT_FLAG_RD;
+            if((Flag & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP)) && (PipeInfo.NamedPipeState != 3))
+                ResFlag |= (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP);
+        }
+        if(ResFlag != ((LqEvntFlag)0)) {
+            NtSetEvent(EventHandle, NULL);
+        } else {
+            NtClearEvent(EventHandle);
+            Events->IsHaveOnlyHup = (uintptr_t)1;
+        }
+    } else {
+        if(Flag & LQEVNT_FLAG_RD) {
+            if(Fd->__Reserved1.Status != STATUS_PENDING) {
+                ppl = NULL;
+lblAgain:
+                Fd->__Reserved1.Status = STATUS_PENDING;
+                switch(Status = NtReadFile((HANDLE)Fd->Fd, EventHandle, NULL, NULL, (PIO_STATUS_BLOCK)&Fd->__Reserved1, &AsyncBuf, 0, ppl, NULL)) {
+                    case STATUS_SUCCESS:
+                        Fd->__Reserved1.Status = Status;
+                        ResFlag |= LQEVNT_FLAG_RD;
+                        break;
+                    case STATUS_PENDING:
+                        break;
+                    case STATUS_PIPE_BROKEN:
+                    case STATUS_PIPE_CLOSING:
+                        Fd->__Reserved1.Status = Status;
+                        if(Flag & (LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_HUP))
+                            ResFlag |= (Flag & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP));
+                        else
+                            NtClearEvent(EventHandle);
+                        break;
+                    case STATUS_INVALID_PARAMETER:
+                        if(ppl == NULL) {
+                            ppl = &pl;
+                            NtQueryInformationFile((HANDLE)Fd->Fd, &ioStatusBlock, &pl.QuadPart, sizeof(pl.QuadPart), _FilePositionInformation);
+                            goto lblAgain;
+                        }
+                    default:
+                        Fd->__Reserved1.Status = Status;
+                        ResFlag |= LQEVNT_FLAG_ERR;
+                }
+            }
+        } else {
+            NtClearEvent(EventHandle);
+        }
+    }
+    Fd->_ResAsyncPollEvents = ResFlag;
+}
+
+static void PipeUpdateAsyncSelect(LqSysPoll* Events, const intptr_t Index, const LqEvntFlag NewFlags) {
+    LqEvntFd* Fd = PtrKernelEventAt(Events, Index);
+    Fd->_AsyncPollEvents = NewFlags;
+    if(Fd->__Reserved1.Status == STATUS_PENDING) {
+        NtCancelIoFile(((HANDLE)Fd->Fd), (PIO_STATUS_BLOCK)&Fd->__Reserved1);
+        Fd->__Reserved1.Status = STATUS_NOT_SUPPORTED;
+    }
+    PipeProcessAsyncSelect(Events, Index);
+}
+
+static void TerminalProcessAsyncSelect(LqSysPoll* Events, const intptr_t Index) {
+    DWORD num_read;
+    INPUT_RECORD ir;
+    LqEvntFd* Fd = PtrKernelEventAt(Events, Index);
+    HANDLE EventHandle = HandleKernelEventAt(Events, Index);
+    const LqEvntFlag Flag = Fd->_AsyncPollEvents;
+    LqEvntFlag ResFlag = (LqEvntFlag)0;
+
+    if(Flag & LQEVNT_FLAG_RD) {
+        while(true) {
+            if(!PeekConsoleInputW((HANDLE)Fd->Fd, &ir, 1, &num_read)) {
+                ResFlag |= LQEVNT_FLAG_ERR;
+                break;
+            }
+            if(num_read <= 0)
+                break;
+            if(ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
+                ResFlag |= LQEVNT_FLAG_RD;
+                break;
+            } else {
+                ReadConsoleInputW((HANDLE)Fd->Fd, &ir, 1, &num_read);
+            }
+        }
+    }
+    ResFlag |= (Flag & LQEVNT_FLAG_WR);
+    if(ResFlag != 0) {
+        NtSetEvent(EventHandle, NULL);
+    } else {
+        NtClearEvent(EventHandle);
+        Events->IsHaveOnlyHup = (uintptr_t)1;
+    }
+    Fd->_ResAsyncPollEvents = ResFlag;
+}
+
+static void TerminalUpdateAsyncSelect(LqSysPoll* Events, const intptr_t Index, const LqEvntFlag NewFlags) {
+    LqEvntFd* Fd = PtrKernelEventAt(Events, Index);
+    Fd->_AsyncPollEvents = NewFlags;
+    TerminalProcessAsyncSelect(Events, Index);
+}
+
+
 
 /*
 * Adding to follow all type of WinNT objects
 */
-bool LqSysPollAddHdr(LqSysPoll* Dest, LqClientHdr* Client) {
-    LARGE_INTEGER *ppl, pl;
+bool LqSysPollAddHdr(LqSysPoll* Events, LqClientHdr* Client) {
     LqEvntFd* EvntData;
-    int Event;
+    LqConn* Conn;
+    intptr_t InsertIndex;
+    HANDLE EventHandle;
+    DWORD Mode;
     char tt;
     u_long InternalBufLen;
-    static char Buf1;
-    static char Buf2;
-    size_t InsertIndex;
-    NTSTATUS Stat;
+    IO_STATUS_BLOCK ioStatusBlock;
     LqEvntFlag NewFlags = _LqEvntGetFlagForUpdate(Client);
+
     if(NewFlags & _LQEVNT_FLAG_CONN) {
-        LqArr2PushBack(&Dest->ConnArr, LqConn*, InsertIndex, NULL);
-        LqArr2At(&Dest->ConnArr, LqConn*, InsertIndex) = (LqConn*)Client;
-        WSAAsyncSelect(Client->Fd, (HWND)Dest->WinHandle, WM_USER + InsertIndex, LqEvntSystemEventByConnFlag(NewFlags));
+        LqArr2PushBack(&Events->ConnArr, LqConn*, InsertIndex, NULL);
+        LqArr2At(&Events->ConnArr, LqConn*, InsertIndex) = (LqConn*)Client;
+        WSAAsyncSelect(Client->Fd, (HWND)Events->WinHandle, WM_USER + InsertIndex, LqEvntSystemEventByConnFlag(NewFlags));
         if(NewFlags & LQEVNT_FLAG_RD) {
             InternalBufLen = 0UL;
             ioctlsocket(Client->Fd, FIONREAD, &InternalBufLen);
             if(InternalBufLen > 0UL)
-                PostMessage((HWND)Dest->WinHandle, WM_USER + InsertIndex, Client->Fd, FD_READ);
+                PostMessage((HWND)Events->WinHandle, WM_USER + InsertIndex, Client->Fd, FD_READ);
         }
         if(NewFlags & LQEVNT_FLAG_WR) {
             if(send(Client->Fd, &tt, 0, 0) >= 0)
-                PostMessage((HWND)Dest->WinHandle, WM_USER + InsertIndex, Client->Fd, FD_WRITE);
+                PostMessage((HWND)Events->WinHandle, WM_USER + InsertIndex, Client->Fd, FD_WRITE);
         }
     } else {
-        ppl = NULL;
         EvntData = (LqEvntFd*)Client;
-        Event = LqEventCreate(LQ_O_NOINHERIT);
-        if(NewFlags & LQEVNT_FLAG_RD) {
-            ppl = NULL;
-lblAgain:
-            EvntData->__Reserved1.Status = STATUS_PENDING;
-            switch(Stat = NtReadFile((HANDLE)EvntData->Fd, (HANDLE)Event, NULL, NULL, (PIO_STATUS_BLOCK)&EvntData->__Reserved1, &Buf1, 0, ppl, NULL)) {
-                case STATUS_MORE_PROCESSING_REQUIRED:
-                case STATUS_SUCCESS:
-                case STATUS_PIPE_BROKEN:
-                case STATUS_PIPE_CLOSING:
-                    EvntData->__Reserved1.Status = Stat;
-                    break;
-                case STATUS_PENDING:
-                    break;
-                case STATUS_INVALID_PARAMETER:
-                    if(ppl == NULL) {
-                        ppl = &pl;
-                        pl.QuadPart = LqFileTell(EvntData->Fd);
-                        goto lblAgain;
-                    }
-                    goto lblErr;
-                case STATUS_OBJECT_TYPE_MISMATCH:
-                    /*If object is event, then follow them*/
-                    EvntData->__Reserved1.Status = STATUS_OBJECT_TYPE_MISMATCH;
-                    if(WaitForSingleObject((HANDLE)EvntData->Fd, 0) != WAIT_FAILED) {
-                        LqFileClose(Event);
-                        Event = EvntData->Fd;
-                        break;
-                    }
-lblErr:
-                default:
-                    LqFileClose(Event);
-                    return false;
-            }
-        } else {
-            EvntData->__Reserved1.Status = STATUS_NOT_SUPPORTED;
-        }
-        if(NewFlags & LQEVNT_FLAG_WR) {
-            ppl = NULL;
-lblAgain2:
-            EvntData->__Reserved2.Status = STATUS_PENDING;
-            switch(Stat =
-                (Event == EvntData->Fd) ?
-                STATUS_OBJECT_TYPE_MISMATCH :
-                NtWriteFile((HANDLE)EvntData->Fd, (HANDLE)Event, NULL, NULL, (PIO_STATUS_BLOCK)&EvntData->__Reserved2, &Buf2, 0, ppl, NULL)
-            ) {
-                case STATUS_MORE_PROCESSING_REQUIRED:
-                case STATUS_SUCCESS:
-                case STATUS_PIPE_BROKEN:
-                case STATUS_PIPE_CLOSING:
-                    EvntData->__Reserved2.Status = Stat;
-                    break;
-                case STATUS_PENDING:
-                    break;
-                case STATUS_INVALID_PARAMETER:
-                    if(ppl == NULL) {
-                        ppl = &pl;
-                        pl.QuadPart = LqFileTell(EvntData->Fd);
-                        goto lblAgain2;
-                    }
-                    goto lblErr2;
-                case STATUS_OBJECT_TYPE_MISMATCH:
-                    EvntData->__Reserved2.Status = STATUS_OBJECT_TYPE_MISMATCH;
-                    if(WaitForSingleObject((HANDLE)EvntData->Fd, 0) != WAIT_FAILED) {
-                        if(Event != EvntData->Fd) {
-                            LqFileClose(Event); Event = EvntData->Fd;
-                        }
-                        break;
-                    }
-lblErr2:
-                default:
-                    if(Event != EvntData->Fd)
-                        LqFileClose(Event);
-                    return false;
-            }
-        } else {
-            EvntData->__Reserved2.Status = STATUS_NOT_SUPPORTED;
-        }
-        if(!(NewFlags & (LQEVNT_FLAG_WR | LQEVNT_FLAG_RD)) && (NewFlags & (LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_HUP))) {
-            Dest->IsHaveOnlyHup = (uintptr_t)1;
-            if(EvntData->Fd != Event)
-                LqEventReset(Event);
-        }
-        LqArr3PushBack(&Dest->EvntFdArr, HANDLE, LqClientHdr*);
 
-        LqArr3Back_1(&Dest->EvntFdArr, HANDLE) = (HANDLE)Event;
-        LqArr3Back_2(&Dest->EvntFdArr, LqEvntFd*) = EvntData;
+        if(NtCancelIoFile((HANDLE)EvntData->Fd, &ioStatusBlock) == STATUS_OBJECT_TYPE_MISMATCH) { /*Test if descriptor not readable/writable*/
+            if(NewFlags & (LQEVNT_FLAG_WR | LQEVNT_FLAG_RD))
+                EventHandle = (HANDLE)EvntData->Fd;
+            else
+                NtCreateEvent(&EventHandle, EVENT_ALL_ACCESS, NULL, NotificationEvent, FALSE);
+            AddKernelEvent(Events, EvntData, EventHandle);
+            EvntData->__Reserved1.Status = STATUS_OBJECT_TYPE_MISMATCH;
+            EvntData->_AsyncPollEvents = NewFlags;
+            EvntData->_Type = LQ_AFD_POLL_TYPE_EVENT;
+        } else if(GetConsoleMode((HANDLE)EvntData->Fd, &Mode)) {
+            NtCreateEvent(&EventHandle, EVENT_ALL_ACCESS, NULL, NotificationEvent, FALSE);
+            AddKernelEvent(Events, EvntData, EventHandle);
+            EvntData->__Reserved1.Status = STATUS_OBJECT_TYPE_MISMATCH;
+            EvntData->_Type = LQ_AFD_POLL_TYPE_TERMINAL;
+            TerminalUpdateAsyncSelect(Events, Events->EvntArr.Count - 1, NewFlags);
+        } else {
+            NtCreateEvent(&EventHandle, EVENT_ALL_ACCESS, NULL, NotificationEvent, FALSE);
+            AddKernelEvent(Events, EvntData, EventHandle);
+            EvntData->__Reserved1.Status = STATUS_NOT_SUPPORTED;
+            EvntData->_Type = LQ_AFD_POLL_TYPE_PIPE;
+            PipeUpdateAsyncSelect(Events, Events->EvntArr.Count - 1, NewFlags);
+        }
     }
-    Dest->CommonCount++;
+    Events->CommonCount++;
     return true;
 }
+
 
 LqEvntFlag __LqSysPollEnumEventBegin(LqSysPoll* Events) {
     return __LqEvntEnumEventNext(Events);
@@ -292,130 +461,122 @@ LqEvntFlag __LqSysPollEnumEventBegin(LqSysPoll* Events) {
 
 LqEvntFlag __LqEvntEnumEventNext(LqSysPoll* Events) {
     LqEvntFlag Flag;
-    MSG Msg;
-    LqEvntFd* Fd;
-    HANDLE Event;
-    LqEvntFlag ResFlag;
-    intptr_t i, m;
-    static const LARGE_INTEGER TimeWait = {0};
-    LARGE_INTEGER *ppl, pl;
-    UINT ConnIndex;
+    LqEvntFd* EvntData;
     LqConn* Conn;
+    intptr_t i, m;
     LqEvntFlag r;
-    IO_STATUS_BLOCK StatusBlock;
-    static char Buf1;
+    IO_STATUS_BLOCK ioStatusBlock;
+    __FILE_PIPE_LOCAL_INFORMATION PipeInfo;
     NTSTATUS Stat;
+    HANDLE Handle;
+    PVOID KeyContext;
+    unsigned long SysEvents;
+    DWORD nbuffer, num_read;
+    INPUT_RECORD ir;
+    MSG Msg;
+    UINT ConnIndex;
     WORD EventNum;
     WORD Error;
-
-    if(Events->EventObjectIndex < Events->EvntFdArr.Count) {
-        for(i = Events->EventObjectIndex + ((intptr_t)1), m = Events->EvntFdArr.Count; i < m; i++) {
-            if((Fd = LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, i)) == NULL)
+    if(Events->EventObjectIndex < Events->EvntArr.Count) {
+        for(i = Events->EventObjectIndex + ((intptr_t)1), m = Events->EvntArr.Count; i < m; i++) {
+            if((EvntData = PtrKernelEventAt(Events, i)) == NULL)
                 continue;
-            Event = LqArr3At_1(&Events->EvntFdArr, HANDLE, i);
-            ResFlag = ((LqEvntFlag)0);
-            Flag = LqClientGetFlags(Fd);
-            if(Flag & LQEVNT_FLAG_RD) {
-                switch(Fd->__Reserved1.Status) {
-                    case STATUS_MORE_PROCESSING_REQUIRED:
-                    case STATUS_SUCCESS:
-                        ResFlag |= LQEVNT_FLAG_RD;
-                        break;
-                    case STATUS_OBJECT_TYPE_MISMATCH:
-                        switch(NtWaitForSingleObject(Event, FALSE, (PLARGE_INTEGER)&TimeWait)) {
-                            case STATUS_SUCCESS:
-                                ResFlag |= LQEVNT_FLAG_RD;
-                            case STATUS_TIMEOUT:
-                            case STATUS_ALERTED:
-                                break;
-                            default:
-                                ResFlag |= LQEVNT_FLAG_ERR; break;
-                        }
-                        break;
-                    case STATUS_PIPE_BROKEN:
-                    case STATUS_PENDING:
-                    case STATUS_NOT_SUPPORTED:
-                    case STATUS_PIPE_CLOSING:
-                        break;
-                    default:
-                        ResFlag |= LQEVNT_FLAG_ERR;
-                }
-            }
-            if(Flag & LQEVNT_FLAG_WR) {
-                switch(Fd->__Reserved2.Status) {
-                    case STATUS_MORE_PROCESSING_REQUIRED:
-                    case STATUS_SUCCESS:
-                        ResFlag |= LQEVNT_FLAG_WR;
-                        break;
-                    case STATUS_OBJECT_TYPE_MISMATCH:
-                        switch(NtWaitForSingleObject(Event, FALSE, (PLARGE_INTEGER)&TimeWait)) {
-                            case STATUS_SUCCESS:
-                                ResFlag |= LQEVNT_FLAG_WR;
-                            case STATUS_TIMEOUT:
-                            case STATUS_ALERTED:
-                                break;
-                            default:
-                                ResFlag |= LQEVNT_FLAG_ERR; break;
-                        }
-                        break;
-                    case STATUS_PIPE_BROKEN:
-                    case STATUS_PENDING:
-                    case STATUS_NOT_SUPPORTED:
-                    case STATUS_PIPE_CLOSING:
-                        break;
-                    default:
-                        ResFlag |= LQEVNT_FLAG_ERR;
-                }
-            }
-            if(Flag & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_HUP)) {
-                if(!(Flag & (LQEVNT_FLAG_WR | LQEVNT_FLAG_RD))) {
-                    Events->IsHaveOnlyHup = ((uintptr_t)1);
-                    ppl = NULL; 
-lblAgain2:
-                    StatusBlock.Information = ((ULONG_PTR)0);
-                    StatusBlock.Status = ((NTSTATUS)0);
-                    switch(Stat = NtWriteFile((HANDLE)Fd->Fd, Event, NULL, NULL, &StatusBlock, &Buf1, 0, ppl, NULL)) {
+            switch(EvntData->_Type) {
+                case LQ_AFD_POLL_TYPE_EVENT:
+                    switch(NtWaitForSingleObject(HandleKernelEventAt(Events, i), FALSE, &ZeroTimeWait)) {
+                        case STATUS_SUCCESS:
+                            Events->EventObjectIndex = i;
+                            return (EvntData->_AsyncPollEvents & (LQEVNT_FLAG_RD | LQEVNT_FLAG_WR));
+                        case STATUS_TIMEOUT:
+                        case STATUS_ALERTED:
+                            break;
+                        default:
+                            Events->EventObjectIndex = i;
+                            return LQEVNT_FLAG_ERR;
+                    }
+                    break;
+                case LQ_AFD_POLL_TYPE_PIPE:
+                    if(EvntData->_ResAsyncPollEvents != ((LqEvntFlag)0)) {
+                        Events->EventObjectIndex = i;
+                        return EvntData->_ResAsyncPollEvents;
+                    }
+                    Flag = EvntData->_AsyncPollEvents;
+                    r = ((LqEvntFlag)0);
+                    switch(EvntData->__Reserved1.Status) {
+                        case STATUS_NOT_SUPPORTED:
+                            if(Flag & (LQEVNT_FLAG_WR | LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_HUP)) {
+                                Stat = NtQueryInformationFile((HANDLE)EvntData->Fd, &ioStatusBlock, &PipeInfo, sizeof(PipeInfo), _FilePipeLocalInformation);
+                                if(Stat != STATUS_SUCCESS) {
+                                    r |= LQEVNT_FLAG_ERR;
+                                    break;
+                                }
+                                if((Flag & LQEVNT_FLAG_WR) && (PipeInfo.WriteQuotaAvailable > 0))
+                                    r |= LQEVNT_FLAG_WR;
+                                if((Flag & LQEVNT_FLAG_RD) && (PipeInfo.ReadDataAvailable > 0))
+                                    r |= LQEVNT_FLAG_RD;
+                                if((Flag & (LQEVNT_FLAG_HUP | LQEVNT_FLAG_RDHUP)) && (PipeInfo.NamedPipeState != 3))
+                                    r |= (Flag & (LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_HUP));
+                                if(r == 0)
+                                    Events->IsHaveOnlyHup = (uintptr_t)1;
+                            }
+                            break;
                         case STATUS_PIPE_BROKEN:
                         case STATUS_PIPE_CLOSING:
-                            ResFlag |= LQEVNT_FLAG_HUP;
+                            r |= (Flag & (LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_HUP));
                             break;
-                        case STATUS_MORE_PROCESSING_REQUIRED:
                         case STATUS_SUCCESS:
+                            r |= LQEVNT_FLAG_RD;
                             break;
                         case STATUS_PENDING:
-                            NtCancelIoFile((HANDLE)Fd->Fd, &StatusBlock);
+                        case STATUS_OBJECT_TYPE_MISMATCH:
                             break;
-                        case STATUS_INVALID_PARAMETER:
-                            if(ppl == NULL) {
-                                ppl = &pl;
-                                pl.QuadPart = LqFileTell(Fd->Fd);
-                                goto lblAgain2;
-                            }
                         default:
-                            ResFlag |= LQEVNT_FLAG_ERR;
+                            r |= LQEVNT_FLAG_ERR;
                             break;
                     }
-                    LqEventReset((int)Event);
-                } else if(
-                    (Fd->__Reserved1.Status == STATUS_PIPE_BROKEN) ||
-                    (Fd->__Reserved1.Status == STATUS_PIPE_CLOSING) || 
-                    (Fd->__Reserved2.Status == STATUS_PIPE_BROKEN) ||
-                    (Fd->__Reserved2.Status == STATUS_PIPE_CLOSING)
-                ) {
-                    ResFlag |= LQEVNT_FLAG_HUP;
-                }
+                    if(r == ((LqEvntFlag)0))
+                        continue;
+                    Events->EventObjectIndex = i;
+                    return r;
+                case LQ_AFD_POLL_TYPE_TERMINAL:
+                    if(EvntData->_ResAsyncPollEvents != ((LqEvntFlag)0)) {
+                        Events->EventObjectIndex = i;
+                        return EvntData->_ResAsyncPollEvents;
+                    }
+                    Flag = EvntData->_AsyncPollEvents;
+                    r = ((LqEvntFlag)0);
+                    if(Flag & LQEVNT_FLAG_RD) {
+                        while(true) {
+                            if(!PeekConsoleInputW((HANDLE)EvntData->Fd, &ir, 1, &num_read)) {
+                                r |= LQEVNT_FLAG_ERR;
+                                break;
+                            }
+                            if(num_read <= 0)
+                                break;
+                            if(ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
+                                r |= LQEVNT_FLAG_RD;
+                                break;
+                            } else {
+                                ReadConsoleInputW((HANDLE)EvntData->Fd, &ir, 1, &num_read);
+                            }
+                        }
+                    }
+                    r |= (Flag & LQEVNT_FLAG_WR);
+                    if(r == ((LqEvntFlag)0)) {
+                        if(Flag & (LQEVNT_FLAG_WR | LQEVNT_FLAG_RD))
+                            Events->IsHaveOnlyHup = (uintptr_t)1;
+                        continue;
+                    }
+                    Events->EventObjectIndex = i;
+                    return r;
             }
-            if(ResFlag == ((LqEvntFlag)0))
-                continue;
-            Events->EventObjectIndex = i;
-            return ResFlag;
         }
         Events->EventObjectIndex = INTPTR_MAX;
     }
     while(PeekMessage(&Msg, (HWND)Events->WinHandle, WM_USER, WM_USER + 0xffff, PM_REMOVE) == TRUE) {
         ConnIndex = Msg.message - WM_USER;
         if((ConnIndex >= Events->ConnArr.AllocCount) ||
-           ((Conn = LqArr2At(&Events->ConnArr, LqConn*, ConnIndex)) == NULL) ||
+            ((Conn = LqArr2At(&Events->ConnArr, LqConn*, ConnIndex)) == NULL) ||
            (Conn->Fd != Msg.wParam))
             continue;
 
@@ -436,25 +597,21 @@ lblAgain2:
             return r;
         }
     }
+    Events->ConnIndex = INTPTR_MAX;
     return 0;
 }
-
 void LqSysPollRemoveCurrent(LqSysPoll* Events) {
+    LqEvntFd* EvntData;
+    HANDLE EventHandle;
     LqConn* Conn;
-    LqEvntFd* Fd;
-    HANDLE EventObject;
-    if(Events->EventObjectIndex < Events->EvntFdArr.Count) {
-        Fd = LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Events->EventObjectIndex);
-        EventObject = LqArr3At_1(&Events->EvntFdArr, HANDLE, Events->EventObjectIndex);
-        LqArr3RemoveAt(&Events->EvntFdArr, HANDLE, LqEvntFd*, Events->EventObjectIndex, NULL);
-        if((HANDLE)Fd->Fd != EventObject) {
-            if(Fd->__Reserved1.Status == STATUS_PENDING)
-                NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved1);
-            if(Fd->__Reserved2.Status == STATUS_PENDING)
-                NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved2);
-            LqFileClose((int)EventObject);
-        }
-        _LqEvntGetFlagForUpdate(Fd);
+    if(Events->EventObjectIndex < Events->EvntArr.Count) {
+        EvntData = PtrKernelEventAt(Events, Events->EventObjectIndex);
+        EventHandle = HandleKernelEventAt(Events, Events->EventObjectIndex);
+        RemoveKernelEvent(Events, Events->EventObjectIndex);
+        if(EvntData->__Reserved1.Status == STATUS_PENDING)
+            NtCancelIoFile((HANDLE)EvntData->Fd, (PIO_STATUS_BLOCK)&EvntData->__Reserved1);
+        if(((HANDLE)EvntData->Fd) != EventHandle)
+            NtClose(EventHandle);
     } else {
         Conn = LqArr2At(&Events->ConnArr, LqConn*, Events->ConnIndex);
         LqArr2RemoveAt(&Events->ConnArr, LqConn*, Events->ConnIndex, NULL);
@@ -466,12 +623,13 @@ void LqSysPollRemoveCurrent(LqSysPoll* Events) {
 
 void __LqSysPollRestructAfterRemoves(LqSysPoll* Events) {
     LqArr2AlignAfterRemove(&Events->ConnArr, LqConn*, nullptr);
-    LqArr3AlignAfterRemove(&Events->EvntFdArr, HANDLE, LqEvntFd*, nullptr);
+    LqArr3AlignAfterRemove(&Events->EvntArr, HANDLE, LqEvntFd*, nullptr);
+
 }
 
 LqClientHdr* LqSysPollGetHdrByCurrent(LqSysPoll* Events) {
-    if(Events->EventObjectIndex < Events->EvntFdArr.Count)
-        return (LqClientHdr*)LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Events->EventObjectIndex);
+    if(Events->EventObjectIndex < Events->EvntArr.Count)
+        return (LqClientHdr*)LqArr3At_2(&Events->EvntArr, LqEvntFd*, Events->EventObjectIndex);
     return (LqClientHdr*)LqArr2At(&Events->ConnArr, LqConn*, Events->ConnIndex);
 }
 
@@ -479,15 +637,9 @@ void LqSysPollUnuseCurrent(LqSysPoll* Events) {
     u_long res;
     LqConn* Conn;
     LqEvntFd* Fd;
-    HANDLE EventObject;
-    LARGE_INTEGER *ppl, pl;
-    NTSTATUS Stat;
-    static char Buf1;
-    static char Buf2;
     char t;
     LqEvntFlag Flag;
-
-    if(Events->EventObjectIndex >= Events->EvntFdArr.Count) {
+    if(Events->EventObjectIndex >= Events->EvntArr.Count) {
         Conn = LqArr2At(&Events->ConnArr, LqConn*, Events->ConnIndex);
         Flag = LqClientGetFlags(Conn);
         if(Flag & LQEVNT_FLAG_RD) {
@@ -502,42 +654,17 @@ void LqSysPollUnuseCurrent(LqSysPoll* Events) {
         }
         return;
     }
-
-    Fd = LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Events->EventObjectIndex);
-    EventObject = LqArr3At_1(&Events->EvntFdArr, HANDLE, Events->EventObjectIndex);
-    if((HANDLE)Fd->Fd != EventObject) {
-        Flag = LqClientGetFlags(Fd);
-        ppl = NULL;
-        if((Flag & LQEVNT_FLAG_RD) && (Fd->__Reserved1.Status != STATUS_PENDING)) {
-            LqEventReset((int)EventObject);
-            ppl = NULL;
-lblAgain:
-            Fd->__Reserved1.Status = STATUS_PENDING;
-            Stat = NtReadFile((HANDLE)Fd->Fd, EventObject, NULL, NULL, (PIO_STATUS_BLOCK)&Fd->__Reserved1, &Buf1, 0, ppl, NULL);
-            if((Stat == STATUS_INVALID_PARAMETER) && (ppl == NULL)) {
-                ppl = &pl;
-                pl.QuadPart = LqFileTell(Fd->Fd);
-                goto lblAgain;
-            } else if(Stat != STATUS_PENDING) {
-                Fd->__Reserved1.Status = Stat;
-            }
-        }
-        if((Flag & LQEVNT_FLAG_WR) && (Fd->__Reserved2.Status != STATUS_PENDING)) {
-            if(!(Flag & LQEVNT_FLAG_RD))
-                LqEventReset((int)EventObject);
-            ppl = NULL;
-lblAgain2:
-            Stat = NtWriteFile((HANDLE)Fd->Fd, EventObject, NULL, NULL, (PIO_STATUS_BLOCK)&Fd->__Reserved2, &Buf2, 0, ppl, NULL);
-            if((Stat == STATUS_INVALID_PARAMETER) && (ppl == NULL)) {
-                ppl = &pl;
-                pl.QuadPart = LqFileTell(Fd->Fd);
-                goto lblAgain2;
-            } else if(Stat != STATUS_PENDING) {
-                Fd->__Reserved2.Status = Stat;
-            }
-        }
+    Fd = PtrKernelEventAt(Events, Events->EventObjectIndex);
+    switch(Fd->_Type) {
+        case LQ_AFD_POLL_TYPE_PIPE:
+            PipeProcessAsyncSelect(Events, Events->EventObjectIndex);
+            break;
+        case LQ_AFD_POLL_TYPE_TERMINAL:
+            TerminalProcessAsyncSelect(Events, Events->EventObjectIndex);
+            break;
     }
 }
+
 
 static bool LqEvntSetMaskConn(LqSysPoll* Events, intptr_t Index, LqEvntFlag NewFlags) {
     u_long InternalBufLen;
@@ -560,74 +687,41 @@ static bool LqEvntSetMaskConn(LqSysPoll* Events, intptr_t Index, LqEvntFlag NewF
     return Res;
 }
 
-static bool LqEvntSetMaskEventFd(LqSysPoll* Events, intptr_t Index, LqEvntFlag NewFlag) {
-    LARGE_INTEGER *ppl, pl;
-    static char Buf1;
-    static char Buf2;
-    NTSTATUS Stat;
-    bool IsCleared;
-    LqEvntFd* h = LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Index);
-    HANDLE EventObject = LqArr3At_1(&Events->EvntFdArr, HANDLE, Index);
-    if((HANDLE)h->Fd != EventObject) {
-        IsCleared = false;
-        ppl = NULL;
-        if(NewFlag & LQEVNT_FLAG_RD) {
-            if(h->__Reserved1.Status == STATUS_NOT_SUPPORTED) {
-                LqEventReset((int)EventObject);
-                IsCleared = true;
-                ppl = NULL;
-lblAgain:
-                h->__Reserved1.Status = STATUS_PENDING;
-                Stat = NtReadFile((HANDLE)h->Fd, EventObject, NULL, NULL, (PIO_STATUS_BLOCK)&h->__Reserved1, &Buf1, 0, ppl, NULL);
-                if((Stat == STATUS_INVALID_PARAMETER) && (ppl == NULL)) {
-                    ppl = &pl;
-                    pl.QuadPart = LqFileTell(h->Fd);
-                    goto lblAgain;
-                } else if(Stat != STATUS_PENDING) {
-                    h->__Reserved1.Status = Stat;
+static bool LqEvntSetMaskFd(LqSysPoll* Events, const intptr_t Index, const LqEvntFlag NewFlags) {
+    LqEvntFd* _EvntData = PtrKernelEventAt(Events, Index);
+    switch(_EvntData->_Type) {
+        case LQ_AFD_POLL_TYPE_PIPE:
+            PipeUpdateAsyncSelect(Events, Index, NewFlags);
+            break;
+        case LQ_AFD_POLL_TYPE_TERMINAL:
+            TerminalUpdateAsyncSelect(Events, Index, NewFlags);
+            break;
+        case LQ_AFD_POLL_TYPE_EVENT:
+        {
+            HANDLE EventHandle = HandleKernelEventAt(Events, Index);
+            if(NewFlags & (LQEVNT_FLAG_WR | LQEVNT_FLAG_RD)) {
+                if(((HANDLE)_EvntData->Fd) != EventHandle) {
+                    HandleKernelEventAt(Events, Index) = (HANDLE)_EvntData->Fd;
+                    NtClose(EventHandle);
+                }
+            } else {
+                if(((HANDLE)_EvntData->Fd) == EventHandle) {
+                    NtCreateEvent(&EventHandle, EVENT_ALL_ACCESS, NULL, NotificationEvent, FALSE);
+                    HandleKernelEventAt(Events, Index) = EventHandle;
                 }
             }
-        } else {
-            if((h->__Reserved1.Status != STATUS_NOT_SUPPORTED) && (h->__Reserved1.Status != STATUS_PENDING))
-                NtCancelIoFile((HANDLE)h->Fd, (PIO_STATUS_BLOCK)&h->__Reserved1);
-            h->__Reserved1.Status = STATUS_NOT_SUPPORTED;
+            _EvntData->_AsyncPollEvents = NewFlags;
         }
-
-        if(NewFlag & LQEVNT_FLAG_WR) {
-            if(h->__Reserved2.Status == STATUS_NOT_SUPPORTED) {
-                if(!IsCleared)
-                    LqEventReset((int)EventObject);
-                ppl = NULL;
-lblAgain2:
-                h->__Reserved2.Status = STATUS_PENDING;
-                Stat = NtWriteFile((HANDLE)h->Fd, EventObject, NULL, NULL, (PIO_STATUS_BLOCK)&h->__Reserved2, &Buf2, 0, ppl, NULL);
-                if((Stat == STATUS_INVALID_PARAMETER) && (ppl == NULL)) {
-                    ppl = &pl;
-                    pl.QuadPart = LqFileTell(h->Fd);
-                    goto lblAgain2;
-                } else if(Stat != STATUS_PENDING) {
-                    h->__Reserved2.Status = Stat;
-                }
-            }
-        } else {
-            if((h->__Reserved2.Status != STATUS_NOT_SUPPORTED) && (h->__Reserved2.Status != STATUS_PENDING))
-                NtCancelIoFile((HANDLE)h->Fd, (PIO_STATUS_BLOCK)&h->__Reserved2);
-            h->__Reserved2.Status = STATUS_NOT_SUPPORTED;
-        }
-    }
-    if(!(NewFlag & (LQEVNT_FLAG_WR | LQEVNT_FLAG_RD)) && (NewFlag & (LQEVNT_FLAG_RDHUP | LQEVNT_FLAG_HUP))) {
-        Events->IsHaveOnlyHup = (uintptr_t)1;
-        if((HANDLE)h->Fd != EventObject)
-            LqEventReset((int)EventObject);
+        break;
     }
     return true;
 }
 
 bool LqSysPollSetMaskByCurrent(LqSysPoll* Events) {
     LqEvntFlag NewFlags;
-    if(Events->EventObjectIndex < Events->EvntFdArr.Count) {
-        NewFlags = _LqEvntGetFlagForUpdate(LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Events->EventObjectIndex));
-        return LqEvntSetMaskEventFd(Events, Events->EventObjectIndex, NewFlags);
+    if(Events->EventObjectIndex < Events->EvntArr.Count) {
+        NewFlags = _LqEvntGetFlagForUpdate(PtrKernelEventAt(Events, Events->EventObjectIndex));
+        return LqEvntSetMaskFd(Events, Events->EventObjectIndex, NewFlags);
     }
     NewFlags = _LqEvntGetFlagForUpdate(LqArr2At(&Events->ConnArr, LqConn*, Events->ConnIndex));
     return LqEvntSetMaskConn(Events, Events->ConnIndex, NewFlags);
@@ -637,34 +731,34 @@ int LqSysPollUpdateAllMask(LqSysPoll* Events, void* UserData, void(*DelProc)(voi
     LqEvntInterator Iter;
     uintptr_t Index;
     LqEvntFlag NewFlags;
-    for(register auto i = &LqArr2At(&Events->ConnArr, LqConn*, 0), m = i + Events->ConnArr.AllocCount; i < m; i++)
+    for(register auto i = &ConnAt(Events, 0), m = i + Events->ConnArr.AllocCount; i < m; i++)
         if((*i != NULL) && (LqClientGetFlags(*i) & _LQEVNT_FLAG_SYNC)) {
-            Index = (((uintptr_t)i) - ((uintptr_t)&LqArr2At(&Events->ConnArr, LqConn*, 0))) / sizeof(LqConn*);
+            Index = (((uintptr_t)i) - ((uintptr_t)&ConnAt(Events, 0))) / sizeof(LqConn*);
             NewFlags = _LqEvntGetFlagForUpdate(*i);
             if(NewFlags & LQEVNT_FLAG_END) {
-                Iter.Index = Index;
                 Iter.IsEnumConn = true;
+                Iter.Index = Index;
                 DelProc(UserData, &Iter);
                 /* Update fast indexes */
-                i = &LqArr2At(&Events->ConnArr, LqConn*, Index);
-                m = &LqArr2At(&Events->ConnArr, LqConn*, Events->ConnArr.AllocCount);
+                i = &ConnAt(Events, Index);
+                m = &ConnAt(Events, Events->ConnArr.AllocCount);
             } else {
                 LqEvntSetMaskConn(Events, Index, NewFlags);
             }
         }
-    for(register auto i = &LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, 0), m = i + Events->EvntFdArr.Count; i < m; i++)
+    for(register auto i = &PtrKernelEventAt(Events, 0), m = i + Events->EvntArr.Count; i < m; i++)
         if((*i != NULL) && (LqClientGetFlags(*i) & _LQEVNT_FLAG_SYNC)) {
-            Index = (((uintptr_t)i) - ((uintptr_t)&LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, 0))) / sizeof(LqEvntFd*);
+            Index = (((uintptr_t)i) - ((uintptr_t)&PtrKernelEventAt(Events, 0))) / sizeof(LqEvntFd*);
             NewFlags = _LqEvntGetFlagForUpdate(*i);
             if(NewFlags & LQEVNT_FLAG_END) {
-                Iter.Index = Index;
                 Iter.IsEnumConn = false;
+                Iter.Index = Index;
                 DelProc(UserData, &Iter);
                 /* Update fast indexes */
-                i = &LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Index);
-                m = &LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Events->EvntFdArr.Count);
+                i = &PtrKernelEventAt(Events, Index);
+                m = &PtrKernelEventAt(Events, Events->EvntArr.Count);
             } else {
-                LqEvntSetMaskEventFd(Events, Index, NewFlags);
+                LqEvntSetMaskFd(Events, Index, NewFlags);
             }
         }
     return 1;
@@ -681,15 +775,15 @@ bool __LqSysPollEnumNext(LqSysPoll* Events, LqEvntInterator* Interator) {
     register intptr_t m;
     if(Interator->IsEnumConn) {
         for(m = Events->ConnArr.AllocCount; Index < m; Index++)
-            if(LqArr2At(&Events->ConnArr, LqConn*, Index) != NULL) {
+            if(ConnAt(Events, Index) != NULL) {
                 Interator->Index = Index;
                 return true;
             }
         Index = ((intptr_t)0);
         Interator->IsEnumConn = false;
     }
-    for(m = Events->EvntFdArr.Count; Index < m; Index++)
-        if(LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Index) != NULL) {
+    for(m = Events->EvntArr.Count; Index < m; Index++)
+        if(PtrKernelEventAt(Events, Index) != NULL) {
             Interator->Index = Index;
             return true;
         }
@@ -698,9 +792,9 @@ bool __LqSysPollEnumNext(LqSysPoll* Events, LqEvntInterator* Interator) {
 
 LqClientHdr* LqSysPollRemoveByInterator(LqSysPoll* Events, LqEvntInterator* Interator) {
     LqClientHdr* Ret;
-    LqConn* Conn;
-    HANDLE EventObject;
     LqEvntFd* Fd;
+    HANDLE EventObject;
+    LqConn* Conn;
     if(Interator->IsEnumConn) {
         Conn = LqArr2At(&Events->ConnArr, LqConn*, Interator->Index);
         LqArr2RemoveAt(&Events->ConnArr, LqConn*, Interator->Index, NULL);
@@ -708,18 +802,15 @@ LqClientHdr* LqSysPollRemoveByInterator(LqSysPoll* Events, LqEvntInterator* Inte
         _LqEvntGetFlagForUpdate(Conn);
         Ret = (LqClientHdr*)Conn;
     } else {
-        EventObject = LqArr3At_1(&Events->EvntFdArr, HANDLE, Interator->Index);
-        Fd = LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Interator->Index);
-        Ret = (LqClientHdr*)Fd;
-        LqArr3RemoveAt(&Events->EvntFdArr, HANDLE, LqEvntFd*, Interator->Index, NULL);
+        Fd = PtrKernelEventAt(Events, Interator->Index);
+        EventObject = HandleKernelEventAt(Events, Interator->Index);
+        RemoveKernelEvent(Events, Interator->Index);
+        if(Fd->__Reserved1.Status == STATUS_PENDING)
+            NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved1);
+        if(((HANDLE)Fd->Fd) != EventObject)
+            NtClose(EventObject);
         _LqEvntGetFlagForUpdate(Fd);
-        if((HANDLE)Fd->Fd != EventObject) {
-            if(Fd->__Reserved1.Status == STATUS_PENDING)
-                NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved1);
-            if(Fd->__Reserved2.Status == STATUS_PENDING)
-                NtCancelIoFile((HANDLE)Fd->Fd, (PIO_STATUS_BLOCK)&Fd->__Reserved2);
-            LqFileClose((int)EventObject);
-        }
+        Ret = (LqClientHdr*)Fd;
     }
     Events->CommonCount--;
     return Ret;
@@ -727,8 +818,8 @@ LqClientHdr* LqSysPollRemoveByInterator(LqSysPoll* Events, LqEvntInterator* Inte
 
 LqClientHdr* LqSysPollGetHdrByInterator(LqSysPoll* Events, LqEvntInterator* Interator) {
     if(Interator->IsEnumConn)
-        return (LqClientHdr*)LqArr2At(&Events->ConnArr, LqConn*, Interator->Index);
-    return (LqClientHdr*)LqArr3At_2(&Events->EvntFdArr, LqEvntFd*, Interator->Index);
+        return (LqClientHdr*)ConnAt(Events, Interator->Index);
+    return (LqClientHdr*)PtrKernelEventAt(Events, Interator->Index);
 }
 
 int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime) {
@@ -737,13 +828,13 @@ int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime) {
     intptr_t Count;
     intptr_t StartIndex;
     LqTimeMillisec StartTime;
-    if(Events->EvntFdArr.Count >= MAXIMUM_WAIT_OBJECTS) {
+    if(Events->EvntArr.Count >= MAXIMUM_WAIT_OBJECTS) {
         /*On windows, when count event object greater then 64 is necessary check in parts :(*/
         StartIndex = ((intptr_t)0);
         Count = ((intptr_t)MAXIMUM_WAIT_OBJECTS) - ((intptr_t)1);
         StartTime = LqTimeGetLocMillisec();
         for(;;) {
-            Stat = MsgWaitForMultipleObjectsEx(Count, ((HANDLE*)Events->EvntFdArr.Data) + StartIndex, LQ_WINEVNT_WAIT_WHEN_GR_64_OBJECTS, QS_POSTMESSAGE, 0);
+            Stat = MsgWaitForMultipleObjectsEx(Count, ((HANDLE*)Events->EvntArr.Data) + StartIndex, LQ_WINEVNT_WAIT_WHEN_GR_64_OBJECTS, QS_POSTMESSAGE, 0);
             if(Events->IsHaveOnlyHup == ((uintptr_t)1)) {
                 Events->IsHaveOnlyHup = ((uintptr_t)0);
                 Events->EventObjectIndex = -((intptr_t)1);
@@ -767,7 +858,7 @@ int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime) {
                 return 0;
             }
             StartIndex += Count;
-            Count = Events->EvntFdArr.Count - StartIndex;
+            Count = Events->EvntArr.Count - StartIndex;
             if(Count > (((intptr_t)MAXIMUM_WAIT_OBJECTS) - ((intptr_t)1))) {
                 Count = (((intptr_t)MAXIMUM_WAIT_OBJECTS) - ((intptr_t)1));
             } else if(Count <= ((intptr_t)0)) {
@@ -778,7 +869,7 @@ int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime) {
     }
     if((Events->IsHaveOnlyHup == ((uintptr_t)1)) && (WaitTime > LQ_WINEVNT_WAIT_WHEN_HAVE_ONLY_HUP_OBJ))
         WaitTime = LQ_WINEVNT_WAIT_WHEN_HAVE_ONLY_HUP_OBJ;
-    Stat = MsgWaitForMultipleObjectsEx(Events->EvntFdArr.Count, (HANDLE*)Events->EvntFdArr.Data, WaitTime, QS_POSTMESSAGE, 0);
+    Stat = MsgWaitForMultipleObjectsEx(Events->EvntArr.Count, (HANDLE*)Events->EvntArr.Data, WaitTime, QS_POSTMESSAGE, 0);
     if(Events->IsHaveOnlyHup == ((uintptr_t)1)) {
         Events->IsHaveOnlyHup = ((uintptr_t)0);
         Events->EventObjectIndex = -((intptr_t)1);
@@ -789,12 +880,12 @@ int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime) {
         return 0;
     }
     Index = ((intptr_t)Stat) - ((intptr_t)STATUS_WAIT_0);
-    if((Index >= ((intptr_t)STATUS_WAIT_0)) && (Index < Events->EvntFdArr.Count)) {
+    if((Index >= ((intptr_t)STATUS_WAIT_0)) && (Index < Events->EvntArr.Count)) {
         Events->EventObjectIndex = Index - ((intptr_t)1);
         return 1;
     }
     Events->EventObjectIndex = INTPTR_MAX;
-    if(Index == Events->EvntFdArr.Count)
+    if(Index == Events->EvntArr.Count)
         return 1;
     /* When have error */
     return -1;

@@ -12,7 +12,6 @@
 #include "LqFile.h"
 #include "LqFileTrd.h"
 #include "LqHttpPth.hpp"
-#include "LqMd5.h"
 #include "LqDfltRef.hpp"
 #include "LqHndls.hpp"
 #include "LqShdPtr.hpp"

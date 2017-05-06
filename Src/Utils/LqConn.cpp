@@ -186,8 +186,6 @@ LQ_EXTERN_C int LQ_CALL LqConnRowIpToStr(LqConnAddr* SourceAddress, char* DestSt
 }
 
 
-
-
 LQ_EXTERN_C void* LQ_CALL LqConnSslCreate
 (
     const void* MethodSSL, /* Example SSLv23_method()*/
@@ -316,14 +314,14 @@ LQ_EXTERN_C void LQ_CALL __LqEvntFdDfltHandler(LqEvntFd * Instance, LqEvntFlag F
 
 LQ_EXTERN_C void LQ_CALL __LqEvntFdDfltCloseHandler(LqEvntFd*) {}
 
-LQ_EXTERN_C int LQ_CALL LqConnCountPendingData(LqConn* c) {
+LQ_EXTERN_C int LQ_CALL LqConnCountPendingData(int Fd) {
 #ifdef LQPLATFORM_WINDOWS
     u_long res = -1;
-    if(ioctlsocket(c->Fd, FIONREAD, &res) == -1)
+    if(ioctlsocket(Fd, FIONREAD, &res) == -1)
         return -1;
 #else
     int res;
-    if(ioctl(c->Fd, FIONREAD, &res) < 0)
+    if(ioctl(Fd, FIONREAD, &res) < 0)
         return -1;
 #endif
     return res;

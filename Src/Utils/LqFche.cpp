@@ -67,7 +67,9 @@ static LqFbufCookie _FcheCookie = {
     _EmptyWriteProc,
     NULL,
     _FcheCopyProc,
-    _FcheCloseProc
+    _FcheCloseProc,
+	NULL,
+	"fche"
 };
 
 static inline size_t _LqFcheIndexByVal(__LqCachedFile* Val, size_t MaxCount) {

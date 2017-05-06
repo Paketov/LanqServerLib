@@ -73,35 +73,10 @@ static void _FdIpcUnlock(LqFdIpc* FdIpc) {
     LqAtmUlkWr(FdIpc->Lk);
 }
 
-static int _BlocketWriteInPipe(int PipeFd, int EventFd, const void* SourceBuf, int Size) {
-    intptr_t Written = -1;
-    LqAsync AsyncData;
-    LqEventReset(EventFd);
-    if(LqFileWriteAsync(PipeFd, SourceBuf, Size, 0, EventFd, &AsyncData) == -1)
-        return -1;
-    LqPollCheckSingle(EventFd, LQ_POLLIN | LQ_POLLOUT, LqTimeGetMaxMillisec());
-    if(LqFileAsyncStat(&AsyncData, &Written) != 0)
-        return -1;
-    return Written;
-}
-
-static int _BlocketReadFromPipe(int PipeFd, int EventFd, void* DestBuf, int Size) {
-    intptr_t Readed = -1;
-    LqAsync AsyncData;
-    LqEventReset(EventFd);
-    if(LqFileReadAsync(PipeFd, DestBuf, Size, 0, EventFd, &AsyncData) == -1)
-        return -1;
-    LqPollCheckSingle(EventFd, LQ_POLLIN | LQ_POLLOUT, LqTimeGetMaxMillisec());
-    if(LqFileAsyncStat(&AsyncData, &Readed) != 0)
-        return -1;
-    return Readed;
-}
-
 static void LQ_CALL _Handler(LqEvntFd* Fd, LqEvntFlag RetFlags) {
     LqFdIpc* FdIpc = (LqFdIpc*)Fd;
     int NewPid;
     int NewFd;
-    int WaitEvent;
     intptr_t Res;
 #ifndef LQPLATFORM_WINDOWS
     LqWrkPtr WrkPtr = LqWrk::GetNull();
@@ -112,28 +87,20 @@ static void LQ_CALL _Handler(LqEvntFd* Fd, LqEvntFlag RetFlags) {
     if(RetFlags & LQEVNT_FLAG_RD) {
 #ifdef LQPLATFORM_WINDOWS
         if(!(FdIpc->Flags & LQFDIPC_FLAG_PID_SENDED)) {
-            if((WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
-                goto lblOut;
             NewPid = LqProcessId();
-            Res = _BlocketWriteInPipe(FdIpc->Evnt.Fd, WaitEvent, &NewPid, sizeof(NewPid));
-            LqFileClose(WaitEvent);
+            Res = LqFileWriteBlocked(FdIpc->Evnt.Fd, &NewPid, sizeof(NewPid));
             if(Res < (intptr_t)sizeof(NewPid))
                 goto lblOut;
             FdIpc->Flags |= LQFDIPC_FLAG_PID_SENDED;
         }
         if(FdIpc->Pid == -1) {
-            if((WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
-                goto lblOut;
-            Res = _BlocketReadFromPipe(FdIpc->Evnt.Fd, WaitEvent, &NewPid, sizeof(NewPid));
-            LqFileClose(WaitEvent);
+            Res = LqFileReadBlocked(FdIpc->Evnt.Fd, &NewPid, sizeof(NewPid));
             if(Res < (intptr_t)sizeof(NewPid))
                 goto lblOut;
             FdIpc->Pid = NewPid;
         }
 
         if(!(FdIpc->Flags & LQFDIPC_FLAG_PID_SENDED)) {
-            if((WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
-                goto lblOut;
             NewPid = LqProcessId();
             LqFileWrite(FdIpc->Evnt.Fd, &NewPid, sizeof(NewPid));
             FdIpc->Flags |= LQFDIPC_FLAG_PID_SENDED;
@@ -190,7 +157,6 @@ LQ_EXTERN_C LqFdIpc* LQ_CALL LqFdIpcOpen(const char* Name, bool IsNoInherit, voi
     char NameBuf[4096];
     int Fd;
     int CurProcessId;
-    int WaitEvent;
     intptr_t Written;
 #ifndef LQPLATFORM_WINDOWS
     struct sockaddr_un SockName = {0};
@@ -205,10 +171,7 @@ LQ_EXTERN_C LqFdIpc* LQ_CALL LqFdIpcOpen(const char* Name, bool IsNoInherit, voi
     if(Fd == -1)
         goto lblErr;
     CurProcessId = LqProcessId();
-    if((WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
-        goto lblErr;
-    Written = _BlocketWriteInPipe(Fd, WaitEvent, &CurProcessId, sizeof(CurProcessId));
-    LqFileClose(WaitEvent);
+    Written = LqFileWriteBlocked(Fd, &CurProcessId, sizeof(CurProcessId));
     if(Written == -1)
         goto lblErr;
 #else
@@ -302,30 +265,26 @@ LQ_EXTERN_C int LQ_CALL LqFdIpcSend(LqFdIpc* FdIpc, int Fd, const void* Attached
     int Res = -1;
 #ifdef LQPLATFORM_WINDOWS
     int NewPid;
-    int WaitEvent = -1;
     HANDLE TargetHandle;
     int TargetHandle2;
     HANDLE DestProcessHandle = NULL;
 
     _FdIpcLock(FdIpc);
-    if((WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
-        goto lblOut;
-
     if(!(FdIpc->Flags & LQFDIPC_FLAG_PID_SENDED)) {
         NewPid = LqProcessId();
-        if(_BlocketWriteInPipe(FdIpc->Evnt.Fd, WaitEvent, &NewPid, sizeof(NewPid)) < (intptr_t)sizeof(NewPid))
+        if(LqFileWriteBlocked(FdIpc->Evnt.Fd, &NewPid, sizeof(NewPid)) < (intptr_t)sizeof(NewPid))
             goto lblOut;
         FdIpc->Flags |= LQFDIPC_FLAG_PID_SENDED;
     }
     if(FdIpc->Pid == -1) {
-        if(_BlocketReadFromPipe(FdIpc->Evnt.Fd, WaitEvent, &NewPid, sizeof(NewPid)) < (intptr_t)sizeof(NewPid))
+        if(LqFileReadBlocked(FdIpc->Evnt.Fd, &NewPid, sizeof(NewPid)) < (intptr_t)sizeof(NewPid))
             goto lblOut;
         FdIpc->Pid = NewPid;
     }
     if((DestProcessHandle = OpenProcess(PROCESS_DUP_HANDLE, FALSE, FdIpc->Pid)) == NULL)
         goto lblOut;
 
-    if(_BlocketWriteInPipe(FdIpc->Evnt.Fd, WaitEvent, "fd", 2) < 2)
+    if(LqFileWriteBlocked(FdIpc->Evnt.Fd, "fd", 2) < 2)
         goto lblOut;
     if(Fd != -1) {
         if(DuplicateHandle(GetCurrentProcess(), (HANDLE)Fd, DestProcessHandle, &TargetHandle, DUPLICATE_SAME_ACCESS, FALSE, DUPLICATE_SAME_ACCESS) == FALSE)
@@ -334,24 +293,22 @@ LQ_EXTERN_C int LQ_CALL LqFdIpcSend(LqFdIpc* FdIpc, int Fd, const void* Attached
     } else {
         TargetHandle2 = -1;
     }
-    if(_BlocketWriteInPipe(FdIpc->Evnt.Fd, WaitEvent, &TargetHandle2, sizeof(TargetHandle2)) < sizeof(TargetHandle2))
+    if(LqFileWriteBlocked(FdIpc->Evnt.Fd,  &TargetHandle2, sizeof(TargetHandle2)) < sizeof(TargetHandle2))
         goto lblOut;
 
     TargetHandle2 = (AttachedBuffer == NULL) ? 0 : SizeBuffer;
 
-    if(_BlocketWriteInPipe(FdIpc->Evnt.Fd, WaitEvent, &TargetHandle2, sizeof(TargetHandle2)) < sizeof(TargetHandle2))
+    if(LqFileWriteBlocked(FdIpc->Evnt.Fd, &TargetHandle2, sizeof(TargetHandle2)) < sizeof(TargetHandle2))
         goto lblOut;
 
     if(SizeBuffer > 0) {
-        if(_BlocketWriteInPipe(FdIpc->Evnt.Fd, WaitEvent, AttachedBuffer, SizeBuffer) < SizeBuffer)
+        if(LqFileWriteBlocked(FdIpc->Evnt.Fd,  AttachedBuffer, SizeBuffer) < SizeBuffer)
             goto lblOut;
     }
 
     Res = SizeBuffer;
 lblOut:
     _FdIpcUnlock(FdIpc);
-    if(WaitEvent != -1)
-        LqFileClose(WaitEvent);
     if(DestProcessHandle != NULL)
         CloseHandle(DestProcessHandle);
     return Res;
@@ -445,37 +402,34 @@ LQ_EXTERN_C int LQ_CALL LqFdIpcRecive(LqFdIpc* FdIpc, int* Fd, void** AttachedBu
     int Res = -1;
     void* GlobBuffer = NULL;
 #ifdef LQPLATFORM_WINDOWS
-    int WaitEvent = -1;
     int SourceHandle2;
     char Buff[16];
     int NewPid;
 
     _FdIpcLock(FdIpc);
-    if((WaitEvent = LqEventCreate(LQ_O_NOINHERIT)) == -1)
-        goto lblOut;
 
     if(!(FdIpc->Flags & LQFDIPC_FLAG_PID_SENDED)) {
         NewPid = LqProcessId();
-        if(_BlocketWriteInPipe(FdIpc->Evnt.Fd, WaitEvent, &NewPid, sizeof(NewPid)) < (intptr_t)sizeof(NewPid))
+        if(LqFileWriteBlocked(FdIpc->Evnt.Fd, &NewPid, sizeof(NewPid)) < (intptr_t)sizeof(NewPid))
             goto lblOut;
         FdIpc->Flags |= LQFDIPC_FLAG_PID_SENDED;
     }
     if(FdIpc->Pid == -1) {
-        if(_BlocketReadFromPipe(FdIpc->Evnt.Fd, WaitEvent, &NewPid, sizeof(NewPid)) < (intptr_t)sizeof(NewPid))
+        if(LqFileReadBlocked(FdIpc->Evnt.Fd, &NewPid, sizeof(NewPid)) < (intptr_t)sizeof(NewPid))
             goto lblOut;
         FdIpc->Pid = NewPid;
     }
 
-    if((_BlocketReadFromPipe(FdIpc->Evnt.Fd, WaitEvent, Buff, 2) < 2) || (Buff[0] != 'f') || (Buff[1] != 'd'))
+    if((LqFileReadBlocked(FdIpc->Evnt.Fd, Buff, 2) < 2) || (Buff[0] != 'f') || (Buff[1] != 'd'))
         goto lblOut;
-    if(_BlocketReadFromPipe(FdIpc->Evnt.Fd, WaitEvent, &SourceHandle2, sizeof(SourceHandle2)) < sizeof(SourceHandle2))
+    if(LqFileReadBlocked(FdIpc->Evnt.Fd, &SourceHandle2, sizeof(SourceHandle2)) < sizeof(SourceHandle2))
         goto lblOut;
     *Fd = SourceHandle2;
-    if(_BlocketReadFromPipe(FdIpc->Evnt.Fd, WaitEvent, &SourceHandle2, sizeof(SourceHandle2)) < sizeof(SourceHandle2))
+    if(LqFileReadBlocked(FdIpc->Evnt.Fd, &SourceHandle2, sizeof(SourceHandle2)) < sizeof(SourceHandle2))
         goto lblOut;
     if(SourceHandle2 > 0) {
         GlobBuffer = malloc(SourceHandle2);
-        if(_BlocketReadFromPipe(FdIpc->Evnt.Fd, WaitEvent, GlobBuffer, SourceHandle2) < SourceHandle2)
+        if(LqFileReadBlocked(FdIpc->Evnt.Fd, GlobBuffer, SourceHandle2) < SourceHandle2)
             goto lblOut;
 		if(AttachedBuffer != NULL)
 			*AttachedBuffer = GlobBuffer;
@@ -486,8 +440,6 @@ LQ_EXTERN_C int LQ_CALL LqFdIpcRecive(LqFdIpc* FdIpc, int* Fd, void** AttachedBu
     Res = SourceHandle2;
 lblOut:
     _FdIpcUnlock(FdIpc);
-    if(WaitEvent != -1)
-        LqFileClose(WaitEvent);
     if(GlobBuffer != NULL)
         free(GlobBuffer);
     return Res;
