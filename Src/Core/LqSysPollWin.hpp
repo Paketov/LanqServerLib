@@ -199,7 +199,7 @@ bool LqSysPollInit(LqSysPoll* Dest) {
     LqArr2Init(&Dest->ConnArr);
     LqArr3Init(&Dest->EvntArr);
 
-    Dest->EventObjectIndex = INTPTR_MAX;
+    Dest->EventObjectIndex = LQ_NUMERIC_MAX(intptr_t);
     Dest->ConnIndex = -((intptr_t)1);
     Dest->CommonCount = 0;
     Dest->WinHandle = (uintptr_t)-((intptr_t)1);
@@ -571,7 +571,7 @@ LqEvntFlag __LqEvntEnumEventNext(LqSysPoll* Events) {
                     return r;
             }
         }
-        Events->EventObjectIndex = INTPTR_MAX;
+        Events->EventObjectIndex = LQ_NUMERIC_MAX(intptr_t);
     }
     while(PeekMessage(&Msg, (HWND)Events->WinHandle, WM_USER, WM_USER + 0xffff, PM_REMOVE) == TRUE) {
         ConnIndex = Msg.message - WM_USER;
@@ -597,7 +597,7 @@ LqEvntFlag __LqEvntEnumEventNext(LqSysPoll* Events) {
             return r;
         }
     }
-    Events->ConnIndex = INTPTR_MAX;
+    Events->ConnIndex = LQ_NUMERIC_MAX(intptr_t);
     return 0;
 }
 void LqSysPollRemoveCurrent(LqSysPoll* Events) {
@@ -846,7 +846,7 @@ int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime) {
                     Events->EventObjectIndex = ((intptr_t)Index) - ((intptr_t)1) + StartIndex;
                     return 1;
                 }
-                Events->EventObjectIndex = INTPTR_MAX;
+                Events->EventObjectIndex = LQ_NUMERIC_MAX(intptr_t);
                 if(Index == Count)
                     return 1;
                 /* Have Error */
@@ -854,7 +854,7 @@ int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime) {
             }
             if((LqTimeGetLocMillisec() - StartTime) >= WaitTime) {
                 /* Is timeout */
-                Events->EventObjectIndex = INTPTR_MAX;
+                Events->EventObjectIndex = LQ_NUMERIC_MAX(intptr_t);
                 return 0;
             }
             StartIndex += Count;
@@ -876,7 +876,7 @@ int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime) {
         return 1;
     }
     if(Stat == STATUS_TIMEOUT) {
-        Events->EventObjectIndex = INTPTR_MAX;
+        Events->EventObjectIndex = LQ_NUMERIC_MAX(intptr_t);
         return 0;
     }
     Index = ((intptr_t)Stat) - ((intptr_t)STATUS_WAIT_0);
@@ -884,7 +884,7 @@ int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime) {
         Events->EventObjectIndex = Index - ((intptr_t)1);
         return 1;
     }
-    Events->EventObjectIndex = INTPTR_MAX;
+    Events->EventObjectIndex = LQ_NUMERIC_MAX(intptr_t);
     if(Index == Events->EvntArr.Count)
         return 1;
     /* When have error */

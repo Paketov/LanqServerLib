@@ -347,8 +347,8 @@ bool LqSysPollInit(LqSysPoll* Events) {
     LqArr2Init(&Events->IocpArr);
     LqArr3Init(&Events->EvntArr);
 
-    Events->EventObjectIndex = INTPTR_MAX;
-    Events->ConnIndex = INTPTR_MAX;
+    Events->EventObjectIndex = LQ_NUMERIC_MAX(intptr_t);
+    Events->ConnIndex = LQ_NUMERIC_MAX(intptr_t);
     Events->CommonCount = 0;
     Events->IsHaveOnlyHup = (uintptr_t)0;
     Events->EnumCalledCount = (intptr_t)0;
@@ -477,7 +477,7 @@ static void SockProcessAsyncSelect(LqSysPoll* Events, const intptr_t Index) {
     Context->AsyncSelectSerialNumber = Conn->_AsyncSelectSerialNumber;
     if(Conn->_AsyncPollEvents == 0) {
         Context->SocketInfo = NULL;
-        Context->Index = INTPTR_MAX;
+        Context->Index = LQ_NUMERIC_MAX(intptr_t);
     }
     status = NtDeviceIoControlFile(
         Events->AfdAsyncHandle,
@@ -785,7 +785,7 @@ LqEvntFlag __LqEvntEnumEventNext(LqSysPoll* Events) {
                     return r;
             }
         }
-        Events->EventObjectIndex = INTPTR_MAX;
+        Events->EventObjectIndex = LQ_NUMERIC_MAX(intptr_t);
     }
 
     if(Events->EnumCalledCount < ((intptr_t)70)) {/* To prevent an infinite loop */
@@ -840,7 +840,7 @@ lblProcessBlock:
             }
         }
     }
-    Events->ConnIndex = INTPTR_MAX;
+    Events->ConnIndex = LQ_NUMERIC_MAX(intptr_t);
     return 0;
 }
 
@@ -1206,8 +1206,8 @@ static int WaitEvents(LqSysPoll* Events, LqTimeMillisec WaitTime) {
 int LqSysPollCheck(LqSysPoll* Events, LqTimeMillisec WaitTime) {
     int Stat;
     Events->EnumCalledCount = 0;
-    Events->ConnIndex = INTPTR_MAX;
-    Events->EventObjectIndex = INTPTR_MAX;
+    Events->ConnIndex = LQ_NUMERIC_MAX(intptr_t);
+    Events->EventObjectIndex = LQ_NUMERIC_MAX(intptr_t);
     if(Events->PollBlock != NULL)
         return -2;
     if((Events->IsHaveOnlyHup == ((uintptr_t)1)) && (WaitTime > ((LqTimeMillisec)LQ_WINEVNT_WAIT_WHEN_HAVE_ONLY_HUP_OBJ)))

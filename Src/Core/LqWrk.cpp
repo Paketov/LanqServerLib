@@ -800,7 +800,7 @@ void LqWrk::ParseInputCommands() {
                                                 RmHdrs[RmHdrsSize] = Evnt;
                                                 RmHdrsSize++;
                                             } else {
-                                                Min = INTPTR_MAX;
+                                                Min = LQ_NUMERIC_MAX(intptr_t);
                                                 Index = -((intptr_t)1);
                                                 for(intptr_t k = 0; k < Count; k++) {
                                                     if(k == i)
@@ -824,7 +824,7 @@ void LqWrk::ParseInputCommands() {
                                             RmHdrs[RmHdrsSize] = Evnt;
                                             RmHdrsSize++;
                                         } else {
-                                            Min = INTPTR_MAX;
+                                            Min = LQ_NUMERIC_MAX(intptr_t);
                                             Index = -((intptr_t)1);
                                             for(intptr_t k = 0; k < Count; k++) {
                                                 if(k == i)

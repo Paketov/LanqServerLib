@@ -1512,7 +1512,7 @@ LQ_EXTERN_C LqFileSz LQ_CALL LqFbuf_transfer(LqFbuf* Dest, LqFbuf* Source, LqFil
     Source->Flags &= ~(LQFBUF_READ_ERROR | LQFBUF_READ_WOULD_BLOCK | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_EOF);
 
     if(Source->Flags & LQFBUF_POINTER) {
-        for(bool __r = LqSbufReadRegionPtrFirst(&Source->BufPtr, &RegionPtr, lq_min(Size, ((LqFileSz)INTPTR_MAX))); __r; __r = LqSbufReadRegionPtrNext(&RegionPtr)) {
+        for(bool __r = LqSbufReadRegionPtrFirst(&Source->BufPtr, &RegionPtr, lq_min(Size, ((LqFileSz)LQ_NUMERIC_MAX(intptr_t)))); __r; __r = LqSbufReadRegionPtrNext(&RegionPtr)) {
             RegionPtr.Written = _LqFbuf_write(Dest, RegionPtr.Source, RegionPtr.SourceLen);
             RegionPtr.Fin = Dest->Flags & (LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK);
         }
@@ -1522,7 +1522,7 @@ LQ_EXTERN_C LqFileSz LQ_CALL LqFbuf_transfer(LqFbuf* Dest, LqFbuf* Source, LqFil
     } else {
         Size2 = Size;
 lblWrite:
-        for(bool __r = LqSbufReadRegionFirst(&Source->InBuf, &RegionR, lq_min(Size,  ((LqFileSz)INTPTR_MAX))); __r; __r = LqSbufReadRegionNext(&RegionR)) {
+        for(bool __r = LqSbufReadRegionFirst(&Source->InBuf, &RegionR, lq_min(Size,  ((LqFileSz)LQ_NUMERIC_MAX(intptr_t)))); __r; __r = LqSbufReadRegionNext(&RegionR)) {
             RegionR.Written = _LqFbuf_write(Dest, RegionR.Source, RegionR.SourceLen);
             RegionR.Fin = Dest->Flags & (LQFBUF_WRITE_ERROR | LQFBUF_WRITE_WOULD_BLOCK | LQFBUF_READ_WOULD_BLOCK);
         }
@@ -1598,7 +1598,7 @@ static intptr_t LqFbuf_transfer_by_ptr(LqFbuf* Dest, LqSbufPtr* SbufPtr, LqFileS
     LqSbufPtr SavedBufPtr;
     LastSeq = (char*)Seq;
     intptr_t sz;
-    for(bool __r = LqSbufReadRegionPtrFirst(SbufPtr, &RegionPtr, ((intptr_t)lq_min(Size, ((LqFileSz)INTPTR_MAX)))); __r; __r = LqSbufReadRegionPtrNext(&RegionPtr)) {
+    for(bool __r = LqSbufReadRegionPtrFirst(SbufPtr, &RegionPtr, ((intptr_t)lq_min(Size, ((LqFileSz)LQ_NUMERIC_MAX(intptr_t))))); __r; __r = LqSbufReadRegionPtrNext(&RegionPtr)) {
         ss = (char*)RegionPtr.Source;
         MaxReg = ss + RegionPtr.SourceLen;
         ms = MaxReg - SeqSize + ((size_t)1);
@@ -2370,7 +2370,7 @@ static inline void LqFbuf_RestoreState(LqFbuf_state* Dest, LqFbuf_state* Source)
 #define ReadPortionBegin(ProcName, Args, ...) \
 static intptr_t ProcName(LqFbuf_state* State, char* Dst, intptr_t DstLen, ##__VA_ARGS__ ){\
     bool Fin = false, Eof, SavedEof, WithoutCopy = Dst == NULL, __r, t = true; \
-    char* Dest = Dst, *MaxDest = (DstLen == -((intptr_t)1))?((char*)INTPTR_MAX): (Dst + DstLen), *Source, *SavedSource; Args;\
+    char* Dest = Dst, *MaxDest = (DstLen == -((intptr_t)1))?((char*)LQ_NUMERIC_MAX(intptr_t)): (Dst + DstLen), *Source, *SavedSource; Args;\
     LqSbufPtr SavedPtr;\
     LqSbufReadRegionPtr Region, _SavedReg;\
     LqSbufWriteRegion RegionW;\

@@ -345,5 +345,5 @@ LQ_EXTERN_C LqTimeMillisec LQ_CALL LqTimeGet(short* TimeZone) {
 
 
 LQ_EXTERN_C LqTimeMillisec LQ_CALL LqTimeGetMaxMillisec() {
-    return (LqTimeMillisec)LLONG_MAX;
+    return LQ_NUMERIC_MAX(LqTimeMillisec);
 }
