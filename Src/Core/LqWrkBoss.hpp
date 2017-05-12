@@ -76,7 +76,7 @@ public:
     size_t      StartAllWorkersSync() const;
     size_t      StartAllWorkersAsync() const;
 
-    bool        KickWorker(ullong IdWorker, bool IsTransferAllEvnt = true);
+    bool        KickWorker(unsigned long long IdWorker, bool IsTransferAllEvnt = true);
     size_t      KickWorkers(uintptr_t Count, bool IsTransferAllEvnt = true);
 
     bool        CloseAllClientsAsync() const;

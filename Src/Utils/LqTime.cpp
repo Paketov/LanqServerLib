@@ -107,13 +107,13 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToLocTm(const char* Str, struct tm* Result) {
     n += t;
     OutTm.tm_year -= 1900;
     OutTm.tm_mon = OutTm.tm_wday = -1;
-    for(uint i = 0; i < (sizeof(LqTimeWeeks) / sizeof(LqTimeWeeks[0])); i++)
+    for(unsigned i = 0; i < (sizeof(LqTimeWeeks) / sizeof(LqTimeWeeks[0])); i++)
         if(*(uint32_t*)WeekBuf == *(uint32_t*)(LqTimeWeeks[i])) {
             OutTm.tm_wday = i;
             break;
         }
     if(OutTm.tm_wday == -1) return -1;
-    for(uint i = 0; i < (sizeof(LqTimeMonths) / sizeof(LqTimeMonths[0])); i++)
+    for(unsigned i = 0; i < (sizeof(LqTimeMonths) / sizeof(LqTimeMonths[0])); i++)
         if(*(uint32_t*)MonthBuf == *(uint32_t*)(LqTimeMonths[i])) {
             OutTm.tm_mon = i;
             break;
@@ -167,13 +167,13 @@ LQ_EXTERN_C int LQ_CALL LqTimeStrToGmtTm(const char * Str, struct tm* Result) {
             return -1;
     OutTm.tm_year -= 1900;
     OutTm.tm_mon = OutTm.tm_wday = -1;
-    for(uint i = 0; i < (sizeof(LqTimeWeeks) / sizeof(LqTimeWeeks[0])); i++)
+    for(unsigned i = 0; i < (sizeof(LqTimeWeeks) / sizeof(LqTimeWeeks[0])); i++)
         if(*(uint32_t*)WeekBuf == *(uint32_t*)(LqTimeWeeks[i])) {
             OutTm.tm_wday = i;
             break;
         }
     if(OutTm.tm_wday == -1) return -1;
-    for(uint i = 0; i < (sizeof(LqTimeMonths) / sizeof(LqTimeMonths[0])); i++)
+    for(unsigned i = 0; i < (sizeof(LqTimeMonths) / sizeof(LqTimeMonths[0])); i++)
         if(*(uint32_t*)MonthBuf == *(uint32_t*)(LqTimeMonths[i])) {
             OutTm.tm_mon = i;
             break;

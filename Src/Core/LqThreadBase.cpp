@@ -169,7 +169,7 @@ bool LqThreadBase::SetPriority(LqThreadPriorEnm New) {
     return Res;
 }
 
-ullong LqThreadBase::GetAffinity() const {
+uint64_t LqThreadBase::GetAffinity() const {
     return AffinMask;
 }
 
@@ -181,7 +181,7 @@ uintptr_t LqThreadBase::NativeHandle() const {
 #endif
 }
 
-bool LqThreadBase::SetAffinity(ullong Mask) {
+bool LqThreadBase::SetAffinity(uint64_t Mask) {
     bool Res = true;
     StartThreadLocker.LockWrite();
     if(AffinMask != Mask) {
@@ -432,7 +432,7 @@ LqString LqThreadBase::DebugInfo() const {
         "Is work: %c\n"
         "Priority: %s\n"
         "Affinity mask: 0x%016llx\n",
-        (ullong)ThreadId(),
+        (unsigned long long)ThreadId(),
         (char)((IsThreadRunning()) ? '1' : '0'),
         Prior,
         AffinMask

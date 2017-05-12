@@ -73,13 +73,13 @@ LQ_EXTERN_C bool LQ_CALL LqStrCharUtf16IsAlpha(uint32_t r) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqStrUtf8Count(char ch) {
-    if((uchar)ch <= 0x7f)
+    if((unsigned char)ch <= 0x7f)
         return 1;
-    else if((uchar)ch <= 0xbf)
+    else if((unsigned char)ch <= 0xbf)
         return -1;
-    else if((uchar)ch <= 0xdf)
+    else if((unsigned char)ch <= 0xdf)
         return 2;
-    else if((uchar)ch <= 0xef)
+    else if((unsigned char)ch <= 0xef)
         return 3;
     else
         return 4;
@@ -89,17 +89,17 @@ LQ_EXTERN_C int LQ_CALL LqStrUtf8StringCount(const char* Utf8String) {
     auto l = LqStrLen(Utf8String);
     int r = 0;
     for(auto c = Utf8String, m = c + l; c < m; c++) {
-        if((uchar)*c <= 0x7f) {
+        if((unsigned char)*c <= 0x7f) {
             r++;
             c++;
-        } else if((uchar)*c <= 0xbf) {
+        } else if((unsigned char)*c <= 0xbf) {
             r++;
             c++;
             //return -1;
-        } else if((uchar)*c <= 0xdf) {
+        } else if((unsigned char)*c <= 0xdf) {
             r++;
             c += 2;
-        } else if((uchar)*c <= 0xef) {
+        } else if((unsigned char)*c <= 0xef) {
             r++;
             c += 3;
         } else {
@@ -341,7 +341,7 @@ LQ_EXTERN_C uint32_t LQ_CALL LqStrUtf8ToLowerChar(const char** Source, int Sourc
     if(SourceSize < 0)
         m = (const char*)-1;
     auto i = *Source;
-    if((uchar)*i < 128) {
+    if((unsigned char)*i < 128) {
         (*Source)++;
         return (*i >= 'A' && *i <= 'Z') ? (*i | 0x20) : *i;
     }

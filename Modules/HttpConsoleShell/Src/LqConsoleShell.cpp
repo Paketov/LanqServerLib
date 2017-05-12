@@ -70,26 +70,26 @@ typename std::enable_if<std::is_same<TypeNumber, int>::value, bool>::type ReadNu
 }
 
 template<typename TypeNumber>
-typename std::enable_if<std::is_same<TypeNumber, uint>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
+typename std::enable_if<std::is_same<TypeNumber, unsigned>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
     int n = -1; LqFbuf_snscanf(Source.c_str(), Source.length(), "%u%n", Dest, &n);
     if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 template<typename TypeNumber>
-typename std::enable_if<std::is_same<TypeNumber, ulong>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
+typename std::enable_if<std::is_same<TypeNumber, unsigned long>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
     int n = -1; LqFbuf_snscanf(Source.c_str(), Source.length(), "%lu%n", Dest, &n);
     if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 
 template<typename TypeNumber>
-typename std::enable_if<std::is_same<TypeNumber, llong>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
+typename std::enable_if<std::is_same<TypeNumber, long long>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
     int n = -1; LqFbuf_snscanf(Source.c_str(), Source.length(), "%lli%n", Dest, &n);
     if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
 
 template<typename TypeNumber>
-typename std::enable_if<std::is_same<TypeNumber, ullong>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
+typename std::enable_if<std::is_same<TypeNumber, unsigned long long>::value, bool>::type ReadNumber(LqString& Source, TypeNumber* Dest) {
     int n = -1; LqFbuf_snscanf(Source.c_str(), Source.length(), "%llu%n", Dest, &n);
     if(n != -1) { Source.erase(0, n); while((Source[0] == ' ') || ((Source[0] == '\t')))Source.erase(0, 1); return true; }return false;
 }
@@ -424,7 +424,7 @@ lblAgain:
             LQSTR_CASE("addwrk") {
                 int Count = 0;
                 if(LqFbuf_snscanf(CommandData.c_str(), CommandData.length(), "%i", &Count) < 1) {
-                    LqFbuf_printf(OutFile, " %llu\n", (ullong)LqWrkBossCountWrk());
+                    LqFbuf_printf(OutFile, " %zu\n", LqWrkBossCountWrk());
                     break;
                 }
                 if(Count < 0)
@@ -517,7 +517,7 @@ lblAgain:
                 }
                 if(ModuleName[0] == '#') {
                     ModuleName.erase(0, 1);
-                    ullong v = 0;
+                    unsigned long long v = 0;
                     LqFbuf_snscanf(ModuleName.data(), ModuleName.length(), "%llx", &v);
                     if(LqHttpMdlFreeByHandle(Http, (uintptr_t)v) >= 1) {
                         LqFbuf_printf(OutFile, " OK\n");
@@ -545,7 +545,7 @@ lblAgain:
                     break;
                 }
                 for(uintptr_t h = 0; LqHttpMdlEnm(Http, &h, Buf, sizeof(Buf), &IsFree) >= 0;)
-                    LqFbuf_printf(OutFile, " #%llx (%s) %s\n", (ullong)h, Buf, (IsFree) ? "released" : "");
+                    LqFbuf_printf(OutFile, " #%rx (%s) %s\n", h, Buf, (IsFree) ? "released" : "");
             }
             break;
             LQSTR_CASE("mdlcmd") {
@@ -563,7 +563,7 @@ lblAgain:
                 CommandData = "?" + CommandData;
                 if(ModuleName[0] == '#') {
                     ModuleName.erase(0, 1);
-                    ullong v = 0;
+                    unsigned long long v = 0;
                     LqFbuf_snscanf(ModuleName.data(), ModuleName.length(), "%llx", &v);
 
                     if(LqHttpMdlSendCommandByHandle(Http, (uintptr_t)v, CommandData.c_str(), OutFile) >= 0)

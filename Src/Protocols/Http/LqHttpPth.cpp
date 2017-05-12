@@ -886,7 +886,7 @@ static LqHttpPthPtr LqHttpPthGetFileByDir(LqHttpConn* HttpConn, int CountSubDirs
 	return NewPth;
 }
 
-static LqHttpPthPtr LqHttpPthGetFileRedirectionByDirRedirection(LqHttpConn* HttpConn, uint CountSubDirs) {
+static LqHttpPthPtr LqHttpPthGetFileRedirectionByDirRedirection(LqHttpConn* HttpConn, int CountSubDirs) {
 	LqHttpConnData* HttpConnData;
 	LqHttpRcvHdrs* Query;
 	LqHttpPth* Pth;

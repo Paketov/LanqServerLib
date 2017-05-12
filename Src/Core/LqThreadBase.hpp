@@ -59,8 +59,8 @@ public:
     bool SetPriority(LqThreadPriorEnm New);
     LqThreadPriorEnm GetPriority() const;
 
-    ullong GetAffinity() const;
-    bool SetAffinity(ullong Mask);
+	uint64_t GetAffinity() const;
+    bool SetAffinity(uint64_t Mask);
 
     void WaitEnd() const;
 

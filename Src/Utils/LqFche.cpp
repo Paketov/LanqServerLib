@@ -275,7 +275,7 @@ static bool _LqFcheUpdateStat(LqFche* Cache, __LqCachedFile* Cached, LqTimeMilli
     return false;
 }
 
-static bool _LqFcheClearPlaceForFirstInUncached(LqFche* Cache, ullong CurTime) {
+static bool _LqFcheClearPlaceForFirstInUncached(LqFche* Cache, LqTimeMillisec CurTime) {
     __LqCachedFile *c, *i, *t;
     intptr_t CommonDelSize = Cache->MaxSizeBuff - Cache->CurSize;
     __LqCachedFile * CachFile = Cache->CachedListEnd->Prev;

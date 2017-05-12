@@ -451,7 +451,7 @@ void LqWrk::AcceptAllEventFromQueue() {
         LqClientHdr* Hdr = Command.Val<LqClientHdr*>();
         Command.Pop<LqClientHdr*>();
         CountConnectionsInQueue--;
-        LqLogInfo("LqWrk::AddEvnt()#%llu event {%i, %llx} recived\n", Id, Hdr->Fd, (ullong)Hdr->Flag);
+        LqLogInfo("LqWrk::AddEvnt()#%llu event {%i, %llx} recived\n", Id, Hdr->Fd, (unsigned long long)Hdr->Flag);
     }
 }
 
@@ -536,7 +536,7 @@ void LqWrk::ParseInputCommands() {
                     RmHdrs[RmHdrsSize] = Hdr;
                     RmHdrsSize++;
                 } else {
-                    LqLogInfo("LqWrk::AddEvnt()#%llu event {%i, %llx} recived\n", Id, Hdr->Fd, (ullong)Hdr->Flag);
+                    LqLogInfo("LqWrk::AddEvnt()#%llu event {%i, %llx} recived\n", Id, Hdr->Fd, (unsigned long long)Hdr->Flag);
                     LqSysPollAddHdr(&EventChecker, Hdr);
                 }
             } while(Command);
@@ -1591,9 +1591,9 @@ LqString LqWrk::DebugInfo() const {
         Id,
         LqTimeLocSecToStlStr(TimeStart / 1000).c_str(),
         LqTimeDiffMillisecToStlStr(TimeStart, CurrentTimeMillisec).c_str(),
-        (uint)ccip,
-        (uint)cciq,
-        (uint)(ccip + cciq)
+        (unsigned)ccip,
+        (unsigned)cciq,
+        (unsigned)(ccip + cciq)
     );
     return Buf;
 }
@@ -1605,7 +1605,6 @@ LqString LqWrk::AllDebugInfo() {
         "--------------\n Thread info\n" +
         LqThreadBase::DebugInfo() +
         "--------------\n";
-    ullong CurTime = LqTimeGetLocMillisec();
     int k = 0;
     LqWrkEnumEvntDo(this, i) {
         auto Conn = LqSysPollGetHdrByInterator(&EventChecker, &i);

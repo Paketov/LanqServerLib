@@ -29,7 +29,7 @@ class LqWrkBoss;
 LQ_IMPORTEXPORT void LQ_CALL LqWrkDelete(LqWrk* This);
 
 typedef LqShdPtr<LqWrk, LqWrkDelete, false, false> LqWrkPtr;
-static llong __LqWrkInitEmpty();
+static long long __LqWrkInitEmpty();
 
 #pragma pack(push)
 #pragma pack(LQSTRUCT_ALIGN_FAST)

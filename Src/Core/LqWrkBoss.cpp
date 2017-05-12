@@ -123,7 +123,7 @@ size_t LqWrkBoss::CountClients() const {
 }
 
 size_t LqWrkBoss::MinBusy(const WrkArray::interator& AllWrks, size_t* MinCount) {
-    size_t Min = std::numeric_limits<size_t>::max(), Index = 0;
+    size_t Min = SIZE_MAX, Index = 0;
     bool IsAllSame = true;
     size_t i = 0, m = AllWrks.size();
     for(; i < m; i++) {
@@ -142,7 +142,7 @@ size_t LqWrkBoss::MinBusy(const WrkArray::interator& AllWrks, size_t* MinCount) 
 }
 
 size_t LqWrkBoss::MaxBusy(const WrkArray::interator& AllWrks, size_t* MaxCount) {
-    size_t Max = std::numeric_limits<size_t>::max(), Index = 0;
+    size_t Max = SIZE_MAX, Index = 0;
     bool IsAllSame = true;
     size_t i = 0, m = AllWrks.size();
     for(; i < m; i++) {
@@ -179,7 +179,7 @@ size_t LqWrkBoss::StartAllWorkersAsync() const {
     return Ret;
 }
 
-bool LqWrkBoss::KickWorker(ullong IdWorker, bool IsTransferAllEvnt) {
+bool LqWrkBoss::KickWorker(unsigned long long IdWorker, bool IsTransferAllEvnt) {
     /*Lock operation remove from array*/
     const LqWrkPtr* Arr;
     intptr_t ArrCount;
