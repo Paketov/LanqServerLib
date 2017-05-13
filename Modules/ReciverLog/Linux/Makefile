@@ -17,7 +17,7 @@ CFLAGS              := -O3
 endif
 
 CFLAGS              := $(CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive -fno-stack-protector
-LDFLAGS             := -shared -L../../../Linux -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive
+LDFLAGS             := -shared -L../../../Linux -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive -fno-stack-protector
 LDLIBS              := -llanq
 
 PROGRAM             := liblqrcvlog.so

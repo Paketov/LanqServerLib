@@ -15,8 +15,8 @@ else
 CFLAGS                  := -O3
 endif
 
-CFLAGS                  := $(CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive
-LDFLAGS                 := -rdynamic -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -L../../../Linux -fpermissive
+CFLAGS                  := $(CFLAGS) -w -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive -fno-stack-protector
+LDFLAGS                 := -rdynamic -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -L../../../Linux -fpermissive -fno-stack-protector
 LDLIBS                  := -llanq
 
 PROGRAM                 := lanq

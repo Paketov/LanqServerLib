@@ -15,8 +15,8 @@ else
 CFLAGS := -O3
 endif
 
-CFLAGS              := $(CFLAGS) -w -DLANQBUILD -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive
-LDFLAGS             := -shared -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive
+CFLAGS              := $(CFLAGS) -w -DLANQBUILD -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive  -fno-stack-protector
+LDFLAGS             := -shared -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive -fno-stack-protector
 
 LDLIBS              := -lpthread -ldl -lrt
 PROGRAM             := liblanq.so
