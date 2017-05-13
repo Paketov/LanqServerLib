@@ -550,10 +550,8 @@ public:
             inline operator int() const {
 				LqConnAddr Addr = {0};
 				LqHttpConnGetRemoteIp(Conn, &Addr);
-				if(Addr.Addr.sa_family == AF_INET)
-					return ntohs(Addr.AddrInet.sin_port);
-				if(Addr.Addr.sa_family == AF_INET6)
-					return ntohs(Addr.AddrInet6.sin6_port);
+				if(Addr.Addr.sa_family == AF_INET) return ntohs(Addr.AddrInet.sin_port);
+				if(Addr.Addr.sa_family == AF_INET6) return ntohs(Addr.AddrInet6.sin6_port);
 				return 0;
 			}
             inline operator LqString() const { return LqToString(operator int()); }
@@ -580,12 +578,9 @@ public:
                     LqHttpConnDataStore(Conn, UniquePointer, NewVal);
                     return v;
                 }
-                inline bool Delete() const {
-                    return LqHttpConnDataUnstore(Conn, UniquePointer) != -1;
-                }
+                inline bool Delete() const { return LqHttpConnDataUnstore(Conn, UniquePointer) != -1; }
             };
             ___Interator operator[] (void* UniquePointer) { return ___Interator(Conn, UniquePointer); }
-
         } UserData;
 
         class _Row {
@@ -648,7 +643,10 @@ public:
 	inline LqHttpConnInterface& operator<<(const char* Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%s", Src); return *this; }
 	inline LqHttpConnInterface& operator<<(LqString& Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%s", Src.c_str()); return *this; }
 	inline LqHttpConnInterface& operator<<(int Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%i", Src); return *this; }
+	inline LqHttpConnInterface& operator<<(long Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%li", Src); return *this; }
+	inline LqHttpConnInterface& operator<<(unsigned long Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%lu", Src); return *this; }
 	inline LqHttpConnInterface& operator<<(long long Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%lli", Src); return *this; }
+	inline LqHttpConnInterface& operator<<(unsigned long long Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%llu", Src); return *this; }
 	inline LqHttpConnInterface& operator<<(long double Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%llg", Src); return *this; }
 	inline LqHttpConnInterface& operator<<(float Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%g", Src); return *this; }
 	inline LqHttpConnInterface& operator<<(bool Src) { LqHttpConnRspPrintf(Rcv.Domen.Conn, "%s", Src? "true": "false"); return *this; }

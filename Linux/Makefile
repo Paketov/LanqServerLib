@@ -9,16 +9,23 @@ CURRENT_DIR         := $(shell pwd)
 CC                  := g++ $(COMPILE_FLAGS)
 rwildcard           = $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
 
+CFLAGS              :=
+LDLIBS              :=
 ifdef DEBUG
-CFLAGS := -O0 -g
+CFLAGS 				:= -O0 -g
 else
-CFLAGS := -O3
+CFLAGS 				:= -O3
+endif
+
+ifdef HAVE_SSL
+LDLIBS              := $(LDLIBS) -lssl -lcrypt
+CFLAGS              := $(CFLAGS) -IHAVE_OPENSSL
 endif
 
 CFLAGS              := $(CFLAGS) -w -DLANQBUILD -std=c++0x -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive  -fno-stack-protector
 LDFLAGS             := -shared -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -fpermissive -fno-stack-protector
 
-LDLIBS              := -lpthread -ldl -lrt
+LDLIBS              := $(LDLIBS) -lpthread -ldl -lrt
 PROGRAM             := liblanq.so
 SOURCE_DIR          := ../Src
 INCLUDE_DIRS        := ../Src
