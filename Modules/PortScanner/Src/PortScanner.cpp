@@ -27,6 +27,9 @@
 #include <vector>
 #include <thread>
 #include <stack>
+#if !defined(LQPLATFORM_WINDOWS)
+# include <signal.h>
+#endif
 
 LqFbuf StdIn;
 LqFbuf StdOut;
