@@ -3,11 +3,12 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-*   LqIpRow - .
+*   LqIpRaw - .
 */
 
 #include "LqOs.h"
 #include "LqPtdArr.hpp"
+#include "LqSbuf.h"
 
 
 #pragma pack(push)

@@ -21,7 +21,7 @@
 #include "LqPtdArr.hpp"
 #include "LqLib.h"
 #include "LqZmbClr.h"
-#include "LqIpRow.hpp"
+#include "LqIpRaw.hpp"
 
 #include "LqTime.hpp"
 #define __METHOD_DECLS__

@@ -83,7 +83,7 @@
     <ClInclude Include="..\Src\Utils\LqFche.h" />
     <ClInclude Include="..\Src\Utils\LqFile.h" />
     <ClInclude Include="..\Src\Utils\LqFileTrd.h" />
-    <ClInclude Include="..\Src\Utils\LqIpRow.hpp" />
+    <ClInclude Include="..\Src\Utils\LqIpRaw.hpp" />
     <ClInclude Include="..\Src\Utils\LqTbl.hpp" />
     <ClInclude Include="..\Src\Utils\LqHndls.hpp" />
     <ClInclude Include="..\Src\Utils\LqLib.h" />

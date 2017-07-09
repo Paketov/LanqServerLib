@@ -218,9 +218,6 @@
     <ClInclude Include="..\Src\Utils\LqTbl.hpp">
       <Filter>Utils</Filter>
     </ClInclude>
-    <ClInclude Include="..\Src\Utils\LqIpRow.hpp">
-      <Filter>Utils</Filter>
-    </ClInclude>
     <ClInclude Include="..\Src\Utils\LqFche.h">
       <Filter>Utils</Filter>
     </ClInclude>
@@ -250,6 +247,9 @@
     </ClInclude>
     <ClInclude Include="..\Src\Core\LqSysPollWinIocp.hpp">
       <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Src\Utils\LqIpRaw.hpp">
+      <Filter>Utils</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
