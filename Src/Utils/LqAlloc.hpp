@@ -32,66 +32,65 @@
 #pragma pack(LQSTRUCT_ALIGN_MEM)
 
 
-class LqFastAlloc {
-    template<size_t SizeElem>
-    struct Fields {
-        void*                   StartElement;
-        size_t                  Count;
-        size_t                  SizeList;
-        mutable LqLocker<uintptr_t> Locker;
+template<size_t SizeElem>
+struct __LqFastAllocHelper {
+    void*                   StartElement;
+    size_t                  Count;
+    size_t                  SizeList;
+    mutable LqLocker<uintptr_t> Locker;
 
-        Fields(): StartElement(nullptr), SizeList(128), Count(0) {}
-        ~Fields() { for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next) Next = *(void**)Ptr, LqMemFree(Ptr); }
+    __LqFastAllocHelper(): StartElement(nullptr), SizeList(128), Count(0) {}
+    ~__LqFastAllocHelper() { for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next) Next = *(void**)Ptr, LqMemFree(Ptr); }
 
-        void* Alloc() {
-            Locker.LockWrite();
-            if(StartElement != nullptr) {
-                void* Ret = StartElement;
-                StartElement = *(void**)Ret;
-                Count--;
-                Locker.UnlockWrite();
-                return Ret;
-            } else {
-                Locker.UnlockWrite();
-                return LqMemAlloc(SizeElem);
-            }
+    void* Alloc() {
+        Locker.LockWrite();
+        if(StartElement != nullptr) {
+            void* Ret = StartElement;
+            StartElement = *(void**)Ret;
+            Count--;
+            Locker.UnlockWrite();
+            return Ret;
+        } else {
+            Locker.UnlockWrite();
+            return LqMemAlloc(SizeElem);
         }
-        void Free(void* Data) {
-            Locker.LockWrite();
-            if(Count >= SizeList) {
-                Locker.UnlockWrite();
-                LqMemFree(Data);
-            } else {
-                *(void**)Data = StartElement;
-                StartElement = Data;
-                Count++;
-                Locker.UnlockWrite();
-            }
-        }
-        void ClearList() {
-            Locker.LockWrite();
-            for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next)
-                Next = *(void**)Ptr, LqMemFree(Ptr);
-            Count = 0;
+    }
+    void Free(void* Data) {
+        Locker.LockWrite();
+        if(Count >= SizeList) {
+            Locker.UnlockWrite();
+            LqMemFree(Data);
+        } else {
+            *(void**)Data = StartElement;
+            StartElement = Data;
+            Count++;
             Locker.UnlockWrite();
         }
-        inline void SetMaxCount(size_t NewVal) { SizeList = NewVal; }
-    };
+    }
+    void ClearList() {
+        Locker.LockWrite();
+        for(void* Ptr = StartElement, *Next; Ptr != nullptr; Ptr = Next)
+            Next = *(void**)Ptr, LqMemFree(Ptr);
+        Count = 0;
+        Locker.UnlockWrite();
+    }
+    inline void SetMaxCount(size_t NewVal) { SizeList = NewVal; }
+};
 
+template<size_t SizeElem>
+struct __LqFastAllocHelper2 {
+    static __LqFastAllocHelper<SizeElem> Elem;
+};
+
+class LqFastAlloc {
     template<typename Type, size_t Size>
     struct StructSize { Type v[Size]; };
-
-    template<size_t Len>
-    struct VAL_TYPE_: Fields<((Len < sizeof(void*)) ? sizeof(void*) : Len)> {};
-
-    template<class T>
-    struct VAL_TYPE: VAL_TYPE_<sizeof(T)> {};
-
-    template<typename TYPE, TYPE Val, typename ASSOC_TYPE>
-    struct assoc_val { static ASSOC_TYPE value; };
 public:
     template<typename Type, typename... _Args>
-    inline static Type* New(_Args&&... _Ax);
+    inline static typename std::enable_if<!std::is_pod<Type>::value || (sizeof...(_Args) > 0), Type*>::type New(_Args&&... _Ax);
+
+    template<typename Type, typename... _Args>
+    inline static typename std::enable_if<std::is_pod<Type>::value && (sizeof...(_Args) == 0), Type*>::type New(_Args&&... _Ax);
 
     template<typename Type>
     static Type* ReallocCount(Type* Prev, size_t PrevCount, size_t NewCount);
@@ -100,7 +99,10 @@ public:
     Delete memory region with adding in stack regions. Late, this region takes from stack.
     */
     template<typename Type>
-    inline static typename std::enable_if<!std::is_same<Type, void>::value>::type Delete(Type* Val);
+    inline static typename std::enable_if<!std::is_same<Type, void>::value && !std::is_pod<Type>::value>::type Delete(Type* Val);
+
+    template<typename Type>
+    inline static typename std::enable_if<!std::is_same<Type, void>::value && std::is_pod<Type>::value>::type Delete(Type* Val);
 
     /*
     Delete memory region without adding in stack.
@@ -119,9 +121,7 @@ public:
 
     template<typename Type>
     inline static size_t GetMaxCount();
-
 };
-
 #pragma pack(pop)
 
 #endif
@@ -130,8 +130,13 @@ public:
 #define __LQ_ALLOC_H_2_
 
 template<typename Type, typename... _Args>
-inline Type* LqFastAlloc::New(_Args&&... _Ax) {
-    return new(assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.Alloc()) Type(_Ax...);
+inline typename std::enable_if<!std::is_pod<Type>::value || (sizeof...(_Args) > 0), Type*>::type LqFastAlloc::New(_Args&&... _Ax) {
+    return new(__LqFastAllocHelper2<(sizeof(Type) > sizeof(void*))? sizeof(Type): sizeof(void*)>::Elem.Alloc()) Type(_Ax...);
+}
+
+template<typename Type, typename... _Args>
+inline typename std::enable_if<std::is_pod<Type>::value && (sizeof...(_Args) == 0), Type*>::type LqFastAlloc::New(_Args&&... _Ax) {
+    return (Type*)__LqFastAllocHelper2<(sizeof(Type) > sizeof(void*)) ? sizeof(Type) : sizeof(void*)>::Elem.Alloc();
 }
 
 template<typename Type>
@@ -172,29 +177,33 @@ static Type* LqFastAlloc::ReallocCount(Type* Prev, size_t PrevCount, size_t NewC
 Delete memory region with adding in stack regions. Late, this region takes from stack.
 */
 template<typename Type>
-inline typename std::enable_if<!std::is_same<Type, void>::value>::type LqFastAlloc::Delete(Type* Val) {
+inline typename std::enable_if<!std::is_same<Type, void>::value && !std::is_pod<Type>::value>::type LqFastAlloc::Delete(Type* Val) {
     Val->~Type();
-    assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.Free(Val);
+    __LqFastAllocHelper2<(sizeof(Type) > sizeof(void*)) ? sizeof(Type) : sizeof(void*)>::Elem.Free(Val);
 }
 
+template<typename Type>
+inline typename std::enable_if<!std::is_same<Type, void>::value && std::is_pod<Type>::value>::type LqFastAlloc::Delete(Type* Val) {
+    __LqFastAllocHelper2<(sizeof(Type) > sizeof(void*)) ? sizeof(Type) : sizeof(void*)>::Elem.Free(Val);
+}
 
 template<typename Type>
 inline void LqFastAlloc::Clear() {
-    assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.ClearList();
+    __LqFastAllocHelper2<(sizeof(Type) > sizeof(void*)) ? sizeof(Type) : sizeof(void*)>::Elem.ClearList();
 }
 
 template<typename Type>
 inline void LqFastAlloc::SetMaxCount(size_t NewSize) {
-    assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.SetMaxCount(NewSize);
+    __LqFastAllocHelper2<(sizeof(Type) > sizeof(void*)) ? sizeof(Type) : sizeof(void*)>::Elem.SetMaxCount(NewSize);
 }
 
 template<typename Type>
 inline size_t LqFastAlloc::GetMaxCount() {
-    return assoc_val<size_t, sizeof(Type), VAL_TYPE<Type>>::value.SizeList;
+    return __LqFastAllocHelper2<(sizeof(Type) > sizeof(void*)) ? sizeof(Type) : sizeof(void*)>::Elem.SizeList;
 }
 
-template<typename TYPE, TYPE Val, typename ASSOC_TYPE>
-ASSOC_TYPE LqFastAlloc::assoc_val<TYPE, Val, ASSOC_TYPE>::value;
+template<size_t SizeElem>
+__LqFastAllocHelper<SizeElem> __LqFastAllocHelper2<SizeElem>::Elem;
 
 #endif
 

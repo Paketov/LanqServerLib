@@ -365,11 +365,12 @@ static LqFbufCookie _SslCookie = {
 
 static RspElementFbuf* _LqSockBufGetLastWriteStream(LqSockBuf* SockBuf) {
     RspElementFbuf* NewStream;
-    if((SockBuf->Rsp.Last == NULL) ||
-        (((RspElementHdr*)SockBuf->Rsp.Last)->Flag != LQRSP_FLAG_BUF) ||
+    if(
+	   (SockBuf->Rsp.Last == NULL) ||
+       (((RspElementHdr*)SockBuf->Rsp.Last)->Flag != LQRSP_FLAG_BUF) ||
        !(((RspElementFbuf*)SockBuf->Rsp.Last)->Buf.Flags & LQFBUF_STREAM) ||
        ((SockBuf->RspHeader != NULL) && (SockBuf->Rsp.Last == SockBuf->RspHeader))
-       ) {
+    ) {
         if((NewStream = LqFastAlloc::New<RspElementFbuf>()) == NULL)
             return NULL;
         NewStream->Flag = LQRSP_FLAG_BUF;

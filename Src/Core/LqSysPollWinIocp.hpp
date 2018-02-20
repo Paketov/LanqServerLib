@@ -811,7 +811,7 @@ lblProcessBlock:
                     ((Conn = IocpAt(Events, PollBlock->Index)) == NULL) ||
                     (Conn != PollBlock->SocketInfo) ||
                     (Conn->_AsyncSelectSerialNumber != PollBlock->AsyncSelectSerialNumber)
-                    ) {
+                ) {
                     LqFastAlloc::Delete(PollBlock);
                     continue;
                 }

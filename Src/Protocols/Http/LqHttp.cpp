@@ -458,7 +458,7 @@ static void LQ_CALL _LqHttpAcceptProc(LqSockAcceptor* Acceptor) {
         LqFastAlloc::Delete(HttpConnData);
         return;
     }
-    memset(HttpConnData, 0, sizeof(HttpConnData));
+    memset(HttpConnData, 0, sizeof(LqHttpConnData));
     SockBuf->CloseHandler = _LqHttpConnCloseHandler;
     SockBuf->ErrHandler = _LqHttpConnErrHandler;
 
