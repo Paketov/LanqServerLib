@@ -2,7 +2,7 @@
 * Lanq(Lan Quick)
 * Solodov A. N. (hotSAN)
 * 2016
-*   LqFileTrd... - (Lanq File Transaction) Implements transactions for correct saving file in os fs.
+*   LqFche... - (Lanq File Cache) Implements file cache, saves frequertly used files in RAM.
 */
 
 

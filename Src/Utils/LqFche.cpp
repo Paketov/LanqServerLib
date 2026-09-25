@@ -1,3 +1,10 @@
+/*
+* Lanq(Lan Quick)
+* Solodov A. N. (hotSAN)
+* 2016
+*   LqFche... - (Lanq File Cache) Implements file cache, saves frequertly used files in RAM.
+*/
+
 
 #include "LqFche.h"
 #include "LqAlloc.hpp"
