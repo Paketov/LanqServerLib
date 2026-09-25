@@ -866,6 +866,121 @@ LQ_EXTERN_C int LQ_CALL LqSharedClose(int shmid) {
 * Process
 */
 
+static WCHAR* quote_cmd_arg(const WCHAR *source, WCHAR *target, int target_size) {
+	int len = wcslen(source);
+	WCHAR* max_target = target + target_size - 1;
+	int i;
+	int last_source;
+	int quote_hit;
+	WCHAR* start;
+
+	if (target_size < 1)
+		return target;
+	if (target_size == 1)
+		goto lbl_out;
+	if (len == 0) {
+		/* Need double quotation for empty argument */
+		*(target++) = L'"';
+		if (target >= max_target)
+			goto lbl_out;
+		*(target++) = L'"';
+		goto lbl_out;
+	}
+
+	if (NULL == wcspbrk(source, L" \t\"")) {
+		/* No quotation needed */
+		len = (len < (target_size - 1)) ? len : (target_size - 1);
+		wcsncpy(target, source, len);
+		target += len;
+		goto lbl_out;
+	}
+
+	if (NULL == wcspbrk(source, L"\"\\")) {
+		/*
+		* No embedded double quotes or backlashes, so I can just wrap
+		* quote marks around the whole thing.
+		*/
+		*(target++) = L'"';
+		if (target >= max_target)
+			goto lbl_out;
+		len = (len < (target_size - 2)) ? len : (target_size - 2);
+		wcsncpy(target, source, len);
+		target += len;
+		if (target >= max_target)
+			goto lbl_out;
+		*(target++) = L'"';
+		goto lbl_out;
+	}
+
+	/*
+	* Expected input/output:
+	*   input : hello"world
+	*   output: "hello\"world"
+	*   input : hello""world
+	*   output: "hello\"\"world"
+	*   input : hello\world
+	*   output: hello\world
+	*   input : hello\\world
+	*   output: hello\\world
+	*   input : hello\"world
+	*   output: "hello\\\"world"
+	*   input : hello\\"world
+	*   output: "hello\\\\\"world"
+	*   input : hello world\
+	*   output: "hello world\\"
+	*/
+
+	*(target++) = L'"';
+	if (target >= max_target)
+		goto lbl_out;
+
+	start = target;
+	quote_hit = 1;
+	last_source = len;
+	for (i = len; i > 0; i--) {
+		*(target++) = source[i - 1];
+		if (target >= max_target) {
+			quote_hit = 1;
+			last_source--;
+			i = last_source;
+			target = start;
+			continue;
+		}
+		if (quote_hit && source[i - 1] == L'\\') {
+			*(target++) = L'\\';
+			if (target >= max_target) {
+				quote_hit = 1;
+				last_source--;
+				i = last_source;
+				target = start;
+				continue;
+			}
+		}
+		else if (source[i - 1] == L'"') {
+			quote_hit = 1;
+			*(target++) = L'\\';
+			if (target >= max_target) {
+				quote_hit = 1;
+				last_source--;
+				i = last_source;
+				target = start;
+				continue;
+			}
+		}
+		else {
+			quote_hit = 0;
+		}
+	}
+	*target = L'\0';
+	wcsrev(start);
+	if (target >= max_target)
+		goto lbl_out;
+	*(target++) = L'"';
+lbl_out:
+	*target = L'\0';
+	return target;
+}
+
 LQ_EXTERN_C int LQ_CALL LqProcessCreate
 (
     const char* FileName,
@@ -882,6 +997,7 @@ LQ_EXTERN_C int LQ_CALL LqProcessCreate
     PROCESS_INFORMATION processInfo = {0};
     LqString16 CommandLine, Environ;
     wchar_t Buf[LQ_MAX_PATH];
+	wchar_t Buf2[LQ_MAX_PATH];
 
     siStartInfo.hStdInput = (HANDLE)((StdIn == -1) ? LQ_STDIN : StdIn);
     siStartInfo.hStdError = (HANDLE)((StdErr == -1) ? LQ_STDERR : StdErr);
@@ -899,7 +1015,8 @@ LQ_EXTERN_C int LQ_CALL LqProcessCreate
         for(size_t i = 0; Argv[i] != NULL; i++) {
             CommandLine.append(1, L' ');
             LqCpConvertToWcs(Argv[i], Buf, LQ_MAX_PATH);
-            CommandLine.append(Buf);
+			quote_cmd_arg(Buf, Buf2, sizeof(Buf2) / sizeof(Buf2[0]));
+            CommandLine.append(Buf2);
         }
 
     if(Envp != NULL)
@@ -1056,15 +1173,14 @@ LQ_EXTERN_C int LQ_CALL LqFileEnmStart(LqFileEnm* Enm, const char* Dir, char* De
     l = _LqFileConvertNameToWcs(Dir, DirName, LQ_MAX_PATH - 4);
     if(l < 0)
         return -1;
-
-    if(DirName[l - 2] != L'*') {
-        if(DirName[l - 2] != L'\\') {
-            DirName[l - 1] = L'\\';
-            l++;
-        }
-        DirName[l - 1] = L'*';
-        DirName[l] = L'\0';
-    }
+	if ((l >= 2) && (DirName[l - 2] != L'*')) {
+		if (DirName[l - 2] != L'\\') {
+			DirName[l - 1] = L'\\';
+			l++;
+		}
+		DirName[l - 1] = L'*';
+		DirName[l] = L'\0';
+	}
     Hndl = FindFirstFileW(DirName, &Fdata);
     if(Hndl == INVALID_HANDLE_VALUE)
         return -1;
