@@ -86,28 +86,22 @@ LQ_EXTERN_C int LQ_CALL LqStrUtf8Count(char ch) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqStrUtf8StringCount(const char* Utf8String) {
-    auto l = LqStrLen(Utf8String);
-    int r = 0;
-    for(auto c = Utf8String, m = c + l; c < m; c++) {
-        if((unsigned char)*c <= 0x7f) {
-            r++;
-            c++;
-        } else if((unsigned char)*c <= 0xbf) {
-            r++;
-            c++;
-            //return -1;
-        } else if((unsigned char)*c <= 0xdf) {
-            r++;
-            c += 2;
-        } else if((unsigned char)*c <= 0xef) {
-            r++;
-            c += 3;
-        } else {
-            r++;
-            c += 4;
-        }
-    }
-    return r;
+	int l = 0; for (; Utf8String[l]; l++);
+	int r = 0;
+	for (auto c = Utf8String, m = c + l; c < m;) {
+		if ((unsigned char)*c <= 0x7f)
+			c++;
+		else if ((unsigned char)*c <= 0xbf)
+			c++;
+		else if ((unsigned char)*c <= 0xdf)
+			c += 2;
+		else if ((unsigned char)*c <= 0xef)
+			c += 3;
+		else
+			c += 4;
+		r++;
+	}
+	return r;
 }
 
 LQ_EXTERN_C int LQ_CALL LqStrUtf16Count(wchar_t ch) {
@@ -115,21 +109,19 @@ LQ_EXTERN_C int LQ_CALL LqStrUtf16Count(wchar_t ch) {
 }
 
 LQ_EXTERN_C int LQ_CALL LqStrUtf16StringCount(const wchar_t* Utf16String) {
-    int r = 0;
-    for(auto c = Utf16String; ;) {
-        if(((uint32_t)*c >= 0xd800) && ((uint32_t)*c <= 0xdbff)) {
-            r++;
-            c += 2;
-            if(c[1] == L'\0')
-                return r;
-        } else if(*c == L'\0') {
-            return r;
-        } else {
-            r++;
-            c++;
-        }
-    }
-    return r;
+	int r = 0;
+	for (auto c = Utf16String; ;) {
+		if (((uint32_t)*c >= 0xd800) && ((uint32_t)*c <= 0xdbff)) {
+			if (c[1] == L'\0')
+				break;
+			c += 2;
+		} else if (*c == L'\0')
+			break;
+		else
+			c++;
+		r++;
+	}
+	return r;
 }
 
 LQ_EXTERN_C char* LQ_CALL LqStrUtf8CharToStr(char* Dest, uint32_t ch) {
@@ -258,7 +250,7 @@ LQ_EXTERN_C char* LQ_CALL LqStrUtf16ToUtf8(char* Dest, uint32_t Source, size_t S
     return Dest;
 }
 
-LQ_EXTERN_CPP int LQ_CALL LqStrUtf8ToUtf16Stl(const char* lqautf8 SourceStr, LqString16& DestStr) {
+LQ_EXTERN_CPP int LQ_CALL LqStrUtf8ToUtf16Stl(const char* SourceStr, LqString16& DestStr) {
     const char* s = SourceStr;
     DestStr.clear();
     uint32_t CodePoint = 0;
@@ -298,42 +290,39 @@ LQ_EXTERN_CPP int LQ_CALL LqStrUtf8ToUtf16Stl(const char* lqautf8 SourceStr, LqS
     return r;
 }
 
-LQ_EXTERN_CPP int LQ_CALL LqStrUtf16ToUtf8Stl(const wchar_t* lqautf8 SourceStr, LqString& DestStr) {
-    const wchar_t* s = SourceStr;
-    unsigned int codepoint = 0;
-    int r = 0;
-    for(; *s != 0; ++s) {
-        if(*s >= 0xd800 && *s <= 0xdbff)
-            codepoint = ((*s - 0xd800) << 10) + 0x10000;
-        else {
-            if(*s >= 0xdc00 && *s <= 0xdfff)
-                codepoint |= *s - 0xdc00;
-            else
-                codepoint = *s;
+LQ_EXTERN_CPP int LQ_CALL LqStrUtf16ToUtf8Stl(const wchar_t* SourceStr, LqString& DestStr) {
+	const wchar_t* s = SourceStr;
+	unsigned int codepoint = 0;
+	int r = 0;
+	for (; *s != 0; ++s) {
+		if (*s >= 0xd800 && *s <= 0xdbff)
+			codepoint = ((*s - 0xd800) << 10) + 0x10000;
+		else {
+			if (*s >= 0xdc00 && *s <= 0xdfff)
+				codepoint |= *s - 0xdc00;
+			else
+				codepoint = *s;
 
-            if(codepoint <= 0x7f) {
-                DestStr.append(1, char(codepoint));
-                r++;
-            } else if(codepoint <= 0x7ff) {
-                DestStr.append(1, char(0xc0 | ((codepoint >> 6) & 0x1f)));
-                DestStr.append(1, char(0x80 | (codepoint & 0x3f)));
-                r++;
-            } else if(codepoint <= 0xffff) {
-                DestStr.append(1, char(0xe0 | ((codepoint >> 12) & 0x0f)));
-                DestStr.append(1, char(0x80 | ((codepoint >> 6) & 0x3f)));
-                DestStr.append(1, char(0x80 | (codepoint & 0x3f)));
-                r++;
-            } else {
-                DestStr.append(1, char(0xf0 | ((codepoint >> 18) & 0x07)));
-                DestStr.append(1, char(0x80 | ((codepoint >> 12) & 0x3f)));
-                DestStr.append(1, char(0x80 | ((codepoint >> 6) & 0x3f)));
-                DestStr.append(1, char(0x80 | (codepoint & 0x3f)));
-                r++;
-            }
-            codepoint = 0;
-        }
-    }
-    return r;
+			if (codepoint <= 0x7f) {
+				DestStr.append(1, char(codepoint));
+			} else if (codepoint <= 0x7ff) {
+				DestStr.append(1, char(0xc0 | ((codepoint >> 6) & 0x1f)));
+				DestStr.append(1, char(0x80 | (codepoint & 0x3f)));
+			} else if (codepoint <= 0xffff) {
+				DestStr.append(1, char(0xe0 | ((codepoint >> 12) & 0x0f)));
+				DestStr.append(1, char(0x80 | ((codepoint >> 6) & 0x3f)));
+				DestStr.append(1, char(0x80 | (codepoint & 0x3f)));
+			} else {
+				DestStr.append(1, char(0xf0 | ((codepoint >> 18) & 0x07)));
+				DestStr.append(1, char(0x80 | ((codepoint >> 12) & 0x3f)));
+				DestStr.append(1, char(0x80 | ((codepoint >> 6) & 0x3f)));
+				DestStr.append(1, char(0x80 | (codepoint & 0x3f)));
+			}
+			r++;
+			codepoint = 0;
+		}
+	}
+	return r;
 }
 
 LQ_EXTERN_C uint32_t LQ_CALL LqStrUtf8ToLowerChar(const char** Source, int SourceSize) {
@@ -509,7 +498,7 @@ LQ_EXTERN_C char* LQ_CALL LqStrDuplicate(const char* SourceStr) {
     return r;
 }
 
-LQ_EXTERN_C char* LQ_CALL LqStrDuplicateMax(const char* lqain SourceStr, size_t Count) {
+LQ_EXTERN_C char* LQ_CALL LqStrDuplicateMax(const char* SourceStr, size_t Count) {
     const char *s = SourceStr, *m = s + Count;
     for(; (*s != '\0') && (s < m); s++);
     size_t l = (s - SourceStr) + 1;
