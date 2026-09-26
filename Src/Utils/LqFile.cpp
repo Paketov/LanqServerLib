@@ -1084,8 +1084,7 @@ LQ_EXTERN_C int LQ_CALL LqProcessCreate(
 
 	if (EventKill == NULL) {
 		CloseHandle(processInfo.hProcess);
-	}
-	else {
+	} else {
 		SetHandleInformation(processInfo.hProcess, HANDLE_FLAG_INHERIT, 1);
 		*EventKill = (int)processInfo.hProcess;
 	}
