@@ -981,81 +981,120 @@ lbl_out:
 	return target;
 }
 
-LQ_EXTERN_C int LQ_CALL LqProcessCreate
-(
-    const char* FileName,
-    char* const Argv[],
-    char* const Envp[],
-    const char* WorkingDir,
-    int StdIn,
-    int StdOut,
-    int StdErr,
-    int* EventKill,
-    bool IsOwnerGroup
-) {
-    STARTUPINFOW siStartInfo = {sizeof(STARTUPINFOW), 0};
-    PROCESS_INFORMATION processInfo = {0};
-    LqString16 CommandLine, Environ;
-    wchar_t Buf[LQ_MAX_PATH];
-	wchar_t Buf2[LQ_MAX_PATH];
 
-    siStartInfo.hStdInput = (HANDLE)((StdIn == -1) ? LQ_STDIN : StdIn);
-    siStartInfo.hStdError = (HANDLE)((StdErr == -1) ? LQ_STDERR : StdErr);
-    siStartInfo.hStdOutput = (HANDLE)((StdOut == -1) ? LQ_STDOUT : StdOut);
-    siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+LQ_EXTERN_C int LQ_CALL LqProcessCreate(
+	const char* FileName,
+	char* const Argv[],
+	char* const Envp[],
+	const char* WorkingDir,
+	int StdIn,
+	int StdOut,
+	int StdErr,
+	int* EventKill,
+	bool IsOwnerGroup
+	) {
+	STARTUPINFOW siStartInfo = { sizeof(STARTUPINFOW), 0 };
+	PROCESS_INFORMATION processInfo = { 0 };
+	wchar_t buf[LQ_MAX_PATH];
+	wchar_t command_line[LQ_MAX_PATH];
+	wchar_t enviroment[LQ_MAX_PATH];
+	wchar_t* written_pos;
+	int i, j;
 
-    LqCpConvertToWcs(FileName, Buf, LQ_MAX_PATH);
+	siStartInfo.hStdInput = (StdIn == -1) ? GetStdHandle(STD_INPUT_HANDLE) : (HANDLE)StdIn;
+	siStartInfo.hStdError = (StdErr == -1) ? GetStdHandle(STD_ERROR_HANDLE) : (HANDLE)StdErr;
+	siStartInfo.hStdOutput = (StdOut == -1) ? GetStdHandle(STD_OUTPUT_HANDLE) : (HANDLE)StdOut;
+	siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
 
-    if(Buf[0] != L'"')
-        CommandLine = L"\"";
-    CommandLine.append(Buf);
-    if(Buf[0] != L'"')
-        CommandLine.append(L"\"");
-    if(Argv != NULL)
-        for(size_t i = 0; Argv[i] != NULL; i++) {
-            CommandLine.append(1, L' ');
-            LqCpConvertToWcs(Argv[i], Buf, LQ_MAX_PATH);
-			quote_cmd_arg(Buf, Buf2, sizeof(Buf2) / sizeof(Buf2[0]));
-            CommandLine.append(Buf2);
-        }
 
-    if(Envp != NULL)
-        for(size_t i = 0; Envp[i] != NULL; i++) {
-            LqCpConvertToWcs(Envp[i], Buf, LQ_MAX_PATH);
-            Environ.append(Buf);
-            Environ.append(1, L'\0');
-        }
-    Environ.append(2, L'\0\0');
+	LqCpConvertToWcs(FileName, buf, sizeof(buf) / sizeof(buf[0]));
 
-    if(WorkingDir != NULL) {
-        LqCpConvertToWcs(WorkingDir, Buf, LQ_MAX_PATH);
-    }
+	if (buf[0] != L'\"') {
+		command_line[0] = L'\"';
+		command_line[1] = L'\0';
+		i = 1;
+	}
+	else {
+		command_line[0] = L'\0';
+		i = 0;
+	}
+	for (j = 0; ; i++, j++) {
+		if (i >= ((sizeof(command_line) / sizeof(command_line[0])) - 2))
+			goto lbl_err_no_mem;
+		command_line[i] = buf[j];
+		if (buf[j] == L'\0')
+			break;
+	}
+	command_line[(sizeof(command_line) / sizeof(command_line[0])) - 1] = L'\0';
+	if (buf[0] != L'\"') {
+		if (i >= ((sizeof(command_line) / sizeof(command_line[0])) - 2))
+			goto lbl_err_no_mem;
+		command_line[i++] = L'\"';
+		command_line[i] = L'\0';
+	}
+	if (Argv != NULL) {
+		/* https://daviddeley.com/autohotkey/parameters/parameters.htm */
+		for (j = 0; Argv[j] != NULL; j++) {
+			if (i >= ((sizeof(command_line) / sizeof(command_line[0])) - 1))
+				goto lbl_err_no_mem;
+			command_line[i++] = L' ';
+			LqCpConvertToWcs(Argv[j], buf, sizeof(buf) / sizeof(buf[0]));
+			written_pos = quote_cmd_arg(buf, command_line + i, (sizeof(command_line) / sizeof(command_line[0])) - i);
+			if (written_pos != NULL)
+				i = written_pos - command_line;
+		}
+		if (i >= (sizeof(command_line) / sizeof(command_line[0])))
+			goto lbl_err_no_mem;
+		command_line[i] = L'\0';
+	}
+	if (Envp != NULL) {
+		wchar_t*w = enviroment;
+		for (j = 0; Envp[j] != NULL; j++) {
+			LqCpConvertToWcs(Envp[j], buf, sizeof(buf) / sizeof(buf[0]));
+			wcsncpy(w, buf, (sizeof(enviroment) / sizeof(enviroment[0])) - (w - ((wchar_t*)enviroment)));
+			enviroment[(sizeof(enviroment) / sizeof(enviroment[0])) - 1] = L'\0';
+			w += (wcslen(w) + 1);
+			if ((w - ((wchar_t*)enviroment)) >= ((sizeof(enviroment) / sizeof(enviroment[0])) - 2))
+				goto lbl_err_no_mem;
+		}
+		w[0] = L'\0';
+		w[1] = L'\0';
+	}
 
-    if(CreateProcessW
-    (
-       NULL,
-       (LPWSTR)CommandLine.c_str(),
-       NULL,
-       NULL,
-       TRUE,
-       CREATE_UNICODE_ENVIRONMENT | (IsOwnerGroup ? CREATE_NEW_PROCESS_GROUP : 0),
-       (Envp != NULL) ? (LPVOID)Environ.c_str() : NULL,
-       (WorkingDir != NULL) ? Buf : NULL,
-       &siStartInfo,
-       &processInfo
-       ) == FALSE
-       ) {
-        return -1;
-    }
+	if (WorkingDir != NULL) {
+		LqCpConvertToWcs(WorkingDir, buf, (sizeof(buf) / sizeof(buf[0])) - 1);
+	}
 
-    if(EventKill == NULL) {
-        NtClose(processInfo.hProcess);
-    } else {
-        LqDescrSetInherit((int)processInfo.hProcess, 1);
-        *EventKill = (int)processInfo.hProcess;
-    }
-    NtClose(processInfo.hThread);
-    return processInfo.dwProcessId;
+	if (
+		CreateProcessW(
+			NULL,
+			(LPWSTR)command_line,
+			NULL,
+			NULL,
+			TRUE,
+			CREATE_UNICODE_ENVIRONMENT | (IsOwnerGroup ? CREATE_NEW_PROCESS_GROUP : 0),
+			(Envp != NULL) ? (LPVOID)enviroment : NULL,
+			(WorkingDir != NULL) ? buf : NULL,
+			&siStartInfo,
+			&processInfo
+			) == FALSE
+		) {
+		return -1;
+	}
+
+	if (EventKill == NULL) {
+		CloseHandle(processInfo.hProcess);
+	}
+	else {
+		SetHandleInformation(processInfo.hProcess, HANDLE_FLAG_INHERIT, 1);
+		*EventKill = (int)processInfo.hProcess;
+	}
+	CloseHandle(processInfo.hThread);
+	return processInfo.dwProcessId;
+
+lbl_err_no_mem:
+	lq_errno_set(ENOMEM);
+	return -1;
 }
 
 LQ_EXTERN_C int LQ_CALL LqProcessKill(int Pid) {
