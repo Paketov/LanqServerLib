@@ -329,7 +329,12 @@ bool LqThreadBase::StartThreadAsync() {
         }
 #else
     pthread_t threadID = 0;
-    int Err = pthread_create(&threadID, NULL, BeginThreadHelper, this);
+	pthread_attr_t attr;
+
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    int Err = pthread_create(&threadID, &attr, BeginThreadHelper, this);
+	pthread_attr_destroy(&attr);
     CurThreadId = threadID;
     if(Err != 0) {
 #endif
@@ -364,7 +369,12 @@ bool LqThreadBase::StartThreadSync() {
         }
 #else
     pthread_t threadID = 0;
-    int Err = pthread_create(&threadID, NULL, BeginThreadHelper, this);
+	pthread_attr_t attr;
+
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    int Err = pthread_create(&threadID, &attr, BeginThreadHelper, this);
+	pthread_attr_destroy(&attr);
     CurThreadId = threadID;
     if(Err != 0){
 #endif
