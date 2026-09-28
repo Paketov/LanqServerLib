@@ -374,6 +374,8 @@ LQ_EXTERN_C int LQ_CALL __LqStdInFileNo() {
 }
 
 LQ_EXTERN_C int LQ_CALL LqFileClose(int Fd) {
+	if (LqDescrIsSocket(Fd))
+		return (closesocket((SOCKET)Fd) == 0) ? 0 : -1;
     return (NtClose((HANDLE)Fd) == TRUE) ? 0 : -1;
 }
 
@@ -992,7 +994,7 @@ LQ_EXTERN_C int LQ_CALL LqProcessCreate(
 	int StdErr,
 	int* EventKill,
 	bool IsOwnerGroup
-	) {
+) {
 	STARTUPINFOW siStartInfo = { sizeof(STARTUPINFOW), 0 };
 	PROCESS_INFORMATION processInfo = { 0 };
 	wchar_t buf[LQ_MAX_PATH];
@@ -1013,8 +1015,7 @@ LQ_EXTERN_C int LQ_CALL LqProcessCreate(
 		command_line[0] = L'\"';
 		command_line[1] = L'\0';
 		i = 1;
-	}
-	else {
+	} else {
 		command_line[0] = L'\0';
 		i = 0;
 	}
@@ -3242,7 +3243,7 @@ LQ_EXTERN_C short LQ_CALL LqPollCheckSingle(int Fd, short Events, LqTimeMillisec
 }
 
 LQ_EXTERN_C bool LQ_CALL LqDescrIsSocket(int Fd) {
-    int val;
-    socklen_t len = sizeof(val);
-    return getsockopt(Fd, SOL_SOCKET, SO_ACCEPTCONN, (char*)&val, &len) != -1;
+	int val;
+	socklen_t len = sizeof(val);
+	return getsockopt((SOCKET)Fd, SOL_SOCKET, SO_REUSEADDR, (char*)&val, &len) != -1;
 }

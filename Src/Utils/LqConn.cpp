@@ -61,71 +61,78 @@ typedef struct LqConnSslInfo {
 
 LQ_EXTERN_C int LQ_CALL LqConnBind(
 	const char* Host,
-	const char* Port, 
-	int RouteProto, 
-	int SockType, 
-	int TransportProto, 
-	int MaxConnections, 
+	const char* Port,
+	int RouteProto,
+	int SockType,
+	int TransportProto,
+	int MaxConnections,
 	bool IsNonBlock
-) {
-    static const int True = 1;
-    int s;
-    addrinfo *Addrs = nullptr, HostInfo = {0};
-    HostInfo.ai_family = (RouteProto == -1) ? AF_INET : RouteProto;
-    HostInfo.ai_socktype = (SockType == -1) ? SOCK_STREAM : SockType; // SOCK_STREAM;
-    HostInfo.ai_flags = AI_PASSIVE;//AI_ALL;
-    HostInfo.ai_protocol = (TransportProto == -1) ? IPPROTO_TCP : TransportProto; // IPPROTO_TCP;
-    int res;
-    if((res = getaddrinfo(((Host != nullptr) && (*Host != '\0')) ? Host : (const char*)nullptr, Port, &HostInfo, &Addrs)) != 0) {
-        LqLogErr("LqConnBind() getaddrinfo(%s, %s, *, *) failed \"%s\" \n",
-            ((Host != nullptr) && (*Host != '\0')) ? Host : "NULL",
-                   Port,
-                   gai_strerror(res));
-        return -1;
-    }
+	) {
+	static const int True = 1;
+	static const int False = 0;
+	int s;
+	addrinfo *Addrs = nullptr, HostInfo = { 0 };
+	HostInfo.ai_family = (RouteProto == -1) ? AF_INET : RouteProto;
+	HostInfo.ai_socktype = (SockType == -1) ? SOCK_STREAM : SockType; // SOCK_STREAM;
+	HostInfo.ai_flags = AI_PASSIVE;//AI_ALL;
+	HostInfo.ai_protocol = (TransportProto == -1) ? IPPROTO_TCP : TransportProto; // IPPROTO_TCP;
+	int res;
+	if ((res = getaddrinfo(((Host != nullptr) && (*Host != '\0')) ? Host : (const char*)nullptr, Port, &HostInfo, &Addrs)) != 0) {
+		LqLogErr("LqConnBind() getaddrinfo(%s, %s, *, *) failed \"%s\" \n",
+			((Host != nullptr) && (*Host != '\0')) ? Host : "NULL",
+			Port,
+			gai_strerror(res));
+		return -1;
+	}
 
-    for(auto i = Addrs; i != nullptr; i = i->ai_next) {
-        if((s = socket(i->ai_family, i->ai_socktype, i->ai_protocol)) == -1)
-            continue;
-        LqDescrSetInherit(s, 0);
-        if(setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char*)&True, sizeof(True)) == -1) {
-            LqLogErr("LqConnBind() setsockopt(%i, SOL_SOCKET, SO_REUSEADDR, &1, sizeof(1)) failed \"%s\"\n", s, strerror(lq_errno));
-            continue;
-        }
-        if(IsNonBlock) {
-            if(LqConnSwitchNonBlock(s, 1)) {
-                LqLogErr("LqConnBind() LqConnSwitchNonBlock(%i, 1) failed \"%s\"\n", s, strerror(lq_errno));
-                continue;
-            }
-        }
-        if(i->ai_family == AF_INET6) {
-            if(setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&True, sizeof(True)) == -1) {
-                LqLogErr("LqConnBind() setsockopt(%i, IPPROTO_IPV6, IPV6_V6ONLY, &1, sizeof(1)) failed \"%s\"\n", s, strerror(lq_errno));
-                continue;
-            }
-        }
-        if(bind(s, i->ai_addr, i->ai_addrlen) == -1) {
-            LqLogErr("LqConnBind() bind(%i, *, %i) failed \"%s\"\n", s, (int)i->ai_addrlen, strerror(lq_errno));
-            closesocket(s);
-            s = -1;
-            continue;
-        }
-        if(listen(s, MaxConnections) == -1) {
-            LqLogErr("LqConnBind() listen(%s, %i) failed \"%s\"\n", s, MaxConnections, strerror(lq_errno));
-            closesocket(s);
-            s = -1;
-            continue;
-        }
-        break;
-    }
+	for (auto i = Addrs; i != nullptr; i = i->ai_next) {
+		if ((s = socket(i->ai_family, i->ai_socktype, i->ai_protocol)) == -1)
+			continue;
+		LqDescrSetInherit(s, 0);
+		if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char*)&True, sizeof(True)) == -1) {
+			LqLogErr("LqConnBind() setsockopt(%i, SOL_SOCKET, SO_REUSEADDR, &1, sizeof(1)) failed \"%s\"\n", s, strerror(lq_errno));
+			closesocket(s);
+			s = -1;
+			continue;
+		}
+		if (IsNonBlock) {
+			if (LqConnSwitchNonBlock(s, 1)) {
+				LqLogErr("LqConnBind() LqConnSwitchNonBlock(%i, 1) failed \"%s\"\n", s, strerror(lq_errno));
+				closesocket(s);
+				s = -1;
+				continue;
+			}
+		}
+		if (i->ai_family == AF_INET6) {
+			if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&False, sizeof(False)) == -1) {
+				LqLogErr("LqConnBind() setsockopt(%i, IPPROTO_IPV6, IPV6_V6ONLY, &0, sizeof(0)) failed \"%s\"\n", s, strerror(lq_errno));
+				closesocket(s);
+				s = -1;
+				continue;
+			}
+		}
+		if (bind(s, i->ai_addr, i->ai_addrlen) == -1) {
+			LqLogErr("LqConnBind() bind(%i, *, %i) failed \"%s\"\n", s, (int)i->ai_addrlen, strerror(lq_errno));
+			closesocket(s);
+			s = -1;
+			continue;
+		}
+		if (listen(s, MaxConnections) == -1) {
+			LqLogErr("LqConnBind() listen(%s, %i) failed \"%s\"\n", s, MaxConnections, strerror(lq_errno));
+			closesocket(s);
+			s = -1;
+			continue;
+		}
+		break;
+	}
 
-    if(Addrs != nullptr)
-        freeaddrinfo(Addrs);
-    if(s == -1) {
-        LqLogErr("LqConnBind() not binded to sock\n");
-        return -1;
-    }
-    return s;
+	if (Addrs != nullptr)
+		freeaddrinfo(Addrs);
+	if (s == -1) {
+		LqLogErr("LqConnBind() not binded to sock\n");
+		return -1;
+	}
+	return s;
 }
 
 LQ_EXTERN_C int LQ_CALL LqConnConnect(const char* Address, const char* Port, int RouteProto, int SockType, int TransportProto, void* IpPrtAddress, socklen_t* IpPrtAddressLen, bool IsNonBlock) {
