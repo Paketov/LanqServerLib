@@ -1345,11 +1345,16 @@ LQ_EXTERN_C int LQ_CALL LqPollCheck(LqPoll* Fds, size_t CountFds, LqTimeMillisec
     HANDLE* Handles;
     uint8_t* Types;
     LqTimeMillisec CurWaitTime, CurWaitTime2, WaitTime;
+	char Buf[10 * sizeof(HANDLE) + 10 * sizeof(uint8_t)];
+
     if(CountFds == 0) {
         Sleep(TimeoutMillisec);
         return 0;
     }
-    Handles = (HANDLE*)LqMemAlloc(CountFds * sizeof(HANDLE) + CountFds * sizeof(uint8_t));
+	if (CountFds < 10)
+		Handles = (HANDLE*)Buf;
+	else
+		Handles = (HANDLE*)LqMemAlloc(CountFds * sizeof(HANDLE) + CountFds * sizeof(uint8_t));
     Types = (uint8_t*)(Handles + CountFds);
     for(size_t i = 0; i < CountFds; i++) {
         Fds[i].revents = 0;
@@ -1358,12 +1363,13 @@ LQ_EXTERN_C int LQ_CALL LqPollCheck(LqPoll* Fds, size_t CountFds, LqTimeMillisec
             Handles[i] = CreateEventW(NULL, TRUE, FALSE, NULL);
             WSAEventSelect(Fds[i].fd, Handles[i], LqEvntSystemEventByConnFlag(Fds[i].events));
             WSAEnumNetworkEvents(Fds[i].fd, Handles[i], &NetEvnts);
-            if(NetEvnts.lNetworkEvents != 0) {
-                Fds[i].revents = LqConnFlagBySysEvent(NetEvnts.lNetworkEvents);
-                CountEvents++;
-                CloseHandle(Handles[i]);
-                Handles[i] = (HANDLE)Fds[i].fd;
-            }
+			Fds[i].revents = LqConnFlagBySysEvent(NetEvnts.lNetworkEvents);
+			if (Fds[i].revents != 0)
+				CountEvents++;
+			if (CountEvents > 0) {
+				CloseHandle(Handles[i]);
+				Handles[i] = (HANDLE)Fds[i].fd;
+			}
         } else if(LqDescrIsTerminal(Fds[i].fd)) {
             Types[i] = LQ_POLL_TYPE_TERMINAL;
             HavePipeOrTerminal = true;
@@ -1620,7 +1626,8 @@ lblOut:
         if((HANDLE)Fds[i].fd != Handles[i])
             CloseHandle(Handles[i]);
     }
-    LqMemFree(Handles);
+	if (Handles != (HANDLE*)Buf)
+		LqMemFree(Handles);
     return CountEvents;
 }
 
